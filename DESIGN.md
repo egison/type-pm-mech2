@@ -48,8 +48,8 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
-| M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher-root再帰を含む統合M4推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，成功時健全性，有限完全性，fuel単調性は実装済み．`matchFirst`はarmをsource順に試し，最初の非空な`matchAll`探索結果の先頭だけを使う．順序と重複branch，`timeout`／`stuck`を保存する．pattern function atom，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
+| M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher-root再帰を含む統合M4推論，一般のprivate bindingを持つpattern functionは未実装 |
+| M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，inline pattern-function展開後の評価，成功時健全性，有限完全性，fuel単調性は実装済み．`matchFirst`はarmをsource順に試し，最初の非空な`matchAll`探索結果の先頭だけを使う．順序と重複branch，`timeout`／`stuck`を保存する．一般pattern function atom，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -339,11 +339,15 @@ DESIGNの旧版ではpattern functionをM4の一覧に明記していなかっ�
 収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を
 仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
 
-実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`と各回帰を含む．残る予定moduleは
+実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`と各回帰を含む．
 `PatternFunctionDefinition.lean`では，独立したpattern本体の型付け，frozen interfaceとの引数数・結果dualの一致，
 runtime本体表との双方向対応を定義した．また，private binderを持たず埋込み引数を宣言順に一度ずつ使う
 inline実行可能断片を切り出した．`unit`と`pass`の正例，private binder，value式，重複・逆順引数の負例を
-検証済みである．一般のprivate bindingを隔離するruntime nodeは残る．残る予定moduleは
+検証済みである．`PatternFunctionExpansion.lean`はinline断片を最終source構文全体で展開し，value pattern，
+matcher clause，`matchAll`，`matchFirst`の内側まで再帰的に置き換える．未定義名，引数数の不一致，裸の
+引数参照，inline条件を満たさない本体は失敗する．`Runtime/PatternFunctionEvaluation.lean`は展開後の式を
+既存評価器へ渡し，成功時健全性，有限完全性，fuel単調性を証明する．`unit`と`pass`を実際のmatch siteで
+正確に評価する回帰も持つ．一般のprivate bindingを隔離するruntime nodeは残る．残る予定moduleは
 `MatchAllTyping.lean`，一般pattern function実行，`M4EgisonRegression.lean`である．M4完了時には
 論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
 検証する．

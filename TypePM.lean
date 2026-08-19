@@ -107,6 +107,8 @@ import TypePM.Source.FrozenSignature
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.PatternFunctionDefinition
 import TypePM.Source.M4PatternFunctionDefinitionRegression
+import TypePM.Source.PatternFunctionExpansion
+import TypePM.Source.M4PatternFunctionExpansionRegression
 import TypePM.Source.MatcherPattern
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoice
@@ -145,6 +147,8 @@ import TypePM.Runtime.EvaluationCompleteness
 import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
 import TypePM.Runtime.MatchFirstRegression
+import TypePM.Runtime.PatternFunctionEvaluation
+import TypePM.Runtime.PatternFunctionEvaluationRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch

@@ -23,6 +23,7 @@ import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4PatternFunctionDefinitionRegression
+import TypePM.Source.M4PatternFunctionExpansionRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Source.M4PatternTypingRegression
 import TypePM.Source.M4MatchFirstTypingRegression
@@ -46,6 +47,7 @@ import TypePM.Runtime.CombinedAtomReducerRegression
 import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
 import TypePM.Runtime.MatchFirstRegression
+import TypePM.Runtime.PatternFunctionEvaluationRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
@@ -291,6 +293,12 @@ every full build.
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_pass_exact
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.private_binder_not_inline_safe
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.duplicated_parameter_not_inline_safe
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unit_expands_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.pass_expands_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.complete_match_site_expands_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.matcher_and_matchFirst_expand_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unknown_function_rejected
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.private_binding_definition_rejected
 #print axioms TypePM.Source.PPat.holesInSourceOrder_nodup
 #print axioms TypePM.Source.PPat.captureSlots_nodup
 #print axioms TypePM.Source.PPat.hole_capture_slots_disjoint
@@ -468,6 +476,15 @@ every full build.
 #print axioms TypePM.Runtime.MatchFirstRegression.empty_runtime_arm_list_is_stuck
 #print axioms TypePM.Runtime.MatchFirstRegression.matching_timeout_propagates
 #print axioms TypePM.Runtime.MatchFirstRegression.selected_body_stuck_propagates
+#print axioms TypePM.Runtime.evalPatternFunctionsFuel_sound
+#print axioms TypePM.Runtime.EvalPatternFunctions.complete
+#print axioms TypePM.Runtime.evalPatternFunctionsFuel_ok_of_le
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_executes_exact
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_executes_exact
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_has_independent_derivation
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_has_independent_derivation
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unknown_definition_is_stuck
+#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.private_binding_definition_is_stuck
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
