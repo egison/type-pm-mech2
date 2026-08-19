@@ -450,7 +450,7 @@ inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡�
 | P1-L11 | `$x :: #x` | occurs checkによる無限型を検出し，宣言的に拒否する | M4 | partial：実際のpattern生成と`inferPattern = none`を確認済み．公開式の宣言的非導出は未接続 | `M4PatternTypingRegression.occurs_check_tail_rejected` |
 | P1-L12 | `#x :: $x :: _` | 左でまだ束縛されていない`x`を検出し，宣言的に拒否する | M4 | partial：左から右のcontextと`inferPattern = none`を確認済み．公開式の宣言的非導出は未接続 | `M4PatternTypingRegression.value_before_binder_rejected` |
 | P1-L13 | `something`でvariable patternと`cons` pattern | variable patternは受理して対象全体を返し，`cons`はcapability不足で拒否する | M4--M5 | partial：variable patternの`inferMatchAll`結果と関係的導出，cons要求が作る不可能なcapability等式を確認済み．実行と公開式の非導出は未接続 | `M4PatternTypingRegression.infer_variable_match_exact`，`something_cons_capability_rejected` |
-| P1-L14 | `matchAll 5 as something with #1` | 型が付き，正常な不一致として`[]`を返す | M4--M5 | not-started | `ValuePatternExecution.integer_mismatch_is_empty` |
+| P1-L14 | `matchAll 5 as something with #1` | 型が付き，正常な不一致として`[]`を返す | M4--M5 | partial：論文と同じ式を`evalFuel`で終端まで実行し，`stuck`ではなく空listを返すことをkernel proofで固定済み．統合M4型付けは未接続 | `Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck` |
 | P1-L15 | Bool対象とinteger matcher | matcher targetの`Integer`と対象の`Bool`が一致せず，宣言的に拒否する | M3--M4 | not-started | `MatcherDemand.matcher_target_mismatch_not_typable` |
 
 inventoryの状態は，次の規則で更新する．

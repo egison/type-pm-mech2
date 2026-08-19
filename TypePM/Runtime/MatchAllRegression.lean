@@ -23,6 +23,11 @@ def somethingVariable : Expr :=
 def somethingValueMismatch : Expr :=
   .matchAll (.lit 7) .something (.value (.lit 8)) (.lit 0)
 
+/-- Paper 1, P1-L14: `matchAll 5 as something with #1` is well formed at
+runtime and produces no result, rather than getting stuck. -/
+def paperIntegerValueMismatch : Expr :=
+  .matchAll (.lit 5) .something (.value (.lit 1)) (.lit 0)
+
 theorem something_variable_evaluates_body_under_binding :
     evalFuel 3 [] somethingVariable =
       .ok (Value.buildList [.int 7]) := by
@@ -30,6 +35,10 @@ theorem something_variable_evaluates_body_under_binding :
 
 theorem something_value_mismatch_is_empty_not_stuck :
     evalFuel 3 [] somethingValueMismatch = .ok Value.nilValue := by
+  rfl
+
+theorem paper_integer_value_mismatch_is_empty_not_stuck :
+    evalFuel 3 [] paperIntegerValueMismatch = .ok Value.nilValue := by
   rfl
 
 /-- A head-shaped clause returns two equal-position alternatives.  The later

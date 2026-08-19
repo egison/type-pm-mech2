@@ -428,6 +428,7 @@ every full build.
 #print axioms TypePM.Runtime.EvaluationRegression.identity_core_never_stuck
 #print axioms TypePM.Runtime.MatchAllRegression.something_variable_evaluates_body_under_binding
 #print axioms TypePM.Runtime.MatchAllRegression.something_value_mismatch_is_empty_not_stuck
+#print axioms TypePM.Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck
 #print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_head_preserves_duplicate_branches
 #print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all
 #print axioms TypePM.Runtime.MatchAllRegression.integrated_head_execution_has_finite_fuel
