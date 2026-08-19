@@ -1,5 +1,6 @@
 import TypePM.BlockOrderInvariance
 import TypePM.DeclarativeCoverage
+import TypePM.FreshAliasSequence
 import TypePM.Source.ElaborationRenaming
 import TypePM.Source.InterfaceClosureTransport
 
@@ -396,6 +397,42 @@ theorem fromLet_otherClosure_blockAccepts_of_noPending
       (renameGenerated rho body))
   · simpa [TypePM.Source.Generated.fromLet] using bodyNoPending
   · exact transported
+
+/-- General-pending acceptance transport once two representative-sensitive
+`letE` interfaces have been reduced to a common core by finite sequences of
+fresh ordinary-variable and capability-variable aliases.
+
+Unlike `fromLet_otherClosure_blockAccepts_of_noPending`, this endpoint handles
+arbitrary delayed checking obligations and preserves acceptance in both
+directions.  The certificate compares hard-equation solution sets on each
+side, so it also permits equation reordering, reversal, and redundant
+equations.  The remaining interface theorem needed by completeness is
+precisely the production of `interfaceDifference` from the two closure
+representatives. -/
+theorem fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
+    {valueGenerated : TypePM.Generated}
+    (rho : VariableRenaming)
+    (left : PrincipalBlockClosure valueGenerated)
+    (right : PrincipalBlockClosure (renameGenerated rho valueGenerated))
+    (context : Context) (body : TypePM.Generated)
+    (interfaceDifference : FreshAliasSequence.CommonCoreEquivalent
+      (TypePM.Source.Generated.fromLet
+        ((renameContext rho context).interfaceEquations
+          (renameClosure rho left).substitution)
+        (renameGenerated rho body))
+      (TypePM.Source.Generated.fromLet
+        ((renameContext rho context).interfaceEquations right.substitution)
+        (renameGenerated rho body))) :
+    TypePM.BlockAccepts
+        (TypePM.Source.Generated.fromLet
+          ((renameContext rho context).interfaceEquations
+            (renameClosure rho left).substitution)
+          (renameGenerated rho body)) ↔
+      TypePM.BlockAccepts
+        (TypePM.Source.Generated.fromLet
+          ((renameContext rho context).interfaceEquations right.substitution)
+          (renameGenerated rho body)) := by
+  exact interfaceDifference.blockAccepts_iff
 
 end ElaborationRenaming
 

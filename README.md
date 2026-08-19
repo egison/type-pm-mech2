@@ -60,20 +60,25 @@ full-cut境界で`infer = none`となることを検証済みである．この�
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
-生成済みblockの二種類の変数名変更，異なる主要block closureが作るcontext境界の受理保存，closureの有限な
+生成済みblockの二種類の変数名変更，異なる主要block closureが作るcontext境界等式を解く性質，closureの有限な
 自由変数対応から大域的な変数名変更を作る補題を用意した．hard制約列については，並びや等式の向きではなく
-同じ解集合を持つことによる輸送も検証した．別名等式とは，新しい補助変数を既存変数と等しいとする制約であり，
-保留checking要求がない場合にはこの別名等式を追加してもblock受理が変わらないことを検証済みである．
+同じ解集合を持つことによる輸送も検証した．別名等式とは，新しい補助変数を既存変数と等しいとする制約である．
+型変数とcapability変数のどちらについても，保留checking要求を含む一般のblockへ，そのblockに現れない
+補助変数の別名等式を追加または除去しても受理が変わらないことを検証済みである．さらに，左右が
+それぞれ有限個の別名等式と，hard制約の順序・向き・自明式だけの違いを経て同じ制約blockへ戻る場合の
+受理同値も証明済みである．
 
 これらを用いて，`letE`を含まないsource式について，宣言的`Typing`があれば公開`Source.infer`が成功する
 完全性，受理同値，受理可能性の決定可能性，公開推論結果の主要性，二つの主要型が有限な変数名変更だけ異なる
 ことを証明済みである．一般の`letE`については，関係的elaborationの受理可能な代表を実行可能elaborationの
 受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`まで還元している．この条件を無条件に証明するには，
-保留checking要求を持つ一般のblockに対する別名等式の除去・飽和（保留要求を通常の等式へ移しながら解く処理）
-の輸送が必要である．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で
-得られるという最終的な整合性が必要である．したがってM2全体は引き続き`partial`である．
+任意の吸収的な右辺closureの組から，この有限別名列と共通blockを自動的に構成し，各補助変数が本文の
+hard制約と保留checking要求に現れないことをsourceのfreshnessから導く定理が必要である．一般の
+主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で得られるという
+最終的な整合性が必要である．したがってM2全体は引き続き`partial`である．
 
 この基盤を実装するmoduleは`HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，
+`FreshAliasSaturation.lean`，`FreshAliasSequence.lean`，
 `Source/ElaborationTransport.lean`，`Source/ElaborationRenaming.lean`，
 `Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
 `Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，

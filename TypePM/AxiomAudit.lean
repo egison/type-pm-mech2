@@ -14,6 +14,8 @@ import TypePM.ContextInterfaceRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
+import TypePM.FreshAliasSaturation
+import TypePM.FreshAliasSequence
 import TypePM.Source.ElaborationTransport
 import TypePM.Source.ElaborationRenaming
 import TypePM.Source.InterfaceClosureTransport
@@ -89,6 +91,10 @@ every full build.
 #print axioms TypePM.BlockAccepts.iff_of_hardEquivalent
 #print axioms TypePM.FreshAliasElimination.blockAccepts_addTyAlias_iff_of_noPending
 #print axioms TypePM.FreshAliasElimination.blockAccepts_addCapAlias_iff_of_noPending
+#print axioms TypePM.FreshAliasSaturation.blockAccepts_addTyAlias_iff
+#print axioms TypePM.FreshAliasSaturation.blockAccepts_addCapAlias_iff
+#print axioms TypePM.FreshAliasSequence.CommonCoreEquivalent.blockAccepts_iff
+#print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff

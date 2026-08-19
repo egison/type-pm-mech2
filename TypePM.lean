@@ -51,6 +51,8 @@ import TypePM.GeneralizationTransport
 import TypePM.BlockClosureTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
+import TypePM.FreshAliasSaturation
+import TypePM.FreshAliasSequence
 import TypePM.Source.Syntax
 import TypePM.Source.Elaboration
 import TypePM.Source.ElaborationTransport
