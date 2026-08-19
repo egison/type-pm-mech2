@@ -1,3 +1,5 @@
+import TypePM.Names
+import TypePM.Primitive
 import TypePM.InferenceExactness
 import TypePM.Principality
 import TypePM.RenamingUniqueness
@@ -52,6 +54,10 @@ These commands make the trusted assumptions of selected public results visible i
 every full build.
 -/
 
+#print axioms TypePM.DataCtor.canonical_pairwise_distinct
+#print axioms TypePM.PatternCtor.canonical_pairwise_distinct
+#print axioms TypePM.NamesRegression.nil_spellings_agree
+#print axioms TypePM.PrimOp.all_pairwise_distinct
 #print axioms TypePM.Cap.apply_compose
 #print axioms TypePM.Ty.apply_compose
 #print axioms TypePM.Regression.pair_principal

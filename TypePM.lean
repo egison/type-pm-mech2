@@ -1,3 +1,5 @@
+import TypePM.Names
+import TypePM.Primitive
 import TypePM.Types
 import TypePM.Syntax
 import TypePM.Substitution
