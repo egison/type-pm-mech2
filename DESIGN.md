@@ -155,8 +155,9 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
   共通のblockへ戻る場合の受理同値
 - `letE`を含まない断片について，公開`Source.infer`の完全性，受理同値，受理可能性の決定可能性，
   返却型の主要性，二つの主要型の有限な変数名変更による一意性
-- 一般の`letE`に対する完全性を，関係的elaborationの受理可能な代表を実行可能elaborationの
-  受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`へ還元した条件付き定理
+- 一般の`letE`に対する完全性を，公開推論と同じfreshness条件の下で関係的elaborationの
+  受理可能な代表を実行可能elaborationの受理可能な代表へ運ぶ条件
+  `WellFormedElaborationAcceptanceComplete`へ還元した条件付き定理
 - 多相identityと論文P1-L09の明示的`let`について，公開推論の正確な結果と`Source.Typing`
 - full-cut境界でbody要求を右辺へ戻さない例について，公開推論が`none`を返すこと
 
@@ -167,8 +168,17 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 自動構成へ接続することである．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
 変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
-`ElaborationPrincipalityComplete`として切り出し，そこから受理完全性，公開推論の主要性，
-主要型の有限な変数名変更による一意性まで証明しているが，条件そのものは未証明である．
+公開推論が使うfreshness条件を明示した
+`WellFormedElaborationPrincipalityComplete`として切り出し，そこから受理完全性，受理同値，
+決定可能性，公開推論の主要性，主要型の有限な変数名変更による一意性まで証明しているが，
+条件そのものは未証明である．任意の開始supplyではcontextの自由変数とfresh変数が衝突し得る．
+等式の向きを反転する手続きも正当な吸収的solverであること，候補となる二つの局所結果が相互instanceで
+ないこと，開始supplyがwell-formedでないことを独立に検証しているため，公開目標はwell-formed supplyに
+限定する．これらを一つの完全なelaboration導出へ接続していないので，この障害module単独では
+任意supply版の完全性条件の否定までは主張しない．
+また，異なるlet closureから得る生成済みblock全体が一つの
+大域的な変数名変更だけで一致するという主張も，自明式と別名等式の差を持つclosed反例により偽である．
+残る証明は，scope外から観測できない局所変数と有限な別名等式による比較として定式化する．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
 generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
@@ -186,7 +196,10 @@ generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
 `Source/LocalizedClosure.lean`，`Source/SupplyWellFormed.lean`，
 `Source/SchemeSupportBounds.lean`，`Source/GeneratedSupportBounds.lean`，
 `Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
-`Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
+`Source/InterfaceAliasCounterexample.lean`，`Source/GlobalRenamingCounterexample.lean`，
+`Source/UnwellFormedSupplyPrincipalityCounterexample.lean`，
+`Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
+`Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，
 静的な公開推論結果と`Source.Typing`まで検証済みである．このlistingは評価結果を示す例ではないため，

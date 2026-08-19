@@ -77,14 +77,26 @@ joinはvalueの終了supplyそのものに簡約できる．
 
 これらを用いて，`letE`を含まないsource式について，宣言的`Typing`があれば公開`Source.infer`が成功する
 完全性，受理同値，受理可能性の決定可能性，公開推論結果の主要性，二つの主要型が有限な変数名変更だけ異なる
-ことを証明済みである．一般の`letE`については，関係的elaborationの受理可能な代表を実行可能elaborationの
-受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`まで還元している．closureの局所性，生成変数の
+ことを証明済みである．一般の`letE`については，公開推論と同じfreshness条件の下で，関係的elaborationの
+受理可能な代表を実行可能elaborationの受理可能な代表へ運ぶ条件
+`WellFormedElaborationAcceptanceComplete`まで還元している．closureの局所性，生成変数の
 由来，`let`境界のsupply安定性は証明済みだが，これらを任意の二つの右辺closureの有限な別名分解と
 共通blockの構成へ接続する完全性証明はまだ完了していない．一般の
 主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で得られるという
-最終的な整合性が必要である．この不足は`ElaborationPrincipalityComplete`という一つの条件へ
-切り出しており，その条件から受理完全性，公開推論の主要性，主要型の有限な変数名変更による
+最終的な整合性が必要である．この不足は，開始supplyがcontext内の全自由変数より新しいことを
+要求する`WellFormedElaborationPrincipalityComplete`という一つの条件へ切り出している．公開推論は
+常に`context.initialSupply`から始まるためこの前提を満たす．この条件から受理完全性，受理同値，
+決定可能性，公開推論の主要性，主要型の有限な変数名変更による
 一意性がすべて従うことは証明済みである．したがってM2全体は引き続き`partial`である．
+
+このfreshness前提を外すと，contextの自由変数と後から割り当てる変数が衝突し得る．その障害を示すため，
+等式の向きを反転する手続きも正当な吸収的solverであること，候補となる二つの局所結果が互いに代入で
+得られないこと，使用した開始supplyがwell-formedでないことをそれぞれkernel proofとして保存する．
+これらを一つの完全なelaboration導出へ接続していないため，このmodule単独では任意supply版の
+完全性条件そのものの否定までは主張しない．また，同じclosed programの異なる正しいlet closureから得る生成済み
+blockが，全体を一度だけ変数名変更した形で一致するというさらに強い主張も偽である．一方が
+非自明な別名等式を持ち，他方が自明式を持つ反例を保存している．したがって一般証明は，大域的な
+名前変更ではなく，有限な別名等式とscope外から観測できない局所変数を使う比較として進める．
 
 この基盤を実装するmoduleは`UnificationSupport.lean`，`AbsorbingSupportRange.lean`，
 `GeneratedSupport.lean`，`ResolutionSupport.lean`，`BlockClosureSupport.lean`，
@@ -97,7 +109,10 @@ joinはvalueの終了supplyそのものに簡約できる．
 `Source/LocalizedClosure.lean`，`Source/SupplyWellFormed.lean`，
 `Source/SchemeSupportBounds.lean`，`Source/GeneratedSupportBounds.lean`，
 `Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
-`Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
+`Source/InterfaceAliasCounterexample.lean`，`Source/GlobalRenamingCounterexample.lean`，
+`Source/UnwellFormedSupplyPrincipalityCounterexample.lean`，
+`Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
+`Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
@@ -111,10 +126,10 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 | 番号 | 論文の結果 | 新体系での対応目標 | 現状 | module／theorem |
 |---|---|---|---|---|
 | 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1断片に加え，M2のschemeと`letE`を含む`Source.infer`について`Source.Inference.infer_success_typing`を証明済み．M3--M4への拡張が未完了である | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing` |
-| 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片に加え，M2の`letE`を含まない断片で`Source.Typing.infer_isSome_of_letFree`を証明済み．一般の`letE`は`ElaborationAcceptanceComplete`を仮定した形まで証明済みである | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome`，`TypePM/Source/ElaborationCompleteness.lean`／`Source.Typing.infer_isSome_of_letFree` |
-| 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片に加え，M2の`letE`を含まない断片で受理同値と決定可能性を証明済み．一般の`letE`は`ElaborationAcceptanceComplete`を仮定した受理同値・決定可能性まで証明済みである | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，`TypePM/Source/ElaborationCompleteness.lean`／`Source.Inference.typable_iff_infer_isSome_of_letFree`，`typableDecidable_of_letFree` |
-| 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片に加え，M2の`letE`を含まない断片で，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を証明済み．一般の`letE`とM3--M4への拡張が未完了である | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`TypePM/Source/Principality.lean`／`Source.PrincipalTyping.finiteRenamingEq_of_letFree` |
-| 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial：M1断片に加え，M2の`letE`を含まない断片で`Source.Inference.infer_success_principalResult_of_letFree`を証明済み．一般の`letE`では，異なる入れ子closure代表を含むすべての`Source.Typing`結果に対する整合性が未証明である | `TypePM/Principality.lean`／`Inference.infer_principal`，`TypePM/Source/Principality.lean`／`Source.Inference.infer_success_principalResult_of_letFree` |
+| 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片に加え，M2の`letE`を含まない断片で`Source.Typing.infer_isSome_of_letFree`を証明済み．一般の`letE`は，公開推論が満たすfreshness条件を含む`WellFormedElaborationAcceptanceComplete`を仮定した形まで証明済みである | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome`，`TypePM/Source/ElaborationCompleteness.lean`／`Source.Typing.infer_isSome_of_letFree`，`TypePM/Source/SupplyWellFormed.lean` |
+| 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片に加え，M2の`letE`を含まない断片で受理同値と決定可能性を証明済み．一般の`letE`は`WellFormedElaborationAcceptanceComplete`を仮定した受理同値・決定可能性まで証明済みである | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，`TypePM/Source/ElaborationCompleteness.lean`，`TypePM/Source/SupplyWellFormed.lean` |
+| 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片に加え，M2の`letE`を含まない断片で，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から同じ結論が従う条件付き定理まで証明済みである | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`TypePM/Source/Principality.lean`／`Source.PrincipalTyping.finiteRenamingEq_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete` |
+| 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial：M1断片に加え，M2の`letE`を含まない断片で`Source.Inference.infer_success_principalResult_of_letFree`を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から主要性が従う条件付き定理まで証明済みだが，条件自体が未証明である | `TypePM/Principality.lean`／`Inference.infer_principal`，`TypePM/Source/Principality.lean`／`Source.Inference.infer_success_principalResult_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete` |
 | 5.6 | State erasure | 推論状態の消去ではなく，最初から状態を含まない`Typing`を実行時型付けへ写す | not-started：`Typing`は状態非依存であるが，実行時型付けが未定義である | `TypePM/RuntimeTyping.lean`／`Typing.toRuntimeTyping` |
 | 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | not-started | `TypePM/CoreSafety.lean`／`Typing.coreSafety` |
 | 5.8 | No stuck states | 型付きclosed programは，任意のfuelで規則の適用不能を表す`stuck`を返さない | not-started | `TypePM/NoStuck.lean`／`Typing.neverStuck`，`Inference.infer_neverStuck` |

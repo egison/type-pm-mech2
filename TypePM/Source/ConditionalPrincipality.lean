@@ -1,13 +1,15 @@
-import TypePM.Source.Principality
+import TypePM.Source.SupplyWellFormed
 
 /-!
-# Conditional full-M2 principality
+# Freshness-scoped full-M2 principality
 
 Acceptance completeness only says that executable elaboration produces a
 solvable block.  Global principality additionally needs to compare the
 principal target of that block with the principal target selected by the
 relational elaboration.  This file states that per-derivation correspondence
-directly and derives all public principality consequences from it.
+directly and derives all public principality consequences from its
+freshness-safe form.  Arbitrary starting supplies are intentionally excluded:
+they may collide with free context variables.
 -/
 
 namespace TypePM.Source
@@ -27,17 +29,6 @@ def PrincipalElaborationCorrespondence
       ∃ computedClosure : PrincipalBlockClosure computed,
         IsInstance computedClosure.target closure.target ∧
           IsInstance closure.target computedClosure.target
-
-/-- The sole conditional premise for full M2 principality: every absorbing
-principal relational derivation has a corresponding executable principal
-closure with a mutually instantiable target. -/
-def ElaborationPrincipalityComplete : Prop :=
-  ∀ {context : Context} {expression : Expr} {supply next : Supply}
-      {generated : TypePM.Generated}
-      (derivation : Elaborates context expression supply generated next)
-      (closure : PrincipalBlockClosure generated),
-    closure.Absorbing →
-      PrincipalElaborationCorrespondence derivation closure
 
 private theorem isInstance_trans
     {first second third : Ty}
@@ -78,35 +69,20 @@ theorem of_letFree
 
 end PrincipalElaborationCorrespondence
 
-/-- The principality correspondence strictly contains the information needed
-by acceptance completeness. -/
-theorem ElaborationPrincipalityComplete.toAcceptanceComplete
-    (complete : ElaborationPrincipalityComplete) :
-    ElaborationAcceptanceComplete := by
-  intro context expression supply next generated derivation closure absorbing
-  obtain ⟨computed, computedNext, replay, computedClosure, _⟩ :=
-    complete derivation closure absorbing
-  exact ⟨computed, computedNext, replay,
-    computedClosure.finalHard,
-    computedClosure.finalPending,
-    computedClosure.hardSubstitution,
-    computedClosure.residualSubstitution,
-    computedClosure.saturation,
-    computedClosure.residualPrincipal.1⟩
-
 namespace PrincipalTyping
 
 /-- Per-derivation target correspondence makes every blockwise-principal
 typing agree in both directions with the deterministic inference result. -/
-theorem agreesWithInference_of_elaborationPrincipalityComplete
-    (complete : ElaborationPrincipalityComplete)
+theorem agreesWithInference_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
     {context : Context} {expression : Expr} {target : Ty}
     (principal : PrincipalTyping context expression target) :
     AgreesWithInference principal := by
   rcases principal with ⟨derivation⟩
   obtain ⟨computed, computedNext, replay, computedClosure,
       targetInstances⟩ :=
-    complete derivation.elaboration derivation.closure derivation.absorbing
+    complete derivation.elaboration derivation.closure
+      (Supply.wellFormedFor_initialSupply context) derivation.absorbing
   have closes :
       inferGeneratedUsing unify computed ≠ none :=
     computedClosure.inferGeneratedUsing_isSome unify_completeMGUSolver
@@ -130,46 +106,75 @@ theorem agreesWithInference_of_elaborationPrincipalityComplete
 
 end PrincipalTyping
 
+/-- Freshness-safe principality correspondence also accepts every
+declaratively typable program at the public `context.initialSupply`. -/
+theorem Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
+    {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing context expression target) :
+    infer context expression ≠ none :=
+  typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+    complete.toAcceptance
+
 /-- The per-derivation correspondence premise closes the full source
 coherence gap. -/
-theorem principalCoherence_of_elaborationPrincipalityComplete
-    (complete : ElaborationPrincipalityComplete)
+theorem principalCoherence_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
     (context : Context) (expression : Expr) :
     PrincipalCoherence context expression :=
   principalCoherence_of_inferenceAgreement
     (fun principal =>
-      principal.agreesWithInference_of_elaborationPrincipalityComplete
+      principal.agreesWithInference_of_wellFormedElaborationPrincipalityComplete
         complete)
 
 namespace Inference
 
+/-- Under freshness-safe principality correspondence, public source
+typability is equivalent to success of inference from
+`context.initialSupply`. -/
+theorem typable_iff_infer_isSome_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
+    (context : Context) (expression : Expr) :
+    Typable context expression ↔ infer context expression ≠ none :=
+  typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
+    complete.toAcceptance context expression
+
+/-- Public source typability is decidable under freshness-safe
+principality correspondence. -/
+def typableDecidable_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
+    (context : Context) (expression : Expr) :
+    Decidable (Typable context expression) :=
+  typableDecidable_of_wellFormedElaborationAcceptanceComplete
+    complete.toAcceptance context expression
+
 /-- Under the single elaboration correspondence premise, every successful
 full-M2 inference run is a globally principal source result. -/
-theorem infer_success_principalResult_of_elaborationPrincipalityComplete
-    (complete : ElaborationPrincipalityComplete)
+theorem infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
     {context : Context} {expression : Expr} {target : Ty}
     (success : infer context expression = some target) :
     PrincipalResult context expression target :=
   infer_success_principalResult_of_coherence
-    (principalCoherence_of_elaborationPrincipalityComplete
+    (principalCoherence_of_wellFormedElaborationPrincipalityComplete
       complete context expression)
     success
 
 /-- A blockwise-principal declarative witness is enough to run inference and
 obtain its globally principal representative under the correspondence
 premise. -/
-theorem infer_principalResult_of_elaborationPrincipalityComplete
-    (complete : ElaborationPrincipalityComplete)
+theorem infer_principalResult_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
     {context : Context} {expression : Expr} {principal : Ty}
     (principalTyping : PrincipalTyping context expression principal) :
     ∃ inferred,
       infer context expression = some inferred ∧
         PrincipalResult context expression inferred := by
   obtain ⟨inferred, success, _, _⟩ :=
-    principalTyping.agreesWithInference_of_elaborationPrincipalityComplete
+    principalTyping.agreesWithInference_of_wellFormedElaborationPrincipalityComplete
       complete
   exact ⟨inferred, success,
-    infer_success_principalResult_of_elaborationPrincipalityComplete
+    infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
       complete success⟩
 
 end Inference
@@ -178,14 +183,14 @@ namespace PrincipalTyping
 
 /-- Conditional full-M2 uniqueness: any two blockwise-principal results
 differ only by a finite renaming on variables occurring in their targets. -/
-theorem finiteRenamingEq_of_elaborationPrincipalityComplete
-    (complete : ElaborationPrincipalityComplete)
+theorem finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
+    (complete : WellFormedElaborationPrincipalityComplete)
     {context : Context} {expression : Expr} {left right : Ty}
     (leftPrincipal : PrincipalTyping context expression left)
     (rightPrincipal : PrincipalTyping context expression right) :
     FiniteRenamingEq left right :=
   finiteRenamingEq_of_coherence
-    (principalCoherence_of_elaborationPrincipalityComplete
+    (principalCoherence_of_wellFormedElaborationPrincipalityComplete
       complete context expression)
     leftPrincipal rightPrincipal
 

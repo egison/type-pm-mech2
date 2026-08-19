@@ -183,6 +183,50 @@ theorem PrincipalTyping.infer_isSome_of_wellFormedElaborationAcceptanceComplete
   obtain ⟨witness⟩ := executableClosure_of_blockAccepts replay accepts
   exact witness.infer_isSome
 
+/-- Instance closure adds no new acceptance obligation at the public root
+supply once its blockwise-principal representative is accepted. -/
+theorem Typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+    (complete : WellFormedElaborationAcceptanceComplete)
+    {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing context expression target) :
+    infer context expression ≠ none := by
+  rcases typing with ⟨_, principal, _⟩
+  exact principal.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+    complete
+
+namespace Inference
+
+/-- At the public `context.initialSupply`, freshness-safe elaboration
+acceptance gives exact agreement between declarative typability and
+executable inference success. -/
+theorem typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
+    (complete : WellFormedElaborationAcceptanceComplete)
+    (context : Context) (expression : Expr) :
+    Typable context expression ↔ infer context expression ≠ none := by
+  constructor
+  · rintro ⟨_, typing⟩
+    exact typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+      complete
+  · intro succeeds
+    cases computed : infer context expression with
+    | none => exact False.elim (succeeds computed)
+    | some target => exact ⟨target, infer_success_typing computed⟩
+
+/-- Public source typability is decidable from the executable inference
+result under freshness-safe elaboration acceptance. -/
+def typableDecidable_of_wellFormedElaborationAcceptanceComplete
+    (complete : WellFormedElaborationAcceptanceComplete)
+    (context : Context) (expression : Expr) :
+    Decidable (Typable context expression) :=
+  match computed : infer context expression with
+  | none => isFalse (by
+      rintro ⟨_, typing⟩
+      exact typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+        complete computed)
+  | some target => isTrue ⟨target, infer_success_typing computed⟩
+
+end Inference
+
 /-- Principality correspondence restricted to freshness-safe supplies. -/
 def WellFormedElaborationPrincipalityComplete : Prop :=
   ∀ {context : Context} {expression : Expr} {supply next : Supply}

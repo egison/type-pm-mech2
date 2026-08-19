@@ -36,6 +36,10 @@ import TypePM.Source.AlignmentComposition
 import TypePM.Source.GeneratedAcceptanceTransport
 import TypePM.Source.ClosureSupportRenaming
 import TypePM.Source.InterfaceAliasCounterexample
+import TypePM.Source.GlobalRenamingCounterexample
+import TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample
+import TypePM.Source.ScopedGeneratedEquivalence
+import TypePM.Source.ScopedElaborationComposition
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
@@ -130,6 +134,17 @@ every full build.
 #print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
 #print axioms TypePM.Source.InterfaceAliasCounterexample.no_left_addition_decomposition
 #print axioms TypePM.Source.InterfaceAliasCounterexample.commonCoreEquivalent_positive
+#print axioms TypePM.Source.GlobalRenamingCounterexample.executable_elaborates
+#print axioms TypePM.Source.GlobalRenamingCounterexample.alternative_elaborates
+#print axioms TypePM.Source.GlobalRenamingCounterexample.no_global_renaming
+#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.reverseUnify_absorbingMGUSolver
+#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.targets_not_mutualInstances
+#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.badSupply_not_wellFormed
+#print axioms TypePM.Source.Generated.ScopedContextualEquivalent.blockAccepts_iff
+#print axioms TypePM.Source.Elaborates.sequential_crossAvoidance
+#print axioms TypePM.Source.Elaborates.scopedComparison
+#print axioms TypePM.Source.ElaboratesItems.scopedComparison
+#print axioms TypePM.Source.Elaborates.scopedComparison_of_letFree
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
@@ -141,6 +156,12 @@ every full build.
 #print axioms TypePM.Source.Inference.typableDecidable_of_letFree
 #print axioms TypePM.Source.Inference.infer_success_principalResult_of_letFree
 #print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_letFree
-#print axioms TypePM.Source.ElaborationPrincipalityComplete.toAcceptanceComplete
-#print axioms TypePM.Source.Inference.infer_success_principalResult_of_elaborationPrincipalityComplete
-#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_elaborationPrincipalityComplete
+#print axioms TypePM.Source.WellFormedElaborationPrincipalityComplete.toAcceptance
+#print axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
+#print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationAcceptanceComplete
+#print axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.Inference.infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
