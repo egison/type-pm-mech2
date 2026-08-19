@@ -7,9 +7,14 @@ import TypePM.GenerationRenaming
 import TypePM.SaturationRenaming
 import TypePM.BlockOrderInvariance
 import TypePM.UnificationRegression
+import TypePM.UnificationSupport
 import TypePM.Regression
 import TypePM.M1BoundaryRegression
 import TypePM.BlockClosureTransport
+import TypePM.AbsorbingSupportRange
+import TypePM.GeneratedSupport
+import TypePM.ResolutionSupport
+import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
@@ -17,6 +22,12 @@ import TypePM.FreshAliasElimination
 import TypePM.FreshAliasSaturation
 import TypePM.FreshAliasSequence
 import TypePM.Source.ElaborationTransport
+import TypePM.Source.LocalizedClosure
+import TypePM.Source.SupplyWellFormed
+import TypePM.Source.SchemeSupportBounds
+import TypePM.Source.GeneratedSupportBounds
+import TypePM.Source.ContextInterfaceSupport
+import TypePM.Source.LetSupplyStability
 import TypePM.Source.ElaborationRenaming
 import TypePM.Source.InterfaceClosureTransport
 import TypePM.Source.FreshIntervalRenaming
@@ -44,6 +55,9 @@ every full build.
 #print axioms TypePM.Regression.structured_matcher_checks_at_any_slot
 #print axioms TypePM.unify_none_iff_unsatisfiable
 #print axioms TypePM.unify_completeMGUSolver
+#print axioms TypePM.unify_localized
+#print axioms TypePM.Subst.Localized.compose
+#print axioms TypePM.AbsorbingPrincipal.localized
 #print axioms TypePM.promoteUnder_equation_no_special_after
 #print axioms TypePM.Resolution.special_expected_head
 #print axioms TypePM.Resolution.resolve_apply_canonical_of_retract
@@ -70,6 +84,11 @@ every full build.
 #print axioms TypePM.M1BoundaryRegression.pairFirst_not_typable
 #print axioms TypePM.unify_absorbingPrincipal
 #print axioms TypePM.PrincipalBlockClosure.substitution_absorbingPrincipal
+#print axioms TypePM.Resolution.equations_support
+#print axioms TypePM.CheckObligation.mem_unificationVars_expected
+#print axioms TypePM.Generated.saturationSupport_subset
+#print axioms TypePM.PrincipalBlockClosure.localized_of_absorbing
+#print axioms TypePM.inferGeneratedUsing_unify_localizedPrincipalBlockClosure
 #print axioms TypePM.Source.Scheme.wellFormed
 #print axioms TypePM.Source.Scheme.applyFree_id
 #print axioms TypePM.Source.Scheme.instantiate_sound
@@ -79,6 +98,18 @@ every full build.
 #print axioms TypePM.Source.Context.applyFree_interface_transport
 #print axioms TypePM.Source.Context.generalize_variableRenaming
 #print axioms TypePM.Source.Context.generalize_variableRenaming_exact
+#print axioms TypePM.Source.Scheme.instantiate_ty_origin
+#print axioms TypePM.Source.Scheme.instantiate_cap_origin
+#print axioms TypePM.Source.Context.applyFree_initialSupply_le_of_localized
+#print axioms TypePM.Source.Elaborates.supply_le_next
+#print axioms TypePM.Source.Elaborates.supportProvenance
+#print axioms TypePM.Source.ElaboratesItems.supportProvenance
+#print axioms TypePM.Source.Elaborates.support_below
+#print axioms TypePM.Source.Context.interfaceEquations_supportProvenance
+#print axioms TypePM.Source.GeneratedSupportProvenance.fromLet_interface
+#print axioms TypePM.Source.PrincipalBlockClosure.letBodySupply_eq
+#print axioms TypePM.Source.Elaborates.letBodySupply_eq
+#print axioms TypePM.Source.PrincipalTyping.localizedClosure
 #print axioms TypePM.Source.ContextInterfaceRegression.swapBoth_notAbsorbing
 #print axioms TypePM.Source.ContextInterfaceRegression.plainMostGeneral_can_create_spurious_interface_failure
 #print axioms TypePM.PrincipalBlockClosure.representativeTransport

@@ -28,7 +28,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 |---|---|---|---|
 | M0 | 型，二種類の変数への代入，raw synthesis，局所checking | done | tuple of matchersのraw主要性と明示された要求型への変換まで検証済みである |
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
-| M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否，有限なfresh区間・closure・context境界の輸送基盤を検証済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
+| M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | not-started | data型，constructor，primitive，signatureは未定義である |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | not-started | patternとmatcher固有のsource構文は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | not-started | value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
@@ -58,6 +58,13 @@ full-cut境界で`infer = none`となることを検証済みである．この�
 `Source.Context`内の自由変数は固定された仮定ではなく，推論中の未知変数であり，最終代入で
 具体化され得る．これはscheme内部で位置により束縛される量化変数とは別である．
 
+closureの局所性とは，生成blockに現れない変数を代入が変更せず，生成blockに現れる変数の
+代入像にもその有限support外の変数が現れない性質である．吸収性からこの局所性が従い，公開手続きが
+返すclosureにも成立することを証明した．またsource elaborationが生成する各変数は，入力context由来か，
+開始supply以上かつ終了supply未満の半開区間で新しく割り当てられた変数である．この由来と局所性により，
+`let`のvalueを閉じた後のcontextの初期supplyはvalueの終了supply以下であり，body開始時の防御的な
+joinはvalueの終了supplyそのものに簡約できる．
+
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
 生成済みblockの二種類の変数名変更，異なる主要block closureが作るcontext境界等式を解く性質，closureの有限な
@@ -71,20 +78,25 @@ full-cut境界で`infer = none`となることを検証済みである．この�
 これらを用いて，`letE`を含まないsource式について，宣言的`Typing`があれば公開`Source.infer`が成功する
 完全性，受理同値，受理可能性の決定可能性，公開推論結果の主要性，二つの主要型が有限な変数名変更だけ異なる
 ことを証明済みである．一般の`letE`については，関係的elaborationの受理可能な代表を実行可能elaborationの
-受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`まで還元している．この条件を無条件に証明するには，
-任意の吸収的な右辺closureの組から，この有限別名列と共通blockを自動的に構成し，各補助変数が本文の
-hard制約と保留checking要求に現れないことをsourceのfreshnessから導く定理が必要である．一般の
+受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`まで還元している．closureの局所性，生成変数の
+由来，`let`境界のsupply安定性は証明済みだが，これらを任意の二つの右辺closureの有限な別名分解と
+共通blockの構成へ接続する完全性証明はまだ完了していない．一般の
 主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で得られるという
 最終的な整合性が必要である．この不足は`ElaborationPrincipalityComplete`という一つの条件へ
 切り出しており，その条件から受理完全性，公開推論の主要性，主要型の有限な変数名変更による
 一意性がすべて従うことは証明済みである．したがってM2全体は引き続き`partial`である．
 
-この基盤を実装するmoduleは`HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，
+この基盤を実装するmoduleは`UnificationSupport.lean`，`AbsorbingSupportRange.lean`，
+`GeneratedSupport.lean`，`ResolutionSupport.lean`，`BlockClosureSupport.lean`，
+`HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，
 `FreshAliasSaturation.lean`，`FreshAliasSequence.lean`，
 `Source/ElaborationTransport.lean`，`Source/ElaborationRenaming.lean`，
 `Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
 `Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，
 `Source/GeneratedAcceptanceTransport.lean`，`Source/ClosureSupportRenaming.lean`，
+`Source/LocalizedClosure.lean`，`Source/SupplyWellFormed.lean`，
+`Source/SchemeSupportBounds.lean`，`Source/GeneratedSupportBounds.lean`，
+`Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
 `Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 

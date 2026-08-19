@@ -25,8 +25,8 @@ trace，validator，terminal audit，旧推論器，互換層を再実装しな�
    通常の型等式だけは一斉にhard制約へ移し，次のhard制約解決の回で全要求へ反映してよい．
 4. source構文から生成したすべてのchecking要求について，最終代入の下で変換が存在するか，
    通常の型等式としてhard制約へ移されたことを証明する．この全件追跡をcoverageと呼ぶ．
-5. 新しく割り当てる型変数は，開始時のsupply以上，終了時のsupply未満に置き，context由来の
-   変数と区別する．
+5. 新しく割り当てる通常の型変数とcapability変数は，それぞれ開始時のsupply以上，終了時の
+   supply未満に置き，context由来の変数と区別する．
 6. 同じsourceから生成した制約blockについて，fresh変数名の有限な付け替えと
    hard／pending worklistの置換は受理を変えない．source AST自体の並べ替えは，
    位置の意味が変わるため一般定理にしない．
@@ -46,7 +46,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 |---|---|---|
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
-| M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，有限なfresh区間・closure・context境界の輸送基盤は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
+| M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | not-started | constructor，primitive，signature，pattern declaration |
 | M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
 | M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
@@ -134,6 +134,12 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 - executableなsource elaborationと独立した`Elaborates`関係，および実行結果から関係的導出を得るsoundness
 - `PrincipalBlockClosure.Absorbing`と，公開`Source.infer`の成功から`Source.PrincipalTyping`および
   `Source.Typing`を得るsoundness
+- closureの局所性，すなわち生成blockの有限support外を変更せず，support内の変数の代入像にも
+  support外の変数を導入しない性質が吸収性から従うこと
+- source elaborationが生成する各変数は入力context由来か，開始supply以上かつ終了supply未満の
+  半開区間で割り当てられた変数であること
+- 局所性と生成変数の由来から，`let`で閉じたcontextの初期supplyはvalueの終了supply以下となり，
+  body開始時のjoinがvalueの終了supplyへ簡約できること
 - contextの有限な境界を特徴付ける`solves_interfaceEquations_iff`と，そのcontext代入輸送
 - 二種類の変数の全単射な名前変更と一般化対象リストの対応を仮定すると，一般化が代入と可換になる輸送補題
 - 異なる主要block closureの代入が相互にfactorすること，結果型とcontextの双方向輸送，
@@ -156,16 +162,18 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 
 最後の負例は実行可能推論の境界を固定するが，`Source.Typing`の不存在はまだ証明していない．
 また，一般の`letE`を含むsource elaboration全体の完全性はまだ与えていない．別名等式を含む
-一般の保留checkingと飽和の輸送自体は証明済みである．残る核心は，任意の吸収的な右辺closureの組から
-有限な別名等式列と共通blockを自動構成し，各別名の補助変数が本文制約に現れないことをsourceの
-freshness不変条件から導く定理である．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
+一般の保留checkingと飽和の輸送，closureの局所性，生成変数の由来，`let`境界のsupply安定性は
+証明済みである．残る核心は，これらを任意の二つの右辺closureの有限な別名分解と共通blockの
+自動構成へ接続することである．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
 変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
 `ElaborationPrincipalityComplete`として切り出し，そこから受理完全性，公開推論の主要性，
 主要型の有限な変数名変更による一意性まで証明しているが，条件そのものは未証明である．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
-generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTransport.lean`，
+generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
+`AbsorbingSupportRange.lean`，`GeneratedSupport.lean`，`ResolutionSupport.lean`，
+`BlockClosureSupport.lean`，`Scheme.lean`，`SchemeTransport.lean`，
 `GeneralizationTransport.lean`，`ContextInterface.lean`，`ContextInterfaceRegression.lean`，
 `BlockClosure.lean`，`AbsorbingUnification.lean`，
 `AbsorbingBlockClosure.lean`，`BlockClosureTransport.lean`，`Source/Syntax.lean`，
@@ -175,6 +183,9 @@ generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTrans
 `Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
 `Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，
 `Source/GeneratedAcceptanceTransport.lean`，`Source/ClosureSupportRenaming.lean`，
+`Source/LocalizedClosure.lean`，`Source/SupplyWellFormed.lean`，
+`Source/SchemeSupportBounds.lean`，`Source/GeneratedSupportBounds.lean`，
+`Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
 `Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，

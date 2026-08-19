@@ -12,6 +12,7 @@ import TypePM.FreeVars
 import TypePM.Unification
 import TypePM.UnificationCorrectness
 import TypePM.UnificationTermination
+import TypePM.UnificationSupport
 import TypePM.Solver
 import TypePM.SolverCertified
 import TypePM.UnificationRegression
@@ -43,6 +44,10 @@ import TypePM.M1BoundaryRegression
 import TypePM.BlockClosure
 import TypePM.AbsorbingUnification
 import TypePM.AbsorbingBlockClosure
+import TypePM.AbsorbingSupportRange
+import TypePM.GeneratedSupport
+import TypePM.ResolutionSupport
+import TypePM.BlockClosureSupport
 import TypePM.Scheme
 import TypePM.ContextInterface
 import TypePM.ContextInterfaceRegression
@@ -55,6 +60,12 @@ import TypePM.FreshAliasSaturation
 import TypePM.FreshAliasSequence
 import TypePM.Source.Syntax
 import TypePM.Source.Elaboration
+import TypePM.Source.LocalizedClosure
+import TypePM.Source.SupplyWellFormed
+import TypePM.Source.SchemeSupportBounds
+import TypePM.Source.GeneratedSupportBounds
+import TypePM.Source.ContextInterfaceSupport
+import TypePM.Source.LetSupplyStability
 import TypePM.Source.ElaborationTransport
 import TypePM.Source.ElaborationRenaming
 import TypePM.Source.InterfaceClosureTransport
