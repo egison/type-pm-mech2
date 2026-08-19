@@ -25,6 +25,10 @@ def consPattern : Pattern :=
 def valueConsPattern : Pattern :=
   .ctor PatternCtor.cons [.value oneExpr, .var]
 
+def nestedConsPattern : Pattern :=
+  .ctor PatternCtor.cons
+    [.var, .ctor PatternCtor.cons [.var, .wild]]
+
 def joinPattern : Pattern :=
   .ctor PatternCtor.join [.var, .wild]
 
@@ -36,6 +40,13 @@ theorem nil_header_dispatch_exact :
 theorem head_only_header_dispatch_exact :
     inspectPatternPattern headOnlyHeader consPattern =
       some ⟨[.var], []⟩ := by
+  rfl
+
+/-- The literal `_` in the matcher-clause header matches only a user
+wildcard.  Otherwise the early `$ :: _` clause would swallow every nested
+cons pattern before the general `$ :: $` clause can inspect its tail. -/
+theorem head_only_header_rejects_structured_tail :
+    inspectPatternPattern headOnlyHeader nestedConsPattern = none := by
   rfl
 
 theorem value_cons_header_dispatch_exact :

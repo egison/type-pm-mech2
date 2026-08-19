@@ -35,7 +35,8 @@ mutual
   /-- Match one matcher-clause header against one source pattern. -/
   def inspectPatternPattern : PPat → Pattern → Option PatternDispatch
     | .hole, pattern => some ⟨[pattern], []⟩
-    | .wild, _ => some .empty
+    | .wild, .wild => some .empty
+    | .wild, _ => none
     | .capture, .value expression => some ⟨[], [expression]⟩
     | .capture, _ => none
     | .ctor expected fields, .ctor actual patterns =>
@@ -63,7 +64,7 @@ mutual
   inductive PatternPatternMatches :
       PPat → Pattern → PatternDispatch → Prop where
     | hole : PatternPatternMatches .hole pattern ⟨[pattern], []⟩
-    | wild : PatternPatternMatches .wild pattern .empty
+    | wild : PatternPatternMatches .wild .wild .empty
     | capture :
         PatternPatternMatches .capture (.value expression)
           ⟨[], [expression]⟩
@@ -95,8 +96,11 @@ mutual
         cases success
         exact .hole
     | wild =>
-        cases success
-        exact .wild
+        cases pattern <;> simp only [inspectPatternPattern] at success
+        case wild =>
+          cases success
+          exact .wild
+        all_goals cases success
     | capture =>
         cases pattern <;> simp only [inspectPatternPattern] at success
         case value expression =>

@@ -345,6 +345,7 @@ every full build.
 #print axioms TypePM.Runtime.PatternPatternMatches.counts
 #print axioms TypePM.Runtime.PatternPatternRegression.nil_header_dispatch_exact
 #print axioms TypePM.Runtime.PatternPatternRegression.head_only_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.head_only_header_rejects_structured_tail
 #print axioms TypePM.Runtime.PatternPatternRegression.value_cons_header_dispatch_exact
 #print axioms TypePM.Runtime.PatternPatternRegression.general_cons_header_dispatch_exact
 #print axioms TypePM.Runtime.PatternPatternRegression.join_header_dispatch_exact

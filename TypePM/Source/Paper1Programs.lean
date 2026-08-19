@@ -163,10 +163,38 @@ def listMatcherConsClause : MatcherClause :=
     [.mk (.ctor DataCtor.cons [.var, .var])
       (sourceList [.tuple [.var 0, .var 1]])]
 
+def listSplitTailResults : Expr :=
+  .matchAll (.var 1) (.app (.var 3) (.var 2))
+    (joinPattern .var .var) (.tuple [.var 0, .var 1])
+
+def putCurrentAtPrefixEnd : Expr :=
+  Expr.tuplePatternLambda
+    (.tuple [.ctor DataCtor.cons [.var 4, .var 0], .var 1])
+
+def listJoinConsBody : Expr :=
+  .letE listSplitTailResults
+    (.prim .append
+      [sourceList
+        [.tuple
+          [sourceList [],
+            .ctor DataCtor.cons [.var 1, .var 2]]],
+        .prim .map [putCurrentAtPrefixEnd, .var 0]])
+
+/-- Prefix/suffix splits in increasing prefix length. -/
+def listMatcherJoinClause : MatcherClause :=
+  .mk (.ctor PatternCtor.join [.hole, .hole])
+    (.tuple
+      [.app (.var 1) (.var 0),
+        .app (.var 1) (.var 0)])
+    [.mk (.ctor DataCtor.nil [])
+        (sourceList [.tuple [sourceList [], sourceList []]]),
+      .mk (.ctor DataCtor.cons [.var, .var]) listJoinConsBody]
+
 def listMatcherCatchAllClause : MatcherClause := catchAllClause
 
 def listMatcherClauses : List MatcherClause :=
-  [listMatcherNilClause, listMatcherConsClause, listMatcherCatchAllClause]
+  [listMatcherNilClause, listMatcherConsClause, listMatcherJoinClause,
+    listMatcherCatchAllClause]
 
 /-- Closed unary library matcher constructor `list`. -/
 def listMatcherDefinition : Expr := .fixE (.matcher listMatcherClauses)
@@ -182,7 +210,7 @@ def multisetSomething : Expr := .app closedMultisetDefinition .something
 theorem multiset_clause_count : multisetClauses.length = 7 := by
   rfl
 
-theorem list_matcher_clause_count : listMatcherClauses.length = 3 := by
+theorem list_matcher_clause_count : listMatcherClauses.length = 4 := by
   rfl
 
 theorem multiset_clause_shapes_checked :
@@ -212,9 +240,10 @@ theorem list_matcher_clause_shapes_checked :
     PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
     PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
     DPat.constructorArity?, listMatcherClauses, listMatcherNilClause,
-    listMatcherConsClause, listMatcherCatchAllClause, nilClause,
+    listMatcherConsClause, listMatcherJoinClause, listMatcherCatchAllClause,
+    nilClause,
     catchAllClause, ConstructorSchemes.listNil, ConstructorSchemes.listCons,
-    ListPatternSchemes.nil, ListPatternSchemes.cons,
+    ListPatternSchemes.nil, ListPatternSchemes.cons, ListPatternSchemes.join,
     PolyDataTypes.list]
 
 end TypePM.Source.Paper1Programs
