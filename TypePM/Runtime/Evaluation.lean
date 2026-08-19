@@ -1,4 +1,4 @@
-import TypePM.Runtime.Values
+import TypePM.Runtime.ValueShape
 
 /-!
 # Relational expression evaluation
@@ -24,23 +24,6 @@ namespace Value
 def boolValue (value : Bool) : Value :=
   if value then .data DataCtor.true [] else .data DataCtor.false []
 
-/-- Canonical runtime list encoding. -/
-def buildList : List Value → Value
-  | [] => .data DataCtor.nil []
-  | head :: tail => .data DataCtor.cons [head, buildList tail]
-
-/-- Decode exactly the canonical runtime list encoding. -/
-def viewList : Value → Option (List Value)
-  | .data constructor [] =>
-      if constructor = DataCtor.nil then some [] else none
-  | .data constructor [head, tail] =>
-      if constructor = DataCtor.cons then
-        (viewList tail).map (head :: ·)
-      else
-        none
-  | _ => none
-termination_by value => sizeOf value
-
 /-- Structural membership used by the paper's `member` primitive. -/
 def memberStructural (needle : Value) : List Value → Bool
   | [] => false
@@ -53,13 +36,6 @@ def deleteFirstStructural (needle : Value) : List Value → List Value
   | head :: tail =>
       if structuralEq needle head then tail
       else head :: deleteFirstStructural needle tail
-
-theorem viewList_buildList (items : List Value) :
-    viewList (buildList items) = some items := by
-  induction items with
-  | nil => simp [buildList, viewList]
-  | cons head tail ih =>
-      simp [buildList, viewList, ih]
 
 end Value
 

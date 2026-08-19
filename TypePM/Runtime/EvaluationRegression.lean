@@ -12,6 +12,8 @@ namespace TypePM.Runtime.EvaluationRegression
 
 open TypePM.Runtime
 
+set_option linter.unusedSimpArgs false
+
 private def sourceList : List Source.Expr → Source.Expr
   | [] => .ctor DataCtor.nil []
   | head :: tail => .ctor DataCtor.cons [head, sourceList tail]

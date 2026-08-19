@@ -12,6 +12,9 @@ namespace TypePM.Runtime
 
 open FuelResult
 
+set_option linter.unnecessarySimpa false
+set_option linter.unusedSimpArgs false
+
 private theorem traverse_ok_mono
     {before after : α → FuelResult β}
     (monotone : ∀ {input output},

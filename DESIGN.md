@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様・双方向対応，一般のruntime value，`something`／tuple／product委譲のmatching atom還元，ordered searchへ接続するmatching state step，builtin→clauseのordered reducer合成は実装済み．完全な式評価，具体的matcher clause dispatch，全atom規則，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，一般のruntime value，matching state/search，builtin→clauseのordered reducer合成，具体的matcher clause dispatch，`matchAll`以外の全core式の関係的・実行可能評価，5 primitiveの一般value実行，adequacy，有限完全性，fuel単調性は実装済み．`matchAll`接続，pattern functionを含む全atom規則，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -393,6 +393,12 @@ atom reductionに渡す評価環境は`bindings ++ environment`であり，左�
 `Runtime/CombinedAtomReducer.lean`は複数のatom規則族の優先順位を固定する．先行側の
 `miss`だけがfallbackを許し，hit，timeout，stuckは保存する．fallbackが全atomを扱い，
 両方がstuckしなければ，合成reducerとそれを使う全bounded searchがstuckしない．
+`Runtime/Evaluation.lean`，`Runtime/EvalFuel.lean`，`Runtime/EvaluationAdequacy.lean`，
+`Runtime/EvaluationCompleteness.lean`は，`matchAll`を除く全core式のcall-by-value評価を定義する．
+通常closureでは引数をindex 0に置き，再帰closureでは引数をindex 0，自己をindex 1に置く．
+一般value上の5 primitive，実行成功のadequacy，有限な関係導出の完全性，成功値のfuel単調性を
+検証する．`matchAll`はmatching engineとclause式評価の循環を接続する前の明示的`stuck`境界とし，
+関係`Eval`に未実装の成功規則を置かない．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な

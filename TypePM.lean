@@ -132,6 +132,11 @@ import TypePM.Runtime.MatchingSearch
 import TypePM.Runtime.MatchingSearchRegression
 import TypePM.Runtime.CombinedAtomReducer
 import TypePM.Runtime.CombinedAtomReducerRegression
+import TypePM.Runtime.Evaluation
+import TypePM.Runtime.EvalFuel
+import TypePM.Runtime.EvaluationAdequacy
+import TypePM.Runtime.EvaluationCompleteness
+import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch
