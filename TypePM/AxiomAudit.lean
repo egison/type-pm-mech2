@@ -94,6 +94,7 @@ import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
+import TypePM.Source.FullM2Completion
 import TypePM.Source.M2Regression
 
 /-!
@@ -192,6 +193,7 @@ every full build.
 #print axioms TypePM.Source.M2Regression.infer_explicitLet_exact
 #print axioms TypePM.Source.M2Regression.explicitLetTyping
 #print axioms TypePM.Source.M2Regression.infer_cutRejectsBackflow_none
+#print axioms TypePM.Source.M2Regression.cutRejectsBackflow_not_typable
 #print axioms TypePM.BlockAccepts.iff_of_hardEquivalent
 #print axioms TypePM.FreshAliasElimination.blockAccepts_addTyAlias_iff_of_noPending
 #print axioms TypePM.FreshAliasElimination.blockAccepts_addCapAlias_iff_of_noPending
@@ -281,6 +283,20 @@ every full build.
 #print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationPrincipalityComplete
 #print axioms TypePM.Source.Inference.infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
 #print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.EntailedObligationEq
+#print axioms TypePM.PromotionClosure.transportEntailed
+#print axioms TypePM.Saturated.transportEntailed
+#print axioms TypePM.BlockAccepts.iff_of_entailedAligned
+#print axioms TypePM.Source.fullM2LetGraphAliasPresentationComplete
+#print axioms TypePM.Source.fullM2LetSupportedAssemblyBridge
+#print axioms TypePM.Source.fullM2CoherenceComplete
+#print axioms TypePM.Source.wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.Typing.infer_isSome
+#print axioms TypePM.Source.Inference.typable_iff_infer_isSome
+#print axioms TypePM.Source.Inference.typableDecidable
+#print axioms TypePM.Source.Inference.infer_success_principalResult
+#print axioms TypePM.Source.Inference.infer_principalResult
+#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq
 #print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_wellFormed
 #print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_closed
 #print axioms TypePM.Source.M3DeclarationsRegression.list_cons_dual_instantiation_exact

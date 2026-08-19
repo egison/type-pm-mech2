@@ -340,8 +340,8 @@ def DirectContextualLetComparisonHandler : Prop :=
 
 /-- The minimal direct formulation is neither stronger nor weaker than the
 existing `LetComparisonHandler`; it merely exposes its supply and frame-wise
-components.  Thus proving this handler is exactly the remaining general M2
-coherence obligation. -/
+components.  The completed M2 proof constructs the equivalent handler through
+the supported semantic certificates in `FullM2Completion`. -/
 theorem directContextualLetComparisonHandler_iff :
     DirectContextualLetComparisonHandler ↔ LetComparisonHandler := by
   constructor

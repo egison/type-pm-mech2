@@ -272,7 +272,7 @@ theorem Typing.infer_isSome_of_letFree
   rcases typing with ⟨_, principal, _⟩
   exact principal.infer_isSome_of_letFree letFree
 
-/-- The remaining interface-aware transport statement for full M2
+/-- An abstract interface-aware transport statement for full M2
 completeness.  It says that an acceptable relational representative can be
 replayed by executable elaboration with an acceptable (not necessarily
 identical) generated block.  `InterfaceClosureTransport` supplies the
@@ -288,7 +288,7 @@ def ElaborationAcceptanceComplete : Prop :=
               some (computed, computedNext) ∧
             BlockAccepts computed
 
-/-- The precise remaining transport statement implies acceptance
+/-- This transport statement implies acceptance
 completeness for every blockwise-principal source typing. -/
 theorem PrincipalTyping.infer_isSome_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
@@ -361,8 +361,9 @@ theorem typable_iff_infer_isSome_of_elaborationAcceptanceComplete
     | none => exact False.elim (succeeds computed)
     | some target => exact ⟨target, infer_success_typing wellFormed computed⟩
 
-/-- Conditional full-M2 decision procedure.  Supplying the remaining
-transport proof removes the condition without changing the algorithm. -/
+/-- Conditional full-M2 decision procedure.  Supplying an implementation of
+the transport property removes the condition without changing the algorithm.
+`FullM2Completion` provides the unconditional public endpoint. -/
 def typableDecidable_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
     (signature : Signature) (wellFormed : signature.WellFormed)

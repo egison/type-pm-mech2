@@ -1,4 +1,5 @@
 import TypePM.Source.Elaboration
+import TypePM.Source.FullM2Completion
 
 /-!
 # M2 source regressions
@@ -374,6 +375,16 @@ theorem infer_cutRejectsBackflow_none :
   unfold infer
   rw [elaborateCut]
   simp [closeCutNone]
+
+/-- Full M2 completeness turns the executable full-cut rejection into a
+declarative non-typability result. -/
+theorem cutRejectsBackflow_not_typable :
+    ¬ Typable Paper1Signature.signature requireSlotContext cutRejectsBackflow := by
+  intro typable
+  have accepted := (Inference.typable_iff_infer_isSome
+    Paper1Signature.signature Paper1Signature.wellFormed
+    requireSlotContext cutRejectsBackflow).mp typable
+  exact accepted infer_cutRejectsBackflow_none
 
 
 end TypePM.Source.M2Regression

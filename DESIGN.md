@@ -46,7 +46,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 |---|---|---|
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
-| M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
+| M2 | done | bound-index scheme，`letE`，value block一般化，吸収的closureの局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性に加え，一般の入れ子`letE`を含むM2--M3 sourceについて公開推論の完全性と有限な変数名変更による一意性を，well-formed signatureの下で健全性・受理同値・決定可能性・主要性を証明済み |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher-root再帰を含む統合M4推論，一般のprivate bindingを持つpattern functionは未実装 |
 | M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，inline pattern-function展開後の評価，成功時健全性，有限完全性，fuel単調性は実装済み．閉じた整数と再帰的tupleでは実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．built-in matcher断片では型付きbinding／atom／stateと有限DFSの保存・局所progressも条件付きで証明済みである．user-defined matcher clause，data，closure，一般pattern functionへの型安全性拡張は未完了 |
@@ -153,58 +153,39 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
   既存変数と等しいとする制約）を追加・除去しても受理が変わらないこと
 - 左右のblockがそれぞれ有限な別名等式列と，hard制約の順序・向き・自明式だけの違いを経て
   共通のblockへ戻る場合の受理同値
-- `letE`を含まない断片について，公開`Source.infer`の完全性，受理同値，受理可能性の決定可能性，
-  返却型の主要性，二つの主要型の有限な変数名変更による一意性
-- 一般の`letE`に対する完全性を，公開推論と同じfreshness条件の下で関係的elaborationの
-  受理可能な代表を実行可能elaborationの受理可能な代表へ運ぶ条件
-  `WellFormedElaborationAcceptanceComplete`へ還元した条件付き定理
+- 一般の入れ子`letE`，constructor，primitive，`ifE`を含むM2--M3 sourceについて，公開`Source.infer`の
+  完全性，受理同値，受理可能性の決定可能性，返却型の主要性，二つの主要型の有限な変数名変更による一意性
+- 同じ式の任意のwell-formedな関係的elaborationを意味的に比較する`FullM2Coherence`と，そこから得る
+  前提なしの`WellFormedElaborationPrincipalityComplete`
 - 多相identityと論文P1-L09の明示的`let`について，公開推論の正確な結果と`Source.Typing`
-- full-cut境界でbody要求を右辺へ戻さない例について，公開推論が`none`を返すこと
+- full-cut境界でbody要求を右辺へ戻さない例について，公開推論が`none`を返し，`Source.Typing`が存在しないこと
 
-最後の負例は実行可能推論の境界を固定するが，`Source.Typing`の不存在はまだ証明していない．
-また，一般の`letE`を含むsource elaboration全体の完全性はまだ与えていない．別名等式を含む
-一般の保留checkingと飽和の輸送，closureの局所性，生成変数の由来，`let`境界のsupply安定性は
-証明済みである．同じ生成blockを閉じる任意の二つの吸収的closureからは，閉じたcontext，結果型，
-一般化schemeの正確な対応と，interface差の有限な別名等式分解，その別名端点のsupport上の新鮮さまで
-自動構成できる．well-formed supplyより後を固定する名前変更によるnested body輸送も証明済みである．
-異なるvalue生成blockを比較する場合も，名前変更後の`let`全体についてtarget，hard制約，保留checkingを
-同時に対応させ，rootの受理同値とtargetの相互代入関係まで証明済みである．残る核心は，周囲の制約blockが
-移動対象の変数と別名等式の新しい端点を使わないことを，source生成のfresh区間から入れ子ごとに導くことである．
-名前変更が有限な`hidden`集合の外を固定するとき，子blockの名前変更を`hidden`を使わない親blockへ安全に
-差し込めること，および後続bodyのcontextに由来する変数が先行valueの開始supplyより前なら，source生成の
-由来からbodyがvalue区間の`hidden`名を避けることは証明済みである．ただし，未来のfresh名を固定するだけでは
-過去の名前交換を排除できず，共通hard制約だけの証拠からは保留checking内の別名端点を復元できない．この二つの
-不足は反例で固定している．さらに，well-formedな開始supplyから得た実際のsource `let`導出と二つの
-吸収的closureについても，closure結果を合わせる名前変更が継承context変数を動かすため，`hidden`の外を
-固定する十分条件を満たさない例を証明した．従ってこの十分条件を一般のsource帰納法で構成する方針は採用しない．
-完全性に残るsource側の仕事は，interfaceの別名等式除去とbody比較を一体化し，子blockだけの名前変更を
-中間目標にせず，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を直接構成することである．
-この修正後の目標は，保留checkingを持たない先のsource由来反例自身について成立することを検証した．しかし，
-左右の完全なblockを各許容frame内で有限なfresh別名等式列から同じblockへ正規化する
-`DirectLetNormalizationHandler`は，bodyの保留checkingにclosure代表名が現れるsource導出により偽である．
-さらに，共通block全体を左右で別々の有限な全単射によって名前変更してからhard別名等式を加える
-`RenamingAwareDirectLetNormalizationHandler`も偽である．固定frameが継承変数を観測すると，一方の保留checkingでは
-二つの位置が同じ名前になり，もう一方では異なる名前になるため，全単射な名前変更では共通化できない．
-この二段階の反例をkernel proofとして固定した．
+M2の完全性では，保留checkingを文字どおり一致させる代わりに，周囲のhard制約を解くすべての代入の下で
+左右の要求が同じになる関係`EntailedObligationEq`を使う．この関係は変換種類の判定を一致させ，通常等式への
+昇格，飽和終点，残余等式，block受理を同じ代入のまま輸送できる．主要closureについても，hard代入，残余代入，
+合成代入，吸収性，結果型を保つ輸送を証明した．
 
-正しい最小境界は，構文上の共通blockを要求せず，終了supplyの一致と各許容frameでの受理同値だけを持つ
-`DirectContextualLetComparisonHandler`である．これは既存の`LetComparisonHandler`と同値であることを証明済みである．
-一般のsource帰納法では，interface等式の解がbodyの保留checkingに現れる代表名の差を吸収することを直接使って，
-この受理同値を構成する必要がある．この構成は未証明である．
-一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
-最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
-変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
-公開推論が使うfreshness条件を明示した
-`WellFormedElaborationPrincipalityComplete`として切り出し，そこから受理完全性，受理同値，
-決定可能性，公開推論の主要性，主要型の有限な変数名変更による一意性まで証明しているが，
-条件そのものは未証明である．任意の開始supplyではcontextの自由変数とfresh変数が衝突し得る．
-等式の向きを反転する手続きも正当な吸収的solverであること，候補となる二つの局所結果が相互instanceで
-ないこと，開始supplyがwell-formedでないことを独立に検証しているため，公開目標はwell-formed supplyに
-限定する．これらを一つの完全なelaboration導出へ接続していないので，この障害module単独では
-任意supply版の完全性条件の否定までは主張しない．
-また，異なるlet closureから得る生成済みblock全体が一つの
-大域的な変数名変更だけで一致するという主張も，自明式と別名等式の差を持つclosed反例により偽である．
-残る証明は，scope外から観測できない局所変数と有限な別名等式による比較として定式化する．
+source帰納法は，終了supplyの一致，左右の有限な別名等式列，hard制約の解集合の一致，結果型と保留checkingの
+意味的な一致を`SupportedEntailedAlignmentCertificate`に保持する．lambda，application，tuple，constructor，
+primitive，conditionalの証明書を合成し，入れ子`letE`のbodyはwell-formed supplyより後を固定する名前変更で輸送する．
+子blockだけの名前変更，一つの大域的な名前変更，hard制約だけの共通blockが一般には不十分であることは既存の
+反例として残すが，最終証明はこれらを中間条件にしない．
+
+`letE`境界では，二つの吸収的closureの有限な変数対応から，閉じたcontextで観測できる移動辺だけをvisible closure
+graphとして抽出する．左右それぞれのinterfaceに必要な別名等式を加えると，共通のhard理論を得る．別名の新しい
+端点がvalueの割当区間にあり，対応する側のinterfaceと後続body contextに現れないことを，source生成変数の由来と
+closure局所性から証明する．body側の別名列を元の座標へ戻してinterfaceと合わせることで，完全な
+`Generated.fromLet`の証明書を構成する．この段階が`fullM2LetGraphAliasPresentationComplete`と
+`fullM2LetSupportedAssemblyBridge`である．
+
+通常構文の帰納法とこのbridgeを合わせた`fullM2CoherenceComplete`から，前提なしの
+`wellFormedElaborationPrincipalityComplete`を得る．これにより，一般の入れ子`letE`を含むM2--M3 sourceについて，
+`Typing.infer_isSome`，`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，
+`Inference.infer_success_principalResult`，`Inference.infer_principalResult`，`PrincipalTyping.finiteRenamingEq`が成立する．
+`Typing.infer_isSome`と`PrincipalTyping.finiteRenamingEq`にはsignatureの整合性を仮定せず，実行可能推論の
+健全性を使う残りの公開APIは`Signature.WellFormed`を明示的に受け取る．
+開始supplyのwell-formednessは必要であり，公開推論は`context.initialSupply`から始まるため常に満たす．任意の
+well-formedでない開始supplyを含む主張はM2の公開完了条件に含めない．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
 generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
@@ -230,7 +211,12 @@ generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
 `Source/RecursiveLetSupportSafety.lean`，`Source/DirectLetComparison.lean`，
 `Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
-`Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
+`Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，
+`EntailedPendingTransport.lean`，`EntailedPrincipalClosureTransport.lean`，
+`FreshAliasPrincipalClosure.lean`，`Source/EntailedAlignment.lean`，
+`Source/FullM2Coherence.lean`，`Source/FullM2Replay.lean`，
+`Source/FullM2GraphAliasPresentation.lean`，`Source/FullM2Completion.lean`，
+`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，
 静的な公開推論結果と`Source.Typing`まで検証済みである．このlistingは評価結果を示す例ではないため，
 M5の実行回帰の対象外である．

@@ -95,6 +95,7 @@ import TypePM.Source.ElaborationCompleteness
 import TypePM.GeneratedSemanticAcceptanceRegression
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
+import TypePM.Source.FullM2Completion
 import TypePM.Source.M2Regression
 import TypePM.Source.M3Regression
 import TypePM.DataTypes
