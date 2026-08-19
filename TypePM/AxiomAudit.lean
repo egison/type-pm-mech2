@@ -19,6 +19,7 @@ import TypePM.ResolutionSupport
 import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
+import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -210,3 +211,10 @@ every full build.
 #print axioms TypePM.Source.M3DeclarationsRegression.map_instantiation_exact
 #print axioms TypePM.Source.M3DeclarationsRegression.paper1_signature_wellFormed
 #print axioms TypePM.Source.M3DeclarationsRegression.malformed_list_capability_not_wellFormed
+#print axioms TypePM.Source.Paper1FrozenSignature.wellFormed
+#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_unique
+#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_closed
+#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_wellFormed
+#print axioms TypePM.Source.M4FrozenSignatureRegression.one_pattern_function_wellFormed
+#print axioms TypePM.Source.M4FrozenSignatureRegression.lookup_emptyList_exact
+#print axioms TypePM.Source.M4FrozenSignatureRegression.duplicate_pattern_function_not_wellFormed

@@ -96,6 +96,8 @@ import TypePM.Primitives
 import TypePM.PatternDeclarations
 import TypePM.Signature
 import TypePM.M3DeclarationsRegression
+import TypePM.Source.FrozenSignature
+import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.AxiomAudit
 
 /-!

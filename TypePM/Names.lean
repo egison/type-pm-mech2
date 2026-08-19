@@ -3,7 +3,7 @@ import Std
 /-!
 # Names used by data and pattern-matching declarations
 
-The four declaration categories deliberately use different wrapper types.
+The five declaration categories deliberately use different wrapper types.
 Consequently, equal source spellings such as the data constructor `nil` and
 the pattern constructor `nil` cannot be confused by later lookup functions.
 -/
@@ -30,6 +30,12 @@ structure PatternCtor where
   name : String
 deriving Repr, DecidableEq
 
+/-- The name of a pattern function.  It remains distinct from pattern
+constructor names even when the source spellings happen to agree. -/
+structure PatternFunName where
+  name : String
+deriving Repr, DecidableEq
+
 instance : ToString DataFormer where
   toString := DataFormer.name
 
@@ -41,6 +47,9 @@ instance : ToString PatternFormer where
 
 instance : ToString PatternCtor where
   toString := PatternCtor.name
+
+instance : ToString PatternFunName where
+  toString := PatternFunName.name
 
 namespace DataFormer
 
