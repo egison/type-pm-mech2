@@ -29,9 +29,9 @@ structure AtomReduction where
   bindings : List Value
 deriving Repr
 
-/-- A complete matching-search state.  All lists are newest-first where they
-represent environments or bindings, and source-ordered where they represent
-pending work. -/
+/-- A complete matching-search state.  The ordinary expression environment is
+newest-first.  Pattern bindings form one source-ordered prefix, matching
+`Pattern.extendContext`; pending work is source-ordered as well. -/
 structure MatchingState where
   work : List MatchingAtom
   environment : ValueEnvironment

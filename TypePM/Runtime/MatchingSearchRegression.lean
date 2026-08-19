@@ -39,6 +39,14 @@ theorem tuple_work_and_bindings_preserve_runtime_order :
       .ok [[one]] := by
   rfl
 
+theorem two_variable_bindings_remain_in_source_order :
+    searchMatchingFuel builtinReducer 4
+        ⟨[⟨.tuple [.var, .var],
+            .tuple [.something, .something], .tuple [one, two]⟩],
+          [], []⟩ =
+      .ok [[one, two]] := by
+  rfl
+
 /-- Two equal-position branches remain two answers; search never deduplicates. -/
 def duplicateReducer (_ : ValueEnvironment) (_ : MatchingAtom) :
     FuelResult (DispatchResult AtomReduction) :=

@@ -401,6 +401,7 @@ every full build.
 #print axioms TypePM.Runtime.MatchingSearchRegression.variable_match_search_exact
 #print axioms TypePM.Runtime.MatchingSearchRegression.value_mismatch_returns_no_answers
 #print axioms TypePM.Runtime.MatchingSearchRegression.tuple_work_and_bindings_preserve_runtime_order
+#print axioms TypePM.Runtime.MatchingSearchRegression.two_variable_bindings_remain_in_source_order
 #print axioms TypePM.Runtime.MatchingSearchRegression.duplicate_branches_remain_distinct
 #print axioms TypePM.Runtime.MatchingSearchRegression.unhandled_atom_is_stuck
 #print axioms TypePM.Runtime.MatchingSearchRegression.normal_failure_is_not_stuck

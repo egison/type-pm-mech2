@@ -382,7 +382,7 @@ tupleの同じ要素数での子atom化，product matcherから`something`への
 pattern functionのatom規則は後続moduleに残る．
 `Runtime/MatchingSearch.lean`は，atom還元の順序付き分岐を「その分岐のworkの後ろに
 元の残りworkを続ける」状態列へ変換し，先行の深さ優先探索に接続する．新しいbindingは
-newest-first環境の先頭へ置く．通常の不一致は後続状態0個となり，同じ結果を持つ二つの
+型付けの`Pattern.extendContext`と同じ左から右のsource順で追加する．通常の不一致は後続状態0個となり，同じ結果を持つ二つの
 位置別分岐は二つの答えとして残る．実行と独立したstate-step関係との対応，全atomを
 扱うreducerがstuckしないときの任意fuelでのsearch no-stuckを証明した．
 `Runtime/CombinedAtomReducer.lean`は，構文上のatom規則を先に試し，通常の`miss`のときだけ

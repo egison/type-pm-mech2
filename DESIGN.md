@@ -380,7 +380,7 @@ tupleの正確な要素数での子atom生成，product matcherから`something`
 構造的な独立関係との双方向対応と，埋め込み式評価のno-stuckを仮定した局所no-stuckを証明する．
 不一致は通常の空分岐または後続dispatchとして扱い，この局所層で`stuck`にしない．
 `Runtime/MatchingSearch.lean`はatomのordered branchを具体的なmatching state列へ変換し，
-各branchのworkを元の残りworkより先に処理する．新しいbindingはnewest-first列の先頭へ置き，
+各branchのworkを元の残りworkより先に処理する．pattern bindingは静的`Pattern.extendContext`と同じsource順で末尾へ追加し，
 後続branch 0個を正常な不一致とする．`DepthFirstSearch`との接続後もsource順と重複branchを保存する．
 独立関係との対応と，全atomを扱う局所reducerのno-stuckから任意fuelの探索no-stuckを得る定理を持つ．
 `Runtime/CombinedAtomReducer.lean`は複数のatom規則族の優先順位を固定する．先行側の

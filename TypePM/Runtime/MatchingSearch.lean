@@ -7,7 +7,7 @@ import TypePM.Runtime.MatchingState
 This module turns atom reductions into concrete matching-state transitions.
 An atom reduction supplies an ordered list of alternative worklists.  Each
 alternative is placed before the state's remaining work, while new bindings
-are prepended to the existing newest-first binding environment.  A completed
+are appended to the existing source-ordered pattern-binding group.  A completed
 state yields those bindings; zero alternatives are normal match failure.
 
 The atom reducer is a parameter so that syntax-directed rules and matcher
@@ -24,7 +24,7 @@ def MatchingState.continueWith
     MatchingState :=
   { work := branch ++ remaining
     environment := state.environment
-    bindings := reduction.bindings ++ state.bindings }
+    bindings := state.bindings ++ reduction.bindings }
 
 /-- All successor states, in the exact order supplied by the atom rule. -/
 def MatchingState.successors
@@ -62,7 +62,7 @@ inductive MatchingStateSteps
         (.expand
           ((reduction.branches.map fun branch =>
             ⟨branch ++ remaining, environment,
-              reduction.bindings ++ bindings⟩)))
+              bindings ++ reduction.bindings⟩)))
 
 /-- Every completed executable state step has its structural derivation. -/
 theorem stepMatchingState_sound
