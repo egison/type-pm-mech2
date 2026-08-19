@@ -70,8 +70,11 @@ joinはvalueの終了supplyそのものに簡約できる．
 自動分解するところまで証明済みである．各別名の新しい端点が観測可能な有限supportの外にあり，既存端点が
 support内にあることも自動導出する．共通interface制約とbodyを合わせたblock全体がその新しい端点を使わないなら，
 保留checkingを含むblockの受理同値を得られる．また，well-formed supplyより後の名前を固定する変数名変更なら，nested `letE`を含むbody elaboration
-全体を同じ開始・終了supplyのまま輸送できる．残る核心は，二つのvalue elaboration自体が異なる生成blockを
-返す場合に，これらの証拠をbodyのtarget・hard制約・保留checking全体へ一度に持ち上げることである．
+全体を同じ開始・終了supplyのまま輸送できる．異なるvalue生成blockを比較する場合も，名前変更後の左右について
+interfaceとbodyを合わせた`let`全体の結果型，hard制約，保留checkingを同時に対応させ，rootでの受理同値と
+結果型の相互代入関係まで証明済みである．残る条件は，周囲の制約blockが移動対象の変数を共有しないことと，
+有限な別名等式の新しい端点を周囲のblockが使わないことを，source生成変数の由来から各入れ子位置で導くことである．
+子blockだけを名前変更すると，周囲が移動対象を共有する場合には受理が変わり得ることも反例で固定した．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
@@ -121,7 +124,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/UnwellFormedSupplyPrincipalityCounterexample.lean`，
 `Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
-`Source/RecursiveLetInvariant.lean`，
+`Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 

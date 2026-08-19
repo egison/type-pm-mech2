@@ -45,6 +45,7 @@ import TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample
 import TypePM.Source.ScopedGeneratedEquivalence
 import TypePM.Source.ScopedElaborationComposition
 import TypePM.Source.RecursiveLetInvariant
+import TypePM.Source.CrossGeneratedLetNormalization
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
@@ -169,6 +170,10 @@ every full build.
 #print axioms TypePM.Source.Elaborates.transport_of_fixesAtOrAbove
 #print axioms TypePM.Source.GeneratedEquationCommonCore.scopedContextualEquivalent_of_frameAdmissible
 #print axioms TypePM.Source.scopedLetStep
+#print axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_blockAccepts_iff
+#print axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_targets_mutualInstances
+#print axioms TypePM.Source.CrossGeneratedClosureAlignment.renamedFromLet_pending_exact
+#print axioms TypePM.Source.IsolatedRenamingCounterexample.not_scopedContextualEquivalent
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
