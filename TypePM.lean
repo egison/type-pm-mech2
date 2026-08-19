@@ -118,6 +118,7 @@ import TypePM.Runtime.GroundPrimitiveAdequacy
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
+import TypePM.Source.M4SyntaxRegression
 import TypePM.AxiomAudit
 
 /-!

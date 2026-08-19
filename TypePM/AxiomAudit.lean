@@ -28,6 +28,7 @@ import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
+import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
@@ -338,6 +339,12 @@ every full build.
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.bad_arities_rejected
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.duplicate_binding_slots_rejected
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.wrong_hole_convention_rejected
+#print axioms TypePM.Source.MatcherArm.toHeader_bindingOrder
+#print axioms TypePM.Source.MatcherClause.toShape_holeConvention
+#print axioms TypePM.Source.M4SyntaxRegression.catchAllClause_shape_checked
+#print axioms TypePM.Source.M4SyntaxRegression.elaborate_fixE_none
+#print axioms TypePM.Source.M4SyntaxRegression.matcher_not_relationally_elaborated
+#print axioms TypePM.Source.M4SyntaxRegression.matchAll_not_relationally_elaborated
 #print axioms TypePM.Source.M3Regression.infer_true_exact
 #print axioms TypePM.Source.M3Regression.infer_nil_exact
 #print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds

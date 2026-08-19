@@ -29,8 +29,8 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M0 | 型，二種類の変数への代入，raw synthesis，局所checking | done | tuple of matchersのraw主要性と明示された要求型への変換まで検証済みである |
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
-| M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4構文完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約に加え，実行式を持たないclause構造と順序検査を実装済みである．pattern function本体，freeze checker，matcher clause本体，型推論，`Source.Expr`への接続は未定義である |
+| M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，実行式を持たないclause構造と順序検査に加え，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文を実装済みである．pattern function本体，freeze checker，pattern・matcher・`matchAll`・`fix`の型推論は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索に加え，整数・data constructor・tupleだけからなる閉じたground dataと5 primitiveの実行・独立関係仕様を実装済みである．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -197,7 +197,7 @@ matcher clauseがpatternのどの部分を次へ委譲し，どの部分を値�
 区別できること，captureが最初のholeより前にあること，constructorの引数数がfrozen signatureと一致することを
 検査する．multiset matcherの7個のclause headerについて，hole順序と0／1／2個の個数，capture数，shape検査を
 kernel proofで固定した．`#$value :: $`は受理し，順序を逆にした`$ :: #$value`は拒否する．このmoduleは
-matcher clauseやその本体を定義せず，既存の`Source.Expr`も変更しない．
+式を含まないheader検査を，sourceのmatcher clause本体とは分離して定義する．
 
 次の構造層として`MatcherClauseShape`を追加した．これは一つの`PPat` header，順序付き`DPat` arm header，
 metadata（構文に付随する検査用情報）としてのhole数規約だけを持つ．hole数規約は0個，1個，固定された
@@ -205,8 +205,18 @@ metadata（構文に付随する検査用情報）としてのhole数規約だ�
 `DPat`の左から右の順序と正確に一致し，重複せず，headerのcapture slotとは種類が異なることを証明した．
 clause列ではbare holeだけからなるcatch-all headerをちょうど最後に要求する．multiset matcherの7 clauseに
 arm headerを付けた構造がこの検査を通ることと，catch-allが途中にある場合，constructor引数数が違う場合，
-binding slotが重複する場合，hole数規約が違う場合を拒否することをkernel proofで固定した．この段階のarmは
-data patternだけであり，実行式，型推論，評価の意味をまだ含まない．
+binding slotが重複する場合，hole数規約が違う場合を拒否することをkernel proofで固定した．
+
+source構文は`Expr`，`Pattern`，`MatcherClause`，`MatcherArm`を一つの相互帰納型として定義した．
+`Expr`は既存のM0--M3構文に`fixE`，matcher literal，`matchAll`を加え，`Pattern`は変数，wildcard，
+式を持つvalue pattern，pattern constructor，tuple，namelessなpattern引数参照，pattern function適用を
+持つ．matcher clauseは`PPat` header，次のmatcherを計算する式，順序付きarmからなり，各armは`DPat`
+headerとbody式を持つ．opaqueな拡張nodeは使わない．実際のclauseから`MatcherClauseShape`への消去では，
+hole数規約とdata-variableの順序を構文からcanonicalに導くため，利用者が矛盾するmetadataを与えられない．
+全構文に`Repr`と構造的な複雑度を定義し，既存のM0--M3 elaboration・support・freshness・名前変更・`let`
+比較の証明が同じ構文上でcompileすることを確認した．一方，M4の型付けを実装済みと誤認しないよう，
+`fixE`，matcher literal，`matchAll`は現在の実行可能elaborationで明示的に`none`を返し，関係的
+`Elaborates`にも対応constructorを置いていない．この静的未受理は実行側と関係側のkernel proofで固定している．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 
@@ -310,8 +320,8 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 ## 論文1のcode listing inventory
 
 inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡する一覧である．IDは
-`type-pm-paper1.tex`中の`lstlisting`出現順で固定する．現在はM4とM5の構文がないため，
-M1の境界例とM2の明示的`let`例を除いて`not-started`である．15個のlisting環境には，正負の対を分けると
+`type-pm-paper1.tex`中の`lstlisting`出現順で固定する．M4のsource構文は定義済みだが，型付けとM5の
+評価器は未完成であるため，M1の境界例とM2の明示的`let`例を除いて`not-started`である．15個のlisting環境には，正負の対を分けると
 19個の独立したprogramまたは宣言が含まれる．一つの行に複数のprogramがある場合も，各々を
 別の回帰として検証する．
 

@@ -3,11 +3,11 @@ import TypePM.Source.FrozenSignature
 /-!
 # Matcher-pattern static shapes
 
-This module records only the pattern shapes needed at matcher-clause headers.
-It deliberately does not define clauses, bodies, or an extension of
-`Source.Expr`.  Hole, capture, and data-variable binders are nameless; their
-stable identifiers are their left-to-right positions in the corresponding
-summary.
+This module records only the expression-free pattern shapes needed at
+matcher-clause headers.  The direct clause and expression syntax is defined
+separately in `Source.Syntax`, so this checker remains independent of clause
+bodies.  Hole, capture, and data-variable binders are nameless; their stable
+identifiers are their left-to-right positions in the corresponding summary.
 -/
 
 namespace TypePM.Source

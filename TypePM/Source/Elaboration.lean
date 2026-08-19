@@ -76,7 +76,8 @@ theorem conditionalScheme_closed : conditionalScheme.Closed := by
 
 mutual
 
-/-- Syntax-node measure shared by mutually recursive source elaborators. -/
+/-- Syntax-node measure shared by mutually recursive source elaborators and
+the direct M4 syntax. -/
 def Expr.complexity : Expr → Nat
   | .var _ | .lit _ | .something => 1
   | .lam body => body.complexity + 1
@@ -88,10 +89,45 @@ def Expr.complexity : Expr → Nat
   | .ifE condition thenBranch elseBranch =>
       condition.complexity + thenBranch.complexity +
         elseBranch.complexity + 4
+  | .fixE body => body.complexity + 1
+  | .matcher clauses => MatcherClause.listComplexity clauses + 1
+  | .matchAll target matcher pattern body =>
+      target.complexity + matcher.complexity + pattern.complexity +
+        body.complexity + 1
 
 def Expr.listComplexity : List Expr → Nat
   | [] => 0
   | item :: items => item.complexity + Expr.listComplexity items + 1
+
+/-- Complexity of a pattern, including embedded value expressions. -/
+def Pattern.complexity : Pattern → Nat
+  | .var | .wild | .embed _ => 1
+  | .value expression => expression.complexity + 1
+  | .ctor _ fields | .tuple fields | .app _ fields =>
+      Pattern.listComplexity fields + 1
+
+def Pattern.listComplexity : List Pattern → Nat
+  | [] => 0
+  | pattern :: patterns =>
+      pattern.complexity + Pattern.listComplexity patterns + 1
+
+/-- Complexity of a matcher clause includes all source expressions stored in
+its next-matcher expression and ordered arms. -/
+def MatcherClause.complexity : MatcherClause → Nat
+  | .mk _ nextMatchers arms =>
+      nextMatchers.complexity + MatcherArm.listComplexity arms + 1
+
+def MatcherClause.listComplexity : List MatcherClause → Nat
+  | [] => 0
+  | clause :: clauses =>
+      clause.complexity + MatcherClause.listComplexity clauses + 1
+
+def MatcherArm.complexity : MatcherArm → Nat
+  | .mk _ body => body.complexity + 1
+
+def MatcherArm.listComplexity : List MatcherArm → Nat
+  | [] => 0
+  | arm :: arms => arm.complexity + MatcherArm.listComplexity arms + 1
 
 end
 
@@ -118,10 +154,62 @@ end
     (Expr.ifE condition thenBranch elseBranch).complexity =
       condition.complexity + thenBranch.complexity +
         elseBranch.complexity + 4 := rfl
+@[simp] theorem Expr.complexity_fixE (body : Expr) :
+    (Expr.fixE body).complexity = body.complexity + 1 := rfl
+@[simp] theorem Expr.complexity_matcher (clauses : List MatcherClause) :
+    (Expr.matcher clauses).complexity =
+      MatcherClause.listComplexity clauses + 1 := rfl
+@[simp] theorem Expr.complexity_matchAll
+    (target matcher : Expr) (pattern : Pattern) (body : Expr) :
+    (Expr.matchAll target matcher pattern body).complexity =
+      target.complexity + matcher.complexity + pattern.complexity +
+        body.complexity + 1 := rfl
 @[simp] theorem Expr.listComplexity_nil : Expr.listComplexity [] = 0 := rfl
 @[simp] theorem Expr.listComplexity_cons (item : Expr) (items : List Expr) :
     Expr.listComplexity (item :: items) =
       item.complexity + Expr.listComplexity items + 1 := rfl
+
+@[simp] theorem Pattern.complexity_var : Pattern.var.complexity = 1 := rfl
+@[simp] theorem Pattern.complexity_wild : Pattern.wild.complexity = 1 := rfl
+@[simp] theorem Pattern.complexity_value (expression : Expr) :
+    (Pattern.value expression).complexity = expression.complexity + 1 := rfl
+@[simp] theorem Pattern.complexity_ctor
+    (constructor : PatternCtor) (fields : List Pattern) :
+    (Pattern.ctor constructor fields).complexity =
+      Pattern.listComplexity fields + 1 := rfl
+@[simp] theorem Pattern.complexity_tuple (items : List Pattern) :
+    (Pattern.tuple items).complexity = Pattern.listComplexity items + 1 := rfl
+@[simp] theorem Pattern.complexity_embed (index : Nat) :
+    (Pattern.embed index).complexity = 1 := rfl
+@[simp] theorem Pattern.complexity_app
+    (function : PatternFunName) (arguments : List Pattern) :
+    (Pattern.app function arguments).complexity =
+      Pattern.listComplexity arguments + 1 := rfl
+@[simp] theorem Pattern.listComplexity_nil : Pattern.listComplexity [] = 0 := rfl
+@[simp] theorem Pattern.listComplexity_cons
+    (pattern : Pattern) (patterns : List Pattern) :
+    Pattern.listComplexity (pattern :: patterns) =
+      pattern.complexity + Pattern.listComplexity patterns + 1 := rfl
+
+@[simp] theorem MatcherClause.complexity_mk
+    (header : PPat) (nextMatchers : Expr) (arms : List MatcherArm) :
+    (MatcherClause.mk header nextMatchers arms).complexity =
+      nextMatchers.complexity + MatcherArm.listComplexity arms + 1 := rfl
+@[simp] theorem MatcherClause.listComplexity_nil :
+    MatcherClause.listComplexity [] = 0 := rfl
+@[simp] theorem MatcherClause.listComplexity_cons
+    (clause : MatcherClause) (clauses : List MatcherClause) :
+    MatcherClause.listComplexity (clause :: clauses) =
+      clause.complexity + MatcherClause.listComplexity clauses + 1 := rfl
+
+@[simp] theorem MatcherArm.complexity_mk (header : DPat) (body : Expr) :
+    (MatcherArm.mk header body).complexity = body.complexity + 1 := rfl
+@[simp] theorem MatcherArm.listComplexity_nil :
+    MatcherArm.listComplexity [] = 0 := rfl
+@[simp] theorem MatcherArm.listComplexity_cons
+    (arm : MatcherArm) (arms : List MatcherArm) :
+    MatcherArm.listComplexity (arm :: arms) =
+      arm.complexity + MatcherArm.listComplexity arms + 1 := rfl
 
 mutual
 
@@ -197,6 +285,9 @@ def elaborate (signature : Signature) (context : Context) :
       let instantiated := conditionalScheme.instantiate supply
       elaborateCall signature context ⟨instantiated.1, [], []⟩
         [condition, thenBranch, elseBranch] instantiated.2
+  | .fixE _, _ => none
+  | .matcher _, _ => none
+  | .matchAll _ _ _ _, _ => none
 termination_by expression => expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> omega
 
@@ -583,6 +674,9 @@ theorem elaborate_sound
               subst generated
               subst next
               exact .ifE (elaborateCall_sound wellFormed callResult)
+  | fixE body => simp [elaborate] at success
+  | matcher clauses => simp [elaborate] at success
+  | matchAll target matcher pattern body => simp [elaborate] at success
 termination_by expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 

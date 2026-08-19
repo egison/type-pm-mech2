@@ -3,10 +3,11 @@ import TypePM.Source.MatcherPattern
 /-!
 # Execution-free matcher-clause structure
 
-This module records the static structure that surrounds a future matcher
-clause: one pattern-pattern header, an ordered list of data-pattern arm
-headers, and metadata describing the number of delegated holes.  It contains
-no source expression, clause body, inference rule, or execution rule.
+This module records the expression-free erasure of a matcher clause: one
+pattern-pattern header, an ordered list of data-pattern arm headers, and
+metadata describing the number of delegated holes.  It contains no source
+expression, inference rule, or execution rule; `Source.Syntax` maps each
+direct clause to this shape before checking it.
 -/
 
 namespace TypePM.Source
@@ -72,7 +73,7 @@ theorem bindingSlots_nodup_of_check
 
 end MatcherArmHeader
 
-/-- The static, execution-free part of a future matcher clause. -/
+/-- The static, execution-free part of a matcher clause. -/
 structure MatcherClauseShape where
   header : PPat
   holeConvention : HoleConvention

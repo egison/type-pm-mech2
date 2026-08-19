@@ -47,8 +47,8 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
-| M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4待ち |
-| M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，実行式を持たないclause構造と順序検査は実装済み．pattern，`matchAll`，matcher clause本体，型推論，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
+| M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
+| M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
 | M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground dataと5 primitiveの実行・独立関係仕様・双方向対応は実装済み．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
@@ -260,15 +260,15 @@ M4ではpattern，`matchAll`，matcher literal，直接自己再帰の`fix`，pa
 最初の基盤として，pattern function名をほかの宣言名と混同できない別の型にし，M3のsignatureへ
 pattern function名と`DualScheme`のinterfaceを加える`FrozenSignature`を定義した．その整合性条件は，
 基礎signatureの整合性，pattern function名の重複がないこと，各schemeに自由な型変数とcapability変数が
-ないこと，bound indexが量化範囲内にあることからなる．この段階では公開source構文にpattern function本体を
-追加せず，本体からinterfaceを作るfreeze checkerも定義しない．
+ないこと，bound indexが量化範囲内にあることからなる．pattern function本体を宣言として保持する層と，
+本体からinterfaceを作るfreeze checkerはまだ定義しない．
 
 matcher clause本体より先に，headerの静的な形だけを`PPat`と`DPat`として定義する．`PPat`はhole，wildcard，
 capture，pattern constructorからなり，`DPat`は変数，wildcard，data constructor，tupleからなる．binder名は
 構文に保持せず，左から右の出現位置を連続する自然数で要約する．holeとcaptureの位置は別の種類にし，それぞれの
 番号に重複がなく，互いに混同できないことを証明する．captureが最初のholeより後に現れないことを実行可能な
-検査で確認し，pattern／data constructorの引数数をfrozen signatureのschemeと照合する．このcheckpointでは
-matcher clause，clause本体，`Source.Expr`へのpattern構文追加を行わない．
+検査で確認し，pattern／data constructorの引数数をfrozen signatureのschemeと照合する．この検査層は
+式を参照せず，後から定義する直接のsource構文と分離する．
 
 次のcheckpointでは，このheaderを順序付きdata-pattern arm headerと組み合わせる`MatcherClauseShape`を
 定義する．これは実行式を含まない．metadata（構文に付随する検査用情報）として，headerが委譲するholeを
@@ -276,6 +276,17 @@ matcher clause，clause本体，`Source.Expr`へのpattern構文追加を行わ�
 `DPat`から得る左から右の順序と一致しなければならず，重複を許さない．data-variable slotとheaderのcapture slotは
 異なる種類として保持するため衝突しない．clause列ではbare holeのcatch-all headerを最後に一つだけ置く．
 この検査はclause本体の型付けや実行を仮定せず，それらの健全性を主張しない．
+
+その上に，最終的なsource ASTとして`Expr`，`Pattern`，`MatcherClause`，`MatcherArm`を直接の
+相互帰納型で定義した．matcher literalはclause列を，clauseは次のmatcherを作る式とbody式を，value patternは
+式を直接保持する．opaqueな拡張nodeは置かない．実際のclauseから式を消した`MatcherClauseShape`への変換は，
+hole数規約とarmのbinding順をheaderから導く．構文全体には`Repr`と構造的な複雑度を与えた．M5はこの
+constructor集合を最終形として使い，新たなsource constructorを追加しない．
+
+この構文checkpointはM4型付けの完成を意味しない．既存の実行可能elaborationは`fixE`，matcher literal，
+`matchAll`に`none`を返し，関係的`Elaborates`にも対応するconstructorを置かない．従って未実装規則が既存の
+M0--M3定理を経由して受理されたように見えることはない．`PatternTyping`と`MatcherTyping`の導入時に，この
+明示的な未受理を実際の生成規則へ置き換える．
 
 patternの左から右の変数束縛，value pattern内の式の型付け，pattern constructorが要求する
 capabilityとtarget，matcher producerからslotへの一方向のcheckingを独立規則として定義する．
