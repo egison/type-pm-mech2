@@ -26,6 +26,7 @@ import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Source.M4PatternTypingRegression
 import TypePM.Source.M4MatchFirstTypingRegression
 import TypePM.Source.Paper1Programs
+import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -558,6 +559,15 @@ every full build.
 #print axioms TypePM.Source.M4FixTypingRegression.higher_order_not_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.mutual_style_not_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.matcher_root_direct_but_unelaborated
+#print axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteral_sound
+#print axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteralUsing_sound
+#print axioms TypePM.Source.M4MatcherTypingRegression.all_seven_final_shapes_exact
+#print axioms TypePM.Source.M4MatcherTypingRegression.all_seven_static_checks
+#print axioms TypePM.Source.M4MatcherTypingRegression.infer_identity_literal_exact
+#print axioms TypePM.Source.M4MatcherTypingRegression.catch_all_order_rejected
+#print axioms TypePM.Source.M4MatcherTypingRegression.next_matcher_direction_rejected_after_header_solving
+#print axioms TypePM.Source.M4MatcherTypingRegression.missing_general_constructor_coverage_rejected
+#print axioms TypePM.Source.M4MatcherTypingRegression.nonexhaustive_data_arms_rejected
 #print axioms TypePM.Source.M3Regression.infer_true_exact
 #print axioms TypePM.Source.M3Regression.infer_nil_exact
 #print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds

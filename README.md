@@ -269,6 +269,23 @@ variable patternを使う`matchAll`の正確な推論結果，matcher-to-slot保
 pattern-function interfaceだけを使う適用を確認した．matcher literalと`fixE`を再帰的に型付けし，
 同じ公開`infer`へ統合する作業は残る．
 
+`M4MatcherTyping`は，最終的なsourceのmatcher literalとclause本体に対する制約生成を追加する．
+pattern-pattern headerからholeとcaptureを左から右に合成し，captureを次matcher式より先にscopeへ入れる．
+次matcherはholeが0個なら空tuple，1個ならscalar，2個以上なら同じ要素数のtupleとし，各要素を
+対応する`MatcherSlot`へ一方向にcheckingする．data-pattern armのbindingはbody contextの先頭に置き，
+bodyにはholeの0／1／複数規約による分解積のList型を要求する．clause順，最後のcatch-all，pattern
+constructorの浅い網羅性，data armの網羅性も実行前に検査する．実行可能規則とは別に帰納的な関係を定義し，
+実行結果から関係的導出を得る健全性を証明した．
+
+式を再帰的に型付けする合成点は`elaborateMatcherLiteralUsing`であり，式の独立関係を引数に取る
+`MatcherLiteralElaboratesUsing`と，callbackの健全性だけを仮定する
+`elaborateMatcherLiteralUsing_sound`を公開する．これにより`fixE`，`matchAll`，`matchFirst`を扱う
+最終dispatcherを後から結べるが，このcheckpoint自身は埋め込み式にM3 elaboratorを使う．回帰はPaper 1の
+7 clauseについて修正済みの外側arm（nilはnil／wild，head・value・generalはvariable，joinはnil／cons，
+whole・catchはvariable）と7個すべてのbody構文，静的網羅性を固定する．general-cons，join，whole-valueのbodyは
+入れ子の`matchAll`，再帰matcher，tuple-pattern lambda，単一結果matchを含むため，統合dispatcherでの
+全7 clause推論は未完了である．
+
 `M4FixTyping`は，単項・単相の`fixE`だけを独立した型付けcheckpointとして追加する．本体contextは
 引数，自己，外側contextの順であり，de Bruijn index（最も内側を0とする変数番号）では引数が0，
 自己が1である．自己はapplicationの直接のcalleeとしてだけ使え，値として返す，argumentとして渡す，
@@ -280,7 +297,8 @@ pattern-function interfaceだけを使う適用を確認した．matcher literal
 
 `elaborateFixUsing`と`FixElaboratesUsing`は本体のelaborationを引数に取る合成用の規則である．現在検証した
 `elaborateFix`はM3 elaboratorを本体に使うため，直接自己使用の検査を通るmatcher literalを本体に置いても
-`none`となる．matcher literal側の合成用elaboratorと再帰的なM4 dispatcherを組み，その関係的健全性を
+`none`となる．matcher literal側には実行可能・関係的な合成用APIがあるが，再帰的なM4 dispatcherを組み，
+その全体の関係的健全性を
 証明するまでは，一般multiset matcherやmatcher-root再帰が型付け済みとは主張しない．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
