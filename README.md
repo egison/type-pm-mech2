@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，5 primitiveのscheme，Listの3 pattern scheme，有限signatureとその整合性検査を実装済みである．sourceのconstructor／primitive／if構文とelaborationは未実装である |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名と，既に検査されたclosedなdual schemeだけを保持するfrozen signature基盤を実装済みである．pattern function本体，freeze checker，patternとmatcher固有のsource構文は未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signatureに加え，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，capture-before-first-hole検査，constructor引数数のshape検査を実装済みである．pattern function本体，freeze checker，matcher clause本体，`Source.Expr`への接続は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | not-started | value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -166,6 +166,15 @@ pattern function名をほかの宣言名とは別の型にし，M3のsignature�
 lookupで得たschemeがこれらの条件を満たすことと，Paper 1のpattern functionを含まないfrozen signatureの
 正確なlookupをkernel proofで確認した．この基盤にはpattern function本体を置かず，本体からinterfaceを作る
 freeze checkerもまだ実装していない．
+
+matcher clause headerの静的な形だけを表す`PPat`と`DPat`も追加した．pattern patternである`PPat`は，
+matcher clauseがpatternのどの部分を次へ委譲し，どの部分を値として取り出すかを表す．data patternである
+`DPat`は，matcher実装がdata constructorやtupleを分解するときの形を表す．binderは利用者が指定する名前を
+持たず，左から右の位置で番号を割り当てる．この番号が重複しないこと，holeとcaptureの番号を別の種類として
+区別できること，captureが最初のholeより前にあること，constructorの引数数がfrozen signatureと一致することを
+検査する．multiset matcherの7個のclause headerについて，hole順序と0／1／2個の個数，capture数，shape検査を
+kernel proofで固定した．`#$value :: $`は受理し，順序を逆にした`$ :: #$value`は拒否する．このmoduleは
+matcher clauseやその本体を定義せず，既存の`Source.Expr`も変更しない．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 

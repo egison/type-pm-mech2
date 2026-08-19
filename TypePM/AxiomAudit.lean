@@ -20,6 +20,7 @@ import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
+import TypePM.Source.M4MatcherPatternRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -225,3 +226,18 @@ every full build.
 #print axioms TypePM.Source.M4FrozenSignatureRegression.one_pattern_function_wellFormed
 #print axioms TypePM.Source.M4FrozenSignatureRegression.lookup_emptyList_exact
 #print axioms TypePM.Source.M4FrozenSignatureRegression.duplicate_pattern_function_not_wellFormed
+#print axioms TypePM.Source.PPat.holesInSourceOrder_nodup
+#print axioms TypePM.Source.PPat.captureSlots_nodup
+#print axioms TypePM.Source.PPat.hole_capture_slots_disjoint
+#print axioms TypePM.Source.DPat.bindingsInSourceOrder_nodup
+#print axioms TypePM.Source.DPat.bindingSlots_nodup
+#print axioms TypePM.Source.capture_data_binding_slots_disjoint
+#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_shapeOK
+#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_capture_order
+#print axioms TypePM.Source.M4MatcherPatternRegression.value_cons_summary_exact
+#print axioms TypePM.Source.M4MatcherPatternRegression.capture_after_hole_rejected
+#print axioms TypePM.Source.M4MatcherPatternRegression.hole_counts_zero_one_two
+#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_capture_counts_exact
+#print axioms TypePM.Source.M4MatcherPatternRegression.data_arms_shapeOK
+#print axioms TypePM.Source.M4MatcherPatternRegression.data_arm_bindings_exact
+#print axioms TypePM.Source.M4MatcherPatternRegression.bad_constructor_arities_rejected

@@ -48,7 +48,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，primitive scheme，List pattern scheme，有限signatureと整合性検査は実装済み．source接続は未実装 |
-| M4 | partial | pattern function名と，closedかつwell-scopedなinterfaceだけを保持するfrozen signature基盤は実装済み．pattern，`matchAll`，matcher literal，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
+| M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，capture-before-first-hole検査，constructor引数数のshape検査は実装済み．pattern，`matchAll`，matcher clause本体，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
 | M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
 
 ### M0：独立した基礎
@@ -254,6 +254,13 @@ pattern function名と`DualScheme`のinterfaceを加える`FrozenSignature`を�
 基礎signatureの整合性，pattern function名の重複がないこと，各schemeに自由な型変数とcapability変数が
 ないこと，bound indexが量化範囲内にあることからなる．この段階では公開source構文にpattern function本体を
 追加せず，本体からinterfaceを作るfreeze checkerも定義しない．
+
+matcher clause本体より先に，headerの静的な形だけを`PPat`と`DPat`として定義する．`PPat`はhole，wildcard，
+capture，pattern constructorからなり，`DPat`は変数，wildcard，data constructor，tupleからなる．binder名は
+構文に保持せず，左から右の出現位置を連続する自然数で要約する．holeとcaptureの位置は別の種類にし，それぞれの
+番号に重複がなく，互いに混同できないことを証明する．captureが最初のholeより後に現れないことを実行可能な
+検査で確認し，pattern／data constructorの引数数をfrozen signatureのschemeと照合する．このcheckpointでは
+matcher clause，clause本体，`Source.Expr`へのpattern構文追加を行わない．
 
 patternの左から右の変数束縛，value pattern内の式の型付け，pattern constructorが要求する
 capabilityとtarget，matcher producerからslotへの一方向のcheckingを独立規則として定義する．
