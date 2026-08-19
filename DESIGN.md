@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground dataと5 primitiveの実行・独立関係仕様・双方向対応は実装済み．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground data，data-pattern arm照合，5 primitiveの実行・独立関係仕様・双方向対応は実装済み．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -333,6 +333,13 @@ indexのずれ，既存環境の末尾への追加に対するlookup保存を証
 別に定義し，成功についてadequacyとcompletenessを個別および`PrimOp` dispatch全体で証明済みである．
 `deleteFirst`の最初の出現だけを除く関係は`Runtime.OrderedChoice`の`DeletesFirst`を再利用する．
 これらはprimitive単体のdelta規則であり，完全な`Expr` evaluatorやmatcher evaluatorの主張ではない．
+
+`Runtime/DataPattern.lean`はmatcher clauseのdata-pattern armだけを先に実行可能にする．
+`DPat`のvariable，wildcard，data constructor，tupleをground dataへ構造的に照合し，constructor名と
+要素数を正確に検査する．binding列は左から右のsource順を保つ．実行関数と独立した関係仕様の
+双方向対応，および実行時binding数と静的`DPat.bindingCount`の一致を証明する．これはclause bodyの
+評価結果をarmへdispatchする一部分であり，pattern patternのdispatchやmatcher全体の実行をまだ
+主張しない．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な

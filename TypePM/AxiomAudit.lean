@@ -26,6 +26,7 @@ import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
+import TypePM.Runtime.DataPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -302,6 +303,13 @@ every full build.
 #print axioms TypePM.Runtime.DepthFirstSearchRegression.successful_run_has_relational_derivation
 #print axioms TypePM.Runtime.DepthFirstSearchRegression.safe_search_never_stuck
 #print axioms TypePM.Runtime.GroundValue.viewList_buildList
+#print axioms TypePM.Runtime.matchDataPattern_eq_some_iff
+#print axioms TypePM.Runtime.DataPatternMatches.bindings_length
+#print axioms TypePM.Runtime.DataPatternRegression.nil_arm_matches_empty_exact
+#print axioms TypePM.Runtime.DataPatternRegression.cons_arm_bindings_source_order
+#print axioms TypePM.Runtime.DataPatternRegression.tuple_arm_bindings_source_order
+#print axioms TypePM.Runtime.DataPatternRegression.constructor_mismatch_rejected
+#print axioms TypePM.Runtime.DataPatternRegression.constructor_arity_mismatch_rejected
 #print axioms TypePM.Runtime.EncodesList.view_iff
 #print axioms TypePM.Runtime.GroundPrimitive.evalAdd_adequate
 #print axioms TypePM.Runtime.GroundPrimitive.evalAdd_complete
