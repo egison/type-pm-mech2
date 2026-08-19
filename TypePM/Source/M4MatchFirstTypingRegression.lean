@@ -72,7 +72,8 @@ theorem elaborate_tuple_destructuring_exact :
     MatchFirstTyping.GeneratedArms.fromFirst,
     MatchFirstTyping.Generated.fromMatchFirst,
     tupleContext, tupleMatcher, tupleArm, tuplePattern, tupleBody,
-    tupleGenerated, tupleType, elaboratePattern, elaboratePatterns,
+    tupleGenerated, tupleType, elaboratePatternUsing, elaboratePatternsUsing,
+    elaboratePattern, elaboratePatterns,
     Pattern.extendContext, TypePM.Source.elaborate, elaborateItems,
     Scheme.mono, Scheme.instantiate, Supply.nextTy, Dual.targets,
     Dual.capabilities]
@@ -176,8 +177,9 @@ theorem elaborate_inconsistent_exact :
     MatchFirstTyping.GeneratedArms.fromFirst,
     MatchFirstTyping.Generated.fromMatchFirst,
     inconsistentGenerated, inconsistentArms, tupleContext, tupleMatcher,
-    tupleArm, tuplePattern, tupleBody, tupleType, elaboratePattern,
-    elaboratePatterns, Pattern.extendContext, TypePM.Source.elaborate,
+    tupleArm, tuplePattern, tupleBody, tupleType, elaboratePatternUsing,
+    elaboratePatternsUsing, elaboratePattern, elaboratePatterns,
+    Pattern.extendContext, TypePM.Source.elaborate,
     elaborateItems, Scheme.mono, Scheme.instantiate, Supply.nextTy,
     Dual.targets, Dual.capabilities]
 
@@ -217,7 +219,8 @@ theorem elaborate_bad_matcher_exact :
     MatchFirstTyping.GeneratedArms.fromFirst,
     MatchFirstTyping.Generated.fromMatchFirst,
     badMatcherGenerated, tupleContext, tupleArm, tuplePattern, tupleBody,
-    tupleType, elaboratePattern, elaboratePatterns, Pattern.extendContext,
+    tupleType, elaboratePatternUsing, elaboratePatternsUsing,
+    elaboratePattern, elaboratePatterns, Pattern.extendContext,
     TypePM.Source.elaborate, elaborateItems, Scheme.mono,
     Scheme.instantiate, Supply.nextTy, Dual.targets, Dual.capabilities]
 

@@ -331,15 +331,23 @@ source順に合成し，0個を空tuple，1個をscalar，2個以上を同じ要
 List型へcheckingする．最後のcatch-all，pattern constructorの浅い網羅性，data armの網羅性を先に検査する．
 `MatcherLiteralElaboratesUsing`は式の関係を引数に取る独立判断であり，
 `elaborateMatcherLiteralUsing_sound`はcallbackの健全性からmatcher literal全体の関係的導出を構成する．
-したがって再帰的dispatcherは`fixE`，`matchAll`，`matchFirst`の規則をこの一つの式関係へ接続できる．
-現checkpointの直接入口はM3式だけを使う．Paper 1の7 clauseは正確な外側header/arm，全body構文，静的網羅性を
-検証するが，再帰的bodyを含む全体の推論は統合dispatcherまで未完了として残す．
+`M4RecursiveElaboration`はこれらを一つの再帰的な式関係へ接続し，最終`Expr`の全constructorを扱う．
+`Pattern.value`を含むpattern合成と`matchAll`／`matchFirst`も式callbackを使うため，M3へ部分木を戻さない．
+実行側は構文の大きさから決める内部燃料を使い，関係側は実行結果の等式ではなく，各constructorと既存M4関係を
+組み合わせる`ElaboratesFuel`として独立に定義する．実行成功からこの関係を得るsoundnessと，solver成功から
+公開`Typing`を得るsoundnessを証明済みである．
+
+Paper 1の7 clauseとsource-defined `list`を含む三つの正確なfixtureは，全構文の制約生成には成功する．ただし
+`listMatcherDefinition`のhard制約は，`fixE`の再帰codomainをmatcher literal型へ結ぶ等式を加えた時点で，
+next-matcherのslot要求から得た制約と衝突する．このため三fixtureの公開`infer`成功は未達である．残るM4課題は，
+再帰matcherの結果型と方向付きslot checkingを両立させる規則を定め，この閉包gapを解消することである．
 
 DESIGNの旧版ではpattern functionをM4の一覧に明記していなかったが，論文のP1/P2回帰をM0--M5に
 収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を
 仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
 
-実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`と各回帰を含む．
+実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`，
+`Source/M4RecursiveElaboration.lean`と各回帰を含む．
 `PatternFunctionDefinition.lean`では，独立したpattern本体の型付け，frozen interfaceとの引数数・結果dualの一致，
 runtime本体表との双方向対応を定義した．また，private binderを持たず埋込み引数を宣言順に一度ずつ使う
 inline実行可能断片を切り出した．`unit`と`pass`の正例，private binder，value式，重複・逆順引数の負例を
@@ -348,7 +356,7 @@ matcher clause，`matchAll`，`matchFirst`の内側まで再帰的に置き換�
 引数参照，inline条件を満たさない本体は失敗する．`Runtime/PatternFunctionEvaluation.lean`は展開後の式を
 既存評価器へ渡し，成功時健全性，有限完全性，fuel単調性を証明する．`unit`と`pass`を実際のmatch siteで
 正確に評価する回帰も持つ．一般のprivate bindingを隔離するruntime nodeは残る．残る予定moduleは
-`MatchAllTyping.lean`，一般pattern function実行，`M4EgisonRegression.lean`である．M4完了時には
+一般pattern function実行，`M4EgisonRegression.lean`である．M4完了時には
 論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
 検証する．
 

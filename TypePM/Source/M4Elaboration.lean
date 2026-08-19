@@ -56,6 +56,92 @@ def fieldEquations (actual expected : List Dual) : List Equation :=
 
 end Pattern
 
+abbrev M4ExpressionElaborator :=
+  Context → Expr → Supply → Option (Generated × Supply)
+
+abbrev M4ExpressionElaborationRelation :=
+  Context → Expr → Supply → Generated → Supply → Prop
+
+mutual
+
+/-- Callback-parametric pattern synthesis.  In particular, a value pattern is
+elaborated by the same expression layer as its enclosing match. -/
+def elaboratePatternUsing
+    (elaborateExpression : M4ExpressionElaborator)
+    (signature : FrozenSignature) (context : Context)
+    (arguments : PatternContext) :
+    Pattern → List Ty → Supply → Option (GeneratedPattern × Supply)
+  | .var, bindings, supply =>
+      let dual : Dual :=
+        { capability := .var ⟨supply.cap⟩
+          target := .var ⟨supply.ty⟩ }
+      some (⟨dual, bindings ++ [dual.target], [], []⟩,
+        ⟨supply.ty + 1, supply.cap + 1⟩)
+  | .wild, bindings, supply =>
+      some (⟨(⟨.var ⟨supply.cap⟩, .var ⟨supply.ty⟩⟩ : Dual),
+        bindings, [], []⟩, ⟨supply.ty + 1, supply.cap + 1⟩)
+  | .value expression, bindings, supply => do
+      let (generated, afterExpression) ← elaborateExpression
+        (Pattern.extendContext bindings context) expression supply
+      pure (⟨(⟨.var ⟨afterExpression.cap⟩, generated.target⟩ : Dual),
+        bindings, generated.hard, generated.pending⟩,
+        ⟨afterExpression.ty, afterExpression.cap + 1⟩)
+  | .ctor constructor fields, bindings, supply => do
+      let scheme ← signature.lookupPatternConstructor constructor
+      if fields.length = scheme.fields.length then
+        let instantiated := scheme.instantiate supply
+        let (generatedFields, next) ← elaboratePatternsUsing
+          elaborateExpression signature context arguments fields bindings
+          instantiated.2
+        pure (⟨instantiated.1.result, generatedFields.bindings,
+          generatedFields.hard ++ Pattern.fieldEquations generatedFields.duals
+            instantiated.1.fields, generatedFields.pending⟩, next)
+      else none
+  | .tuple items, bindings, supply => do
+      let (generatedItems, next) ← elaboratePatternsUsing elaborateExpression
+        signature context arguments items bindings supply
+      pure (⟨(⟨.prod (Dual.capabilities generatedItems.duals),
+        .prod (Dual.targets generatedItems.duals)⟩ : Dual),
+        generatedItems.bindings, generatedItems.hard,
+        generatedItems.pending⟩, next)
+  | .embed index, bindings, supply => do
+      let dual ← arguments[index]?
+      pure (⟨dual, bindings, [], []⟩, supply)
+  | .app function fields, bindings, supply => do
+      let scheme ← signature.lookupPatternFunction function
+      if fields.length = scheme.fields.length then
+        let instantiated := scheme.instantiate supply
+        let (generatedFields, next) ← elaboratePatternsUsing
+          elaborateExpression signature context arguments fields bindings
+          instantiated.2
+        pure (⟨instantiated.1.result, generatedFields.bindings,
+          generatedFields.hard ++ Pattern.fieldEquations generatedFields.duals
+            instantiated.1.fields, generatedFields.pending⟩, next)
+      else none
+termination_by pattern => pattern.complexity * 2 + 1
+decreasing_by all_goals simp_wf <;> omega
+
+def elaboratePatternsUsing
+    (elaborateExpression : M4ExpressionElaborator)
+    (signature : FrozenSignature) (context : Context)
+    (arguments : PatternContext) :
+    List Pattern → List Ty → Supply → Option (GeneratedPatterns × Supply)
+  | [], bindings, supply => some (⟨[], bindings, [], []⟩, supply)
+  | pattern :: patterns, bindings, supply => do
+      let (generatedPattern, afterPattern) ← elaboratePatternUsing
+        elaborateExpression signature context arguments pattern bindings supply
+      let (generatedPatterns, next) ← elaboratePatternsUsing
+        elaborateExpression signature context arguments patterns
+        generatedPattern.bindings afterPattern
+      pure (⟨generatedPattern.dual :: generatedPatterns.duals,
+        generatedPatterns.bindings,
+        generatedPattern.hard ++ generatedPatterns.hard,
+        generatedPattern.pending ++ generatedPatterns.pending⟩, next)
+termination_by patterns => Pattern.listComplexity patterns * 2
+decreasing_by all_goals simp_wf <;> omega
+
+end
+
 mutual
 
 /-- Executable user-pattern synthesis.  `bindings` contains exactly the
@@ -168,6 +254,23 @@ def Generated.fromMatchAll
       [⟨matcher.target, .slot pattern.dual.capability target.target⟩] ++
         body.pending }
 
+/-- Callback-parametric `matchAll`; all four expression positions, including
+expressions embedded in the pattern, use `elaborateExpression`. -/
+def elaborateMatchAllUsing
+    (elaborateExpression : M4ExpressionElaborator)
+    (signature : FrozenSignature) (context : Context)
+    (target matcher : Expr) (pattern : Pattern) (body : Expr)
+    (supply : Supply) : Option (Generated × Supply) := do
+  let (generatedTarget, afterTarget) ← elaborateExpression context target supply
+  let (generatedPattern, afterPattern) ← elaboratePatternUsing
+    elaborateExpression signature context [] pattern [] afterTarget
+  let (generatedMatcher, afterMatcher) ←
+    elaborateExpression context matcher afterPattern
+  let (generatedBody, next) ← elaborateExpression
+    (Pattern.extendContext generatedPattern.bindings context) body afterMatcher
+  pure (Generated.fromMatchAll generatedTarget generatedPattern
+    generatedMatcher generatedBody, next)
+
 /-- Executable typing of one `matchAll` node.  This is intentionally a
 separate M4 entry point while recursive matcher literals are unfinished. -/
 def elaborateMatchAll
@@ -211,6 +314,118 @@ def inferMatchAll
     pattern body context.initialSupply
   let closed ← inferGeneratedUsing unify generated
   pure closed.target
+
+mutual
+
+/-- Relational pattern synthesis parameterized by the relation used for
+embedded value expressions. -/
+inductive PatternElaboratesUsing
+    (ExpressionElaborates : M4ExpressionElaborationRelation) :
+    FrozenSignature → Context → PatternContext → Pattern → List Ty →
+      Supply → GeneratedPattern → Supply → Prop where
+  | var {signature context arguments bindings supply} :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        .var bindings supply
+        ⟨⟨.var ⟨supply.cap⟩, .var ⟨supply.ty⟩⟩,
+          bindings ++ [.var ⟨supply.ty⟩], [], []⟩
+        ⟨supply.ty + 1, supply.cap + 1⟩
+  | wild {signature context arguments bindings supply} :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        .wild bindings supply
+        ⟨(⟨.var ⟨supply.cap⟩, .var ⟨supply.ty⟩⟩ : Dual),
+          bindings, [], []⟩ ⟨supply.ty + 1, supply.cap + 1⟩
+  | value {signature context arguments expression bindings supply generated
+      afterExpression} :
+      ExpressionElaborates (Pattern.extendContext bindings context) expression
+        supply generated afterExpression →
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.value expression) bindings supply
+        ⟨(⟨.var ⟨afterExpression.cap⟩, generated.target⟩ : Dual),
+          bindings, generated.hard, generated.pending⟩
+        ⟨afterExpression.ty, afterExpression.cap + 1⟩
+  | ctor {signature context arguments constructor fields bindings supply
+      scheme generatedFields next}
+      (lookup : signature.lookupPatternConstructor constructor = some scheme)
+      (arity : fields.length = scheme.fields.length)
+      (fieldsElaboration : PatternsElaborateUsing ExpressionElaborates signature
+        context arguments fields bindings (scheme.instantiate supply).2
+        generatedFields next) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.ctor constructor fields) bindings supply
+        ⟨(scheme.instantiate supply).1.result, generatedFields.bindings,
+          generatedFields.hard ++ Pattern.fieldEquations generatedFields.duals
+            (scheme.instantiate supply).1.fields,
+          generatedFields.pending⟩ next
+  | tuple {signature context arguments items bindings supply generatedItems next}
+      (itemsElaboration : PatternsElaborateUsing ExpressionElaborates signature
+        context arguments items bindings supply generatedItems next) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.tuple items) bindings supply
+        ⟨(⟨.prod (Dual.capabilities generatedItems.duals),
+          .prod (Dual.targets generatedItems.duals)⟩ : Dual),
+          generatedItems.bindings, generatedItems.hard,
+          generatedItems.pending⟩ next
+  | embed {signature context arguments index bindings supply dual}
+      (lookup : arguments[index]? = some dual) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.embed index) bindings supply ⟨dual, bindings, [], []⟩ supply
+  | app {signature context arguments function fields bindings supply scheme
+      generatedFields next}
+      (lookup : signature.lookupPatternFunction function = some scheme)
+      (arity : fields.length = scheme.fields.length)
+      (fieldsElaboration : PatternsElaborateUsing ExpressionElaborates signature
+        context arguments fields bindings (scheme.instantiate supply).2
+        generatedFields next) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.app function fields) bindings supply
+        ⟨(scheme.instantiate supply).1.result, generatedFields.bindings,
+          generatedFields.hard ++ Pattern.fieldEquations generatedFields.duals
+            (scheme.instantiate supply).1.fields,
+          generatedFields.pending⟩ next
+
+inductive PatternsElaborateUsing
+    (ExpressionElaborates : M4ExpressionElaborationRelation) :
+    FrozenSignature → Context → PatternContext → List Pattern → List Ty →
+      Supply → GeneratedPatterns → Supply → Prop where
+  | nil {signature context arguments bindings supply} :
+      PatternsElaborateUsing ExpressionElaborates signature context arguments
+        [] bindings supply ⟨[], bindings, [], []⟩ supply
+  | cons {signature context arguments pattern patterns bindings supply
+      generatedPattern afterPattern generatedPatterns next}
+      (head : PatternElaboratesUsing ExpressionElaborates signature context
+        arguments pattern bindings supply generatedPattern afterPattern)
+      (tail : PatternsElaborateUsing ExpressionElaborates signature context
+        arguments patterns generatedPattern.bindings afterPattern
+        generatedPatterns next) :
+      PatternsElaborateUsing ExpressionElaborates signature context arguments
+        (pattern :: patterns) bindings supply
+        ⟨generatedPattern.dual :: generatedPatterns.duals,
+          generatedPatterns.bindings,
+          generatedPattern.hard ++ generatedPatterns.hard,
+          generatedPattern.pending ++ generatedPatterns.pending⟩ next
+
+end
+
+/-- Callback-parametric relational mirror of `matchAll`. -/
+inductive MatchAllElaboratesUsing
+    (ExpressionElaborates : M4ExpressionElaborationRelation)
+    (signature : FrozenSignature) (context : Context) :
+    Expr → Expr → Pattern → Expr → Supply → Generated → Supply → Prop where
+  | mk {target matcher pattern body supply generatedTarget afterTarget
+      generatedPattern afterPattern generatedMatcher afterMatcher generatedBody next}
+      (targetElaboration : ExpressionElaborates context target supply
+        generatedTarget afterTarget)
+      (patternElaboration : PatternElaboratesUsing ExpressionElaborates signature
+        context [] pattern [] afterTarget generatedPattern afterPattern)
+      (matcherElaboration : ExpressionElaborates context matcher afterPattern
+        generatedMatcher afterMatcher)
+      (bodyElaboration : ExpressionElaborates
+        (Pattern.extendContext generatedPattern.bindings context) body
+        afterMatcher generatedBody next) :
+      MatchAllElaboratesUsing ExpressionElaborates signature context target
+        matcher pattern body supply
+        (Generated.fromMatchAll generatedTarget generatedPattern generatedMatcher
+          generatedBody) next
 
 mutual
 
@@ -509,5 +724,182 @@ theorem elaborateMatchAll_sound
                     (elaboratePattern_sound wellFormed patternResult)
                     (elaborate_sound wellFormed.baseWellFormed matcherResult)
                     (elaborate_sound wellFormed.baseWellFormed bodyResult)
+
+mutual
+
+theorem elaboratePatternUsing_sound
+    {elaborateExpression : M4ExpressionElaborator}
+    {ExpressionElaborates : M4ExpressionElaborationRelation}
+    (expressionSound : ∀ {context expression supply generated next},
+      elaborateExpression context expression supply = some (generated, next) →
+        ExpressionElaborates context expression supply generated next)
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {context : Context} {arguments : PatternContext} {pattern : Pattern}
+    {bindings : List Ty} {supply next : Supply} {generated : GeneratedPattern}
+    (success : elaboratePatternUsing elaborateExpression signature context
+      arguments pattern bindings supply = some (generated, next)) :
+    PatternElaboratesUsing ExpressionElaborates signature context arguments
+      pattern bindings supply generated next := by
+  cases pattern with
+  | var =>
+      simp [elaboratePatternUsing] at success
+      rcases success with ⟨rfl, rfl⟩
+      exact .var
+  | wild =>
+      simp [elaboratePatternUsing] at success
+      rcases success with ⟨rfl, rfl⟩
+      exact .wild
+  | value expression =>
+      cases expressionResult : elaborateExpression
+          (Pattern.extendContext bindings context) expression supply with
+      | none => simp [elaboratePatternUsing, expressionResult] at success
+      | some output =>
+          rcases output with ⟨generatedExpression, afterExpression⟩
+          simp [elaboratePatternUsing, expressionResult] at success
+          rcases success with ⟨rfl, rfl⟩
+          exact .value (expressionSound expressionResult)
+  | ctor constructor fields =>
+      cases lookup : signature.lookupPatternConstructor constructor with
+      | none => simp [elaboratePatternUsing, lookup] at success
+      | some scheme =>
+          by_cases arity : fields.length = scheme.fields.length
+          · cases fieldsResult : elaboratePatternsUsing elaborateExpression
+                signature context arguments fields bindings
+                (scheme.instantiate supply).2 with
+            | none =>
+                simp [elaboratePatternUsing, lookup, arity, fieldsResult] at success
+            | some output =>
+                rcases output with ⟨generatedFields, afterFields⟩
+                simp [elaboratePatternUsing, lookup, arity, fieldsResult] at success
+                rcases success with ⟨rfl, rfl⟩
+                exact .ctor lookup arity
+                  (elaboratePatternsUsing_sound expressionSound wellFormed
+                    fieldsResult)
+          · simp [elaboratePatternUsing, lookup, arity] at success
+  | tuple items =>
+      cases itemsResult : elaboratePatternsUsing elaborateExpression signature
+          context arguments items bindings supply with
+      | none => simp [elaboratePatternUsing, itemsResult] at success
+      | some output =>
+          rcases output with ⟨generatedItems, afterItems⟩
+          simp [elaboratePatternUsing, itemsResult] at success
+          rcases success with ⟨rfl, rfl⟩
+          exact .tuple (elaboratePatternsUsing_sound expressionSound wellFormed
+            itemsResult)
+  | embed index =>
+      cases lookup : arguments[index]? with
+      | none => simp [elaboratePatternUsing, lookup] at success
+      | some dual =>
+          simp [elaboratePatternUsing, lookup] at success
+          rcases success with ⟨rfl, rfl⟩
+          exact .embed lookup
+  | app function fields =>
+      cases lookup : signature.lookupPatternFunction function with
+      | none => simp [elaboratePatternUsing, lookup] at success
+      | some scheme =>
+          by_cases arity : fields.length = scheme.fields.length
+          · cases fieldsResult : elaboratePatternsUsing elaborateExpression
+                signature context arguments fields bindings
+                (scheme.instantiate supply).2 with
+            | none =>
+                simp [elaboratePatternUsing, lookup, arity, fieldsResult] at success
+            | some output =>
+                rcases output with ⟨generatedFields, afterFields⟩
+                simp [elaboratePatternUsing, lookup, arity, fieldsResult] at success
+                rcases success with ⟨rfl, rfl⟩
+                exact .app lookup arity
+                  (elaboratePatternsUsing_sound expressionSound wellFormed
+                    fieldsResult)
+          · simp [elaboratePatternUsing, lookup, arity] at success
+termination_by pattern.complexity * 2 + 1
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
+
+theorem elaboratePatternsUsing_sound
+    {elaborateExpression : M4ExpressionElaborator}
+    {ExpressionElaborates : M4ExpressionElaborationRelation}
+    (expressionSound : ∀ {context expression supply generated next},
+      elaborateExpression context expression supply = some (generated, next) →
+        ExpressionElaborates context expression supply generated next)
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {context : Context} {arguments : PatternContext} {patterns : List Pattern}
+    {bindings : List Ty} {supply next : Supply} {generated : GeneratedPatterns}
+    (success : elaboratePatternsUsing elaborateExpression signature context
+      arguments patterns bindings supply = some (generated, next)) :
+    PatternsElaborateUsing ExpressionElaborates signature context arguments
+      patterns bindings supply generated next := by
+  cases patterns with
+  | nil =>
+      simp [elaboratePatternsUsing] at success
+      rcases success with ⟨rfl, rfl⟩
+      exact .nil
+  | cons pattern patterns =>
+      cases patternResult : elaboratePatternUsing elaborateExpression signature
+          context arguments pattern bindings supply with
+      | none => simp [elaboratePatternsUsing, patternResult] at success
+      | some output =>
+          rcases output with ⟨generatedPattern, afterPattern⟩
+          cases patternsResult : elaboratePatternsUsing elaborateExpression
+              signature context arguments patterns generatedPattern.bindings
+              afterPattern with
+          | none =>
+              simp [elaboratePatternsUsing, patternResult, patternsResult] at success
+          | some rest =>
+              rcases rest with ⟨generatedPatterns, afterPatterns⟩
+              simp [elaboratePatternsUsing, patternResult, patternsResult] at success
+              rcases success with ⟨rfl, rfl⟩
+              exact .cons
+                (elaboratePatternUsing_sound expressionSound wellFormed
+                  patternResult)
+                (elaboratePatternsUsing_sound expressionSound wellFormed
+                  patternsResult)
+termination_by Pattern.listComplexity patterns * 2
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
+
+end
+
+theorem elaborateMatchAllUsing_sound
+    {elaborateExpression : M4ExpressionElaborator}
+    {ExpressionElaborates : M4ExpressionElaborationRelation}
+    (expressionSound : ∀ {context expression supply generated next},
+      elaborateExpression context expression supply = some (generated, next) →
+        ExpressionElaborates context expression supply generated next)
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {context : Context} {target matcher : Expr} {pattern : Pattern} {body : Expr}
+    {supply next : Supply} {generated : Generated}
+    (success : elaborateMatchAllUsing elaborateExpression signature context
+      target matcher pattern body supply = some (generated, next)) :
+    MatchAllElaboratesUsing ExpressionElaborates signature context target matcher
+      pattern body supply generated next := by
+  cases targetResult : elaborateExpression context target supply with
+  | none => simp [elaborateMatchAllUsing, targetResult] at success
+  | some output =>
+      rcases output with ⟨generatedTarget, afterTarget⟩
+      cases patternResult : elaboratePatternUsing elaborateExpression signature
+          context [] pattern [] afterTarget with
+      | none => simp [elaborateMatchAllUsing, targetResult, patternResult] at success
+      | some output =>
+          rcases output with ⟨generatedPattern, afterPattern⟩
+          cases matcherResult : elaborateExpression context matcher afterPattern with
+          | none =>
+              simp [elaborateMatchAllUsing, targetResult, patternResult,
+                matcherResult] at success
+          | some output =>
+              rcases output with ⟨generatedMatcher, afterMatcher⟩
+              cases bodyResult : elaborateExpression
+                  (Pattern.extendContext generatedPattern.bindings context) body
+                  afterMatcher with
+              | none =>
+                  simp [elaborateMatchAllUsing, targetResult, patternResult,
+                    matcherResult, bodyResult] at success
+              | some output =>
+                  rcases output with ⟨generatedBody, afterBody⟩
+                  simp [elaborateMatchAllUsing, targetResult, patternResult,
+                    matcherResult, bodyResult] at success
+                  rcases success with ⟨rfl, rfl⟩
+                  exact .mk (expressionSound targetResult)
+                    (elaboratePatternUsing_sound expressionSound wellFormed
+                      patternResult)
+                    (expressionSound matcherResult)
+                    (expressionSound bodyResult)
 
 end TypePM.Source

@@ -278,8 +278,7 @@ pattern binderを前置したcontextでbodyを型付けして，body型のList�
 list tailの`#x`がoccurs checkで拒否されること，value expressionのList／Integer不一致，`something`の
 `Any` capabilityがcons patternのList capability要求を満たせないことを分離した回帰で固定した．また，
 variable patternを使う`matchAll`の正確な推論結果，matcher-to-slot保留制約，pattern引数参照，frozen
-pattern-function interfaceだけを使う適用を確認した．matcher literalと`fixE`を再帰的に型付けし，
-同じ公開`infer`へ統合する作業は残る．
+pattern-function interfaceだけを使う適用を確認した．
 
 `M4MatcherTyping`は，最終的なsourceのmatcher literalとclause本体に対する制約生成を追加する．
 pattern-pattern headerからholeとcaptureを左から右に合成し，captureを次matcher式より先にscopeへ入れる．
@@ -292,11 +291,21 @@ constructorの浅い網羅性，data armの網羅性も実行前に検査する�
 式を再帰的に型付けする合成点は`elaborateMatcherLiteralUsing`であり，式の独立関係を引数に取る
 `MatcherLiteralElaboratesUsing`と，callbackの健全性だけを仮定する
 `elaborateMatcherLiteralUsing_sound`を公開する．これにより`fixE`，`matchAll`，`matchFirst`を扱う
-最終dispatcherを後から結べるが，このcheckpoint自身は埋め込み式にM3 elaboratorを使う．回帰はPaper 1の
+最終dispatcherから結べる．このcheckpoint自身の直接入口は埋め込み式にM3 elaboratorを使う．回帰はPaper 1の
 7 clauseについて修正済みの外側arm（nilはnil／wild，head・value・generalはvariable，joinはnil／cons，
 whole・catchはvariable）と7個すべてのbody構文，静的網羅性を固定する．general-cons，join，whole-valueのbodyは
 入れ子の`matchAll`，再帰matcher，tuple-pattern lambda，単一結果matchを含むため，統合dispatcherでの
-全7 clause推論は未完了である．
+全7 clauseの構文と局所制約を固定する．
+
+`M4RecursiveElaboration`は最終`Expr`の全constructorを一つの公開`M4.elaborate`／`M4.infer`へ接続する．
+内部の自然数は高階callback再帰の停止性をLeanへ示すためだけに用い，公開APIでは式の構文的な大きさから
+自動的に決める．`Pattern.value`，`matchAll`，`matchFirst`のpattern内式も同じdispatcherへ戻る．
+実行関数とは別に燃料付き関係`ElaboratesFuel`と燃料を隠す`Elaborates`，主要型の置換例を表す`Typing`を定義し，
+実行可能elaborationとinferenceのsoundnessをkernel proofで示した．Paper-1の`listMatcherDefinition`，
+`multisetDefinition`，`closedMultisetDefinition`はいずれも全構文の制約生成まで走査できる．ただし
+source-defined `list`の閉包では，単相`fixE`の再帰結果をmatcher型へ等置する制約と，next-matcherのslot要求から
+導かれる制約が衝突し，公開`infer`はまだ型を返さない．したがって完全なPaper-1 multiset推論は未完了であり，
+残る課題は再帰matcher結果と方向付きmatcher-slot checkingの接続規則である．
 
 `M4FixTyping`は，単項・単相の`fixE`だけを独立した型付けcheckpointとして追加する．本体contextは
 引数，自己，外側contextの順であり，de Bruijn index（最も内側を0とする変数番号）では引数が0，
@@ -323,7 +332,7 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 
 | 番号 | 論文の結果 | 新体系での対応目標 | 現状 | module／theorem |
 |---|---|---|---|---|
-| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1断片に加え，M2のschemeと`letE`，M3のconstructor／primitive／`ifE`を含む`Source.infer`について`Source.Inference.infer_success_typing`を証明済み．M4への拡張が未完了である | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing` |
+| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1--M3に加え，最終M4構文を再帰処理する`M4.infer`について`M4.infer_success_typing`を証明済み．Paper-1の再帰matcher fixtureは制約生成までは成功するがsolver閉包gapが残る | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing`，`TypePM/Source/M4RecursiveElaboration.lean`／`M4.infer_success_typing` |
 | 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片に加え，M2--M3の`letE`を含まない断片で`Source.Typing.infer_isSome_of_letFree`を証明済み．一般の`letE`は，公開推論が満たすfreshness条件を含む`WellFormedElaborationAcceptanceComplete`を仮定した形まで証明済みである | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome`，`TypePM/Source/ElaborationCompleteness.lean`／`Source.Typing.infer_isSome_of_letFree`，`TypePM/Source/SupplyWellFormed.lean` |
 | 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片に加え，M2--M3の`letE`を含まない断片で受理同値と決定可能性を証明済み．一般の`letE`は`WellFormedElaborationAcceptanceComplete`を仮定した受理同値・決定可能性まで証明済みである | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，`TypePM/Source/ElaborationCompleteness.lean`，`TypePM/Source/SupplyWellFormed.lean` |
 | 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片に加え，M2--M3の`letE`を含まない断片で，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から同じ結論が従う条件付き定理まで証明済みである | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`TypePM/Source/Principality.lean`／`Source.PrincipalTyping.finiteRenamingEq_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete` |

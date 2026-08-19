@@ -146,7 +146,11 @@ theorem all_seven_static_checks :
       FrozenSignature.lookupPatternConstructor,
       Signature.lookupPatternConstructor, PatternCtor.nil, PatternCtor.cons,
       PatternCtor.join, PatternFormer.list]
-  simp [staticChecks, shapes, arms, final, coverage]
+  simp only [staticChecks, shapes, final, coverage, Bool.true_and]
+  simp only [Bool.and_true]
+  rw [List.all_eq_true] at arms ⊢
+  intro clause member
+  simp [arms clause member]
 
 theorem hole_product_zero_one_k_exact :
     holeProductTarget [] = .prod [] ∧

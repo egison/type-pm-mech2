@@ -100,7 +100,7 @@ def elaborateTailUsing
   | [], supply => some (⟨[], []⟩, supply)
   | .mk pattern body :: arms, supply => do
       let (generatedPattern, afterPattern) ←
-        elaboratePattern signature context [] pattern [] supply
+        elaboratePatternUsing elaborateExpression signature context [] pattern [] supply
       let (generatedBody, afterBody) ←
         elaborateExpression
           (Pattern.extendContext generatedPattern.bindings context)
@@ -127,7 +127,7 @@ def elaborateArmsUsing
   | [], _ => none
   | .mk pattern body :: arms, supply => do
       let (generatedPattern, afterPattern) ←
-        elaboratePattern signature context [] pattern [] supply
+        elaboratePatternUsing elaborateExpression signature context [] pattern [] supply
       let (generatedBody, afterBody) ←
         elaborateExpression
           (Pattern.extendContext generatedPattern.bindings context)
@@ -189,7 +189,7 @@ inductive TailElaboratesUsing
   | cons {pattern body arms supply generatedPattern afterPattern
       generatedBody afterBody generatedTail next}
       (patternElaboration :
-        PatternElaborates signature context [] pattern [] supply
+        PatternElaboratesUsing ExpressionElaborates signature context [] pattern [] supply
           generatedPattern afterPattern)
       (bodyElaboration :
         ExpressionElaborates
@@ -216,7 +216,7 @@ inductive ArmsElaborateUsing
   | cons {pattern body arms supply generatedPattern afterPattern
       generatedBody afterBody generatedTail next}
       (patternElaboration :
-        PatternElaborates signature context [] pattern [] supply
+        PatternElaboratesUsing ExpressionElaborates signature context [] pattern [] supply
           generatedPattern afterPattern)
       (bodyElaboration :
         ExpressionElaborates
@@ -300,7 +300,7 @@ theorem elaborateTailUsing_sound
   | cons arm arms =>
       cases arm with
       | mk pattern body =>
-          cases patternResult : elaboratePattern signature context [] pattern []
+          cases patternResult : elaboratePatternUsing elaborateExpression signature context [] pattern []
               supply with
           | none => simp [elaborateTailUsing, patternResult] at success
           | some patternOutput =>
@@ -324,7 +324,7 @@ theorem elaborateTailUsing_sound
                         tailResult] at success
                       rcases success with ⟨rfl, rfl⟩
                       exact .cons
-                        (elaboratePattern_sound wellFormed patternResult)
+                        (elaboratePatternUsing_sound expressionSound wellFormed patternResult)
                         (expressionSound bodyResult)
                         (elaborateTailUsing_sound expressionSound wellFormed
                           tailResult)
@@ -351,7 +351,7 @@ theorem elaborateArmsUsing_sound
   | cons arm arms =>
       cases arm with
       | mk pattern body =>
-          cases patternResult : elaboratePattern signature context [] pattern []
+          cases patternResult : elaboratePatternUsing elaborateExpression signature context [] pattern []
               supply with
           | none => simp [elaborateArmsUsing, patternResult] at success
           | some patternOutput =>
@@ -375,7 +375,7 @@ theorem elaborateArmsUsing_sound
                         tailResult] at success
                       rcases success with ⟨rfl, rfl⟩
                       exact .cons
-                        (elaboratePattern_sound wellFormed patternResult)
+                        (elaboratePatternUsing_sound expressionSound wellFormed patternResult)
                         (expressionSound bodyResult)
                         (elaborateTailUsing_sound expressionSound wellFormed
                           tailResult)

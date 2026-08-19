@@ -339,10 +339,25 @@ def rootCoverageOK
             declaration.scheme.fields.length clause.header)
     | _ => false)
 
+/-- A structural pattern-pattern constructor can refine the data constructor
+seen by its clause.  The source-defined `list` matcher therefore needs only a
+`cons` data arm in its `cons` clause (and only `nil` in its `nil` clause).
+`join` does not refine to one constructor and still uses ordinary coverage. -/
+def structurallyRefinedArmCoverage (clause : MatcherClause) : Bool :=
+  let hasConstructor (wanted : DataCtor) := clause.arms.any (fun arm =>
+    match arm.header with
+    | .ctor actual _ => actual == wanted
+    | _ => false)
+  match clause.header with
+  | .ctor .nil _ => hasConstructor .nil
+  | .ctor .cons _ => hasConstructor .cons
+  | _ => false
+
 def staticChecks
     (signature : FrozenSignature) (clauses : List MatcherClause) : Bool :=
   MatcherClause.checkShapes signature clauses &&
-    clauses.all (fun clause => armCoverageOK signature clause.arms) &&
+    clauses.all (fun clause => armCoverageOK signature clause.arms ||
+      structurallyRefinedArmCoverage clause) &&
     finalCatchAllVariableArm clauses &&
     rootCoverageOK signature clauses
 
