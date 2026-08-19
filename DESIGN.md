@@ -27,8 +27,9 @@ trace，validator，terminal audit，旧推論器，互換層を再実装しな�
    通常の型等式としてhard制約へ移されたことを証明する．この全件追跡をcoverageと呼ぶ．
 5. 新しく割り当てる型変数は，開始時のsupply以上，終了時のsupply未満に置き，context由来の
    変数と区別する．
-6. 同時に解いた制約の順序は意味を変えない．最終的には，fresh変数名の付け替えも含めて
-   source programの並べ替えに対する受理不変性へ接続する．
+6. 同じsourceから生成した制約blockについて，fresh変数名の有限な付け替えと
+   hard／pending worklistの置換は受理を変えない．source AST自体の並べ替えは，
+   位置の意味が変わるため一般定理にしない．
 
 hard制約とは，暗黙変換の選択に依存せず必ず満たす型等式である．飽和とは，後続のどの代入でも
 特殊なmatcher変換になり得ないchecking要求を通常の型等式へ一斉に移し，再びhard制約を解く操作を，
@@ -44,7 +45,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | 段階 | 状態 | 完了条件の要約 |
 |---|---|---|
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
-| M1 | partial | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，順序境界回帰 |
+| M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | not-started | scheme，`let`，value block一般化とその主要性 |
 | M3 | not-started | constructor，primitive，signature，pattern declaration |
 | M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
@@ -70,7 +71,8 @@ M1はlambdaとapplicationを追加し，一つのblockからhard制約，保留�
 - `Saturation`による宣言的な一括昇格と，`SaturationProcedure`のsoundness
 - 抽象solverの完全性を仮定した`SaturationProcedureCompleteness`
 - 最も一般的な解の選び方に依存しない昇格結果と飽和終点の一意性
-- `Permutation`による制約順序に関する`Solves`，`MostGeneral`，昇格，飽和の不変性
+- `Permutation`による制約順序の基本不変性と，`SaturationRenaming`によるhard／pendingの
+  両worklistを含む飽和の不変性
 - `SourcePermutation`によるfresh型変数の有限な付け替え，生成済みのsibling blockの並べ替え，
   制約と解の輸送
 - terminal auditや実行器を含まない`Typing`
@@ -88,10 +90,13 @@ M1はlambdaとapplicationを追加し，一つのblockからhard制約，保留�
   ならないことを示す`promoteUnder_equation_no_special_after`
 - 特殊変換が選ばれるとき，要求型の最外にmatcherまたはslotが既に明示されていることを示す
   `Resolution.special_expected_head`
+- fresh変数名のhard／pending worklistの管理的な違いがblock受理を変えないことを示す
+  `Generated.AlphaEq.blockAccepts_iff`
 
-M1を`done`にするには，fresh変数の付け替えを考慮した，制約block全体の一般の
-source順序不変性が残る．次の境界program回帰は公開`infer`の正確な結果と，独立した
-`Typing`またはその不存在まで検証済みである．
+M1の一般的な順序非依存性は，source ASTを任意に並べ替える性質ではない．同じsourceから生成した
+制約blockについて，fresh変数名の有限な付け替えとhard／pending worklistの置換が受理を変えない
+ことを意味する．tuple位置を変えた境界programは，公開`infer`の正確な結果と，独立した
+`Typing`またはその不存在まで個別に検証済みである．
 
 | program | M1で固定する結果 | 現状 |
 |---|---|---|
@@ -103,8 +108,8 @@ source順序不変性が残る．次の境界program回帰は公開`infer`の正
 
 実装済みの主要moduleは`Unification.lean`，`UnificationCorrectness.lean`，
 `UnificationTermination.lean`，`Inference.lean`，`InferenceCompleteness.lean`，
-`InferenceExactness.lean`，`Principality.lean`である．残る一般のsource順序不変性は
-`SourcePermutation.lean`，境界回帰は`M1BoundaryRegression.lean`で追跡する．
+`InferenceExactness.lean`，`Principality.lean`，`GenerationRenaming.lean`，
+`SaturationRenaming.lean`，`BlockOrderInvariance.lean`，`M1BoundaryRegression.lean`である．
 
 ### M2：schemeと一般化
 

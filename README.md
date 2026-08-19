@@ -27,7 +27,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | 段階 | 内容 | 状態 | 現在の根拠と不足 |
 |---|---|---|---|
 | M0 | 型，二種類の変数への代入，raw synthesis，局所checking | done | tuple of matchersのraw主要性と明示された要求型への変換まで検証済みである |
-| M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | partial | 関係的制約生成，freshness，必ず停止する`unify`，宣言的飽和，audit非依存の`Typing`，公開`infer`の健全性・完全性・受理同値・主要性，昇格した通常等式が後で特殊変換に変わらずslot構造を推測しないことまで実装済みである．主要な代表型どうしの有限な変数名の付け替えもM1断片で証明済みである．fresh変数の付け替えを含む一般のsource順序不変性が未完了である |
+| M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | not-started | schemeと`let`はsource構文に存在しない |
 | M3 | data constructor，pattern constructor，primitive，signature | not-started | data型，constructor，primitive，signatureは未定義である |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | not-started | patternとmatcher固有のsource構文は未定義である |
@@ -38,7 +38,11 @@ M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，ter
 これを使う公開`infer`を定義した．M1断片については，公開`infer`の健全性，完全性，受理同値，
 受理可能性の決定可能性，返却型の主要性を証明済みである．特殊変換が選ばれるときは，要求型の
 最外にmatcherまたはslotが既に現れていることを`Resolution.special_expected_head`で証明している．
-M1全体は，fresh変数名の付け替えを含む一般のsource順序不変性が未完了なので`partial`とする．
+`Generated.AlphaEq.blockAccepts_iff`は，fresh変数名，hard制約列，保留checking列が管理的に異なる
+alpha同値な生成済み制約blockの受理可能性が同値であることを証明する．同じsourceの第二の生成導出へは
+`TypingDerivation.transportAlphaEq`で型付け証拠も輸送できる．これはsource ASTの任意の
+並べ替えではない．tuple成分の並べ替えは値とproduct型の位置も変えるため，特定の境界programは
+`M1BoundaryRegression`で個別に結果を固定する．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 

@@ -3,6 +3,9 @@ import TypePM.Principality
 import TypePM.RenamingUniqueness
 import TypePM.NoGuess
 import TypePM.SourcePermutation
+import TypePM.GenerationRenaming
+import TypePM.SaturationRenaming
+import TypePM.BlockOrderInvariance
 import TypePM.UnificationRegression
 import TypePM.Regression
 import TypePM.M1BoundaryRegression
@@ -34,6 +37,10 @@ every full build.
 #print axioms TypePM.PrincipalTyping.finiteRenaming_unique
 #print axioms TypePM.GeneratedItems.siblingAlphaEq_collect_of_perm
 #print axioms TypePM.solves_rename_perm
+#print axioms TypePM.GeneratesItems.swapAdjacentPair
+#print axioms TypePM.Saturated.permuteInitial
+#print axioms TypePM.TypingDerivation.transportAlphaEq
+#print axioms TypePM.Generated.AlphaEq.blockAccepts_iff
 #print axioms TypePM.M1BoundaryRegression.infer_useFirst_exact
 #print axioms TypePM.M1BoundaryRegression.infer_applicationFirst_exact
 #print axioms TypePM.M1BoundaryRegression.infer_singletonFirst_none

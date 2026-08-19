@@ -23,7 +23,10 @@ import TypePM.MGUEquivalence
 import TypePM.SaturationUniqueness
 import TypePM.Permutation
 import TypePM.SourcePermutation
+import TypePM.GenerationRenaming
 import TypePM.ResolutionTransport
+import TypePM.SaturationRenaming
+import TypePM.BlockOrderInvariance
 import TypePM.SaturationProcedure
 import TypePM.SaturationProcedureCompleteness
 import TypePM.Declarative
