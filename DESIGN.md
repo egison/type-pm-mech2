@@ -46,7 +46,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 |---|---|---|
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
-| M2 | not-started | scheme，`let`，value block一般化とその主要性 |
+| M2 | partial | bound-index scheme，`letE`，value block一般化，公開推論の健全性と輸送基盤は実装済み．完全性，source全体の主要性，一意性は未証明 |
 | M3 | not-started | constructor，primitive，signature，pattern declaration |
 | M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
 | M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
@@ -113,14 +113,48 @@ M1の一般的な順序非依存性は，source ASTを任意に並べ替える�
 
 ### M2：schemeと一般化
 
-M2では量化変数を持たない型（monotype）だけの`Context`をschemeのcontextへ置き換え，`let`とvalue blockを追加する．
-一般化を遅らせるかblock終了時に行うかは，M1の同時制約解決を壊さない形で定義する．
-schemeのinstantiateとgeneralize，contextのfreshness（新しい変数が既存変数と重ならない性質），`let`生成と関係的規則，実行可能推論との
-同値，主要性が完了条件である．
+M2では量化変数を持たない型（monotype）だけのM1 `Context`とは別に，schemeを要素とする
+`Source.Context`を定義し，M2のsource構文へ`letE`を追加した．schemeの量化変数は自然数位置で表し，
+well-scopednessを構造体に保持する．これにより，束縛変数名を変更するalpha同値をschemeの公開等式へ
+持ち込まず，自由変数への恒等代入と代入の合成を通常の等式として扱える．この表現は束縛変数名に
+関してcanonicalであるが，未使用binderを許すため，scheme全体の一意な標準形ではない．
+`Source.Context`内の自由変数は固定された仮定ではなく，推論中の未知変数として最終代入で
+具体化され得る．scheme内部で位置により束縛される量化変数とは区別する．
+
+`letE`は右辺value blockを完全に閉じてから一般化するfull-cut方式を採用する．右辺のhard制約と
+保留checking要求を主要かつ吸収的な代入で解き，その代入を周囲のcontextへ適用してから右辺型を
+一般化する．吸収的とは，任意の後続解の前にその主要代入をもう一度適用しても後続解が変わらない
+性質である．右辺の未解決要求はbodyへ渡さない．周囲の自由変数に対する右辺代入の効果だけを
+`Context.interfaceEquations`という有限な型等式列として親blockへ戻す．この閉じた境界は仕様上の
+選択であり，bodyから右辺へ要求を逆流させて受理範囲を広げる方式は現段階では採らない．
+
+現時点で次を実装し，kernelで検査している．
+
+- `Scheme`のbound-index表現，well-scopedness，自由変数への代入，instantiate，generalize，freshness
+- executableなsource elaborationと独立した`Elaborates`関係，および実行結果から関係的導出を得るsoundness
+- `PrincipalBlockClosure.Absorbing`と，公開`Source.infer`の成功から`Source.PrincipalTyping`および
+  `Source.Typing`を得るsoundness
+- contextの有限な境界を特徴付ける`solves_interfaceEquations_iff`と，そのcontext代入輸送
+- 二種類の変数の全単射な名前変更と一般化対象リストの対応を仮定すると，一般化が代入と可換になる輸送補題
+- 異なる主要block closureの代入が相互にfactorすること，結果型とcontextの双方向輸送，
+  scheme具体化が一方向の代入に沿って保存されること
+- 多相identityと論文P1-L09の明示的`let`について，公開推論の正確な結果と`Source.Typing`
+- full-cut境界でbody要求を右辺へ戻さない例について，公開推論が`none`を返すこと
+
+最後の負例は実行可能推論の境界を固定するが，`Source.Typing`の不存在はまだ証明していない．
+また，輸送補題は個々のscheme，context，block closureを扱う基盤であり，入れ子`letE`を含む
+source elaboration全体の完全性をまだ与えない．M2完了には，関係的elaborationから実行可能
+elaborationへの完全性，公開推論の受理完全性と受理同値，異なる入れ子closure代表をまたぐ主要性，
+主要型の有限な変数名の付け替えによる一意性が必要である．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
-generalize（一般化）と呼ぶ．予定moduleは`Schemes.lean`，`Generalization.lean`，`LetGeneration.lean`，
-`M2Regression.lean`である．論文listing P1-L09の`let`例はこの段階で静的に検証する．
+generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTransport.lean`，
+`GeneralizationTransport.lean`，`ContextInterface.lean`，`ContextInterfaceRegression.lean`，
+`BlockClosure.lean`，`AbsorbingUnification.lean`，
+`AbsorbingBlockClosure.lean`，`BlockClosureTransport.lean`，`Source/Syntax.lean`，
+`Source/Elaboration.lean`，`Source/M2Regression.lean`である．論文listing P1-L09の`let`例は，
+静的な公開推論結果と`Source.Typing`まで検証済みである．このlistingは評価結果を示す例ではないため，
+M5の実行回帰の対象外である．
 
 ### M3：data，primitive，signature
 

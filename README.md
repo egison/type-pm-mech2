@@ -28,7 +28,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 |---|---|---|---|
 | M0 | 型，二種類の変数への代入，raw synthesis，局所checking | done | tuple of matchersのraw主要性と明示された要求型への変換まで検証済みである |
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
-| M2 | 多相型を表すscheme，`let`，value blockの一般化 | not-started | schemeと`let`はsource構文に存在しない |
+| M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否，代表解・context境界の輸送基盤を検証済みである．受理完全性，異なる入れ子block代表をまたぐ主要性，有限な変数名の付け替えによる一意性が未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | not-started | data型，constructor，primitive，signatureは未定義である |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | not-started | patternとmatcher固有のsource構文は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | not-started | value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
@@ -44,6 +44,27 @@ alpha同値な生成済み制約blockの受理可能性が同値であること�
 並べ替えではない．tuple成分の並べ替えは値とproduct型の位置も変えるため，特定の境界programは
 `M1BoundaryRegression`で個別に結果を固定する．
 
+M2では，量化された通常の型変数とcapability変数を自然数位置で表すbound-index schemeを追加した．
+これは束縛変数名に関してcanonical（名前の選び方に依存しない）だが，未使用binderを許すため，
+scheme全体の一意な標準形ではない．well-scopedness（束縛位置が量化範囲内にある性質）は
+`Scheme`の構成要件であり，自由変数への恒等代入は文字どおり同じschemeを返す．`letE`は右辺の
+制約blockを完全に閉じてから一般化するfull-cut方式である．この境界では右辺の未解決要求をbodyへ
+流さず，周囲のcontextへの影響だけを有限な型等式として親blockへ返す．公開`Source.infer`の成功から，
+実行手続きと独立した`Source.Typing`を得る健全性を証明済みである．多相identity，論文P1-L09の
+明示的`let`は`infer`の正確な結果と`Typing`を検証済みであり，bodyから右辺へ要求を逆流させる例は
+full-cut境界で`infer = none`となることを検証済みである．この負例について`Typing`の不存在までは，
+受理完全性が未証明であるため現時点では主張しない．
+
+`Source.Context`内の自由変数は固定された仮定ではなく，推論中の未知変数であり，最終代入で
+具体化され得る．これはscheme内部で位置により束縛される量化変数とは別である．
+
+`SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`では，
+自由変数への代入，二種類の変数の全単射な名前変更と一般化対象リストの対応を仮定した一般化，contextの有限な境界，
+異なる主要block closureの間で型・context・scheme具体化を運ぶ補題を用意した．これは
+入れ子`let`の完全性と主要性に必要な基盤であるが，source elaboration全体の輸送定理ではない．したがって
+M2は`partial`であり，公開`Source.infer`の受理完全性・受理同値，すべての宣言的型付けに対する
+返却型の主要性，主要型の有限な変数名の付け替えによる一意性は未証明である．
+
 ## 論文の番号付き結果5.1--5.8との対応目標
 
 対象は`type-pm-paper/type-pm-paper1.pdf`の第5節である．5.3は定理ではなく系であるが，
@@ -54,11 +75,11 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 
 | 番号 | 論文の結果 | 新体系での対応目標 | 現状 | module／theorem |
 |---|---|---|---|---|
-| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1断片では`Inference.infer_success_typing`を証明済み．M2--M4の構文への拡張が未完了である | `TypePM/Inference.lean`／`Inference.infer_success_typing` |
-| 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片では`Typing.infer_isSome`を証明済み．M2--M4の構文への拡張が未完了である | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome` |
+| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1断片に加え，M2のschemeと`letE`を含む`Source.infer`について`Source.Inference.infer_success_typing`を証明済み．M3--M4への拡張が未完了である | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing` |
+| 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片では`Typing.infer_isSome`を証明済み．M2のsource elaborationに対する完全性と，M3--M4への拡張が未完了である | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome` |
 | 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片では受理同値と`Inference.typableDecidable`を証明済み．M2--M4の構文への拡張が未完了である | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable` |
 | 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片では，通常の型変数とcapability変数の有限な出現集合上で双方向に逆となる付け替えを`PrincipalTyping.finiteRenaming_unique`で証明済み．M2--M4の構文への拡張が未完了である | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique` |
-| 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial：M1断片では`Inference.infer_principal`と`Inference.infer_success_principalTyping`を証明済み．M2--M4の構文への拡張が未完了である | `TypePM/Principality.lean`／`Inference.infer_principal` |
+| 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial：M1断片では`Inference.infer_principal`と`Inference.infer_success_principalTyping`を証明済み．M2では返却値を一つの主要block closureへ接続したが，異なる入れ子closure代表を含むすべての`Source.Typing`結果に対する主要性は未証明である | `TypePM/Principality.lean`／`Inference.infer_principal`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_principalTyping` |
 | 5.6 | State erasure | 推論状態の消去ではなく，最初から状態を含まない`Typing`を実行時型付けへ写す | not-started：`Typing`は状態非依存であるが，実行時型付けが未定義である | `TypePM/RuntimeTyping.lean`／`Typing.toRuntimeTyping` |
 | 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | not-started | `TypePM/CoreSafety.lean`／`Typing.coreSafety` |
 | 5.8 | No stuck states | 型付きclosed programは，任意のfuelで規則の適用不能を表す`stuck`を返さない | not-started | `TypePM/NoStuck.lean`／`Typing.neverStuck`，`Inference.infer_neverStuck` |
@@ -128,7 +149,7 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 
 inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡する一覧である．IDは
 `type-pm-paper1.tex`中の`lstlisting`出現順で固定する．現在はM4とM5の構文がないため，
-M1の境界例を除いてすべて`not-started`である．15個のlisting環境には，正負の対を分けると
+M1の境界例とM2の明示的`let`例を除いて`not-started`である．15個のlisting環境には，正負の対を分けると
 19個の独立したprogramまたは宣言が含まれる．一つの行に複数のprogramがある場合も，各々を
 別の回帰として検証する．
 
@@ -142,7 +163,7 @@ M1の境界例を除いてすべて`not-started`である．15個のlisting環�
 | P1-L06 | `unconsWith m target` | matcher要求をslotとして持つ主要型を推論する | M4 | not-started | `MatcherDemand.unconsWith_infer_principal` |
 | P1-L07 | `unconsWith`の正負二呼出し | `multiset something`は受理し，bare `something`は宣言的に拒否する | M4 | not-started | `MatcherDemand.unconsWith_multiset_accepted`，`unconsWith_something_not_typable` |
 | P1-L08 | 共有lambda domainの二順序 | **新仕様では両順序を受理する**．旧論文の片方拒否は更新対象である | M1 | done：両順序が同じ型で受理される実行結果と`Typing`導出をkernel proofで固定済み | `M1BoundaryRegression.infer_useFirst_exact`，`infer_applicationFirst_exact`，`accepted_orders_same_target` |
-| P1-L09 | `let`で順序を明示した回避例 | M2でも受理する．M1の両順序受理後は必須の回避策ではない | M2 | not-started | `M2Boundary.let_ordered_typable` |
+| P1-L09 | `let`で順序を明示した回避例 | M2でも受理する．M1の両順序受理後は必須の回避策ではない | M2 | done（静的）：公開`Source.infer`の正確な成功結果と独立した`Source.Typing`をkernel proofで固定済み．このlistingは評価結果を示す例ではなく，M5の実行回帰の対象外である | `Source.M2Regression.infer_explicitLet_exact`，`Source.M2Regression.explicitLetTyping` |
 | P1-L10 | value pattern内部の`x ++ [1]` | `Integer`と`[Integer]`の不一致で宣言的に拒否する | M3--M4 | not-started | `PatternTyping.value_expression_type_mismatch` |
 | P1-L11 | `$x :: #x` | occurs checkによる無限型を検出し，宣言的に拒否する | M4 | not-started | `PatternTyping.nonlinear_occurs_check_rejected` |
 | P1-L12 | `#x :: $x :: _` | 左でまだ束縛されていない`x`を検出し，宣言的に拒否する | M4 | not-started | `PatternTyping.value_before_binding_rejected` |

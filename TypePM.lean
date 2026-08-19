@@ -40,6 +40,18 @@ import TypePM.RenamingUniqueness
 import TypePM.Regression
 import TypePM.M1Examples
 import TypePM.M1BoundaryRegression
+import TypePM.BlockClosure
+import TypePM.AbsorbingUnification
+import TypePM.AbsorbingBlockClosure
+import TypePM.Scheme
+import TypePM.ContextInterface
+import TypePM.ContextInterfaceRegression
+import TypePM.SchemeTransport
+import TypePM.GeneralizationTransport
+import TypePM.BlockClosureTransport
+import TypePM.Source.Syntax
+import TypePM.Source.Elaboration
+import TypePM.Source.M2Regression
 import TypePM.AxiomAudit
 
 /-!

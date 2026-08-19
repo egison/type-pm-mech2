@@ -9,6 +9,10 @@ import TypePM.BlockOrderInvariance
 import TypePM.UnificationRegression
 import TypePM.Regression
 import TypePM.M1BoundaryRegression
+import TypePM.BlockClosureTransport
+import TypePM.ContextInterfaceRegression
+import TypePM.GeneralizationTransport
+import TypePM.Source.M2Regression
 
 /-!
 # Axiom audit for public milestones
@@ -48,3 +52,25 @@ every full build.
 #print axioms TypePM.M1BoundaryRegression.infer_pair_exact_raw_product
 #print axioms TypePM.M1BoundaryRegression.singletonFirst_not_typable
 #print axioms TypePM.M1BoundaryRegression.pairFirst_not_typable
+#print axioms TypePM.unify_absorbingPrincipal
+#print axioms TypePM.PrincipalBlockClosure.substitution_absorbingPrincipal
+#print axioms TypePM.Source.Scheme.wellFormed
+#print axioms TypePM.Source.Scheme.applyFree_id
+#print axioms TypePM.Source.Scheme.instantiate_sound
+#print axioms TypePM.Source.Context.generalize_wellFormed
+#print axioms TypePM.Source.Context.generalize_instantiates
+#print axioms TypePM.Source.Context.solves_interfaceEquations_iff
+#print axioms TypePM.Source.Context.applyFree_interface_transport
+#print axioms TypePM.Source.Context.generalize_variableRenaming
+#print axioms TypePM.Source.Context.generalize_variableRenaming_exact
+#print axioms TypePM.Source.ContextInterfaceRegression.swapBoth_notAbsorbing
+#print axioms TypePM.Source.ContextInterfaceRegression.plainMostGeneral_can_create_spurious_interface_failure
+#print axioms TypePM.PrincipalBlockClosure.representativeTransport
+#print axioms TypePM.PrincipalBlockClosure.RepresentativeTransportUsing.context_forward
+#print axioms TypePM.Source.Inference.infer_success_principalTyping
+#print axioms TypePM.Source.Inference.infer_success_typing
+#print axioms TypePM.Source.M2Regression.infer_polymorphicIdentity_exact
+#print axioms TypePM.Source.M2Regression.polymorphicIdentityTyping
+#print axioms TypePM.Source.M2Regression.infer_explicitLet_exact
+#print axioms TypePM.Source.M2Regression.explicitLetTyping
+#print axioms TypePM.Source.M2Regression.infer_cutRejectsBackflow_none
