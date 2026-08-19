@@ -34,6 +34,7 @@ import TypePM.Runtime.ValuesRegression
 import TypePM.Runtime.ValueShapeRegression
 import TypePM.Runtime.MatchingStateRegression
 import TypePM.Runtime.MatchingSearchRegression
+import TypePM.Runtime.CombinedAtomReducerRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -403,6 +404,15 @@ every full build.
 #print axioms TypePM.Runtime.MatchingSearchRegression.unhandled_atom_is_stuck
 #print axioms TypePM.Runtime.MatchingSearchRegression.normal_failure_is_not_stuck
 #print axioms TypePM.Runtime.MatchingSearchRegression.successful_search_has_depth_first_derivation
+#print axioms TypePM.Runtime.combineAtomReducers_notStuck
+#print axioms TypePM.Runtime.combineAtomReducers_total
+#print axioms TypePM.Runtime.searchMatchingFuel_combined_notStuck
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.miss_falls_through_to_fallback
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.first_hit_suppresses_stuck_fallback
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.normal_failure_is_a_hit_and_does_not_fall_through
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.timeout_is_not_hidden_by_later_success
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.stuck_is_not_hidden_by_later_success
+#print axioms TypePM.Runtime.CombinedAtomReducerRegression.combined_total
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
