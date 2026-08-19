@@ -46,7 +46,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 |---|---|---|
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
-| M2 | partial | bound-index scheme，`letE`，value block一般化，公開推論の健全性と輸送基盤は実装済み．完全性，source全体の主要性，一意性は未証明 |
+| M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，有限なfresh区間・closure・context境界の輸送基盤は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | not-started | constructor，primitive，signature，pattern declaration |
 | M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
 | M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
@@ -138,21 +138,38 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 - 二種類の変数の全単射な名前変更と一般化対象リストの対応を仮定すると，一般化が代入と可換になる輸送補題
 - 異なる主要block closureの代入が相互にfactorすること，結果型とcontextの双方向輸送，
   scheme具体化が一方向の代入に沿って保存されること
+- 実際に割り当てた有限なfresh区間を別のsupplyへ合わせる変数名変更と，source elaboration，生成済みblock，
+  block受理を二種類の変数名変更に沿って運ぶ補題
+- closureの自由変数上の有限な対応を大域的な変数名変更へ拡張し，閉じたcontext，結果型，一般化schemeを
+  文字どおり一致させる補題
+- hard制約列が同じ解集合を持つときの飽和とblock受理の輸送，および保留checking要求がないblockに
+  freshな別名等式（新しい補助変数を既存変数と等しいとする制約）を追加・除去しても受理が変わらないこと
+- `letE`を含まない断片について，公開`Source.infer`の完全性，受理同値，受理可能性の決定可能性，
+  返却型の主要性，二つの主要型の有限な変数名変更による一意性
+- 一般の`letE`に対する完全性を，関係的elaborationの受理可能な代表を実行可能elaborationの
+  受理可能な代表へ運ぶ条件`ElaborationAcceptanceComplete`へ還元した条件付き定理
 - 多相identityと論文P1-L09の明示的`let`について，公開推論の正確な結果と`Source.Typing`
 - full-cut境界でbody要求を右辺へ戻さない例について，公開推論が`none`を返すこと
 
 最後の負例は実行可能推論の境界を固定するが，`Source.Typing`の不存在はまだ証明していない．
-また，輸送補題は個々のscheme，context，block closureを扱う基盤であり，入れ子`letE`を含む
-source elaboration全体の完全性をまだ与えない．M2完了には，関係的elaborationから実行可能
-elaborationへの完全性，公開推論の受理完全性と受理同値，異なる入れ子closure代表をまたぐ主要性，
-主要型の有限な変数名の付け替えによる一意性が必要である．
+また，一般の`letE`を含むsource elaboration全体の完全性はまだ与えていない．その証明には，保留checking要求を
+持つ一般のblockについてfreshな別名等式を除去し，飽和（保留要求を通常の等式へ移しながら解く処理）を
+受理を保って運ぶ定理が必要である．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
+最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
+変数名変更による一意性が従う条件付き定理は用意済みであるが，整合性そのものは未証明である．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
 generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTransport.lean`，
 `GeneralizationTransport.lean`，`ContextInterface.lean`，`ContextInterfaceRegression.lean`，
 `BlockClosure.lean`，`AbsorbingUnification.lean`，
 `AbsorbingBlockClosure.lean`，`BlockClosureTransport.lean`，`Source/Syntax.lean`，
-`Source/Elaboration.lean`，`Source/M2Regression.lean`である．論文listing P1-L09の`let`例は，
+`HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，`Source/Elaboration.lean`，
+`Source/ElaborationTransport.lean`，`Source/ElaborationRenaming.lean`，
+`Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
+`Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，
+`Source/GeneratedAcceptanceTransport.lean`，`Source/ClosureSupportRenaming.lean`，
+`Source/ElaborationCompleteness.lean`，`Source/Principality.lean`，`Source/M2Regression.lean`である．
+論文listing P1-L09の`let`例は，
 静的な公開推論結果と`Source.Typing`まで検証済みである．このlistingは評価結果を示す例ではないため，
 M5の実行回帰の対象外である．
 

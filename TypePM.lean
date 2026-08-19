@@ -49,8 +49,20 @@ import TypePM.ContextInterfaceRegression
 import TypePM.SchemeTransport
 import TypePM.GeneralizationTransport
 import TypePM.BlockClosureTransport
+import TypePM.HardWorklistEquivalence
+import TypePM.FreshAliasElimination
 import TypePM.Source.Syntax
 import TypePM.Source.Elaboration
+import TypePM.Source.ElaborationTransport
+import TypePM.Source.ElaborationRenaming
+import TypePM.Source.InterfaceClosureTransport
+import TypePM.Source.FreshIntervalRenaming
+import TypePM.Source.FinitePartialRenaming
+import TypePM.Source.AlignmentComposition
+import TypePM.Source.GeneratedAcceptanceTransport
+import TypePM.Source.ClosureSupportRenaming
+import TypePM.Source.ElaborationCompleteness
+import TypePM.Source.Principality
 import TypePM.Source.M2Regression
 import TypePM.AxiomAudit
 

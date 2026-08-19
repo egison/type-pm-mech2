@@ -12,6 +12,18 @@ import TypePM.M1BoundaryRegression
 import TypePM.BlockClosureTransport
 import TypePM.ContextInterfaceRegression
 import TypePM.GeneralizationTransport
+import TypePM.HardWorklistEquivalence
+import TypePM.FreshAliasElimination
+import TypePM.Source.ElaborationTransport
+import TypePM.Source.ElaborationRenaming
+import TypePM.Source.InterfaceClosureTransport
+import TypePM.Source.FreshIntervalRenaming
+import TypePM.Source.FinitePartialRenaming
+import TypePM.Source.AlignmentComposition
+import TypePM.Source.GeneratedAcceptanceTransport
+import TypePM.Source.ClosureSupportRenaming
+import TypePM.Source.ElaborationCompleteness
+import TypePM.Source.Principality
 import TypePM.Source.M2Regression
 
 /-!
@@ -74,3 +86,17 @@ every full build.
 #print axioms TypePM.Source.M2Regression.infer_explicitLet_exact
 #print axioms TypePM.Source.M2Regression.explicitLetTyping
 #print axioms TypePM.Source.M2Regression.infer_cutRejectsBackflow_none
+#print axioms TypePM.BlockAccepts.iff_of_hardEquivalent
+#print axioms TypePM.FreshAliasElimination.blockAccepts_addTyAlias_iff_of_noPending
+#print axioms TypePM.FreshAliasElimination.blockAccepts_addCapAlias_iff_of_noPending
+#print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
+#print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
+#print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
+#print axioms TypePM.Source.PrincipalBlockClosure.postcompose_solves_other_fromLet_hard_iff
+#print axioms TypePM.Source.PrincipalBlockClosure.RepresentativeTransportUsing.closedContext_globalRenaming
+#print axioms TypePM.BlockAccepts.inferGeneratedUsing_isSome
+#print axioms TypePM.Source.Typing.infer_isSome_of_letFree
+#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_letFree
+#print axioms TypePM.Source.Inference.typableDecidable_of_letFree
+#print axioms TypePM.Source.Inference.infer_success_principalResult_of_letFree
+#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_letFree
