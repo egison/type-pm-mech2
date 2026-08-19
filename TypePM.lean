@@ -89,6 +89,7 @@ import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.CrossGeneratedLetNormalization
 import TypePM.Source.RecursiveLetSupportSafety
 import TypePM.Source.DirectLetComparison
+import TypePM.Source.GeneratedStableSemanticAcceptance
 import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.GeneratedSemanticAcceptanceRegression

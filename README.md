@@ -111,6 +111,19 @@ body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうし
 別名等式がbodyの保留checkingに現れる代表名の差を意味的に吸収する補題を作り，この最小境界をsource導出の
 構造に沿って直接証明することである．
 
+生成済みblockの受理については，元のhard制約を解き，各保留checkingが最終代入後に何らかの変換を持つという
+単純な意味だけでは不十分である．productの要素が後の代入でmatcherになる一つの保留checkingを構成し，変換自体は
+存在するが，変換の種類を代入前に選ぶ残余等式は解けず，blockが拒否されることをkernel proofで固定した．
+そこで，hard制約による変換種類の選択，それ以上の通常等式への移動がないこと，選ばれた各変換の残余等式を
+一つの代入が同時に解くことを記録する`StableSemanticSolution`を定義した．これは実行可能な推論手続きを含まない
+宣言的な条件であり，`blockAccepts_iff_exists_stableSemanticSolution`で`BlockAccepts`と同値であることを証明した．
+hard制約が同じ解集合を持ち，保留checkingが同じなら，この証拠を直接輸送できる．二つのclosure代表が作る
+interface制約は，bodyが空でも同じ解集合を持たない場合があるため，この直接輸送だけでは一般の`let`比較にならない．
+有限な変数名変更をhard制約と保留checkingへ同時に適用し，freshな別名等式による共通の精密化を持つことが
+追加条件である．この条件の下で，異なるclosure代表が作る`Generated.fromLet`間の
+`StableSemanticSolution`の存在同値を証明した．一般の許容frameについてこの追加条件自体が強すぎるという
+既存の反例は残るため，最終的な不足は引き続きframeごとの意味的な受理同値をsource導出から直接作ることである．
+
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
 生成済みblockの二種類の変数名変更，異なる主要block closureが作るcontext境界等式を解く性質，closureの有限な
@@ -149,6 +162,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 
 この基盤を実装するmoduleは`UnificationSupport.lean`，`AbsorbingSupportRange.lean`，
 `GeneratedSupport.lean`，`ResolutionSupport.lean`，`BlockClosureSupport.lean`，
+`GeneratedSemanticAcceptance.lean`，`GeneratedStableSemanticAcceptance.lean`，
 `HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，
 `FreshAliasSaturation.lean`，`FreshAliasSequence.lean`，
 `Source/ElaborationTransport.lean`，`Source/ElaborationRenaming.lean`，
@@ -164,6 +178,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
 `Source/RecursiveLetSupportSafety.lean`，`Source/DirectLetComparison.lean`，
+`Source/GeneratedStableSemanticAcceptance.lean`，
 `Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．

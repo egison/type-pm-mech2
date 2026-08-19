@@ -228,6 +228,15 @@ private def renamedLeftBlock : TypePM.Generated :=
 private def rightBlock : TypePM.Generated :=
   Generated.fromLet rightInterface emptyBody
 
+/-- Even with an empty body and no delayed obligations, the two literal
+interface hard worklists need not be semantically equivalent.  Direct
+branch-stable transport therefore requires a common refinement rather than
+literal `HardEquivalent`. -/
+theorem blocks_not_hardEquivalent :
+    ¬ HardEquivalent renamedLeftBlock.hard rightBlock.hard := by
+  simpa [renamedLeftBlock, rightBlock, Generated.fromLet, emptyBody] using
+    no_left_addition_decomposition []
+
 /-- The symmetric API repairs the failed one-sided statement: both concrete
 interfaces are presentations of the empty body, with the nontrivial alias
 appearing only on the renamed-left side. -/

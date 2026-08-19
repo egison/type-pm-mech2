@@ -78,6 +78,7 @@ import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.CrossGeneratedLetNormalization
 import TypePM.Source.RecursiveLetSupportSafety
 import TypePM.Source.DirectLetComparison
+import TypePM.Source.GeneratedStableSemanticAcceptance
 import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
@@ -231,6 +232,10 @@ every full build.
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.directContextualLetComparisonHandler_iff
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.scopedGeneratedComparison
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.letComparisonHandler
+#print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.exists_stableSemanticSolution_iff
+#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent.exists_stableSemanticSolution_iff
+#print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_exists_stableSemanticSolution_iff_of_freshAliasSequence
+#print axioms TypePM.Source.InterfaceAliasCounterexample.blocks_not_hardEquivalent
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.no_supported_target_alignment
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.value_elaborates
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.valueStart_wellFormed
