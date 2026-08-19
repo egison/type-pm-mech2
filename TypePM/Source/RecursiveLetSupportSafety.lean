@@ -5,9 +5,9 @@ import TypePM.Source.CrossGeneratedLetNormalization
 
 This module isolates the finite-support facts needed to use
 `CrossGeneratedLetNormalization` below an arbitrary source-generated frame.
-It contains no new assumption about inference: the final section records the
-one strengthened closure-alignment invariant still required from the
-structural source proof.
+It contains no new assumption about inference.  The final section packages a
+sufficient support condition; `SourceSafeAlignmentCounterexample` shows that
+this package is not universally derivable from source elaboration.
 -/
 
 namespace TypePM.Source
@@ -450,13 +450,15 @@ theorem generatedAvoids_earlierHidden
 
 end Elaborates
 
-/-! ## The remaining source invariant -/
+/-! ## A sufficient support package -/
 
-/-- The exact source-support package missing from
+/-- A sufficient source-support package strengthening
 `FreshClosureAlignment`.  `fixesOutside` is sufficient for isolated child
 renaming by the theorem above.  `frameAdmissible` cannot be recovered from a
 bare `EquationCommonCore`, because that structure intentionally forgets the
-support and ordering certificate of its alias sequences. -/
+support and ordering certificate of its alias sequences.  The package is
+intentionally conditional: an actual well-formed source example in
+`SourceSafeAlignmentCounterexample` proves that it need not exist. -/
 structure SourceSafeWholeLetAlignment
     {leftGenerated rightGenerated : Generated}
     {left : PrincipalBlockClosure leftGenerated}

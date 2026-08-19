@@ -80,8 +80,12 @@ interfaceとbodyを合わせた`let`全体の結果型，hard制約，保留chec
 先行valueの開始supplyより前にあるなら，source生成変数の由来からそのbodyがvalue区間の`hidden`名を使わない
 ことも導出できる．一方，未来のfresh名だけを固定する条件は過去の名前交換を禁止せず，共通hard制約だけの
 証拠は保留checkingに現れる別名端点を記録しないため，この二つの弱い条件だけでは親blockへ持ち上げられない．
-これら二つの不足はそれぞれkernel proofによる反例で固定した．したがって残件は，実際のsource導出から，
-名前変更の全supportと別名等式列の順序・freshnessを同時に保持する有限な証拠を構成することである．
+これら二つの不足はそれぞれkernel proofによる反例で固定した．さらに，well-formedな開始supplyを持つ
+実際のsource `let`導出と二つの吸収的closureを構成し，closure結果を合わせる名前変更が継承された
+context変数を動かすため，`hidden`の外を固定する上記の十分条件を満たせないことも証明した．従って
+一般の`let`証明では，子blockの名前変更を単独で親へ持ち上げてはならない．interfaceの別名等式除去と
+body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を
+直接構成する必要がある．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
@@ -133,6 +137,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
 `Source/RecursiveLetSupportSafety.lean`，
+`Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 

@@ -49,6 +49,7 @@ import TypePM.Source.ScopedElaborationComposition
 import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.CrossGeneratedLetNormalization
 import TypePM.Source.RecursiveLetSupportSafety
+import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
@@ -185,6 +186,12 @@ every full build.
 #print axioms TypePM.Source.SourceSafeWholeLetAlignment.interfaceComparison
 #print axioms TypePM.Source.FrameAdmissibilityCounterexample.not_frameAdmissible
 #print axioms TypePM.Source.FutureFixingCounterexample.no_fresh_fixesOutside
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.no_supported_target_alignment
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.value_elaborates
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.valueStart_wellFormed
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_let_elaborates
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_let_elaborates
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_no_sourceSafeWholeLetAlignment
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff

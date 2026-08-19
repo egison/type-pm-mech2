@@ -174,8 +174,11 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 差し込めること，および後続bodyのcontextに由来する変数が先行valueの開始supplyより前なら，source生成の
 由来からbodyがvalue区間の`hidden`名を避けることは証明済みである．ただし，未来のfresh名を固定するだけでは
 過去の名前交換を排除できず，共通hard制約だけの証拠からは保留checking内の別名端点を復元できない．この二つの
-不足は反例で固定している．従って，完全性に残るsource側の仕事は，名前変更の有限supportと別名等式の
-順序・freshnessを同じclosure対応証拠に保持し，各入れ子位置でこの安全条件を構成することである．
+不足は反例で固定している．さらに，well-formedな開始supplyから得た実際のsource `let`導出と二つの
+吸収的closureについても，closure結果を合わせる名前変更が継承context変数を動かすため，`hidden`の外を
+固定する十分条件を満たさない例を証明した．従ってこの十分条件を一般のsource帰納法で構成する方針は採用しない．
+完全性に残るsource側の仕事は，interfaceの別名等式除去とbody比較を一体化し，子blockだけの名前変更を
+中間目標にせず，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を直接構成することである．
 一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
 変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
@@ -213,6 +216,7 @@ generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
 `Source/RecursiveLetSupportSafety.lean`，
+`Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，
