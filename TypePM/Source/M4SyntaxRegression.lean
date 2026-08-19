@@ -6,7 +6,8 @@ import TypePM.Source.M4MatcherClauseShapeRegression
 
 These examples make every final M4 source constructor concrete and connect an
 actual matcher clause to its expression-free shape.  The M3 expression entry
-point remains deliberately closed to `fixE`, matcher literals, and `matchAll`.
+point remains deliberately closed to `fixE`, matcher literals, `matchAll`,
+and `matchFirst`.
 `M4Elaboration` now supplies separate executable and relational pattern and
 single-match-site judgments; recursive M4 expression elaboration remains a
 later checkpoint.
@@ -83,6 +84,13 @@ theorem elaborate_matchAll_none
       supply = none := by
   simp [elaborate]
 
+theorem elaborate_matchFirst_none
+    (signature : Signature) (context : Context) (target matcher : Expr)
+    (arms : List MatchFirstArm) (supply : Supply) :
+    elaborate signature context (.matchFirst target matcher arms) supply =
+      none := by
+  simp [elaborate]
+
 /-- There is no declarative constructor that could disguise an unimplemented
 M4 typing rule. -/
 theorem fixE_not_relationally_elaborated
@@ -104,6 +112,15 @@ theorem matchAll_not_relationally_elaborated
     (pattern : Pattern) (body : Expr) (supply next : Supply)
     (generated : Generated) :
     ¬ Elaborates signature context (.matchAll target matcher pattern body)
+      supply generated next := by
+  intro derivation
+  cases derivation
+
+theorem matchFirst_not_relationally_elaborated
+    (signature : Signature) (context : Context) (target matcher : Expr)
+    (arms : List MatchFirstArm) (supply next : Supply)
+    (generated : Generated) :
+    ¬ Elaborates signature context (.matchFirst target matcher arms)
       supply generated next := by
   intro derivation
   cases derivation

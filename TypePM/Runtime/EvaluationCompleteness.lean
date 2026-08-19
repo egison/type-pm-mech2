@@ -430,6 +430,7 @@ private theorem fuel_ok_succ : ∀ fuel,
             simp only [FuelResult.bind_ok]
             rw [searchRaised]
             simp [bodiesRaised]
+        | matchFirst target matcher arms => simp [evalFuel] at success
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>

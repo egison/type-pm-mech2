@@ -125,6 +125,7 @@ mutual
                         (fun bindings =>
                           evalFuel fuel (bindings ++ environment) body)
                         bindingGroups)
+        | .matchFirst _ _ _ => .stuck
 
   /-- Fuel-bounded application.  The recursive closure layout is argument at
   index zero followed by self at index one. -/

@@ -22,6 +22,7 @@ import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Source.M4PatternTypingRegression
+import TypePM.Source.M4MatchFirstTypingRegression
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -495,6 +496,7 @@ every full build.
 #print axioms TypePM.Source.M4SyntaxRegression.elaborate_fixE_none
 #print axioms TypePM.Source.M4SyntaxRegression.matcher_not_relationally_elaborated
 #print axioms TypePM.Source.M4SyntaxRegression.matchAll_not_relationally_elaborated
+#print axioms TypePM.Source.M4SyntaxRegression.matchFirst_not_relationally_elaborated
 #print axioms TypePM.Source.M4PatternTypingRegression.value_after_binder_elaborates
 #print axioms TypePM.Source.M4PatternTypingRegression.value_before_binder_rejected
 #print axioms TypePM.Source.M4PatternTypingRegression.occurs_check_tail_rejected
@@ -504,6 +506,16 @@ every full build.
 #print axioms TypePM.Source.M4PatternTypingRegression.something_cons_capability_rejected
 #print axioms TypePM.Source.M4PatternTypingRegression.stored_pattern_function_interface_only
 #print axioms TypePM.Source.M4PatternTypingRegression.variable_match_relational
+#print axioms TypePM.Source.MatchFirstTyping.elaborateUsing_sound
+#print axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.exhaustive
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_pattern_lambda_desugaring_exact
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.infer_tuple_destructuring_exact
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_destructuring_relational
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.source_order_first_arm_metadata_exact
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.absent_arms_rejected
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.inconsistent_result_types_rejected
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.bad_matcher_rejected
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.uncovered_final_arm_rejected
 #print axioms TypePM.Source.elaborateFixUsing_sound
 #print axioms TypePM.Source.FixInference.inferFix_success_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact

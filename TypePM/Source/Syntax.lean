@@ -32,6 +32,7 @@ mutual
     | fixE (body : Expr)
     | matcher (clauses : List MatcherClause)
     | matchAll (target matcher : Expr) (pattern : Pattern) (body : Expr)
+    | matchFirst (target matcher : Expr) (arms : List MatchFirstArm)
   deriving Repr
 
   /-- A source pattern.  `embed index` refers to a pattern argument by its
@@ -59,7 +60,23 @@ mutual
     | mk (header : DPat) (body : Expr)
   deriving Repr
 
+  /-- One source-ordered arm of a single-result match.  This is distinct from
+  `MatcherArm`, whose header is a matcher literal's data pattern. -/
+  inductive MatchFirstArm where
+    | mk (pattern : Pattern) (body : Expr)
+  deriving Repr
+
 end
+
+namespace MatchFirstArm
+
+def pattern : MatchFirstArm → Pattern
+  | .mk pattern _ => pattern
+
+def body : MatchFirstArm → Expr
+  | .mk _ body => body
+
+end MatchFirstArm
 
 namespace MatcherArm
 

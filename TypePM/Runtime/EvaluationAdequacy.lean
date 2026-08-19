@@ -395,6 +395,8 @@ private theorem fuel_sound : ∀ fuel,
               (traverses_to_bindingGroups
                 (fun result => evalSound result)
                 ((traverse_eq_ok_iff _ _ _).mp traversal))
+        | matchFirst target matcher arms =>
+            simp [evalFuel] at success
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>

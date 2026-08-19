@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節の実行可能・関係的elaborationに加え，単項・単相の直接自己再帰`fixE` checkpointを実装済みである．`fixE`本体では引数がindex 0，自己がindex 1であり，直接callee以外の自己使用を全相互構文で拒否する．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，すべての`Expr.matchAll`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．targetとmatcherの評価，atom還元，source順の探索，各binding groupでのbody評価を接続し，重複branchと`timeout`／`stuck`を保存する．実行成功の関係的健全性，有限導出の完全性，fuel単調性も検証済みである．pattern function atom，単一結果の`matchFirst`実行，実行時型付けと型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -220,14 +220,15 @@ arm headerを付けた構造がこの検査を通ることと，catch-allが途�
 binding slotが重複する場合，hole数規約が違う場合を拒否することをkernel proofで固定した．
 
 source構文は`Expr`，`Pattern`，`MatcherClause`，`MatcherArm`を一つの相互帰納型として定義した．
-`Expr`は既存のM0--M3構文に`fixE`，matcher literal，`matchAll`を加え，`Pattern`は変数，wildcard，
+`Expr`は既存のM0--M3構文に`fixE`，matcher literal，`matchAll`と派生surface node `matchFirst`を加え，`Pattern`は変数，wildcard，
 式を持つvalue pattern，pattern constructor，tuple，namelessなpattern引数参照，pattern function適用を
 持つ．matcher clauseは`PPat` header，次のmatcherを計算する式，順序付きarmからなり，各armは`DPat`
 headerとbody式を持つ．opaqueな拡張nodeは使わない．実際のclauseから`MatcherClauseShape`への消去では，
 hole数規約とdata-variableの順序を構文からcanonicalに導くため，利用者が矛盾するmetadataを与えられない．
 全構文に`Repr`と構造的な複雑度を定義し，既存のM0--M3 elaboration・support・freshness・名前変更・`let`
-比較の証明が同じ構文上でcompileすることを確認した．M3までの既存`elaborate`は引き続き`fixE`，
-matcher literal，`matchAll`を明示的に拒否し，M2--M3の証明境界を変更しない．その上に
+比較の証明が同じ構文上でcompileすることを確認した．`matchFirst`はPaper 1 Appendix Aの`match`を
+表す入力側の派生構文であり，formal coreへ新しいprimitiveを追加するものではない．M3までの既存`elaborate`は引き続き`fixE`，
+matcher literal，`matchAll`，`matchFirst`を明示的に拒否し，M2--M3の証明境界を変更しない．その上に
 `M4Elaboration`を追加し，user patternの実行可能な`elaboratePattern`と独立した関係
 `PatternElaborates`，および単一match siteの`elaborateMatchAll`と`MatchAllElaborates`を定義した．
 patternはcapabilityとtarget型の組を合成し，binder型をsource順にcontextへ追加する．value patternは
@@ -237,6 +238,14 @@ pattern function適用時に本体を再検査せず，保存済みinterfaceだ�
 pattern targetをhard等式で結び，matcher式を`MatcherSlot`へ向けた一方向の保留checkingとして記録し，
 pattern binderを前置したcontextでbodyを型付けして，body型のListを返す．実行可能生成から関係的判断への
 健全性もkernel proofで確認した．
+
+`M4MatchFirstTyping`はtargetとmatcherを一度ずつ型付けし，各armをsource順に検査する．arm patternは
+空のbinding列から始め，pattern targetを共通targetへhard等式で結び，matcherを各patternの
+`MatcherSlot`へ一方向にcheckingする．bodyはpattern bindingを前置したcontextで型付けし，最初のbody型を
+直接の結果型として，後続body型をすべてそれへ等置するためList層を加えない．空arm列と，最後のpatternが
+変数・wildcard・それらだけからなるtupleでないarm列は拒否する．`Expr.tuplePatternLambda`により
+`\(hs,ts) -> body`をlambdaと`matchFirst`へ正確に展開できる．実行可能規則はcallbackを受け取る形で，
+関係的規則との健全性も証明済みである．
 
 `M4PatternTypingRegression`では，binder後のvalue patternが成功し，binder前の参照が失敗すること，
 list tailの`#x`がoccurs checkで拒否されること，value expressionのList／Integer不一致，`something`の
@@ -425,7 +434,9 @@ atom reducerで深さ優先探索を行い，各binding groupを元の環境の�
 関係`Eval`はclause，arm，atom，探索の順序を実行関数と独立な帰納的関係で保持する．
 実行成功からの健全性，有限な`Eval`導出から十分なfuelを得る完全性，成功値のfuel単調性を
 `matchAll`を含めて検証した．`searchPatternFuel`は探索とbody評価を分離し，将来の単一結果
-`matchFirst`が同じ探索順序を再利用できる境界である．pattern function atomは未実装で`stuck`を保持する．
+`matchFirst`が同じ探索順序を再利用できる境界である．派生surface node `matchFirst`は現段階では
+`stuck`を返す．M5ではAppendix Aどおり，順序付き`matchAll`の結果から最初の一件を選ぶ展開と同値で
+あることを証明してから実行器へ接続する．pattern function atomは未実装で`stuck`を保持する．
 
 ## 論文1のcode listing inventory
 

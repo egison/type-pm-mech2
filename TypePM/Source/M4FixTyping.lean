@@ -60,6 +60,9 @@ def mentions (tracked : Nat) : Expr → Bool
       mentions tracked target || mentions tracked matcher ||
         mentionsPattern tracked 0 pattern ||
         mentions (tracked + patternBindingCount pattern) body
+  | .matchFirst target matcher arms =>
+      mentions tracked target || mentions tracked matcher ||
+        mentionsMatchFirstArms tracked arms
 
 def mentionsList (tracked : Nat) : List Expr → Bool
   | [] => false
@@ -101,6 +104,16 @@ def mentionsArms (tracked captures : Nat) : List MatcherArm → Bool
   | arm :: arms =>
       mentionsArm tracked captures arm || mentionsArms tracked captures arms
 
+def mentionsMatchFirstArm (tracked : Nat) : MatchFirstArm → Bool
+  | .mk pattern body =>
+      mentionsPattern tracked 0 pattern ||
+        mentions (tracked + patternBindingCount pattern) body
+
+def mentionsMatchFirstArms (tracked : Nat) : List MatchFirstArm → Bool
+  | [] => false
+  | arm :: arms =>
+      mentionsMatchFirstArm tracked arm || mentionsMatchFirstArms tracked arms
+
 end
 
 mutual
@@ -125,6 +138,9 @@ def check (tracked : Nat) : Expr → Bool
       check tracked target && check tracked matcher &&
         checkPattern tracked 0 pattern &&
         check (tracked + patternBindingCount pattern) body
+  | .matchFirst target matcher arms =>
+      check tracked target && check tracked matcher &&
+        checkMatchFirstArms tracked arms
 termination_by expression => expression.complexity * 3 + 1
 decreasing_by all_goals simp_wf <;> omega
 
@@ -186,6 +202,20 @@ def checkArms (tracked captures : Nat) : List MatcherArm → Bool
   | arm :: arms =>
       checkArm tracked captures arm && checkArms tracked captures arms
 termination_by arms => MatcherArm.listComplexity arms * 3
+decreasing_by all_goals simp_wf <;> omega
+
+def checkMatchFirstArm (tracked : Nat) : MatchFirstArm → Bool
+  | .mk pattern body =>
+      checkPattern tracked 0 pattern &&
+        check (tracked + patternBindingCount pattern) body
+termination_by arm => arm.complexity * 3 + 1
+decreasing_by all_goals simp_wf <;> omega
+
+def checkMatchFirstArms (tracked : Nat) : List MatchFirstArm → Bool
+  | [] => true
+  | arm :: arms =>
+      checkMatchFirstArm tracked arm && checkMatchFirstArms tracked arms
+termination_by arms => MatchFirstArm.listComplexity arms * 3
 decreasing_by all_goals simp_wf <;> omega
 
 end

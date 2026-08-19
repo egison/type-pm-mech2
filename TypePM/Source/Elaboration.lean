@@ -94,6 +94,9 @@ def Expr.complexity : Expr → Nat
   | .matchAll target matcher pattern body =>
       target.complexity + matcher.complexity + pattern.complexity +
         body.complexity + 1
+  | .matchFirst target matcher arms =>
+      target.complexity + matcher.complexity +
+        MatchFirstArm.listComplexity arms + 1
 
 def Expr.listComplexity : List Expr → Nat
   | [] => 0
@@ -128,6 +131,14 @@ def MatcherArm.complexity : MatcherArm → Nat
 def MatcherArm.listComplexity : List MatcherArm → Nat
   | [] => 0
   | arm :: arms => arm.complexity + MatcherArm.listComplexity arms + 1
+
+def MatchFirstArm.complexity : MatchFirstArm → Nat
+  | .mk pattern body => pattern.complexity + body.complexity + 1
+
+def MatchFirstArm.listComplexity : List MatchFirstArm → Nat
+  | [] => 0
+  | arm :: arms =>
+      arm.complexity + MatchFirstArm.listComplexity arms + 1
 
 end
 
@@ -164,6 +175,11 @@ end
     (Expr.matchAll target matcher pattern body).complexity =
       target.complexity + matcher.complexity + pattern.complexity +
         body.complexity + 1 := rfl
+@[simp] theorem Expr.complexity_matchFirst
+    (target matcher : Expr) (arms : List MatchFirstArm) :
+    (Expr.matchFirst target matcher arms).complexity =
+      target.complexity + matcher.complexity +
+        MatchFirstArm.listComplexity arms + 1 := rfl
 @[simp] theorem Expr.listComplexity_nil : Expr.listComplexity [] = 0 := rfl
 @[simp] theorem Expr.listComplexity_cons (item : Expr) (items : List Expr) :
     Expr.listComplexity (item :: items) =
@@ -210,6 +226,16 @@ end
     (arm : MatcherArm) (arms : List MatcherArm) :
     MatcherArm.listComplexity (arm :: arms) =
       arm.complexity + MatcherArm.listComplexity arms + 1 := rfl
+
+@[simp] theorem MatchFirstArm.complexity_mk (pattern : Pattern) (body : Expr) :
+    (MatchFirstArm.mk pattern body).complexity =
+      pattern.complexity + body.complexity + 1 := rfl
+@[simp] theorem MatchFirstArm.listComplexity_nil :
+    MatchFirstArm.listComplexity [] = 0 := rfl
+@[simp] theorem MatchFirstArm.listComplexity_cons
+    (arm : MatchFirstArm) (arms : List MatchFirstArm) :
+    MatchFirstArm.listComplexity (arm :: arms) =
+      arm.complexity + MatchFirstArm.listComplexity arms + 1 := rfl
 
 mutual
 
@@ -288,6 +314,7 @@ def elaborate (signature : Signature) (context : Context) :
   | .fixE _, _ => none
   | .matcher _, _ => none
   | .matchAll _ _ _ _, _ => none
+  | .matchFirst _ _ _, _ => none
 termination_by expression => expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> omega
 
@@ -677,6 +704,7 @@ theorem elaborate_sound
   | fixE body => simp [elaborate] at success
   | matcher clauses => simp [elaborate] at success
   | matchAll target matcher pattern body => simp [elaborate] at success
+  | matchFirst target matcher arms => simp [elaborate] at success
 termination_by expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
