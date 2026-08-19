@@ -899,6 +899,177 @@ theorem pendingBlocks_blockAccepts_iff :
           representativePendingBody) :=
   pendingBlocks_renamingAwareCommonCoreEquivalent.blockAccepts_iff
 
+/-! ## A contextual obstruction to the renaming-aware certificate -/
+
+/-- A fixed sibling whose delayed check observes the inherited variable.
+Together with an application frame this distinguishes whether the body check
+uses that same variable or the fresh representative. -/
+private def inheritedPendingObserver : Generated :=
+  { target := .int
+    hard := []
+    pending := [⟨.var inherited, .int⟩] }
+
+private def inheritedPendingFrame : GeneratedFrame :=
+  .appFunction inheritedPendingObserver .int .int .hole
+
+private theorem renameTy_eq_var
+    {rho : VariableRenaming} {source : Ty} {target : TyVar}
+    (equality : ElaborationRenaming.renameTy rho source = .var target) :
+    ∃ sourceIndex,
+      source = .var sourceIndex ∧ rho.tyForward sourceIndex = target := by
+  cases source with
+  | var sourceIndex =>
+      refine ⟨sourceIndex, rfl, ?_⟩
+      simpa [ElaborationRenaming.renameTy,
+        VariableRenaming.substitution, Ty.apply] using equality
+  | int => simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+  | fn domain codomain =>
+      simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+  | prod items => simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+  | data former arguments =>
+      simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+  | matcher capability target =>
+      simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+  | slot capability target =>
+      simp [ElaborationRenaming.renameTy, Ty.apply] at equality
+
+private theorem inheritedPendingFrame_avoids
+    {hidden : List UnificationVar}
+    (fresh : VariablesFreshIn valueStart ⟨7, 0⟩ hidden) :
+    inheritedPendingFrame.Avoids hidden := by
+  refine ⟨?_, ?_, ?_, trivial⟩
+  intro candidate member hiddenMember
+  have inheritedOutside : (.ty inherited : UnificationVar) ∉ hidden := by
+    intro inheritedMember
+    have range := fresh (.ty inherited) inheritedMember
+    simp [UnificationVar.FreshIn, valueStart, inherited] at range
+  have candidateCases : candidate = .ty inherited := by
+    simpa [inheritedPendingObserver, Generated.unificationVars,
+      Ty.unificationVars, TypePM.unificationVars,
+      pendingUnificationVars, CheckObligation.unificationVars] using member
+  exact inheritedOutside (candidateCases ▸ hiddenMember)
+  · intro candidate member _hiddenMember
+    simp [Ty.unificationVars] at member
+  · intro candidate member _hiddenMember
+    simp [Ty.unificationVars] at member
+
+/-- No pair of bijective variable renamings can turn one common delayed list
+into both `(representative, inherited)` and `(inherited, inherited)` at the
+same two positions.  Hard aliases are irrelevant because they do not alter
+delayed checks. -/
+private theorem pendingFrame_not_renamingAwareCommonCoreEquivalent :
+    ¬ Nonempty
+      (DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent
+          (inheritedPendingFrame.plug
+            (Generated.fromLet
+              (context.interfaceEquations inheritedClosure.substitution)
+              inheritedPendingBody))
+          (inheritedPendingFrame.plug
+            (Generated.fromLet
+              (context.interfaceEquations representativeClosure.substitution)
+              representativePendingBody))) := by
+  rintro ⟨equivalent⟩
+  rcases equivalent with
+    ⟨core, leftRenaming, rightRenaming, _leftFinite, _rightFinite,
+      _leftAliases, _rightAliases, _leftAdmissible, _rightAdmissible,
+      _leftHard, _rightHard, leftPending, rightPending⟩
+  cases core with
+  | mk target hard pending =>
+      simp [inheritedPendingFrame, inheritedPendingObserver,
+        GeneratedFrame.plug, Generated.fromApp, Generated.fromLet,
+        inheritedPendingBody, representativePendingBody,
+        ElaborationRenaming.renameGenerated,
+        ElaborationRenaming.renameTy,
+        VariableRenaming.substitution]
+          at leftPending rightPending
+      cases pending with
+      | nil => simp at leftPending
+      | cons first rest =>
+          cases rest with
+          | nil => simp at leftPending
+          | cons second rest =>
+              cases rest with
+              | nil => simp at leftPending
+              | cons third rest =>
+                  cases rest with
+                  | cons fourth rest => simp at leftPending
+                  | nil =>
+                      simp only [List.map_cons, List.map_nil,
+                        List.cons.injEq] at leftPending rightPending
+                      obtain ⟨leftFirst, leftSecond, _leftThird, _⟩ :=
+                        leftPending
+                      obtain ⟨rightFirst, rightSecond, _rightThird, _⟩ :=
+                        rightPending
+                      have leftFirstSource :=
+                        congrArg CheckObligation.source leftFirst
+                      have leftSecondSource :=
+                        congrArg CheckObligation.source leftSecond
+                      have rightFirstSource :=
+                        congrArg CheckObligation.source rightFirst
+                      have rightSecondSource :=
+                        congrArg CheckObligation.source rightSecond
+                      change ElaborationRenaming.renameTy leftRenaming
+                        first.source = .var representative at leftFirstSource
+                      change ElaborationRenaming.renameTy leftRenaming
+                        second.source = .var inherited at leftSecondSource
+                      change ElaborationRenaming.renameTy rightRenaming
+                        first.source = .var inherited at rightFirstSource
+                      change ElaborationRenaming.renameTy rightRenaming
+                        second.source = .var inherited at rightSecondSource
+                      obtain ⟨firstIndex, firstSource, leftFirstImage⟩ :=
+                        renameTy_eq_var leftFirstSource
+                      obtain ⟨secondIndex, secondSource, leftSecondImage⟩ :=
+                        renameTy_eq_var leftSecondSource
+                      rw [firstSource] at rightFirstSource
+                      rw [secondSource] at rightSecondSource
+                      have rightFirstImage :
+                          rightRenaming.tyForward firstIndex = inherited := by
+                        simpa [ElaborationRenaming.renameTy,
+                          VariableRenaming.substitution, Ty.apply] using
+                            rightFirstSource
+                      have rightSecondImage :
+                          rightRenaming.tyForward secondIndex = inherited := by
+                        simpa [ElaborationRenaming.renameTy,
+                          VariableRenaming.substitution, Ty.apply] using
+                            rightSecondSource
+                      have indicesEqual : firstIndex = secondIndex :=
+                        rightRenaming.tyForward_injective
+                          (rightFirstImage.trans rightSecondImage.symm)
+                      subst secondIndex
+                      have impossible : representative = inherited :=
+                        leftFirstImage.symm.trans leftSecondImage
+                      exact inherited_ne_representative impossible.symm
+
+/-- The corrected empty-frame example still cannot satisfy the proposed
+frame-wise certificate.  Its finite hidden set cannot contain the inherited
+variable, so the observer frame above is admissible and exposes the
+bijectivity obstruction. -/
+theorem pendingBlocks_not_renamingAwareDirectCertificate :
+    ¬ Nonempty
+      (DirectGeneratedComparisonCertificate.RenamingAwareDirectGeneratedComparisonCertificate
+          valueStart ⟨7, 0⟩
+          (Generated.fromLet
+            (context.interfaceEquations inheritedClosure.substitution)
+            inheritedPendingBody)
+          (Generated.fromLet
+            (context.interfaceEquations representativeClosure.substitution)
+            representativePendingBody)) := by
+  rintro ⟨certificate⟩
+  exact pendingFrame_not_renamingAwareCommonCoreEquivalent
+    (certificate.normalize inheritedPendingFrame
+      (inheritedPendingFrame_avoids certificate.hiddenFresh))
+
+/-- Consequently, allowing one whole-block finite variable renaming before
+hard aliases does not repair the general handler: contextual frames can
+observe whether a body name is identical to an inherited name. -/
+theorem not_renamingAwareDirectLetNormalizationHandler :
+    ¬ DirectGeneratedComparisonCertificate.RenamingAwareDirectLetNormalizationHandler := by
+  intro normalize
+  obtain ⟨_nextEquality, certificate⟩ := normalize
+    valueStart_wellFormed inherited_pending_let_elaborates
+      representative_pending_let_elaborates
+  exact pendingBlocks_not_renamingAwareDirectCertificate certificate
+
 private theorem pendingBlocks_not_commonCoreEquivalent :
     ¬ FreshAliasSequence.CommonCoreEquivalent
       (Generated.fromLet

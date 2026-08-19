@@ -265,9 +265,12 @@ theorem scopedGeneratedComparison
 
 end RenamingAwareDirectGeneratedComparisonCertificate
 
-/-- Candidate general-`let` invariant after correcting the delayed-checking
-gap in `DirectLetNormalizationHandler`.  Its construction from arbitrary
-well-formed source derivations remains the M2 completeness obligation. -/
+/-- A second candidate general-`let` invariant.  It repairs the empty-frame
+delayed-checking gap in `DirectLetNormalizationHandler`, but remains too
+strong under frames: a fixed sibling can observe whether two occurrences use
+the same inherited name.  The source-derived refutation is
+`SourceSafeAlignmentCounterexample.not_renamingAwareDirectLetNormalizationHandler`.
+-/
 def RenamingAwareDirectLetNormalizationHandler : Prop :=
   ∀ {signature : Signature} {context : Context} {value body : Expr}
       {start : Supply} {leftGenerated rightGenerated : Generated}
@@ -292,6 +295,74 @@ theorem RenamingAwareDirectGeneratedComparisonCertificate.letComparisonHandler
     normalize wellFormed leftElaboration rightElaboration
   subst rightNext
   exact certificate.scopedGeneratedComparison
+
+/-! ## The minimal sound complete-block endpoint -/
+
+/-- The minimal direct certificate records exactly the contextual acceptance
+equivalence consumed by source-constructor composition.  It deliberately does
+not require the two sides to arise from one syntactic common core: the
+source-derived counterexample shows that both the hard-only and bijective-
+renaming common-core presentations are too restrictive. -/
+structure DirectContextualGeneratedComparisonCertificate
+    (start next : Supply) (left right : Generated) where
+  hidden : List UnificationVar
+  hiddenFresh : VariablesFreshIn start next hidden
+  normalize : ∀ (frame : GeneratedFrame), frame.Avoids hidden →
+    (BlockAccepts (frame.plug left) ↔ BlockAccepts (frame.plug right))
+
+namespace DirectContextualGeneratedComparisonCertificate
+
+theorem scopedGeneratedComparison
+    {start next : Supply} {left right : Generated}
+    (certificate :
+      DirectContextualGeneratedComparisonCertificate start next left right) :
+    ScopedGeneratedComparison start next next left right := by
+  refine ⟨rfl, certificate.hidden, certificate.hiddenFresh, ?_⟩
+  intro frame frameAvoids
+  exact certificate.normalize frame frameAvoids
+
+end DirectContextualGeneratedComparisonCertificate
+
+/-- General `letE` coherence stated using only the minimal direct contextual
+certificate and explicit supply agreement. -/
+def DirectContextualLetComparisonHandler : Prop :=
+  ∀ {signature : Signature} {context : Context} {value body : Expr}
+      {start : Supply} {leftGenerated rightGenerated : Generated}
+      {leftNext rightNext : Supply},
+    start.WellFormedFor context →
+      Elaborates signature context (.letE value body) start
+          leftGenerated leftNext →
+        Elaborates signature context (.letE value body) start
+            rightGenerated rightNext →
+          leftNext = rightNext ∧
+            Nonempty (DirectContextualGeneratedComparisonCertificate
+              start leftNext leftGenerated rightGenerated)
+
+/-- The minimal direct formulation is neither stronger nor weaker than the
+existing `LetComparisonHandler`; it merely exposes its supply and frame-wise
+components.  Thus proving this handler is exactly the remaining general M2
+coherence obligation. -/
+theorem directContextualLetComparisonHandler_iff :
+    DirectContextualLetComparisonHandler ↔ LetComparisonHandler := by
+  constructor
+  · intro direct signature context value body start leftGenerated
+      rightGenerated leftNext rightNext wellFormed leftElaboration
+      rightElaboration
+    obtain ⟨nextEquality, ⟨certificate⟩⟩ :=
+      direct wellFormed leftElaboration rightElaboration
+    subst rightNext
+    exact certificate.scopedGeneratedComparison
+  · intro handler signature context value body start leftGenerated
+      rightGenerated leftNext rightNext wellFormed leftElaboration
+      rightElaboration
+    obtain ⟨nextEquality, hidden, hiddenFresh, related⟩ :=
+      handler wellFormed leftElaboration rightElaboration
+    exact ⟨nextEquality,
+      ⟨{ hidden := hidden
+         hiddenFresh := hiddenFresh
+         normalize := by
+           intro frame frameAvoids
+           exact related frame frameAvoids }⟩⟩
 
 /-- A frame-stable generated equation decomposition is a convenient
 sufficient presentation of the direct normalization invariant. -/
