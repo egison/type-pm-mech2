@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，5 primitiveのscheme，Listの3 pattern scheme，有限signatureとその整合性検査を実装済みである．sourceのconstructor／primitive／if構文とelaborationは未実装である |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signatureに加え，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，capture-before-first-hole検査，constructor引数数のshape検査を実装済みである．pattern function本体，freeze checker，matcher clause本体，`Source.Expr`への接続は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | not-started | value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の位置を区別する順序付き選択とjoin分割，最初の値を除く操作は実装済みである．value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -255,6 +255,12 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 重複入力については，`$ :: $`で`[1,1,2]`から同じ値を持つ二つの先頭分岐を残すこと，
 `$ ++ $`で`[1,1]`から同じ値を持つ二つの中間分割を残すことも検査する．入れ子`cons`は
 `[1,2,3]`から異なる二要素を選ぶ6結果を深さ優先順で返すことを検査する．
+
+`Runtime/OrderedChoice.lean`では，完全なmatcher評価器に先立ち，`$ :: $`が使う位置ごとの
+要素選択，`$ ++ $`が使う8通りの順序付き分割，`#$val :: $`が使う最初の出現の除去を
+実装した．三要素の正確な列挙順と，重複値を持つ別位置の分岐を統合しないことはkernel proofで
+固定済みである．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
+`not-started`のままとする．
 
 ## 論文1のcode listing inventory
 

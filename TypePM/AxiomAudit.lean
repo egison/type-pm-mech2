@@ -21,6 +21,7 @@ import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
+import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -241,3 +242,11 @@ every full build.
 #print axioms TypePM.Source.M4MatcherPatternRegression.data_arms_shapeOK
 #print axioms TypePM.Source.M4MatcherPatternRegression.data_arm_bindings_exact
 #print axioms TypePM.Source.M4MatcherPatternRegression.bad_constructor_arities_rejected
+#print axioms TypePM.Runtime.chooseOne_length
+#print axioms TypePM.Runtime.splitAll_length
+#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_three_exact
+#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_duplicate_positions_preserved
+#print axioms TypePM.Runtime.OrderedChoiceRegression.split_three_exact
+#print axioms TypePM.Runtime.OrderedChoiceRegression.split_duplicate_positions_preserved
+#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_present_once
+#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_absent

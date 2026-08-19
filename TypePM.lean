@@ -101,6 +101,8 @@ import TypePM.Source.FrozenSignature
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.MatcherPattern
 import TypePM.Source.M4MatcherPatternRegression
+import TypePM.Runtime.OrderedChoice
+import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.AxiomAudit
 
 /-!
