@@ -1,0 +1,181 @@
+import TypePM.Source.M4Elaboration
+
+/-!
+# Checked pattern-function source definitions
+
+`FrozenSignature` deliberately stores only a pattern function's closed dual
+scheme.  Runtime expansion needs the erased body as well, but that body must
+not be an unrelated table entry.  This module defines the source/runtime
+agreement boundary without adding an evaluator or trusting an arbitrary
+callback.
+
+The first executable runtime fragment is deliberately precise: an inline
+template may contain constructors, tuples, wildcards, and embedded parameters.
+It contains no private binders, value expressions, or nested pattern-function
+calls.  Each parameter occurs exactly once and in declaration order.  This
+fragment is sufficient for the nullary and parameter-passing regression
+fixtures, while definitions needing private matching state remain represented
+by the general `PatternFunctionDefinition` and require the later node-based
+runtime rule.
+-/
+
+namespace TypePM.Source
+
+/-- A source pattern-function definition.  Parameters are nameless and are
+addressed by `Pattern.embed` indices. -/
+structure PatternFunctionDefinition where
+  name : PatternFunName
+  parameterCount : Nat
+  body : Pattern
+deriving Repr
+
+mutual
+
+  /-- Embedded parameter indices of the safe inline-template fragment.
+`none` marks a construct that needs private runtime matching state. -/
+  def Pattern.inlineTemplateEmbeds : Pattern → Option (List Nat)
+    | .wild => some []
+    | .ctor _ fields => Pattern.inlineTemplateEmbedsList fields
+    | .tuple items => Pattern.inlineTemplateEmbedsList items
+    | .embed index => some [index]
+    | .var | .value _ | .app _ _ => none
+
+  /-- Left-to-right list traversal for `inlineTemplateEmbeds`. -/
+  def Pattern.inlineTemplateEmbedsList : List Pattern → Option (List Nat)
+    | [] => some []
+    | pattern :: patterns => do
+        let head ← pattern.inlineTemplateEmbeds
+        let tail ← Pattern.inlineTemplateEmbedsList patterns
+        pure (head ++ tail)
+
+end
+
+/-- The body can be expanded inline without exposing private binders, and it
+uses every parameter exactly once in declaration order. -/
+def PatternFunctionDefinition.InlineRuntimeSafe
+    (definition : PatternFunctionDefinition) : Prop :=
+  definition.body.inlineTemplateEmbeds =
+    some (List.range definition.parameterCount)
+
+instance (definition : PatternFunctionDefinition) :
+    Decidable definition.InlineRuntimeSafe :=
+  inferInstanceAs (Decidable
+    (definition.body.inlineTemplateEmbeds =
+      some (List.range definition.parameterCount)))
+
+mutual
+
+  /-- Substitute actual user patterns for embedded parameters in an inline
+template.  Unsupported private constructs return `none`. -/
+  def Pattern.instantiateInlineTemplate
+      (arguments : List Pattern) : Pattern → Option Pattern
+    | .wild => some .wild
+    | .ctor constructor fields => do
+        let instantiated ← Pattern.instantiateInlineTemplates arguments fields
+        pure (.ctor constructor instantiated)
+    | .tuple items => do
+        let instantiated ← Pattern.instantiateInlineTemplates arguments items
+        pure (.tuple instantiated)
+    | .embed index => arguments[index]?
+    | .var | .value _ | .app _ _ => none
+
+  /-- Left-to-right list substitution for inline templates. -/
+  def Pattern.instantiateInlineTemplates
+      (arguments : List Pattern) : List Pattern → Option (List Pattern)
+    | [] => some []
+    | pattern :: patterns => do
+        let head ← pattern.instantiateInlineTemplate arguments
+        let tail ← Pattern.instantiateInlineTemplates arguments patterns
+        pure (head :: tail)
+
+end
+
+/-- A definition is paired with the exact frozen interface exposed by source
+elaboration.  `bodyElaboration` is independent relational evidence at the
+canonical bound-index instance; it does not call the executable inference
+procedure. -/
+structure PatternFunctionDefinition.Checked
+    (signature : FrozenSignature) (definition : PatternFunctionDefinition) where
+  scheme : DualScheme
+  lookup : signature.lookupPatternFunction definition.name = some scheme
+  arity : definition.parameterCount = scheme.fields.length
+  generated : GeneratedPattern
+  next : Supply
+  bodyElaboration :
+    PatternElaborates signature [] (scheme.instantiate ⟨0, 0⟩).1.fields
+      definition.body [] (scheme.instantiate ⟨0, 0⟩).2 generated next
+  result_eq : generated.dual = (scheme.instantiate ⟨0, 0⟩).1.result
+  bindings_eq : generated.bindings = []
+
+/-- The restricted inline-runtime certificate augments the general static
+body check with the exact linear parameter condition. -/
+structure PatternFunctionDefinition.InlineChecked
+    (signature : FrozenSignature) (definition : PatternFunctionDefinition)
+    extends definition.Checked signature where
+  inlineRuntimeSafe : definition.InlineRuntimeSafe
+
+/-- A runtime body table.  Unlike `FrozenSignature`, this table is not itself
+trusted as a type interface; agreement below ties every entry back to a
+checked frozen declaration. -/
+abbrev PatternFunctionDefinitions := List PatternFunctionDefinition
+
+namespace PatternFunctionDefinitions
+
+def lookup (definitions : PatternFunctionDefinitions)
+    (name : PatternFunName) : Option PatternFunctionDefinition :=
+  definitions.find? (fun definition => definition.name = name)
+
+/-- Source/runtime agreement for the inline fragment.  Both directions are
+recorded so that neither a runtime-only body nor a source-only interface can
+be silently ignored. -/
+structure AgreeInline
+    (signature : FrozenSignature) (definitions : PatternFunctionDefinitions) :
+    Prop where
+  signatureWellFormed : signature.WellFormed
+  namesNodup : (definitions.map PatternFunctionDefinition.name).Nodup
+  runtimeChecked :
+    ∀ definition ∈ definitions,
+      Nonempty (definition.InlineChecked signature)
+  sourceImplemented :
+    ∀ declaration ∈ signature.patternFunctions,
+      ∃ definition ∈ definitions,
+        definition.name = declaration.name
+
+theorem lookup_member
+    {definitions : PatternFunctionDefinitions} {name : PatternFunName}
+    {definition : PatternFunctionDefinition}
+    (found : definitions.lookup name = some definition) :
+    definition ∈ definitions := by
+  exact List.mem_of_find?_eq_some found
+
+theorem lookup_name
+    {definitions : PatternFunctionDefinitions} {name : PatternFunName}
+    {definition : PatternFunctionDefinition}
+    (found : definitions.lookup name = some definition) :
+    definition.name = name := by
+  unfold lookup at found
+  exact of_decide_eq_true
+    (List.find?_some
+      (p := fun item : PatternFunctionDefinition =>
+        decide (item.name = name)) found)
+
+theorem lookup_unique
+    {definitions : PatternFunctionDefinitions}
+    (_nodup : (definitions.map PatternFunctionDefinition.name).Nodup)
+    {name : PatternFunName} {left right : PatternFunctionDefinition}
+    (leftFound : definitions.lookup name = some left)
+    (rightFound : definitions.lookup name = some right) :
+    left = right := by
+  exact Option.some.inj (leftFound.symm.trans rightFound)
+
+theorem AgreeInline.lookup_checked
+    {signature : FrozenSignature} {definitions : PatternFunctionDefinitions}
+    (agreement : AgreeInline signature definitions)
+    {name : PatternFunName} {definition : PatternFunctionDefinition}
+    (found : definitions.lookup name = some definition) :
+    Nonempty (definition.InlineChecked signature) :=
+  agreement.runtimeChecked definition (lookup_member found)
+
+end PatternFunctionDefinitions
+
+end TypePM.Source

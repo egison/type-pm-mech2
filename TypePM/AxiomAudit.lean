@@ -22,6 +22,7 @@ import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
+import TypePM.Source.M4PatternFunctionDefinitionRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Source.M4PatternTypingRegression
 import TypePM.Source.M4MatchFirstTypingRegression
@@ -285,6 +286,11 @@ every full build.
 #print axioms TypePM.Source.M4FrozenSignatureRegression.one_pattern_function_wellFormed
 #print axioms TypePM.Source.M4FrozenSignatureRegression.lookup_emptyList_exact
 #print axioms TypePM.Source.M4FrozenSignatureRegression.duplicate_pattern_function_not_wellFormed
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.definitions_agree
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_unit_exact
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_pass_exact
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.private_binder_not_inline_safe
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.duplicated_parameter_not_inline_safe
 #print axioms TypePM.Source.PPat.holesInSourceOrder_nodup
 #print axioms TypePM.Source.PPat.captureSlots_nodup
 #print axioms TypePM.Source.PPat.hole_capture_slots_disjoint

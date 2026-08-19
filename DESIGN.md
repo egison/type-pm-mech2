@@ -340,7 +340,11 @@ DESIGNの旧版ではpattern functionをM4の一覧に明記していなかっ�
 仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
 
 実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`と各回帰を含む．残る予定moduleは
-`MatchAllTyping.lean`，`PatternFunctions.lean`，`M4EgisonRegression.lean`である．M4完了時には
+`PatternFunctionDefinition.lean`では，独立したpattern本体の型付け，frozen interfaceとの引数数・結果dualの一致，
+runtime本体表との双方向対応を定義した．また，private binderを持たず埋込み引数を宣言順に一度ずつ使う
+inline実行可能断片を切り出した．`unit`と`pass`の正例，private binder，value式，重複・逆順引数の負例を
+検証済みである．一般のprivate bindingを隔離するruntime nodeは残る．残る予定moduleは
+`MatchAllTyping.lean`，一般pattern function実行，`M4EgisonRegression.lean`である．M4完了時には
 論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
 検証する．
 

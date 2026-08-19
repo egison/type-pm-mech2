@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定した．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みのsource本体をfrozen interfaceとruntime表へ対応させる境界，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定した．matcher-root再帰を含む統合M4 elaborationと，一般のprivate bindingを持つpattern function実行は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．pattern function atom，実行時型付けと型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -215,7 +215,12 @@ pattern function名をほかの宣言名とは別の型にし，M3のsignature�
 整合性条件は名前の重複がないこと，各schemeがclosedであること，bound indexが量化範囲内にあることを要求する．
 lookupで得たschemeがこれらの条件を満たすことと，Paper 1のpattern functionを含まないfrozen signatureの
 正確なlookupをkernel proofで確認した．この基盤にはpattern function本体を置かず，本体からinterfaceを作る
-freeze checkerもまだ実装していない．
+境界は別の`PatternFunctionDefinition`に置く．そこでは本体の独立した`PatternElaborates`導出，保存schemeとの
+引数数・結果dualの一致，runtime表とsource interfaceの双方向対応を要求する．さらに，private binderを持たず，
+埋込み引数を宣言順に一度ずつ使うinline実行可能断片を定義した．引数なしの`unit`と，引数をそのまま渡す
+`pass`について正確な検査証拠と展開結果をkernel proofで固定し，private binder，value式，重複・逆順の
+埋込み引数をこの断片では拒否する．一般のprivate bindingを隔離するruntime matching nodeと，その本体を
+検査してfrozen signatureを構成する公開手続きはまだ未実装である．
 
 matcher clause headerの静的な形だけを表す`PPat`と`DPat`も追加した．pattern patternである`PPat`は，
 matcher clauseがpatternのどの部分を次へ委譲し，どの部分を値として取り出すかを表す．data patternである
