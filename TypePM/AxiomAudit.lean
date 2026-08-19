@@ -31,6 +31,7 @@ import TypePM.Runtime.DataPatternRegression
 import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Runtime.ValuesRegression
+import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
@@ -374,6 +375,14 @@ every full build.
 #print axioms TypePM.Runtime.ValuesRegression.matcher_is_not_structurally_equal_to_itself
 #print axioms TypePM.Runtime.ValuesRegression.ground_roundtrip_exact
 #print axioms TypePM.Runtime.ValuesRegression.nested_matcher_projection_is_rejected
+#print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
+#print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
+#print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
+#print axioms TypePM.Runtime.ValueDataPatternRegression.wildcard_ignores_matcher
+#print axioms TypePM.Runtime.ValueDataPatternRegression.constructor_does_not_destructure_closure
+#print axioms TypePM.Runtime.ValueDataPatternRegression.cons_bindings_preserve_source_order
+#print axioms TypePM.Runtime.ValueDataPatternRegression.tuple_may_bind_non_ground_values
+#print axioms TypePM.Runtime.ValueDataPatternRegression.constructor_arity_mismatch_is_failure
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup

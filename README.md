@@ -352,6 +352,10 @@ clause／arm評価はこの制御へ後続moduleで接続する．
 構造的比較は整数・data constructor・tupleだけを再帰的に比較し，closure，matcher value，`something`では
 同じLean項どうしでも`false`を返す．`GroundValue`の順序を保つ埋込みと部分射影は往復し，埋込みが単射で
 あることも証明済みである．式評価，clause dispatch，matching stateはこの値表現を使う後続moduleに残る．
+`Runtime/ValueDataPattern.lean`は，先行するground data-pattern照合をこの一般valueへ接続する．
+variableとwildcardはclosure，matcher value，`something`を含む任意の値を受け取り，data constructorと
+tupleだけが厳密なconstructor名・要素数で構造分解される．実行関数と独立した関係仕様の双方向対応，
+静的binding数との一致，closure／matcherを束縛する正例と構造不一致の負例を検証済みである．
 
 ## 論文1のcode listing inventory
 
