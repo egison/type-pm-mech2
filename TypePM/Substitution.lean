@@ -35,6 +35,8 @@ mutual
 def Ty.apply (substitution : Subst) : Ty → Ty
   | .var index => substitution.ty index
   | .int => .int
+  | .fn domain codomain =>
+      .fn (domain.apply substitution) (codomain.apply substitution)
   | .prod items => .prod (Ty.applyList substitution items)
   | .matcher capability target =>
       .matcher (capability.apply substitution.cap) (target.apply substitution)
@@ -63,6 +65,11 @@ def singleTy (index : TyVar) (replacement : Ty) : Subst :=
     ty := fun candidate =>
       if candidate = index then replacement else .var candidate }
 
+def singleCap (index : CapVar) (replacement : Cap) : Subst :=
+  { cap := fun candidate =>
+      if candidate = index then replacement else .var candidate
+    ty := Ty.var }
+
 end Subst
 
 mutual
@@ -89,6 +96,7 @@ mutual
   cases target with
   | var => rfl
   | int => rfl
+  | fn domain codomain => simp [Ty.apply, Ty.apply_id]
   | prod items => simp [Ty.apply, Ty.applyList_id]
   | matcher capability target => simp [Ty.apply, Ty.apply_id]
   | slot capability target => simp [Ty.apply, Ty.apply_id]
@@ -132,6 +140,7 @@ mutual
   cases target with
   | var => rfl
   | int => rfl
+  | fn domain codomain => simp [Ty.apply, Ty.apply_compose]
   | prod items => simp [Ty.apply, Ty.applyList_compose]
   | matcher capability target =>
       simp [Ty.apply, Ty.apply_compose, Cap.apply_compose]
@@ -152,6 +161,10 @@ end
 @[simp] theorem Subst.singleTy_hit (index : TyVar) (replacement : Ty) :
     (Ty.var index).apply (Subst.singleTy index replacement) = replacement := by
   simp [Ty.apply, Subst.singleTy]
+
+@[simp] theorem Subst.singleCap_hit (index : CapVar) (replacement : Cap) :
+    (Cap.var index).apply (Subst.singleCap index replacement).cap = replacement := by
+  simp [Cap.apply, Subst.singleCap]
 
 /-- `specific` is an instance of `general` when one simultaneous substitution
 turns the latter into the former. -/

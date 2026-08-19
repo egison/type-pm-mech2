@@ -1,58 +1,255 @@
-# 独立した Type-PM 型付けの設計
+# 独立したType-PM型付けの設計
 
 ## 目標
 
-型付け可能性を，実行可能な制約解決手続き（solver）の状態，source 順の履歴，推論終了後の
-再検査（terminal audit）に依存しない
-帰納的な判断で定義する．その後で，独立判断に対する推論器の健全性・完全性と主要性を
-証明する．
+型付け可能性を，実行可能な制約解決手続き（solver）の状態，source順の履歴，推論終了後の再検査
+（terminal audit）に依存しない帰納的な判断`Typing`で定義する．その後で，独立判断に対する
+推論器の健全性，完全性，主要性と，動的意味論に対する型安全性を証明する．
 
-**双方向型付け**とは，式自身から周囲の要求を適用する前の型（raw 型）を求める synthesis と，既知の
-要求型（expected type）として
-式を使えるかを調べる checking を分ける方法である．暗黙の matcher 変換は checking に
-だけ置き，synthesis の型を複数の異なる最外型構成子へ分岐させない．
+双方向型付けとは，式自身から周囲の要求を適用する前の型を求めるsynthesisと，既知の要求型
+として式を使えるかを調べるcheckingを分ける方法である．暗黙のmatcher変換はcheckingにだけ
+置き，synthesisの型を複数の異なる最外型構成子へ分岐させない．
 
-## 段階
+旧実装は外部の比較対象であり，新体系の定義，証明，buildへ依存させない．旧`SourceTyping`，
+trace，validator，terminal audit，旧推論器，互換層を再実装しない．後方互換性は要件ではなく，
+各段階で新仕様に合わせて構文とAPIを直接更新する．
 
-### M0: 独立した基礎
+## 設計上の不変条件
 
-必要最小限の構文に対して，型，代入，raw synthesis，checking 変換を定義する．
-`(something, something)` は raw には product of matchers だけを synthesize し，外から
-matcher または slot の expected 型が明示された場合にだけ checking 変換を使える．
+1. `Typing`は関係的制約生成，宣言的飽和，制約を満たす代入だけから定義する．実行可能な
+   `generate`，`unify`，`infer`を定義に含めない．
+2. matcher producerをslot要求へ合わせる変換は，外側の構文，context，signatureから得た要求に
+   基づいてのみ選ぶ．型を付けるためだけにslot構造を推測しない．
+3. 同じblockのchecking要求は，同じhard制約の解で一括して分類する．特殊変換または最後まで
+   保留される制約を解いた結果は，siblingの分類へ戻さない．特殊変換になり得ないと確定した
+   通常の型等式だけは一斉にhard制約へ移し，次のhard制約解決の回で全要求へ反映してよい．
+4. source構文から生成したすべてのchecking要求について，最終代入の下で変換が存在するか，
+   通常の型等式としてhard制約へ移されたことを証明する．この全件追跡をcoverageと呼ぶ．
+5. 新しく割り当てる型変数は，開始時のsupply以上，終了時のsupply未満に置き，context由来の
+   変数と区別する．
+6. 同時に解いた制約の順序は意味を変えない．最終的には，fresh変数名の付け替えも含めて
+   source programの並べ替えに対する受理不変性へ接続する．
 
-M0 の `RootChecks` は expected 型の由来をまだ証明しないため，source acceptance ではない．
-checking 変換も，恒等変換，matcher-to-slot，空でない product of matchers から
-matcher／slot への変換に限定する．product of slots などは必要になる段階で追加する．
+hard制約とは，暗黙変換の選択に依存せず必ず満たす型等式である．飽和とは，後続のどの代入でも
+特殊なmatcher変換になり得ないchecking要求を通常の型等式へ一斉に移し，再びhard制約を解く操作を，
+それ以上移せなくなるまで繰り返すことである．この昇格で得た通常の型等式は次の回の分類に
+影響してよいが，特殊変換や最後まで保留された制約を解いた結果は分類へ戻さない．
 
-### M1: 順序に依存しない制約 block
+adequacyは，実行可能な評価器の成功結果を関係的評価でも導出できる性質である．progressは，
+型が付いた未完了状態が一歩進むか正常な不一致になる性質である．no-stuckは，規則の適用不能を
+表す`stuck`へ到達しない性質である．
 
-ここで block とは，同じ変数の有効範囲に属する式から制約をまとめて生成し，一括して
-解いてから結果を外へ出す単位である．lambda と application を追加し，一つの block から
-次を純粋に生成する．
+## 段階と完了条件
 
-1. coercion の選択に依存しない型等式（確定制約）
-2. raw 型と expected 型を後で対応させる保留中の checking 要求（obligation）
-3. context，root の expected 型，または構文から直接生じる matcher／slot 要求の根
+| 段階 | 状態 | 完了条件の要約 |
+|---|---|---|
+| M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
+| M1 | partial | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，順序境界回帰 |
+| M2 | not-started | scheme，`let`，value block一般化とその主要性 |
+| M3 | not-started | constructor，primitive，signature，pattern declaration |
+| M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
+| M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
 
-確定制約を最も一般的に解き，通常の等式にするしかない obligation を確定制約へ移して
-再び解く操作（確定制約の飽和）を繰り返した後，全 obligation を同じ解で一度に分類する．一つの obligation の解を
-別の obligation の分類根拠にはしない．これにより source 順序への依存と，型を付けるため
-だけに slot 構造を推測することを同時に避ける．
+### M0：独立した基礎
 
-M1 の完了条件は，制約生成と solver の正確性，宣言的受理と `infer2` の健全性・完全性，
-raw synthesis の主要性，および順序を入れ替えた境界 program の回帰である．
+M0は，型，二種類の変数への同時代入，`var`，整数，`something`，tupleのraw synthesis，
+明示された要求型へのcheckingを定義する．`(something, something)`はrawにはproduct of
+matchersだけをsynthesizeし，外からmatcherまたはslotの要求型が与えられた場合だけ変換する．
 
-### M2 以降
+`RootChecks`は要求型の由来を証明しない局所関係であり，source acceptanceではない．M0の完了は
+`Regression.pair_principal`などで検証済みである．
 
-- M2: scheme，`let`，value block の一般化
-- M3: constructor と primitive，および signature 由来の要求
-- M4: pattern，`matchAll`，matcher literal，`fix`
-- M5: 動的意味論，型安全性，旧実装との差分分類
+### M1：順序に依存しない制約block
 
-旧実装の定義は，対応する milestone で意味が確定してから必要なものだけ再実装する．
-旧 `SourceTyping`，trace，validator，terminal audit を互換層として持ち込まない．
+M1はlambdaとapplicationを追加し，一つのblockからhard制約，保留中のchecking要求，raw結果型を
+純粋に生成する．現時点で次を実装済みである．
 
-## terminal audit を除く条件
+- `GenerationRelation`による実行可能生成器と関係的生成の同値
+- `GenerationFreshness`によるsupply単調性と生成変数の範囲
+- 二種類の変数を扱い，入力だけから必ず停止する`unify`の健全性，完全性，最も一般的な解
+- `Saturation`による宣言的な一括昇格と，`SaturationProcedure`のsoundness
+- 抽象solverの完全性を仮定した`SaturationProcedureCompleteness`
+- 最も一般的な解の選び方に依存しない昇格結果と飽和終点の一意性
+- `Permutation`による制約順序に関する`Solves`，`MostGeneral`，昇格，飽和の不変性
+- `SourcePermutation`によるfresh型変数の有限な付け替え，生成済みのsibling blockの並べ替え，
+  制約と解の輸送
+- terminal auditや実行器を含まない`Typing`
+- 生成されたすべてのchecking要求に対する`DeclarativeCoverage`
+- 抽象solverに対する`inferUsing_sound`と`inferUsing_complete`
+- `unify`を使う公開`infer`と，M1断片に対する健全性`Inference.infer_success_typing`
+- M1断片に対する完全性`Typing.infer_isSome`，受理同値`Inference.typable_iff_infer_isSome`，
+  受理可能性を計算で判定する`Inference.typableDecidable`
+- 公開`infer`結果の主要性`Inference.infer_principal`と，成功結果を主要な型付けとしてまとめる
+  `Inference.infer_success_principalTyping`
+- 二つの主要な代表型が互いに代入から得られることを示す`PrincipalTyping.mutualInstances`
+- 二つの主要な代表型が，通常の型変数とcapability変数の有限な出現集合上で双方向に
+  逆となる変数名の付け替えだけ異なることを示す`PrincipalTyping.finiteRenaming_unique`
+- 通常等式へ昇格したchecking要求が，どの後続代入の下でも特殊なmatcher変換には
+  ならないことを示す`promoteUnder_equation_no_special_after`
+- 特殊変換が選ばれるとき，要求型の最外にmatcherまたはslotが既に明示されていることを示す
+  `Resolution.special_expected_head`
 
-全構文について独立した型付けを定義し，`infer2` の健全性・完全性と型安全性を追加公理なし
-で証明した後に限り，terminal audit を公開仕様から除けたと主張する．M0 はその主張を行わない．
+M1を`done`にするには，fresh変数の付け替えを考慮した，制約block全体の一般の
+source順序不変性が残る．次の境界program回帰は公開`infer`の正確な結果と，独立した
+`Typing`またはその不存在まで検証済みである．
+
+| program | M1で固定する結果 | 現状 |
+|---|---|---|
+| `M1Examples.useFirst` | `acceptedType`で受理する | `infer_useFirst_exact`と`useFirst_typing`で検証済み |
+| `M1Examples.applicationFirst` | sibling順序を変えても同じ`acceptedType`で受理する | `infer_applicationFirst_exact`，`applicationFirst_typing`，`accepted_orders_same_target`で検証済み |
+| `M1Examples.singletonFirst` | 共有lambda domainへmatcherとproduct matcherの非互換な要求が生じ，拒否する | `infer_singletonFirst_none`と`singletonFirst_not_typable`で検証済み |
+| `M1Examples.pairFirst` | 上記の順序を変えても拒否する | `infer_pairFirst_none`と`pairFirst_not_typable`で検証済み |
+| `Regression.pair` | raw product型が主要である | `infer_pair_exact_raw_product`と`pair_raw_product_typing`，公開`infer`の一般主要性で検証済み |
+
+実装済みの主要moduleは`Unification.lean`，`UnificationCorrectness.lean`，
+`UnificationTermination.lean`，`Inference.lean`，`InferenceCompleteness.lean`，
+`InferenceExactness.lean`，`Principality.lean`である．残る一般のsource順序不変性は
+`SourcePermutation.lean`，境界回帰は`M1BoundaryRegression.lean`で追跡する．
+
+### M2：schemeと一般化
+
+M2では量化変数を持たない型（monotype）だけの`Context`をschemeのcontextへ置き換え，`let`とvalue blockを追加する．
+一般化を遅らせるかblock終了時に行うかは，M1の同時制約解決を壊さない形で定義する．
+schemeのinstantiateとgeneralize，contextのfreshness（新しい変数が既存変数と重ならない性質），`let`生成と関係的規則，実行可能推論との
+同値，主要性が完了条件である．
+
+schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
+generalize（一般化）と呼ぶ．予定moduleは`Schemes.lean`，`Generalization.lean`，`LetGeneration.lean`，
+`M2Regression.lean`である．論文listing P1-L09の`let`例はこの段階で静的に検証する．
+
+### M3：data，primitive，signature
+
+M3ではdata constructorとpattern constructorを別のsignature項目として定義する．signatureは
+source構文の外から与えられる型要求の表である．List，Boolなどのdata型，constructor，および
+論文例に必要な整数演算，list append，`member`，`deleteFirst`，`map`を追加する．primitiveは
+言語処理系が直接実装する基本操作である．名前だけで信頼せず，型とM5の実行意味を同じ一覧で
+追跡できる形にする．
+
+予定moduleは`DataTypes.lean`，`Signature.lean`，`Constructors.lean`，`Primitives.lean`，
+`PatternDeclarations.lean`である．論文listing P1-L03のpattern declarationと，multiset matcherの
+clause headerに必要なsignatureをこの段階で検証する．
+
+### M4：patternとmatcher
+
+M4ではpattern，`matchAll`，matcher literal，直接自己再帰の`fix`，pattern functionを追加する．
+patternの左から右の変数束縛，value pattern内の式の型付け，pattern constructorが要求する
+capabilityとtarget，matcher producerからslotへの一方向のcheckingを独立規則として定義する．
+matcher literalのclauseはmatcherを構成する分岐であり，holeは次のmatcherへ処理を委譲する
+pattern位置である．
+
+DESIGNの旧版ではpattern functionをM4の一覧に明記していなかったが，論文のP1/P2回帰をM0--M5に
+収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を
+仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
+
+予定moduleは`PatternSyntax.lean`，`PatternTyping.lean`，`MatcherTyping.lean`，
+`MatchAllTyping.lean`，`PatternFunctions.lean`，`M4EgisonRegression.lean`である．M4完了時には
+論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
+検証する．
+
+### M5：動的意味論と型安全性
+
+M5ではvalue，環境，pattern binding，matching atomとmatching state，関係的評価`Eval`，fuel付き
+評価器`evalFuel`を定義する．fuelは再帰の深さを制限する自然数であり，fuel切れと，適用できる
+規則がない`stuck`を区別する．
+matching atomは，一つのpatternを一つのmatcherで一つの値へ照合する途中課題であり，matching
+stateは複数の途中課題と既に得た束縛をまとめた実行状態である．
+
+実行可能評価の成功から関係的評価を得るadequacy，関係的評価から十分大きいfuelでの成功を得る
+完全性，型保存，局所progress，matching結果の型整合性，任意fuelでのno-stuckを証明する．
+一般の停止性や，幅優先探索の完全性はM5の型安全性の完了条件に含めない．
+
+予定moduleは`Values.lean`，`Evaluation.lean`，`Matching.lean`，`EvalFuel.lean`，
+`EvaluationAdequacy.lean`，`RuntimeTyping.lean`，`CoreSafety.lean`，`NoStuck.lean`である．
+
+## 論文の番号付き結果を証明する順序
+
+論文の番号付き結果5.1--5.8は，旧定理をそのまま移植せず，次の新しい依存順で証明する．
+
+| 順序 | 目標 | 必要な基盤 | 予定module／theorem |
+|---|---|---|---|
+| 1 | M1断片の受理健全性5.1 | 関係的生成，単一化，飽和，coverage | `Inference.lean`／`Inference.infer_success_typing` |
+| 2 | M1断片の受理完全性5.2 | 実行可能生成の完全性，solver完全性，飽和手続きの完全性 | `InferenceCompleteness.lean`／`Typing.infer_isSome` |
+| 3 | 受理同値5.3 | 1と2 | `InferenceExactness.lean`／`Inference.typable_iff_infer_isSome` |
+| 4 | 主要な代表型の一意性5.4と主要性5.5 | 最も一般的な解，飽和一意性，変数名の付け替え | `RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`Principality.lean`／`Inference.infer_principal` |
+| 5 | M2--M4への静的定理の拡張 | 各構文の関係的生成と実行可能生成の同値 | 各段階のgeneration／typing module |
+| 6 | 静的型付けから実行時型付けへの橋5.6 | M5のruntime typing | `RuntimeTyping.lean`／`Typing.toRuntimeTyping` |
+| 7 | 条件付きcore safety 5.7 | 評価とmatchingの型保存，局所progress | `CoreSafety.lean`／`Typing.coreSafety` |
+| 8 | no-stuck 5.8 | adequacy，fuel帰納法，5.6 | `NoStuck.lean`／`Typing.neverStuck`，`Inference.infer_neverStuck` |
+
+5.1--5.5の対応結果はM1断片について証明済みである．5.4は，二つの主要な代表型が
+通常の型変数とcapability変数の有限な出現集合上で双方向に逆となる変数名の付け替えだけ異なることとして
+定式化している．これらをM2--M4で増えた構文へ拡張し，論文が扱う全構文に対する
+定理が揃った時点だけ最終的な`done`を付ける．5.6は新体系に推論状態がないため，
+状態消去ではなく静的型付けから実行時型付けへの構造的な変換となる．
+一般の`Typing`結果には主要型の具体例も含まれるため，5.4相当はすべての`Typing`結果を互いに
+renamingとする主張ではなく，主要性を満たす代表型どうしの一意性として定式化する．
+
+## Egison回帰の配置
+
+READMEの一貫確認ロードマップを，静的段階と動的段階に分けて実装する．動的回帰は対応する
+静的program定義をimportし，同じfixtureを再利用する．fixtureとは，回帰で共有するprogram，
+signature，期待型，期待値の組である．
+
+| 機能 | 静的回帰 | 動的回帰 |
+|---|---|---|
+| 非線形pattern | `M4NonLinearPatternRegression.lean` | `M5NonLinearPatternExecution.lean` |
+| 基本multiset | `M4MultisetRegression.lean` | `M5MultisetExecution.lean` |
+| 一般再帰multiset | `M4GeneralMultisetRegression.lean` | `M5GeneralMultisetExecution.lean` |
+| pattern function | `M4PatternFunctionRegression.lean` | `M5PatternFunctionExecution.lean` |
+| 三機能の合成 | `M4CompositionRegression.lean` | `M5CompositionExecution.lean` |
+
+正例ごとに`*_infer_success`，`*_typing`，`*_eval_exact`，`*_eval_relational`，
+`*_never_stuck`を揃える．静的負例は`*_not_typable`を先に証明し，5.1の健全性を使って
+`*_infer_rejected`を導く．正常な不一致は`*_typing`と`*_eval_exact`の両方を持ち，期待値を
+空の結果列とする．
+
+## Multiset matcherの実装境界
+
+READMEに列挙した7 clauseを，一つの巨大な実行primitiveとして先に追加しない．
+
+1. M3でList data，pattern declaration，各clauseが使うprimitiveの型を定義する．
+2. M4で7 clauseをsource matcher literalとして型付けし，clause順序とholeの要求型を検証する．
+3. M5で同じ定義を評価し，nil，head-only，value-cons，general cons，join，whole-value，catch-allの
+   具体例を個別に固定する．
+4. 性能のために専用primitiveへ置き換える場合は，source定義と同じ結果列を返す対応定理を先に
+   証明する．
+
+分岐は値ではなく入力中の出現位置で区別する．`join`は末尾の分割を再帰的に列挙し，各段階で
+現在の要素を右側へ置く全結果を，左側へ置く全結果より先に返す．この順序を実装都合で変更する
+場合は，READMEの期待結果，論文，回帰を同じ変更で更新する．
+
+## 論文code listingの追跡
+
+READMEの`P1-L01`--`P1-L15`を，論文1の全code listingを漏れなく追跡する一覧（inventory）とする．論文sourceの
+`lstlisting`出現順をIDへ対応させる．旧リポジトリのprogramをimportせず，各例を新構文で
+`Paper1Programs.lean`へ記述する．機能別回帰で証明した結果を`Paper1Inventory.lean`から
+まとめて参照できるようにする．
+
+追跡は次の五段階で行う．
+
+1. source構文で表現できる．
+2. 静的正例は`Typing`と公開`infer`成功，静的負例は`Typing`不存在を持つ．
+3. 実行例は正確な`evalFuel`等式を持つ．
+4. adequacyにより関係的`Eval`へ接続する．
+5. 型付きclosed programは任意fuelでno-stuckを持つ．
+
+各listingの性質に不要な段階は「対象外」と明記する．例えばpattern declarationだけのP1-L03は
+動的評価を要求しない．一方，正常なmatch failureのP1-L14は全五段階を要求する．論文listingの
+追加，削除，期待結果の変更は，README inventoryと`Paper1Inventory.lean`の同時更新を必須とする．
+
+P1-L08は特に注意が必要である．旧論文はsource順により片方を拒否するが，新M1の目標は
+`M1Examples.useFirst`と`applicationFirst`の両方を受理することである．この結果は
+`M1BoundaryRegression`で証明済みであり，READMEで`done`とする．旧論文のlistingと説明は，
+論文を新仕様に合わせる段階で両順序受理へ更新する．
+
+## terminal auditを除いたと主張する条件
+
+M1断片で`Typing`を定義しただけでは，論文全体からterminal auditを除けたとは主張しない．
+次のすべてを追加公理なしで証明した後に限り，公開仕様から除けたと記載する．
+
+- M0--M4の全source構文に対する独立した`Typing`
+- 公開`infer`の健全性，完全性，受理同値，主要性
+- M5の静的型付けから実行時型付けへの橋，型保存，progress，no-stuck
+- READMEの論文定理対応表とcode listing inventoryの完了
+
+旧実装のaudit済み結果や実行回帰は比較資料であり，この条件を満たす証明の代用にはならない．

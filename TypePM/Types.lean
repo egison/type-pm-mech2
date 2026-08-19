@@ -3,8 +3,8 @@ import Std
 /-!
 # Type-PM types used by the independent development
 
-Only constructors needed by the M0 fragment are present.  Function types and
-the remaining source language are introduced by later milestones.
+Only constructors needed through the current milestone are present.  Data,
+polymorphic schemes, and matcher-specific source forms are introduced later.
 -/
 
 namespace TypePM
@@ -26,10 +26,12 @@ inductive Cap where
   | prod (items : List Cap)
 deriving Repr
 
-/-- M0 types.  Matcher and slot capabilities form a separate variable sort. -/
+/-- Types through M1.  Matcher and slot capabilities use a variable sort
+separate from ordinary type variables. -/
 inductive Ty where
   | var (index : TyVar)
   | int
+  | fn (domain codomain : Ty)
   | prod (items : List Ty)
   | matcher (capability : Cap) (target : Ty)
   | slot (capability : Cap) (target : Ty)
