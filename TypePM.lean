@@ -159,6 +159,8 @@ import TypePM.RuntimeTyping
 import TypePM.CoreSafety
 import TypePM.NoStuck
 import TypePM.RuntimeTypingRegression
+import TypePM.MatcherSafety
+import TypePM.MatcherSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression

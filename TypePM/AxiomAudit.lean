@@ -55,6 +55,7 @@ import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.RuntimeTypingRegression
+import TypePM.MatcherSafetyRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
@@ -653,3 +654,18 @@ every full build.
 #print axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
 #print axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
 #print axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
+#print axioms TypePM.Runtime.ValueTypings.appendEnvironment
+#print axioms TypePM.Runtime.MatchingAtomsTyping.append
+#print axioms TypePM.Runtime.reduceBuiltinAtom_typedSafe
+#print axioms TypePM.Runtime.reduceBuiltinAtom_typed_progress
+#print axioms TypePM.Runtime.stepMatchingState_typedSafe
+#print axioms TypePM.Runtime.depthFirstMatching_typedSafe
+#print axioms TypePM.Runtime.searchMatchingFuel_typedSafe
+#print axioms TypePM.Runtime.searchMatchingFuel_typed_notStuck
+#print axioms TypePM.MatcherSafetyRegression.tuple_pattern_binding_types_preserve_source_order
+#print axioms TypePM.MatcherSafetyRegression.tuple_search_exact
+#print axioms TypePM.MatcherSafetyRegression.tuple_search_preserves_binding_type
+#print axioms TypePM.MatcherSafetyRegression.tuple_search_never_stuck
+#print axioms TypePM.MatcherSafetyRegression.typed_value_mismatch_is_empty_not_stuck
+#print axioms TypePM.MatcherSafetyRegression.paper_selected_clause_empty_is_normal_state_expansion
+#print axioms TypePM.MatcherSafetyRegression.paper_multiset_state_keeps_clause_branch_order
