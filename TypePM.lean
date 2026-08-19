@@ -120,6 +120,8 @@ import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitive
 import TypePM.Runtime.GroundPrimitiveAdequacy
 import TypePM.Runtime.GroundPrimitiveRegression
+import TypePM.Runtime.Values
+import TypePM.Runtime.ValuesRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression

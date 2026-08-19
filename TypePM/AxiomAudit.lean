@@ -29,6 +29,7 @@ import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Runtime.DataPatternRegression
 import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
+import TypePM.Runtime.ValuesRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
@@ -346,6 +347,20 @@ every full build.
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.append_non_list_stuck
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_stuck_propagates
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_timeout_propagates
+#print axioms TypePM.Runtime.Value.matcherClosure_cursorValid
+#print axioms TypePM.Runtime.Value.advanceMatcher_cursorValid
+#print axioms TypePM.Runtime.Value.structuralEq_ofGround_self
+#print axioms TypePM.Runtime.Value.toGround?_ofGround
+#print axioms TypePM.Runtime.Value.valuesToGroundValues?_groundValuesToValues
+#print axioms TypePM.Runtime.Value.ofGround_injective
+#print axioms TypePM.Runtime.Value.lookup_iff_getElem?
+#print axioms TypePM.Runtime.ValuesRegression.every_runtime_constructor_is_available
+#print axioms TypePM.Runtime.ValuesRegression.matcher_advance_is_source_ordered
+#print axioms TypePM.Runtime.ValuesRegression.constructor_structural_equality_succeeds
+#print axioms TypePM.Runtime.ValuesRegression.closure_is_not_structurally_equal_to_itself
+#print axioms TypePM.Runtime.ValuesRegression.matcher_is_not_structurally_equal_to_itself
+#print axioms TypePM.Runtime.ValuesRegression.ground_roundtrip_exact
+#print axioms TypePM.Runtime.ValuesRegression.nested_matcher_projection_is_rejected
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup

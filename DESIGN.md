@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様・双方向対応は実装済み．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様・双方向対応，一般のruntime valueは実装済み．式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -347,6 +347,14 @@ constructor mismatchとfield数不一致を明示的な失敗にする．capture
 hole／capture数との一致を証明し，multiset matcherの7 headerを個別に実行した．完全なclause
 dispatchにはcapture式評価，data arm選択，body評価，decompositionの生成がさらに必要である．
 
+`Runtime/Values.lean`は，M4で確定した`Source.Expr`と`Source.MatcherClause`に対する完全なruntime
+valueを定義する．data constructorの子，tuple要素，closure環境は通常の`List`でsource順を保ち，
+探索分岐の重複除去には利用しない．function closureは通常／再帰のtag，定義時環境，bodyを保持する．
+matcher closureは論文どおり定義時環境，元のclause列，未試行suffixを保持する．初期化と一clause進める
+操作についてsuffix不変条件を証明した．構造的比較はfirst-order value，すなわち整数・data
+constructor・tupleだけで定義し，closure，matcher，`something`では常に失敗する．先行する
+`GroundValue`からの順序を保つ埋込み，groundへの部分射影，往復，埋込みの単射も検証済みである．
+
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な
 順序，重複する値を持つ別位置の分岐数，`2^n`個のjoin分割を証明済みである．これは探索器の
@@ -359,7 +367,7 @@ dispatchにはcapture式評価，data arm選択，body評価，decompositionの�
 完全性，型保存，局所progress，matching結果の型整合性，任意fuelでのno-stuckを証明する．
 一般の停止性や，幅優先探索の完全性はM5の型安全性の完了条件に含めない．
 
-予定moduleは`Values.lean`，`Evaluation.lean`，`Matching.lean`，`EvalFuel.lean`，
+実装済みmoduleは`Values.lean`である．後続予定moduleは`Evaluation.lean`，`Matching.lean`，`EvalFuel.lean`，
 `EvaluationAdequacy.lean`，`RuntimeTyping.lean`，`CoreSafety.lean`，`NoStuck.lean`である．
 
 ## 論文の番号付き結果を証明する順序

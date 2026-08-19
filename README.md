@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，実行式を持たないclause構造と順序検査に加え，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文を実装済みである．pattern function本体，freeze checker，pattern・matcher・`matchAll`・`fix`の型推論は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索に加え，整数・data constructor・tupleだけからなる閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様を実装済みである．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，pattern-pattern header／data-pattern armの構造照合，5 primitiveのground実行に加え，整数・data constructor・tuple・function closure・matcher closure・`something`からなる一般のruntime valueを実装済みである．matcher closureは定義時環境，元のclause列，未試行suffixを保持し，ground fragmentとの往復も検証済みである．式評価，matchingの一歩規則，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -328,6 +328,13 @@ decompositionや`matchAll`全体が動作済みであるとはまだ数えない
 定義し，実行成功とのadequacyとcompletenessを双方向に証明した．append，memberの在／不在，重複を
 含むdeleteFirst，map順序，Bool/List encoding，異常引数とcallback失敗はexact regressionで固定済みである．
 ただし，matcher clauseのdispatchや`Source.Expr`の評価はまだ実装していない．
+
+`Runtime/Values.lean`は，論文の型消去されたruntime valueを直接定義する．function closureは通常／再帰の
+区別，定義時環境，bodyを保持する．matcher closureは定義時環境，元のsource順clause列，未試行suffixを
+保持し，初期cursorと一clause進めたcursorが常に元の列のsuffixであることを証明した．value pattern用の
+構造的比較は整数・data constructor・tupleだけを再帰的に比較し，closure，matcher value，`something`では
+同じLean項どうしでも`false`を返す．`GroundValue`の順序を保つ埋込みと部分射影は往復し，埋込みが単射で
+あることも証明済みである．式評価，clause dispatch，matching stateはこの値表現を使う後続moduleに残る．
 
 ## 論文1のcode listing inventory
 
