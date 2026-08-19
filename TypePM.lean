@@ -134,6 +134,8 @@ import TypePM.Runtime.CombinedAtomReducer
 import TypePM.Runtime.CombinedAtomReducerRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
+import TypePM.Runtime.ClauseDispatch
+import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression

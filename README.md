@@ -313,13 +313,13 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 
 | clause | 具体的な確認program | 期待結果 | 状態 | 予定回帰theorem |
 |---|---|---|---|---|
-| `nil` | `matchAll [] as multiset something with [] -> 0`と，対象を`[1]`にした負例 | 空対象は`[0]`，非空対象は`[]` | not-started | `MultisetExecution.nil_empty_exact`，`nil_nonempty_is_match_failure` |
-| `$ :: _` | `matchAll [1,2,3] as multiset something with $x :: _ -> x` | `[1,2,3]` | not-started | `MultisetExecution.head_only_target_order` |
-| `#$val :: $` | `#1 :: $xs`を`[1,1,2]`と`[2,3]`へ適用する | `[[1,2]]`と`[]`．最初の出現だけを除く | not-started | `MultisetExecution.value_cons_removes_first`，`value_cons_absent_is_match_failure` |
-| `$ :: $` | `$x :: $xs`を`[1,2,3]`へ適用する | `[(1,[2,3]),(2,[1,3]),(3,[1,2])]` | not-started | `MultisetExecution.cons_three_search_order` |
-| `$ ++ $` | `$xs ++ $ys`を`[1,2,3]`へ適用する | `([], [1,2,3])`，`([3], [1,2])`，`([2], [1,3])`，`([2,3], [1])`，`([1], [2,3])`，`([1,3], [2])`，`([1,2], [3])`，`([1,2,3], [])` | not-started | `MultisetExecution.join_three_split_order` |
-| `#$val` | `#[1,2]`をmultiset対象`[2,1]`と`[1,3]`へ適用する | 一つの成功`[()]`と正常な不一致`[]` | not-started | `MultisetExecution.value_whole_permutation`，`value_whole_mismatch` |
-| catch-all `$` | `matchAll [1,2,3] as multiset something with $xs -> xs` | 対象全体を一度だけ返す`[[1,2,3]]` | not-started | `MultisetExecution.catch_all_once` |
+| `nil` | `matchAll [] as multiset something with [] -> 0`と，対象を`[1]`にした負例 | 空対象は`[0]`，非空対象は`[]` | partial：実際のclauseを通るatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.nil_clause_complete_dispatch_exact`，`MultisetExecution.nil_empty_exact`，`nil_nonempty_is_match_failure` |
+| `$ :: _` | `matchAll [1,2,3] as multiset something with $x :: _ -> x` | `[1,2,3]` | partial：実際のclauseを通るatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact`，`MultisetExecution.head_only_target_order` |
+| `#$val :: $` | `#1 :: $xs`を`[1,1,2]`と`[2,3]`へ適用する | `[[1,2]]`と`[]`．最初の出現だけを除く | partial：captureとarmを含むatomic dispatchは検証済み．具体的なbodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact`，`MultisetExecution.value_cons_removes_first`，`value_cons_absent_is_match_failure` |
+| `$ :: $` | `$x :: $xs`を`[1,2,3]`へ適用する | `[(1,[2,3]),(2,[1,3]),(3,[1,2])]` | partial：2 holeのbranch構築は検証済み．具体的な選択bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact`，`MultisetExecution.cons_three_search_order` |
+| `$ ++ $` | `$xs ++ $ys`を`[1,2,3]`へ適用する | `([], [1,2,3])`，`([3], [1,2])`，`([2], [1,3])`，`([2,3], [1])`，`([1], [2,3])`，`([1,3], [2])`，`([1,2], [3])`，`([1,2,3], [])` | partial：先行armの不一致後に2番目のarmを選ぶatomic dispatchは検証済み．具体的な分割bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.join_clause_second_arm_dispatch_exact`，`MultisetExecution.join_three_split_order` |
+| `#$val` | `#[1,2]`をmultiset対象`[2,1]`と`[1,3]`へ適用する | 一つの成功`[()]`と正常な不一致`[]` | partial：0 holeとcaptureを含むatomic dispatchは検証済み．構造的multiset等価性との接続は未完了 | `Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact`，`MultisetExecution.value_whole_permutation`，`value_whole_mismatch` |
+| catch-all `$` | `matchAll [1,2,3] as multiset something with $xs -> xs` | 対象全体を一度だけ返す`[[1,2,3]]` | partial：対象全体をdata-variableへ渡すatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact`，`MultisetExecution.catch_all_once` |
 
 重複入力については，`$ :: $`で`[1,1,2]`から同じ値を持つ二つの先頭分岐を残すこと，
 `$ ++ $`で`[1,1]`から同じ値を持つ二つの中間分割を残すことも検査する．入れ子`cons`は
@@ -331,8 +331,9 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 固定済みである．さらに，位置を一つ除く関係`RemovesOne`と，入力位置を左右へ割り当てる関係
 `Splits`を独立に定義し，実行可能な列挙中のmembershipとこれらの関係が同値であることを双方向に
 証明した．最初の等しい値だけを除く関係`DeletesFirst`についても，成功時と不在時の実行結果を
-特徴付けた．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
-`not-started`のままとする．
+特徴付けた．上表の各clauseは具体的なclause dispatchまで接続したため`partial`とした．ただし，
+ここでbody式の値は評価callbackから供給しており，論文どおりのbody式そのものと`matchAll`全体を
+実行する回帰が通るまでは`done`としない．
 
 `Runtime/GroundValue.lean`は，整数，data constructor適用，tupleを再帰的に持つ`GroundValue`を
 定義する．BoolとListにはcanonicalな構築関数と，全入力に`some`または`none`を返すlist viewを与えた．
@@ -359,14 +360,14 @@ clause／arm評価はこの制御へ後続moduleで接続する．
 `timeout`／`stuck`を保存する．`Runtime/GroundPrimitiveAdequacy.lean`では各操作の独立した関係仕様を
 定義し，実行成功とのadequacyとcompletenessを双方向に証明した．append，memberの在／不在，重複を
 含むdeleteFirst，map順序，Bool/List encoding，異常引数とcallback失敗はexact regressionで固定済みである．
-ただし，matcher clauseのdispatchや`Source.Expr`の評価はまだ実装していない．
+ただし，`Source.Expr`全体の評価はまだ実装していない．
 
 `Runtime/Values.lean`は，論文の型消去されたruntime valueを直接定義する．function closureは通常／再帰の
 区別，定義時環境，bodyを保持する．matcher closureは定義時環境，元のsource順clause列，未試行suffixを
 保持し，初期cursorと一clause進めたcursorが常に元の列のsuffixであることを証明した．value pattern用の
 構造的比較は整数・data constructor・tupleだけを再帰的に比較し，closure，matcher value，`something`では
 同じLean項どうしでも`false`を返す．`GroundValue`の順序を保つ埋込みと部分射影は往復し，埋込みが単射で
-あることも証明済みである．式評価，clause dispatch，matching stateはこの値表現を使う後続moduleに残る．
+あることも証明済みである．式評価とmatching stateはこの値表現を使う後続moduleに残る．
 `Runtime/ValueDataPattern.lean`は，先行するground data-pattern照合をこの一般valueへ接続する．
 variableとwildcardはclosure，matcher value，`something`を含む任意の値を受け取り，data constructorと
 tupleだけが厳密なconstructor名・要素数で構造分解される．実行関数と独立した関係仕様の双方向対応，
@@ -378,8 +379,19 @@ canonicalなList constructorで表し，holeが0個なら空tuple，1個ならsc
 順序付き後続atom分岐を定義する．`something`のvariable／wildcard／value pattern，
 tupleの同じ要素数での子atom化，product matcherから`something`への1回の委譲を実行する．
 実行と独立した関係仕様との双方向対応を証明し，埋め込み式評価が`stuck`しなければ
-これらの構文上の還元も`stuck`しないことを証明済みである．user-defined matcher clauseと
-pattern functionのatom規則は後続moduleに残る．
+これらの構文上の還元も`stuck`しないことを証明済みである．pattern functionのatom規則は
+後続moduleに残る．
+`Runtime/ClauseDispatch.lean`はこれらを論文のA-MATCHER境界へ接続する．pattern-patternのcapture式は
+照合を開始した側の環境で左から右へ評価し，選択armのbodyはdata binding，capture値，matcher定義環境を
+この順に連結した環境で評価する．次matcher式だけはmatcher定義環境で評価する．通常のheader不一致と
+全arm不一致だけが次clauseへ進み，選択armが空候補列を返した場合は正常な成功として後続arm／clauseを
+試さない．timeoutとstuckの伝播，不正なlist／tuple形，未試行suffixを持つmatcher cursor，branchの
+source順を回帰で固定した．実行成功と，実行関数から独立して定義したclause／arm関係の双方向対応も
+証明済みである．multisetの7 clauseはそれぞれ完全な`MatcherClause`としてatomic dispatchを通るが，
+bodyは評価callbackで与えているため，まだ`matchAll`全体の完了とは数えない．
+`reduceMatcherAtom`は同じ`MatchingAtom`を直接受け取り，matcher valueの未試行clause suffixをdispatch
+して，共通の`AtomReduction`へ変換する．matcher value以外では正常な`miss`を返すため，built-in規則との
+合成順は別moduleで明示できる．
 `Runtime/MatchingSearch.lean`は，atom還元の順序付き分岐を「その分岐のworkの後ろに
 元の残りworkを続ける」状態列へ変換し，先行の深さ優先探索に接続する．新しいbindingは
 型付けの`Pattern.extendContext`と同じ左から右のsource順で追加する．通常の不一致は後続状態0個となり，同じ結果を持つ二つの
@@ -402,7 +414,7 @@ inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡�
 | P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | not-started | `MultisetExecution.list_and_multiset_cons_exact` |
 | P1-L02 | `$x :: #(x + 1) :: _` | `[1,2,5,6]`から`[1,5]`を返す | M3--M5 | not-started | `NonLinearPatternExecution.successor_pairs_exact` |
 | P1-L03 | `inductive pattern [a]`宣言 | `[]`，`::`，`++`のpattern signatureを受理する | M3 | done（宣言）：Listの3 pattern schemeのwell-scopedness，閉性，正確な具体化，Paper 1 signature全体の整合性をkernel proofで検証済み | `Source.M3DeclarationsRegression.list_pattern_wellFormed`，`list_pattern_closed`，`list_cons_dual_instantiation_exact`，`paper1_signature_wellFormed` |
-| P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | not-started | `GeneralMultiset.multiset_definition_typing`と7 clause回帰 |
+| P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | partial：7個すべてを実際の`MatcherClause`としてatomic dispatchし，順序・環境・shapeを検証済み．定義全体の型付けと具体的body式の評価は未完了 | `Runtime.ClauseDispatchRegression`の7 clause回帰，`GeneralMultiset.multiset_definition_typing` |
 | P1-L05 | 直接のmultiset `matchAll` | 三要素の`cons`結果を返し，全一貫確認を通る | M3--M5 | not-started | `MultisetExecution.cons_three_end_to_end` |
 | P1-L06 | `unconsWith m target` | matcher要求をslotとして持つ主要型を推論する | M4 | not-started | `MatcherDemand.unconsWith_infer_principal` |
 | P1-L07 | `unconsWith`の正負二呼出し | `multiset something`は受理し，bare `something`は宣言的に拒否する | M4 | not-started | `MatcherDemand.unconsWith_multiset_accepted`，`unconsWith_something_not_typable` |
