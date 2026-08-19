@@ -106,6 +106,8 @@ import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResult
 import TypePM.Runtime.FuelResultRegression
+import TypePM.Runtime.Environment
+import TypePM.Runtime.EnvironmentRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.AxiomAudit

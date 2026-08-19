@@ -24,6 +24,7 @@ import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
+import TypePM.Runtime.EnvironmentRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
@@ -268,6 +269,12 @@ every full build.
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_success_exact
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_timeout_stops
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_stuck_distinct_from_timeout
+#print axioms TypePM.Runtime.getElem?_eq_some_iff_lookup
+#print axioms TypePM.Runtime.Lookup.deterministic
+#print axioms TypePM.Runtime.Lookup.of_append_left
+#print axioms TypePM.Runtime.Lookup.index_lt_length
+#print axioms TypePM.Runtime.EnvironmentRegression.older_relational
+#print axioms TypePM.Runtime.EnvironmentRegression.weakening_shifts_index
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup
