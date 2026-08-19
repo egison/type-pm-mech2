@@ -1,4 +1,4 @@
-import TypePM.Source.RecursiveLetSupportSafety
+import TypePM.Source.DirectLetComparison
 
 /-!
 # A source-derived obstruction to support-local closure alignment
@@ -499,6 +499,114 @@ theorem representative_let_elaborates :
   rw [← bodyStart] at body
   exact .letE value_elaborates representativeClosure
     representativeClosure_absorbing body
+
+private noncomputable def directInterfaceEquations :
+    InterfaceAliasDecomposition.EquationLists.EquationCommonCore
+      (context.interfaceEquations inheritedClosure.substitution)
+      (context.interfaceEquations representativeClosure.substitution) := by
+  let base :=
+    InterfaceAliasDecomposition.EquationLists.EquationCommonCore.tyAlias_refl
+      representative inherited []
+  refine
+    { core := base.core
+      leftAliases := base.leftAliases
+      rightAliases := base.rightAliases
+      leftEquivalent := base.leftEquivalent.trans ?_
+      rightEquivalent := base.rightEquivalent }
+  simpa [context, inheritedClosure_substitution,
+    representativeClosure_substitution, finalInherited, firstInherited,
+    finalRepresentative, firstRepresentative, Context.interfaceEquations,
+    Context.freeTyVars, Context.freeCapVars, Scheme.freeTyVars,
+    Scheme.freeCapVars, Scheme.mono, PolyTy.ofTy, PolyTy.freeTyVars,
+    PolyTy.freeCapVars, dedupFirst, dedup, List.idxOf, List.findIdx,
+    List.findIdx.go, Subst.compose, Subst.singleTy, Ty.apply,
+    Equation.swapSides, inherited, representative] using
+      HardEquivalent.cons_swap
+        (.ty (.var representative) (.var inherited)) []
+
+private noncomputable def directBlockDecomposition :
+    GeneratedEquationCommonCore
+      (Generated.fromLet
+        (context.interfaceEquations inheritedClosure.substitution) emptyBody)
+      (Generated.fromLet
+        (context.interfaceEquations representativeClosure.substitution)
+        emptyBody) := by
+  let equations := directInterfaceEquations.appendSame emptyBody.hard
+  exact
+  { equations :=
+      { core := equations.core
+        leftAliases := equations.leftAliases
+        rightAliases := equations.rightAliases
+        leftEquivalent := by
+          simpa [Generated.fromLet, equations] using equations.leftEquivalent
+        rightEquivalent := by
+          simpa [Generated.fromLet, equations] using equations.rightEquivalent }
+    target_eq := rfl
+    pending_eq := rfl }
+
+private theorem directFramedCore_eq
+    (frame : GeneratedFrame) :
+    directBlockDecomposition.framedCore frame =
+      frame.plug emptyBody := by
+  rw [GeneratedEquationCommonCore.framedCore_eq_plug_coreBlock]
+  congr 1
+
+private theorem directHiddenFresh :
+    VariablesFreshIn valueStart valueFinish [.ty representative] := by
+  intro candidate member
+  have equality : candidate = .ty representative := by simpa using member
+  subst candidate
+  simp [UnificationVar.FreshIn, valueStart, valueFinish, representative]
+
+private theorem directFrameAdmissible :
+    directBlockDecomposition.FrameAdmissible [.ty representative] := by
+  intro frame frameAvoids
+  have emptyAvoids : GeneratedAvoids [.ty representative] emptyBody := by
+    intro candidate member _forbidden
+    simp [emptyBody, Generated.unificationVars, Ty.unificationVars,
+      TypePM.unificationVars, pendingUnificationVars] at member
+  have coreAvoids : GeneratedAvoids [.ty representative]
+      (directBlockDecomposition.framedCore frame) := by
+    rw [directFramedCore_eq]
+    exact GeneratedFrame.plug_avoids frameAvoids emptyAvoids
+  have freshAbsent : .ty representative ∉
+      (directBlockDecomposition.framedCore frame).unificationVars := by
+    intro member
+    exact coreAvoids (.ty representative) member (by simp)
+  have different : (.ty representative : UnificationVar) ≠ .ty inherited := by
+    decide
+  have aliasAdmissible :
+      (FreshAliasSequence.Alias.ty representative inherited).Admissible
+        (directBlockDecomposition.framedCore frame) :=
+    InterfaceAliasDecomposition.AliasFreshness.alias_admissible_of_not_mem
+      (.ty representative inherited)
+      (directBlockDecomposition.framedCore frame) different freshAbsent
+  dsimp only
+  rw [show (directBlockDecomposition.frame frame).equations.leftAliases =
+      [.ty representative inherited] by
+    simp [directBlockDecomposition, directInterfaceEquations,
+      InterfaceAliasDecomposition.EquationLists.EquationCommonCore.tyAlias_refl,
+      InterfaceAliasDecomposition.EquationLists.EquationCommonCore.appendSame]]
+  rw [show (directBlockDecomposition.frame frame).equations.rightAliases =
+      [] by
+    simp [directBlockDecomposition, directInterfaceEquations,
+      InterfaceAliasDecomposition.EquationLists.EquationCommonCore.tyAlias_refl,
+      InterfaceAliasDecomposition.EquationLists.EquationCommonCore.appendSame]]
+  exact ⟨⟨aliasAdmissible, trivial⟩, trivial⟩
+
+/-- The source-derived obstruction to isolated renaming is positive at the
+corrected endpoint: the two complete `Generated.fromLet` blocks have a
+direct scoped comparison. -/
+theorem actual_direct_scopedGeneratedComparison :
+    ScopedGeneratedComparison valueStart valueFinish valueFinish
+      (Generated.fromLet
+        (context.interfaceEquations inheritedClosure.substitution) emptyBody)
+      (Generated.fromLet
+        (context.interfaceEquations representativeClosure.substitution)
+        emptyBody) :=
+  (DirectGeneratedComparisonCertificate.ofEquationCommonCore
+    [.ty representative] directHiddenFresh directBlockDecomposition
+    directFrameAdmissible).scopedGeneratedComparison
 
 /-- Even for the two closures occurring in the source derivations above,
 no `SourceSafeWholeLetAlignment` can exist.  The failure is already in

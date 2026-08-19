@@ -531,6 +531,36 @@ private noncomputable def prependListSame {left right : List Equation}
       EquationCommonCore.prependSame equation
         (prependListSame tail decomposition)
 
+@[simp] private theorem prependListSame_core
+    {left right : List Equation} (initial : List Equation)
+    (decomposition : EquationCommonCore left right) :
+    (prependListSame initial decomposition).core =
+      initial ++ decomposition.core := by
+  induction initial with
+  | nil => rfl
+  | cons equation tail induction =>
+      simp [prependListSame, EquationCommonCore.prependSame, induction]
+
+@[simp] private theorem prependListSame_leftAliases
+    {left right : List Equation} (initial : List Equation)
+    (decomposition : EquationCommonCore left right) :
+    (prependListSame initial decomposition).leftAliases =
+      decomposition.leftAliases := by
+  induction initial with
+  | nil => rfl
+  | cons equation tail induction =>
+      simp [prependListSame, EquationCommonCore.prependSame, induction]
+
+@[simp] private theorem prependListSame_rightAliases
+    {left right : List Equation} (initial : List Equation)
+    (decomposition : EquationCommonCore left right) :
+    (prependListSame initial decomposition).rightAliases =
+      decomposition.rightAliases := by
+  induction initial with
+  | nil => rfl
+  | cons equation tail induction =>
+      simp [prependListSame, EquationCommonCore.prependSame, induction]
+
 /-- A common core remains a common core under every source-generated frame.
 The aliases are unchanged; only their shared core is enlarged by the fixed
 frame material. -/
@@ -556,16 +586,22 @@ noncomputable def frame
       have suffixEquality : suffix = argument.hard ++
           [.ty right.target (.fn domain target)] := by
         simp [suffix, decomposition.target_eq]
+      let prepared := decomposition.equations.appendSame suffix
       exact
-        { equations := by
-            change EquationCommonCore
-              (left.hard ++ argument.hard ++
-                [.ty left.target (.fn domain target)])
-              (right.hard ++ argument.hard ++
-                [.ty right.target (.fn domain target)])
-            rw [List.append_assoc, List.append_assoc]
-            rw [← suffixEquality]
-            exact decomposition.equations.appendSame suffix
+        { equations :=
+            { core := prepared.core
+              leftAliases := prepared.leftAliases
+              rightAliases := prepared.rightAliases
+              leftEquivalent := by
+                simpa [prepared, suffix, Generated.fromApp,
+                  List.append_assoc] using prepared.leftEquivalent
+              rightEquivalent := by
+                change HardEquivalent _
+                  (right.hard ++ argument.hard ++
+                    [.ty right.target (.fn domain target)])
+                rw [List.append_assoc]
+                rw [← suffixEquality]
+                exact prepared.rightEquivalent }
           target_eq := rfl
           pending_eq := by
             change left.pending ++ argument.pending ++
@@ -575,12 +611,20 @@ noncomputable def frame
             rw [decomposition.pending_eq] }
   | appArgument function domain target outer induction =>
       apply induction
+      let prepared := prependListSame function.hard
+        (decomposition.equations.appendSame
+          [.ty function.target (.fn domain target)])
       exact
-        { equations := by
-            simpa [Generated.fromApp, List.append_assoc] using
-              prependListSame function.hard
-                (decomposition.equations.appendSame
-                  [.ty function.target (.fn domain target)])
+        { equations :=
+            { core := prepared.core
+              leftAliases := prepared.leftAliases
+              rightAliases := prepared.rightAliases
+              leftEquivalent := by
+                simpa [prepared, Generated.fromApp, List.append_assoc] using
+                  prepared.leftEquivalent
+              rightEquivalent := by
+                simpa [prepared, Generated.fromApp, List.append_assoc] using
+                  prepared.rightEquivalent }
           target_eq := rfl
           pending_eq := by
             change function.pending ++ left.pending ++
@@ -590,13 +634,23 @@ noncomputable def frame
             rw [decomposition.pending_eq, decomposition.target_eq] }
   | tupleItem before after outer induction =>
       apply induction
+      let prepared := prependListSame before.hard
+        (decomposition.equations.appendSame after.hard)
       exact
-        { equations := by
-            simpa [GeneratedItems.asTuple, GeneratedItems.append,
-              GeneratedItems.singleton, GeneratedItems.cons,
-              GeneratedItems.nil, List.append_assoc] using
-              prependListSame before.hard
-                (decomposition.equations.appendSame after.hard)
+        { equations :=
+            { core := prepared.core
+              leftAliases := prepared.leftAliases
+              rightAliases := prepared.rightAliases
+              leftEquivalent := by
+                simpa [prepared, GeneratedItems.asTuple,
+                  GeneratedItems.append, GeneratedItems.singleton,
+                  GeneratedItems.cons, GeneratedItems.nil,
+                  List.append_assoc] using prepared.leftEquivalent
+              rightEquivalent := by
+                simpa [prepared, GeneratedItems.asTuple,
+                  GeneratedItems.append, GeneratedItems.singleton,
+                  GeneratedItems.cons, GeneratedItems.nil,
+                  List.append_assoc] using prepared.rightEquivalent }
           target_eq := by
             simp only [GeneratedItems.asTuple, GeneratedItems.append,
               GeneratedItems.singleton, GeneratedItems.cons,
@@ -613,6 +667,24 @@ noncomputable def frame
         { equations := prependListSame effects decomposition.equations
           target_eq := decomposition.target_eq
           pending_eq := decomposition.pending_eq }
+
+@[simp] theorem frame_leftAliases
+    {left right : Generated}
+    (decomposition : GeneratedEquationCommonCore left right)
+    (generatedFrame : GeneratedFrame) :
+    (decomposition.frame generatedFrame).equations.leftAliases =
+      decomposition.equations.leftAliases := by
+  induction generatedFrame generalizing left right <;>
+    simp_all [frame, EquationCommonCore.appendSame]
+
+@[simp] theorem frame_rightAliases
+    {left right : Generated}
+    (decomposition : GeneratedEquationCommonCore left right)
+    (generatedFrame : GeneratedFrame) :
+    (decomposition.frame generatedFrame).equations.rightAliases =
+      decomposition.equations.rightAliases := by
+  induction generatedFrame generalizing left right <;>
+    simp_all [frame, EquationCommonCore.appendSame]
 
 /-- Shared generated block underlying the equation decomposition after a
 frame has been applied.  The target and pending list are common by the other

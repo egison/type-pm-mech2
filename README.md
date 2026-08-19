@@ -85,7 +85,10 @@ interfaceとbodyを合わせた`let`全体の結果型，hard制約，保留chec
 context変数を動かすため，`hidden`の外を固定する上記の十分条件を満たせないことも証明した．従って
 一般の`let`証明では，子blockの名前変更を単独で親へ持ち上げてはならない．interfaceの別名等式除去と
 body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を
-直接構成する必要がある．
+直接構成する必要がある．この反例の二つの完全な`Generated.fromLet` blockについては，継承変数を
+動かす名前変更を使わず，freshな別名端点を各許容frame内で除去する直接比較を証明した．一般の場合に
+残る前提は，二つの終了supplyの一致と，各許容frameを適用した後の完全なblockどうしを有限なfresh別名
+等式列で共通blockへ正規化できることであり，`DirectLetNormalizationHandler`として切り出した．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
@@ -136,7 +139,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
-`Source/RecursiveLetSupportSafety.lean`，
+`Source/RecursiveLetSupportSafety.lean`，`Source/DirectLetComparison.lean`，
 `Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．

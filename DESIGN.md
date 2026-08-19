@@ -179,6 +179,10 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 固定する十分条件を満たさない例を証明した．従ってこの十分条件を一般のsource帰納法で構成する方針は採用しない．
 完全性に残るsource側の仕事は，interfaceの別名等式除去とbody比較を一体化し，子blockだけの名前変更を
 中間目標にせず，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を直接構成することである．
+この修正後の目標は，先のsource由来反例自身について成立することを検証した．具体的には，継承変数を
+動かす名前変更を経由せず，左右の完全なblockを各許容frame内で有限なfresh別名等式列から同じblockへ
+正規化する．一般の`LetComparisonHandler`に残る正確な前提は，終了supplyの一致とこのframeごとの直接正規化であり，
+`DirectLetNormalizationHandler`として明示した．
 一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
 変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
@@ -215,7 +219,7 @@ generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
 `Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
-`Source/RecursiveLetSupportSafety.lean`，
+`Source/RecursiveLetSupportSafety.lean`，`Source/DirectLetComparison.lean`，
 `Source/SourceSafeAlignmentCounterexample.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
