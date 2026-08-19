@@ -128,14 +128,14 @@ theorem matcher_literal_captures_environment_exact :
       .ok (Value.matcherClosure [.int 6] [oneClause]) := by
   rfl
 
-/-- The missing matching engine is observable, rather than disguised as an
-empty answer or fuel exhaustion. -/
-theorem matchAll_boundary_is_stuck :
+/-- The integrated matching engine evaluates one wildcard result body. -/
+theorem matchAll_something_wild_exact :
     evalFuel 5 []
-      (.matchAll (.lit 1) .something .wild (.lit 0)) = .stuck := by
+      (.matchAll (.lit 1) .something .wild (.lit 0)) =
+        .ok (Value.buildList [.int 0]) := by
   rfl
 
-theorem timeout_is_distinct_from_matchAll_boundary :
+theorem matchAll_zero_fuel_is_timeout :
     evalFuel 0 []
       (.matchAll (.lit 1) .something .wild (.lit 0)) = .timeout := by
   rfl

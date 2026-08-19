@@ -32,6 +32,160 @@ private theorem traverses_to_appliesList
   | nil => exact .nil
   | cons head tail ih => exact .cons (sound head) ih
 
+private theorem matcherArmDispatch_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (dispatch : MatcherArmDispatches evaluate matcherEnvironment captureValues
+      holes nextMatchers target arm result) :
+    EvalMatcherArmDispatches matcherEnvironment captureValues holes
+      nextMatchers target arm result := by
+  cases dispatch with
+  | miss mismatch => exact .miss mismatch
+  | hit dataMatch bodyEval decompositionShape matcherEval matcherShape
+      branchesBuilt =>
+      exact .hit (matchValueDataPattern_sound dataMatch) (sound bodyEval)
+        decompositionShape (sound matcherEval) matcherShape branchesBuilt
+
+private theorem matcherArmsDispatch_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (dispatch : MatcherArmsDispatch evaluate matcherEnvironment captureValues
+      holes nextMatchers target arms result) :
+    EvalMatcherArmsDispatch matcherEnvironment captureValues holes
+      nextMatchers target arms result := by
+  induction dispatch with
+  | nil => exact .nil
+  | hit selected => exact .hit (matcherArmDispatch_to_eval sound selected)
+  | skip missed tail ih =>
+      exact .skip (matcherArmDispatch_to_eval sound missed) ih
+
+private theorem matcherClauseDispatch_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (dispatch : MatcherClauseDispatches evaluate atomEnvironment
+      matcherEnvironment pattern target clause result) :
+    EvalMatcherClauseDispatches atomEnvironment matcherEnvironment pattern
+      target clause result := by
+  cases dispatch with
+  | miss mismatch => exact .miss mismatch
+  | matched headerMatch capturesEval armsDispatch =>
+      exact .matched headerMatch
+        (traverses_to_evals
+          (fun success => sound success) capturesEval)
+        (matcherArmsDispatch_to_eval sound armsDispatch)
+
+private theorem matcherClausesDispatch_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (dispatch : MatcherClausesDispatch evaluate atomEnvironment
+      matcherEnvironment pattern target clauses result) :
+    EvalMatcherClausesDispatch atomEnvironment matcherEnvironment pattern
+      target clauses result := by
+  induction dispatch with
+  | nil => exact .nil
+  | hit selected => exact .hit (matcherClauseDispatch_to_eval sound selected)
+  | skip missed tail ih =>
+      exact .skip (matcherClauseDispatch_to_eval sound missed) ih
+
+private theorem builtinAtom_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (reduced : BuiltinAtomReduces evaluate environment atom reduction) :
+    EvalAtomReduces environment atom reduction := by
+  cases reduced with
+  | somethingWild => exact .somethingWild
+  | somethingVar => exact .somethingVar
+  | somethingValueSuccess evaluated equal =>
+      exact .somethingValueSuccess (sound evaluated) equal
+  | somethingValueFailure evaluated unequal =>
+      exact .somethingValueFailure (sound evaluated) unequal
+  | tuple zipped => exact .tuple zipped
+  | productSomethingVar => exact .productSomethingVar
+  | productSomethingWild => exact .productSomethingWild
+  | productSomethingValue => exact .productSomethingValue
+
+private theorem matcherAtom_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (reduced : MatcherAtomReduces evaluate environment atom reduction) :
+    EvalAtomReduces environment atom reduction := by
+  cases reduced with
+  | matcher clausesDispatch =>
+      exact .matcher (matcherClausesDispatch_to_eval sound clausesDispatch)
+
+private theorem combinedAtom_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (success :
+      combineAtomReducers (reduceBuiltinAtom evaluate)
+          (reduceMatcherAtom evaluate) environment atom =
+        .ok (.hit reduction)) :
+    EvalAtomReduces environment atom reduction := by
+  cases builtinResult : reduceBuiltinAtom evaluate environment atom with
+  | timeout => simp [combineAtomReducers, builtinResult] at success
+  | stuck => simp [combineAtomReducers, builtinResult] at success
+  | ok outcome =>
+      cases outcome with
+      | hit builtinReduction =>
+          simp [combineAtomReducers, builtinResult] at success
+          subst builtinReduction
+          exact builtinAtom_to_eval sound
+            ((reduceBuiltinAtom_hit_iff _ _ _ _).mp builtinResult)
+      | miss =>
+          have matcherSuccess :
+              reduceMatcherAtom evaluate environment atom =
+                .ok (.hit reduction) := by
+            simpa [combineAtomReducers, builtinResult] using success
+          exact matcherAtom_to_eval sound
+            ((reduceMatcherAtom_hit_iff _ _ _ _).mp matcherSuccess)
+
+private theorem depthFirst_to_evalMatching
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (search : DepthFirst
+      (stepMatchingState
+        (combineAtomReducers (reduceBuiltinAtom evaluate)
+          (reduceMatcherAtom evaluate))) states answers) :
+    EvalMatchingSearch states answers := by
+  induction search with
+  | nil => exact .nil
+  | yield head tail ih =>
+      have stateStep := stepMatchingState_sound head
+      cases stateStep with
+      | yield => exact .yield ih
+  | expand head next ih =>
+      have stateStep := stepMatchingState_sound head
+      cases stateStep with
+      | expand reduced =>
+          exact .expand (combinedAtom_to_eval sound reduced) ih
+
+private theorem traverses_to_bindingGroups
+    {evaluate : List Value → FuelResult Value}
+    (sound : ∀ {bindings value},
+      evaluate bindings = .ok value →
+        Eval (bindings ++ environment) body value)
+    (traversal : Traverses evaluate groups values) :
+    EvalBindingGroups environment body groups values := by
+  induction traversal with
+  | nil => exact .nil
+  | cons head tail ih => exact .cons (sound head) ih
+
 theorem evalPrimitive_sound
     {apply : Value → Value → FuelResult Value}
     (applySound : ∀ {function input output},
@@ -225,7 +379,22 @@ private theorem fuel_sound : ∀ fuel,
             subst value
             exact .matcher
         | matchAll target matcher pattern body =>
-            simp [evalFuel] at success
+            simp only [evalFuel] at success
+            rw [bind_eq_ok_iff] at success
+            rcases success with ⟨targetValue, targetResult, continued⟩
+            rw [bind_eq_ok_iff] at continued
+            rcases continued with ⟨matcherValue, matcherResult, continued⟩
+            rw [bind_eq_ok_iff] at continued
+            rcases continued with ⟨bindingGroups, searchResult, bodyResult⟩
+            rw [map_eq_ok_iff] at bodyResult
+            rcases bodyResult with ⟨bodyValues, traversal, output⟩
+            subst value
+            exact .matchAll (evalSound targetResult) (evalSound matcherResult)
+              (depthFirst_to_evalMatching evalSound
+                (searchMatchingFuel_sound _ searchResult))
+              (traverses_to_bindingGroups
+                (fun result => evalSound result)
+                ((traverse_eq_ok_iff _ _ _).mp traversal))
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>

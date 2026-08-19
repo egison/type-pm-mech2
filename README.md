@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節の実行可能・関係的elaborationに加え，単項・単相の直接自己再帰`fixE` checkpointを実装済みである．`fixE`本体では引数がindex 0，自己がindex 1であり，直接callee以外の自己使用を全相互構文で拒否する．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，完全のruntime value，matching state/search，builtinからclause規則へ`miss`のときだけ移るreducer合成に加え，`matchAll`以外の全`Expr`に対するcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．一般value上の5 primitive（`map`のclosure callbackを含む），成功時adequacy，有限な関係導出の完全性，fuel単調性を検証済みである．`matchAll`はmatching engine接続前の明示的`stuck`境界であり，具体的matcher clause dispatch，全atom規則，実行時型付けと型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，すべての`Expr.matchAll`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．targetとmatcherの評価，atom還元，source順の探索，各binding groupでのbody評価を接続し，重複branchと`timeout`／`stuck`を保存する．実行成功の関係的健全性，有限導出の完全性，fuel単調性も検証済みである．pattern function atom，単一結果の`matchFirst`実行，実行時型付けと型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -328,12 +328,12 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 | clause | 具体的な確認program | 期待結果 | 状態 | 予定回帰theorem |
 |---|---|---|---|---|
 | `nil` | `matchAll [] as multiset something with [] -> 0`と，対象を`[1]`にした負例 | 空対象は`[0]`，非空対象は`[]` | partial：実際のclauseを通るatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.nil_clause_complete_dispatch_exact`，`MultisetExecution.nil_empty_exact`，`nil_nonempty_is_match_failure` |
-| `$ :: _` | `matchAll [1,2,3] as multiset something with $x :: _ -> x` | `[1,2,3]` | partial：実際のclauseを通るatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact`，`MultisetExecution.head_only_target_order` |
+| `$ :: _` | `matchAll [1,2,3] as multiset something with $x :: _ -> x` | `[1,2,3]` | partial：atomic dispatchと，単純なhead matcher closureの`matchAll`統合は検証済み．論文のmultiset bodyにる3要素回帰は未完了 | `Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact`，`Runtime.MatchAllRegression.matcher_closure_head_preserves_duplicate_branches`，`MultisetExecution.head_only_target_order` |
 | `#$val :: $` | `#1 :: $xs`を`[1,1,2]`と`[2,3]`へ適用する | `[[1,2]]`と`[]`．最初の出現だけを除く | partial：captureとarmを含むatomic dispatchは検証済み．具体的なbodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact`，`MultisetExecution.value_cons_removes_first`，`value_cons_absent_is_match_failure` |
 | `$ :: $` | `$x :: $xs`を`[1,2,3]`へ適用する | `[(1,[2,3]),(2,[1,3]),(3,[1,2])]` | partial：2 holeのbranch構築は検証済み．具体的な選択bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact`，`MultisetExecution.cons_three_search_order` |
 | `$ ++ $` | `$xs ++ $ys`を`[1,2,3]`へ適用する | `([], [1,2,3])`，`([3], [1,2])`，`([2], [1,3])`，`([2,3], [1])`，`([1], [2,3])`，`([1,3], [2])`，`([1,2], [3])`，`([1,2,3], [])` | partial：論文どおりのnil／consの2 armを通るatomic dispatchは両方検証済み．具体的な再帰分割bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.join_clause_first_arm_dispatch_exact`，`join_clause_second_arm_dispatch_exact`，`MultisetExecution.join_three_split_order` |
 | `#$val` | `#[1,2]`をmultiset対象`[2,1]`と`[1,3]`へ適用する | 一つの成功`[()]`と正常な不一致`[]` | partial：0 holeとcaptureを含むatomic dispatchは検証済み．構造的multiset等価性との接続は未完了 | `Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact`，`MultisetExecution.value_whole_permutation`，`value_whole_mismatch` |
-| catch-all `$` | `matchAll [1,2,3] as multiset something with $xs -> xs` | 対象全体を一度だけ返す`[[1,2,3]]` | partial：対象全体をdata-variableへ渡すatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact`，`MultisetExecution.catch_all_once` |
+| catch-all `$` | `matchAll [1,2,3] as multiset something with $xs -> xs` | 対象全体を一度だけ返す`[[1,2,3]]` | partial：atomic dispatchと，head不一致からcatch-allへ進む単純な`matchAll`統合は検証済み．論文のmultiset全clause定義は未完了 | `Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact`，`Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all`，`MultisetExecution.catch_all_once` |
 
 重複入力については，`$ :: $`で`[1,1,2]`から同じ値を持つ二つの先頭分岐を残すこと，
 `$ ++ $`で`[1,1]`から同じ値を持つ二つの中間分割を残すことも検査する．入れ子`cons`は
@@ -346,8 +346,9 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 `Splits`を独立に定義し，実行可能な列挙中のmembershipとこれらの関係が同値であることを双方向に
 証明した．最初の等しい値だけを除く関係`DeletesFirst`についても，成功時と不在時の実行結果を
 特徴付けた．上表の各clauseは具体的なclause dispatchまで接続したため`partial`とした．ただし，
-ここでbody式の値は評価callbackから供給しており，論文どおりのbody式そのものと`matchAll`全体を
-実行する回帰が通るまでは`done`としない．
+上表の7 clause用atomic fixtureではbody式の値を評価callbackから供給している．一方，
+`Runtime.MatchAllRegression`では実際のsource bodyを持つ単純なhead／catch-all matcher closureを
+`evalFuel`から終点まで実行している．論文どおりの7 clause本体すべての回帰が通るまでは`done`としない．
 
 `Runtime/GroundValue.lean`は，整数，data constructor適用，tupleを再帰的に持つ`GroundValue`を
 定義する．BoolとListにはcanonicalな構築関数と，全入力に`some`または`none`を返すlist viewを与えた．
@@ -402,8 +403,9 @@ tupleの同じ要素数での子atom化，product matcherから`something`への
 試さない．timeoutとstuckの伝播，不正なlist／tuple形，未試行suffixを持つmatcher cursor，branchの
 source順を回帰で固定した．実行成功と，実行関数から独立して定義したclause／arm関係の双方向対応も
 証明済みである．multisetの7 clauseは，captureをdata patternへ混ぜず，論文に掲載された`$tgt` armと
-nil／cons armの個数・順序を保った完全な`MatcherClause`としてatomic dispatchを通るが，
-bodyは評価callbackで与えているため，まだ`matchAll`全体の完了とは数えない．
+nil／cons armの個数・順序を保った完全な`MatcherClause`としてatomic dispatchを通る．
+この7 clause fixtureのbodyは評価callbackで与えるが，別の統合回帰は実際のsource bodyを持つ
+head／catch-all matcher closureを`evalFuel`と関係`Eval`の両方で終点まで確認する．
 `reduceMatcherAtom`は同じ`MatchingAtom`を直接受け取り，matcher valueの未試行clause suffixをdispatch
 して，共通の`AtomReduction`へ変換する．matcher value以外では正常な`miss`を返すため，built-in規則との
 合成順は別moduleで明示できる．
@@ -417,13 +419,13 @@ bodyは評価callbackで与えているため，まだ`matchAll`全体の完了�
 `Runtime/CombinedAtomReducer.lean`は，構文上のatom規則を先に試し，通常の`miss`のときだけ
 user-defined matcher規則へ進む合成を定義する．先行のhit，timeout，stuckは後続規則で隠さない．
 両方のno-stuckとfallbackの全atom処理から，合成後のreducerとbounded searchのno-stuckを得る．
-`Runtime/Evaluation.lean`と`Runtime/EvalFuel.lean`は，variable，integer，`something`，
-lambda/application，tuple，`letE`，data constructor，primitive，`ifE`，`fixE`，matcher literalの
-call-by-value意味を定義する．通常closureの本体環境は「引数，定義時環境」，再帰closureは
-「引数，自己，定義時環境」のnewest-first順である．一般value上の5 primitiveを接続し，
-実行成功から`Eval`導出を得るadequacy，有限な`Eval`導出から十分なfuelを得る完全性，
-成功値のfuel単調性を検証した．`matchAll`はmatching engineがclause式評価へ再帰する境界なので，
-現段階の実行器では`stuck`を返し，関係`Eval`に未実装の成功規則を置かない．
+`Runtime/Evaluation.lean`と`Runtime/EvalFuel.lean`は，通常のcore式に加えて`matchAll`の
+call-by-value意味を定義する．`matchAll`はtarget，matcherの順に評価し，builtin規則を先に試す
+atom reducerで深さ優先探索を行い，各binding groupを元の環境の前に置いてbodyを評価する．
+関係`Eval`はclause，arm，atom，探索の順序を実行関数と独立な帰納的関係で保持する．
+実行成功からの健全性，有限な`Eval`導出から十分なfuelを得る完全性，成功値のfuel単調性を
+`matchAll`を含めて検証した．`searchPatternFuel`は探索とbody評価を分離し，将来の単一結果
+`matchFirst`が同じ探索順序を再利用できる境界である．pattern function atomは未実装で`stuck`を保持する．
 
 ## 論文1のcode listing inventory
 

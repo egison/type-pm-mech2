@@ -1,4 +1,5 @@
 import TypePM.Runtime.ValueShape
+import TypePM.Runtime.ClauseDispatch
 
 /-!
 # Relational expression evaluation
@@ -10,10 +11,10 @@ the convention fixed by the source `fixE` binder: the argument is index zero
 and the closure itself is index one, so its body environment is
 `argument :: closure :: definitionEnvironment`.
 
-`matchAll` deliberately has no rule here.  Its rule belongs to the matching
-engine, whose states in turn evaluate clause expressions.  Keeping that
-boundary explicit avoids hiding a circular evaluator behind an abstract
-callback.
+The `matchAll` rule delegates atom reduction and ordered search to independent
+relations parameterized by this same evaluation relation.  This makes the
+recursive boundary through matcher-clause expressions explicit without
+building the executable evaluator into the specification.
 -/
 
 namespace TypePM.Runtime
@@ -82,6 +83,16 @@ mutual
     | matcher :
         Eval environment (.matcher clauses)
           (Value.matcherClosure environment clauses)
+    | matchAll
+        (targetEval : Eval environment target targetValue)
+        (matcherEval : Eval environment matcher matcherValue)
+        (matching : EvalMatchingSearch
+          [⟨[⟨pattern, matcherValue, targetValue⟩], environment, []⟩]
+          bindingGroups)
+        (bodiesEval : EvalBindingGroups environment body
+          bindingGroups bodyValues) :
+        Eval environment (.matchAll target matcher pattern body)
+          (Value.buildList bodyValues)
 
   /-- Left-to-right call-by-value evaluation of an expression sequence. -/
   inductive Evals : ValueEnvironment → List Source.Expr → List Value → Prop where
@@ -136,6 +147,151 @@ mutual
         (applications : AppliesList function inputs outputs) :
         PrimitiveEvaluates .map [function, target]
           (Value.buildList outputs)
+
+  /-- Relational successful attempt of one matcher arm. -/
+  inductive EvalMatcherArmDispatches :
+      ValueEnvironment → ValueEnvironment → List Source.Pattern →
+      Source.Expr → Value → Source.MatcherArm →
+      DispatchResult MatchingBranches → Prop where
+    | miss
+        (mismatch : matchValueDataPattern header target = none) :
+        EvalMatcherArmDispatches matcherEnvironment captureValues holes
+          nextMatchers target (.mk header body) .miss
+    | hit
+        (dataMatch : ValueDataPatternMatches header target dataValues)
+        (bodyEval : Eval
+          (dataValues ++ captureValues ++ matcherEnvironment)
+          body decompositionValue)
+        (decompositionShape :
+          decodeDecompositions holes.length decompositionValue =
+            some decompositions)
+        (matcherEval : Eval matcherEnvironment nextMatchers matcherProduct)
+        (matcherShape :
+          decodeProduct holes.length matcherProduct = some matchers)
+        (branchesBuilt :
+          buildMatchingBranches holes matchers decompositions = some branches) :
+        EvalMatcherArmDispatches matcherEnvironment captureValues holes
+          nextMatchers target (.mk header body) (.hit branches)
+
+  /-- Source-ordered first-success arm dispatch. -/
+  inductive EvalMatcherArmsDispatch :
+      ValueEnvironment → ValueEnvironment → List Source.Pattern →
+      Source.Expr → Value → List Source.MatcherArm →
+      DispatchResult MatchingBranches → Prop where
+    | nil : EvalMatcherArmsDispatch matcherEnvironment captureValues holes
+        nextMatchers target [] .miss
+    | hit
+        (selected : EvalMatcherArmDispatches matcherEnvironment captureValues
+          holes nextMatchers target arm (.hit branches)) :
+        EvalMatcherArmsDispatch matcherEnvironment captureValues holes
+          nextMatchers target (arm :: rest) (.hit branches)
+    | skip
+        (missed : EvalMatcherArmDispatches matcherEnvironment captureValues
+          holes nextMatchers target arm .miss)
+        (tail : EvalMatcherArmsDispatch matcherEnvironment captureValues holes
+          nextMatchers target rest result) :
+        EvalMatcherArmsDispatch matcherEnvironment captureValues holes
+          nextMatchers target (arm :: rest) result
+
+  /-- Relational attempt of one matcher clause. -/
+  inductive EvalMatcherClauseDispatches :
+      ValueEnvironment → ValueEnvironment → Source.Pattern → Value →
+      Source.MatcherClause → DispatchResult MatchingBranches → Prop where
+    | miss
+        (mismatch : inspectPatternPattern header pattern = none) :
+        EvalMatcherClauseDispatches atomEnvironment matcherEnvironment
+          pattern target (.mk header nextMatchers arms) .miss
+    | matched
+        (headerMatch : PatternPatternMatches header pattern dispatch)
+        (capturesEval : Evals atomEnvironment dispatch.captures captureValues)
+        (armsDispatch : EvalMatcherArmsDispatch matcherEnvironment captureValues
+          dispatch.holes nextMatchers target arms result) :
+        EvalMatcherClauseDispatches atomEnvironment matcherEnvironment
+          pattern target (.mk header nextMatchers arms) result
+
+  /-- Source-ordered first-success clause dispatch. -/
+  inductive EvalMatcherClausesDispatch :
+      ValueEnvironment → ValueEnvironment → Source.Pattern → Value →
+      List Source.MatcherClause → DispatchResult MatchingBranches → Prop where
+    | nil : EvalMatcherClausesDispatch atomEnvironment matcherEnvironment
+        pattern target [] .miss
+    | hit
+        (selected : EvalMatcherClauseDispatches atomEnvironment
+          matcherEnvironment pattern target clause (.hit branches)) :
+        EvalMatcherClausesDispatch atomEnvironment matcherEnvironment
+          pattern target (clause :: rest) (.hit branches)
+    | skip
+        (missed : EvalMatcherClauseDispatches atomEnvironment matcherEnvironment
+          pattern target clause .miss)
+        (tail : EvalMatcherClausesDispatch atomEnvironment matcherEnvironment
+          pattern target rest result) :
+        EvalMatcherClausesDispatch atomEnvironment matcherEnvironment
+          pattern target (clause :: rest) result
+
+  /-- Successful atom reduction in built-in-before-matcher order. -/
+  inductive EvalAtomReduces :
+      ValueEnvironment → MatchingAtom → AtomReduction → Prop where
+    | somethingWild : EvalAtomReduces environment
+        ⟨.wild, .something, target⟩ .success
+    | somethingVar : EvalAtomReduces environment
+        ⟨.var, .something, target⟩ ⟨[[]], [target]⟩
+    | somethingValueSuccess
+        (evaluated : Eval environment expression actual)
+        (equal : Value.structuralEq actual target = true) :
+        EvalAtomReduces environment
+          ⟨.value expression, .something, target⟩ .success
+    | somethingValueFailure
+        (evaluated : Eval environment expression actual)
+        (unequal : Value.structuralEq actual target = false) :
+        EvalAtomReduces environment
+          ⟨.value expression, .something, target⟩ .failure
+    | tuple
+        (zipped : MatchingAtomsZip patterns matchers targets atoms) :
+        EvalAtomReduces environment
+          ⟨.tuple patterns, .tuple matchers, .tuple targets⟩ ⟨[atoms], []⟩
+    | productSomethingVar : EvalAtomReduces environment
+        ⟨.var, .tuple matchers, target⟩
+        ⟨[[⟨.var, .something, target⟩]], []⟩
+    | productSomethingWild : EvalAtomReduces environment
+        ⟨.wild, .tuple matchers, target⟩
+        ⟨[[⟨.wild, .something, target⟩]], []⟩
+    | productSomethingValue : EvalAtomReduces environment
+        ⟨.value expression, .tuple matchers, target⟩
+        ⟨[[⟨.value expression, .something, target⟩]], []⟩
+    | matcher
+        (clauses : EvalMatcherClausesDispatch environment matcherEnvironment
+          pattern target remaining (.hit branches)) :
+        EvalAtomReduces environment
+          ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩
+          ⟨branches, []⟩
+
+  /-- Complete ordered depth-first matching search. -/
+  inductive EvalMatchingSearch :
+      List MatchingState → List (List Value) → Prop where
+    | nil : EvalMatchingSearch [] []
+    | yield
+        (tail : EvalMatchingSearch rest answers) :
+        EvalMatchingSearch
+          (⟨[], environment, bindings⟩ :: rest) (bindings :: answers)
+    | expand
+        (reduced : EvalAtomReduces (bindings ++ environment) atom reduction)
+        (next : EvalMatchingSearch
+          ((reduction.branches.map fun branch =>
+            ⟨branch ++ remaining, environment,
+              bindings ++ reduction.bindings⟩) ++ rest) answers) :
+        EvalMatchingSearch
+          (⟨atom :: remaining, environment, bindings⟩ :: rest) answers
+
+  /-- Evaluate the result body once for every successful binding group. -/
+  inductive EvalBindingGroups :
+      ValueEnvironment → Source.Expr → List (List Value) →
+      List Value → Prop where
+    | nil : EvalBindingGroups environment body [] []
+    | cons
+        (head : Eval (bindings ++ environment) body value)
+        (tail : EvalBindingGroups environment body groups values) :
+        EvalBindingGroups environment body
+          (bindings :: groups) (value :: values)
 
 end
 

@@ -1,5 +1,7 @@
 import TypePM.Runtime.Evaluation
 import TypePM.Runtime.FuelResult
+import TypePM.Runtime.ClauseDispatch
+import TypePM.Runtime.CombinedAtomReducer
 
 /-!
 # Fuel-bounded core evaluator
@@ -11,14 +13,33 @@ right.  `timeout` therefore means only that the supplied depth bound was too
 small, whereas malformed variables, applications, primitive calls and
 conditions produce `stuck`.
 
-The matching engine is a separate mutually dependent component.  Until it is
-connected, `matchAll` is the one syntactic form that explicitly returns
-`stuck`; no relational `Eval` constructor claims otherwise.
+`matchAll` uses the same remaining fuel for target evaluation, matcher
+evaluation, matching search, every expression evaluated by an atom rule, and
+every clause body.  This is a depth bound, not a global step counter.  The
+matching search preserves source order and duplicate branches.
 -/
 
 namespace TypePM.Runtime
 
 open FuelResult
+
+/-- The implemented built-in-before-matcher atom reducer for one evaluation
+callback. -/
+def evaluationAtomReducer
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value) :
+    AtomReducer :=
+  combineAtomReducers (reduceBuiltinAtom evaluate) (reduceMatcherAtom evaluate)
+
+/-- Search one already evaluated target/matcher pair.  Keeping search separate
+from result-body evaluation lets a future single-result `match` reuse the same
+ordered branches and select only its first binding group. -/
+def searchPatternFuel
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (fuel : Nat) (environment : ValueEnvironment)
+    (pattern : Source.Pattern) (matcher target : Value) :
+    FuelResult (List (List Value)) :=
+  searchMatchingFuel (evaluationAtomReducer evaluate) fuel
+    ⟨[⟨pattern, matcher, target⟩], environment, []⟩
 
 /-- Complete-value primitive execution, parameterized only at the function
 application point needed by `map`. -/
@@ -92,7 +113,18 @@ mutual
               | _ => .stuck
         | .fixE body => .ok (Value.recursiveClosure environment body)
         | .matcher clauses => .ok (Value.matcherClosure environment clauses)
-        | .matchAll _ _ _ _ => .stuck
+        | .matchAll target matcher pattern body =>
+            FuelResult.bind (evalFuel fuel environment target) fun targetValue =>
+              FuelResult.bind (evalFuel fuel environment matcher) fun matcherValue =>
+                FuelResult.bind
+                  (searchPatternFuel (evalFuel fuel) fuel environment pattern
+                    matcherValue targetValue)
+                  fun bindingGroups =>
+                    FuelResult.map Value.buildList
+                      (FuelResult.traverse
+                        (fun bindings =>
+                          evalFuel fuel (bindings ++ environment) body)
+                        bindingGroups)
 
   /-- Fuel-bounded application.  The recursive closure layout is argument at
   index zero followed by self at index one. -/

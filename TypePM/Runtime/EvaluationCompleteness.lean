@@ -89,6 +89,195 @@ private theorem evalPrimitive_ok_mono
                 simp [evalPrimitive, targetView, newTraversal]
       · simp [evalPrimitive] at success
 
+private theorem matcherArmDispatches_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (dispatch : MatcherArmDispatches before matcherEnvironment captureValues
+      holes nextMatchers target arm result) :
+    MatcherArmDispatches after matcherEnvironment captureValues holes
+      nextMatchers target arm result := by
+  cases dispatch with
+  | miss mismatch => exact .miss mismatch
+  | hit dataMatch bodyEval decompositionShape matcherEval matcherShape
+      branchesBuilt =>
+      exact .hit dataMatch (monotone bodyEval) decompositionShape
+        (monotone matcherEval) matcherShape branchesBuilt
+
+private theorem matcherArmsDispatch_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (dispatch : MatcherArmsDispatch before matcherEnvironment captureValues
+      holes nextMatchers target arms result) :
+    MatcherArmsDispatch after matcherEnvironment captureValues holes
+      nextMatchers target arms result := by
+  induction dispatch with
+  | nil => exact .nil
+  | hit selected => exact .hit (matcherArmDispatches_mono monotone selected)
+  | skip missed tail ih =>
+      exact .skip (matcherArmDispatches_mono monotone missed) ih
+
+private theorem matcherClauseDispatches_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (dispatch : MatcherClauseDispatches before atomEnvironment
+      matcherEnvironment pattern target clause result) :
+    MatcherClauseDispatches after atomEnvironment matcherEnvironment pattern
+      target clause result := by
+  cases dispatch with
+  | miss mismatch => exact .miss mismatch
+  | matched headerMatch capturesEval armsDispatch =>
+      exact .matched headerMatch
+        ((traverse_eq_ok_iff _ _ _).mp
+          (traverse_ok_mono monotone
+            ((traverse_eq_ok_iff _ _ _).mpr capturesEval)))
+        (matcherArmsDispatch_mono monotone armsDispatch)
+
+private theorem matcherClausesDispatch_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (dispatch : MatcherClausesDispatch before atomEnvironment
+      matcherEnvironment pattern target clauses result) :
+    MatcherClausesDispatch after atomEnvironment matcherEnvironment pattern
+      target clauses result := by
+  induction dispatch with
+  | nil => exact .nil
+  | hit selected => exact .hit (matcherClauseDispatches_mono monotone selected)
+  | skip missed tail ih =>
+      exact .skip (matcherClauseDispatches_mono monotone missed) ih
+
+private theorem builtinAtom_hit_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (success : reduceBuiltinAtom before environment atom =
+      .ok (.hit reduction)) :
+    reduceBuiltinAtom after environment atom = .ok (.hit reduction) := by
+  rw [reduceBuiltinAtom_hit_iff] at success ⊢
+  cases success with
+  | somethingWild => exact .somethingWild
+  | somethingVar => exact .somethingVar
+  | somethingValueSuccess evaluated equal =>
+      exact .somethingValueSuccess (monotone evaluated) equal
+  | somethingValueFailure evaluated unequal =>
+      exact .somethingValueFailure (monotone evaluated) unequal
+  | tuple zipped => exact .tuple zipped
+  | productSomethingVar => exact .productSomethingVar
+  | productSomethingWild => exact .productSomethingWild
+  | productSomethingValue => exact .productSomethingValue
+
+private theorem matcherAtom_hit_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (success : reduceMatcherAtom before environment atom =
+      .ok (.hit reduction)) :
+    reduceMatcherAtom after environment atom = .ok (.hit reduction) := by
+  rw [reduceMatcherAtom_hit_iff] at success ⊢
+  cases success with
+  | matcher clausesDispatch =>
+      exact .matcher (matcherClausesDispatch_mono monotone clausesDispatch)
+
+@[simp] private theorem map_hit_ne_miss
+    (result : FuelResult α) (make : α → β) :
+    FuelResult.map (fun value => DispatchResult.hit (make value)) result ≠
+      .ok .miss := by
+  cases result <;> simp [FuelResult.map]
+
+private theorem reduceBuiltinAtom_matcherV_miss
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (environment matcherEnvironment : ValueEnvironment)
+    (original remaining : List Source.MatcherClause)
+    (pattern : Source.Pattern) (target : Value) :
+    reduceBuiltinAtom evaluate environment
+      ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩ =
+        .ok .miss := by
+  cases pattern <;> rfl
+
+private theorem combinedAtom_hit_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (success : combineAtomReducers (reduceBuiltinAtom before)
+        (reduceMatcherAtom before) environment atom = .ok (.hit reduction)) :
+    combineAtomReducers (reduceBuiltinAtom after)
+        (reduceMatcherAtom after) environment atom = .ok (.hit reduction) := by
+  cases primary : reduceBuiltinAtom before environment atom with
+  | timeout => simp [combineAtomReducers, primary] at success
+  | stuck => simp [combineAtomReducers, primary] at success
+  | ok outcome =>
+      cases outcome with
+      | hit primaryReduction =>
+          simp [combineAtomReducers, primary] at success
+          subst primaryReduction
+          exact combineAtomReducers_primary_hit _ _
+            (builtinAtom_hit_mono monotone primary)
+      | miss =>
+          have fallback : reduceMatcherAtom before environment atom =
+              .ok (.hit reduction) := by
+            simpa [combineAtomReducers, primary] using success
+          have matcherRelation :=
+            (reduceMatcherAtom_hit_iff _ _ _ _).mp fallback
+          cases matcherRelation with
+          | matcher clausesDispatch =>
+              rw [combineAtomReducers_primary_miss _ _
+                (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _)]
+              exact matcherAtom_hit_mono monotone fallback
+
+private theorem matchingStep_ok_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    (monotone : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (success : stepMatchingState
+      (combineAtomReducers (reduceBuiltinAtom before)
+        (reduceMatcherAtom before)) state = .ok observation) :
+    stepMatchingState
+      (combineAtomReducers (reduceBuiltinAtom after)
+        (reduceMatcherAtom after)) state = .ok observation := by
+  have related := stepMatchingState_sound success
+  cases related with
+  | yield => rfl
+  | expand reduced =>
+      exact MatchingStateSteps.complete (.expand
+        (combinedAtom_hit_mono monotone reduced))
+
+private theorem depthFirstFuel_step_mono
+    {before after : State → FuelResult (SearchStep State Answer)}
+    (monotone : ∀ {state observation},
+      before state = .ok observation → after state = .ok observation)
+    {fuel : Nat} {states : List State} {answers : List Answer}
+    (success : depthFirstFuel before fuel states = .ok answers) :
+    depthFirstFuel after fuel states = .ok answers := by
+  induction fuel generalizing states answers with
+  | zero =>
+      cases states with
+      | nil => simpa using success
+      | cons state rest => simp [depthFirstFuel] at success
+  | succ fuel ih =>
+      cases states with
+      | nil => simpa using success
+      | cons state rest =>
+          simp only [depthFirstFuel] at success ⊢
+          rw [bind_eq_ok_iff] at success ⊢
+          rcases success with ⟨observation, head, continued⟩
+          refine ⟨observation, monotone head, ?_⟩
+          cases observation with
+          | yield answer =>
+              rw [map_eq_ok_iff] at continued ⊢
+              rcases continued with ⟨tailAnswers, tail, output⟩
+              exact ⟨tailAnswers, ih tail, output⟩
+          | expand successors => exact ih continued
 private theorem fuel_ok_succ : ∀ fuel,
     (∀ {environment expression value},
       evalFuel fuel environment expression = .ok value →
@@ -179,7 +368,68 @@ private theorem fuel_ok_succ : ∀ fuel,
             | something => simpa using branchResult
         | fixE body => simpa [evalFuel] using success
         | matcher clauses => simpa [evalFuel] using success
-        | matchAll target matcher pattern body => simp [evalFuel] at success
+        | matchAll target matcher pattern body =>
+            simp only [evalFuel] at success
+            rw [bind_eq_ok_iff] at success
+            rcases success with ⟨targetValue, targetResult, continued⟩
+            rw [bind_eq_ok_iff] at continued
+            rcases continued with ⟨matcherValue, matcherResult, continued⟩
+            rw [bind_eq_ok_iff] at continued
+            rcases continued with ⟨bindingGroups, searchResult, bodyResult⟩
+            rw [map_eq_ok_iff] at bodyResult
+            rcases bodyResult with ⟨bodyValues, traversal, output⟩
+            subst value
+            have searchChanged :
+                searchMatchingFuel
+                    (combineAtomReducers
+                      (reduceBuiltinAtom (evalFuel (fuel + 1)))
+                      (reduceMatcherAtom (evalFuel (fuel + 1))))
+                    fuel
+                    ⟨[⟨pattern, matcherValue, targetValue⟩], environment, []⟩ =
+                  .ok bindingGroups := by
+              exact depthFirstFuel_step_mono
+                (matchingStep_ok_mono
+                  (fun success => evalStep success)) searchResult
+            have searchRaised :
+                searchMatchingFuel
+                    (combineAtomReducers
+                      (reduceBuiltinAtom (evalFuel (fuel + 1)))
+                      (reduceMatcherAtom (evalFuel (fuel + 1))))
+                    (fuel + 1)
+                    ⟨[⟨pattern, matcherValue, targetValue⟩], environment, []⟩ =
+                  .ok bindingGroups := by
+              exact depthFirstFuel_ok_add _ searchChanged 1
+            have bodiesRaised :
+                FuelResult.traverse
+                    (fun bindings =>
+                      evalFuel (fuel + 1) (bindings ++ environment) body)
+                    bindingGroups = .ok bodyValues :=
+              traverse_ok_mono (fun success => evalStep success) traversal
+            change
+              FuelResult.bind (evalFuel (fuel + 1) environment target)
+                (fun targetValue =>
+                  FuelResult.bind (evalFuel (fuel + 1) environment matcher)
+                    (fun matcherValue =>
+                      FuelResult.bind
+                        (searchMatchingFuel
+                          (combineAtomReducers
+                            (reduceBuiltinAtom (evalFuel (fuel + 1)))
+                            (reduceMatcherAtom (evalFuel (fuel + 1))))
+                          (fuel + 1)
+                          ⟨[⟨pattern, matcherValue, targetValue⟩],
+                            environment, []⟩)
+                        (fun bindingGroups =>
+                          FuelResult.map Value.buildList
+                            (FuelResult.traverse
+                              (fun bindings => evalFuel (fuel + 1)
+                                (bindings ++ environment) body)
+                              bindingGroups)))) = .ok (Value.buildList bodyValues)
+            rw [evalStep targetResult]
+            simp only [FuelResult.bind_ok]
+            rw [evalStep matcherResult]
+            simp only [FuelResult.bind_ok]
+            rw [searchRaised]
+            simp [bodiesRaised]
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>
@@ -262,6 +512,39 @@ theorem Eval.complete
     (motive_5 := fun operation arguments value _ =>
       ∃ fuel,
         evalPrimitive (applyFuel fuel) operation arguments = .ok value)
+    (motive_6 := fun matcherEnvironment captureValues holes nextMatchers target
+        arm result _ =>
+      ∃ fuel, MatcherArmDispatches (evalFuel fuel) matcherEnvironment
+        captureValues holes nextMatchers target arm result)
+    (motive_7 := fun matcherEnvironment captureValues holes nextMatchers target
+        arms result _ =>
+      ∃ fuel, MatcherArmsDispatch (evalFuel fuel) matcherEnvironment
+        captureValues holes nextMatchers target arms result)
+    (motive_8 := fun atomEnvironment matcherEnvironment pattern target clause
+        result _ =>
+      ∃ fuel, MatcherClauseDispatches (evalFuel fuel) atomEnvironment
+        matcherEnvironment pattern target clause result)
+    (motive_9 := fun atomEnvironment matcherEnvironment pattern target clauses
+        result _ =>
+      ∃ fuel, MatcherClausesDispatch (evalFuel fuel) atomEnvironment
+        matcherEnvironment pattern target clauses result)
+    (motive_10 := fun environment atom reduction _ =>
+      ∃ fuel,
+        combineAtomReducers (reduceBuiltinAtom (evalFuel fuel))
+          (reduceMatcherAtom (evalFuel fuel)) environment atom =
+            .ok (.hit reduction))
+    (motive_11 := fun states answers _ =>
+      ∃ evaluationFuel searchFuel,
+        depthFirstFuel
+          (stepMatchingState
+            (combineAtomReducers (reduceBuiltinAtom (evalFuel evaluationFuel))
+              (reduceMatcherAtom (evalFuel evaluationFuel))))
+          searchFuel states = .ok answers)
+    (motive_12 := fun environment body groups values _ =>
+      ∃ fuel,
+        FuelResult.traverse
+          (fun bindings => evalFuel fuel (bindings ++ environment) body)
+          groups = .ok values)
   case var =>
       intros environment index value lookup
       refine ⟨1, ?_⟩
@@ -366,6 +649,58 @@ theorem Eval.complete
   case matcher =>
       intros environment clauses
       exact ⟨1, rfl⟩
+  case matchAll =>
+      intros environment target targetValue matcher matcherValue pattern
+        bindingGroups body bodyValues targetEval matcherEval matching bodiesEval
+        targetIH matcherIH matchingIH bodiesIH
+      rcases targetIH with ⟨targetFuel, targetSuccess⟩
+      rcases matcherIH with ⟨matcherFuel, matcherSuccess⟩
+      rcases matchingIH with ⟨matchingEvalFuel, searchFuel, searchSuccess⟩
+      rcases bodiesIH with ⟨bodyFuel, bodiesSuccess⟩
+      let common := max targetFuel
+        (max matcherFuel (max matchingEvalFuel (max searchFuel bodyFuel)))
+      have targetLe : targetFuel ≤ common := by
+        exact Nat.le_max_left _ _
+      have targetRaised := evalFuel_ok_of_le targetLe targetSuccess
+      have matcherLe : matcherFuel ≤ common := by
+        exact Nat.le_trans (Nat.le_max_left _ _)
+          (Nat.le_max_right targetFuel _)
+      have matcherRaised := evalFuel_ok_of_le matcherLe matcherSuccess
+      have matchingEvalLe : matchingEvalFuel ≤ common := by
+        exact Nat.le_trans
+          (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right matcherFuel _))
+          (Nat.le_max_right targetFuel _)
+      have searchLe : searchFuel ≤ common := by
+        exact Nat.le_trans
+          (Nat.le_trans
+            (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right matchingEvalFuel _))
+            (Nat.le_max_right matcherFuel _))
+          (Nat.le_max_right targetFuel _)
+      have bodyLe : bodyFuel ≤ common := by
+        exact Nat.le_trans
+          (Nat.le_trans
+            (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right matchingEvalFuel _))
+            (Nat.le_max_right matcherFuel _))
+          (Nat.le_max_right targetFuel _)
+      have searchCallbackRaised := depthFirstFuel_step_mono
+        (matchingStep_ok_mono
+          (fun success => evalFuel_ok_of_le matchingEvalLe success))
+        searchSuccess
+      have searchRaised := depthFirstFuel_ok_add _ searchCallbackRaised
+        (common - searchFuel)
+      have searchAtCommon :
+          searchMatchingFuel
+            (combineAtomReducers (reduceBuiltinAtom (evalFuel common))
+              (reduceMatcherAtom (evalFuel common))) common
+            ⟨[⟨pattern, matcherValue, targetValue⟩], environment, []⟩ =
+              .ok bindingGroups := by
+        simpa [searchMatchingFuel, Nat.add_sub_of_le searchLe] using searchRaised
+      have bodiesRaised := traverse_ok_mono
+        (fun success => evalFuel_ok_of_le bodyLe success) bodiesSuccess
+      refine ⟨common + 1, ?_⟩
+      simp only [evalFuel, targetRaised, FuelResult.bind_ok, matcherRaised,
+        searchPatternFuel, evaluationAtomReducer, searchAtCommon,
+        bodiesRaised, FuelResult.map_ok]
   case nil =>
       intro environment
       exact ⟨0, rfl⟩
@@ -426,6 +761,182 @@ theorem Eval.complete
       intros target inputs function outputs encoding applications applicationsIH
       rcases applicationsIH with ⟨fuel, success⟩
       exact ⟨fuel, by simp [evalPrimitive, encoding, success]⟩
+  case miss =>
+      intros header target matcherEnvironment captureValues holes nextMatchers
+        body mismatch
+      exact ⟨0, .miss mismatch⟩
+  case hit =>
+      intros header target dataValues captureValues matcherEnvironment body
+        decompositionValue decompositions nextMatchers matcherProduct matchers
+        holes branches dataMatch bodyEval decompositionShape matcherEval
+        matcherShape branchesBuilt bodyIH matcherIH
+      rcases bodyIH with ⟨bodyFuel, bodySuccess⟩
+      rcases matcherIH with ⟨matcherFuel, matcherSuccess⟩
+      let common := max bodyFuel matcherFuel
+      have bodyLe : bodyFuel ≤ common := Nat.le_max_left _ _
+      have matcherLe : matcherFuel ≤ common := Nat.le_max_right _ _
+      have bodyRaised := evalFuel_ok_of_le bodyLe bodySuccess
+      have matcherRaised := evalFuel_ok_of_le matcherLe matcherSuccess
+      exact ⟨common, .hit (ValueDataPatternMatches.complete dataMatch)
+        bodyRaised decompositionShape matcherRaised matcherShape branchesBuilt⟩
+  case nil =>
+      intros matcherEnvironment captureValues holes nextMatchers target
+      exact ⟨0, .nil⟩
+  case hit =>
+      intros matcherEnvironment captureValues holes nextMatchers target arm
+        branches rest selected selectedIH
+      rcases selectedIH with ⟨fuel, selectedAtFuel⟩
+      exact ⟨fuel, .hit selectedAtFuel⟩
+  case skip =>
+      intros matcherEnvironment captureValues holes nextMatchers target arm rest
+        result missed tail missedIH tailIH
+      rcases missedIH with ⟨missedFuel, missedAtFuel⟩
+      rcases tailIH with ⟨tailFuel, tailAtFuel⟩
+      let common := max missedFuel tailFuel
+      exact ⟨common,
+        .skip
+          (matcherArmDispatches_mono
+            (fun success => evalFuel_ok_of_le (Nat.le_max_left _ _) success)
+            missedAtFuel)
+          (matcherArmsDispatch_mono
+            (fun success => evalFuel_ok_of_le (Nat.le_max_right _ _) success)
+            tailAtFuel)⟩
+  case miss =>
+      intros header pattern atomEnvironment matcherEnvironment target
+        nextMatchers arms mismatch
+      exact ⟨0, .miss mismatch⟩
+  case matched =>
+      intros header pattern dispatch atomEnvironment captureValues
+        matcherEnvironment nextMatchers target arms result headerMatch
+        capturesEval armsDispatch capturesIH armsIH
+      rcases capturesIH with ⟨capturesFuel, capturesSuccess⟩
+      rcases armsIH with ⟨armsFuel, armsAtFuel⟩
+      let common := max capturesFuel armsFuel
+      have capturesLe : capturesFuel ≤ common := Nat.le_max_left _ _
+      have armsLe : armsFuel ≤ common := Nat.le_max_right _ _
+      have capturesRaised := traverse_ok_mono
+        (fun success => evalFuel_ok_of_le capturesLe success)
+        capturesSuccess
+      exact ⟨common, .matched headerMatch
+        ((traverse_eq_ok_iff _ _ _).mp capturesRaised)
+        (matcherArmsDispatch_mono
+          (fun success => evalFuel_ok_of_le armsLe success)
+          armsAtFuel)⟩
+  case nil =>
+      intros atomEnvironment matcherEnvironment pattern target
+      exact ⟨0, .nil⟩
+  case hit =>
+      intros atomEnvironment matcherEnvironment pattern target clause branches
+        rest selected selectedIH
+      rcases selectedIH with ⟨fuel, selectedAtFuel⟩
+      exact ⟨fuel, .hit selectedAtFuel⟩
+  case skip =>
+      intros atomEnvironment matcherEnvironment pattern target clause rest
+        result missed tail missedIH tailIH
+      rcases missedIH with ⟨missedFuel, missedAtFuel⟩
+      rcases tailIH with ⟨tailFuel, tailAtFuel⟩
+      let common := max missedFuel tailFuel
+      exact ⟨common,
+        .skip
+          (matcherClauseDispatches_mono
+            (fun success => evalFuel_ok_of_le (Nat.le_max_left _ _) success)
+            missedAtFuel)
+          (matcherClausesDispatch_mono
+            (fun success => evalFuel_ok_of_le (Nat.le_max_right _ _) success)
+            tailAtFuel)⟩
+  case somethingWild =>
+      intros environment target
+      exact ⟨0, by rfl⟩
+  case somethingVar =>
+      intros environment target
+      exact ⟨0, by rfl⟩
+  case somethingValueSuccess =>
+      intros environment expression actual target evaluated equal evaluatedIH
+      rcases evaluatedIH with ⟨fuel, success⟩
+      exact ⟨fuel, combineAtomReducers_primary_hit _ _
+        (BuiltinAtomReduces.complete
+          (.somethingValueSuccess success equal))⟩
+  case somethingValueFailure =>
+      intros environment expression actual target evaluated unequal evaluatedIH
+      rcases evaluatedIH with ⟨fuel, success⟩
+      exact ⟨fuel, combineAtomReducers_primary_hit _ _
+        (BuiltinAtomReduces.complete
+          (.somethingValueFailure success unequal))⟩
+  case tuple =>
+      intros patterns matchers targets atoms environment zipped
+      exact ⟨0, combineAtomReducers_primary_hit _ _
+        (BuiltinAtomReduces.complete (.tuple zipped))⟩
+  case productSomethingVar =>
+      intros environment matchers target
+      exact ⟨0, by rfl⟩
+  case productSomethingWild =>
+      intros environment matchers target
+      exact ⟨0, by rfl⟩
+  case productSomethingValue =>
+      intros environment expression matchers target
+      exact ⟨0, by rfl⟩
+  case matcher =>
+      intros environment matcherEnvironment pattern target remaining branches
+        original clauses clausesIH
+      rcases clausesIH with ⟨fuel, clausesAtFuel⟩
+      have fallback :
+          reduceMatcherAtom (evalFuel fuel) environment
+            ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩ =
+              .ok (.hit ⟨branches, []⟩) :=
+        (reduceMatcherAtom_hit_iff _ _ _ _).mpr (.matcher clausesAtFuel)
+      exact ⟨fuel, by
+        rw [combineAtomReducers_primary_miss _ _
+          (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _)]
+        exact fallback⟩
+  case nil =>
+      exact ⟨0, 0, rfl⟩
+  case yield =>
+      intros rest answers environment bindings tail tailIH
+      rcases tailIH with ⟨evaluationFuel, searchFuel, tailSuccess⟩
+      refine ⟨evaluationFuel, searchFuel + 1, ?_⟩
+      simp [depthFirstFuel, stepMatchingState, tailSuccess]
+  case expand =>
+      intros bindings environment atom reduction rest answers remaining
+        reduced next reducedIH nextIH
+      rcases reducedIH with ⟨atomFuel, atomSuccess⟩
+      rcases nextIH with ⟨nextFuel, searchFuel, nextSuccess⟩
+      let common := max atomFuel nextFuel
+      have atomLe : atomFuel ≤ common := Nat.le_max_left _ _
+      have nextLe : nextFuel ≤ common := Nat.le_max_right _ _
+      have atomRaised := combinedAtom_hit_mono
+        (fun success => evalFuel_ok_of_le atomLe success)
+        atomSuccess
+      have nextRaised := depthFirstFuel_step_mono
+        (matchingStep_ok_mono
+          (fun success => evalFuel_ok_of_le nextLe success))
+        nextSuccess
+      refine ⟨common, searchFuel + 1, ?_⟩
+      simp only [depthFirstFuel, stepMatchingState, atomRaised,
+        FuelResult.bind_ok]
+      change depthFirstFuel
+        (stepMatchingState
+          (combineAtomReducers (reduceBuiltinAtom (evalFuel common))
+            (reduceMatcherAtom (evalFuel common)))) searchFuel
+        ((reduction.branches.map fun branch =>
+          ⟨branch ++ remaining, environment,
+            bindings ++ reduction.bindings⟩) ++ rest) = .ok answers
+      exact nextRaised
+  case nil =>
+      intros environment body
+      exact ⟨0, rfl⟩
+  case cons =>
+      intros bindings environment body value groups values head tail headIH tailIH
+      rcases headIH with ⟨headFuel, headSuccess⟩
+      rcases tailIH with ⟨tailFuel, tailSuccess⟩
+      let common := max headFuel tailFuel
+      have headLe : headFuel ≤ common := Nat.le_max_left _ _
+      have tailLe : tailFuel ≤ common := Nat.le_max_right _ _
+      have headRaised := evalFuel_ok_of_le headLe headSuccess
+      have tailRaised := traverse_ok_mono
+        (fun success => evalFuel_ok_of_le tailLe success)
+        tailSuccess
+      exact ⟨common, by
+        simp [FuelResult.traverse, headRaised, tailRaised]⟩
   case t => exact derivation
 
 end TypePM.Runtime
