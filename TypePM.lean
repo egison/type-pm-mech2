@@ -63,8 +63,10 @@ import TypePM.Source.FinitePartialRenaming
 import TypePM.Source.AlignmentComposition
 import TypePM.Source.GeneratedAcceptanceTransport
 import TypePM.Source.ClosureSupportRenaming
+import TypePM.Source.InterfaceAliasCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
+import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.M2Regression
 import TypePM.AxiomAudit
 

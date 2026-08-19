@@ -24,8 +24,10 @@ import TypePM.Source.FinitePartialRenaming
 import TypePM.Source.AlignmentComposition
 import TypePM.Source.GeneratedAcceptanceTransport
 import TypePM.Source.ClosureSupportRenaming
+import TypePM.Source.InterfaceAliasCounterexample
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
+import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.M2Regression
 
 /-!
@@ -95,6 +97,8 @@ every full build.
 #print axioms TypePM.FreshAliasSaturation.blockAccepts_addCapAlias_iff
 #print axioms TypePM.FreshAliasSequence.CommonCoreEquivalent.blockAccepts_iff
 #print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
+#print axioms TypePM.Source.InterfaceAliasCounterexample.no_left_addition_decomposition
+#print axioms TypePM.Source.InterfaceAliasCounterexample.commonCoreEquivalent_positive
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
@@ -106,3 +110,6 @@ every full build.
 #print axioms TypePM.Source.Inference.typableDecidable_of_letFree
 #print axioms TypePM.Source.Inference.infer_success_principalResult_of_letFree
 #print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_letFree
+#print axioms TypePM.Source.ElaborationPrincipalityComplete.toAcceptanceComplete
+#print axioms TypePM.Source.Inference.infer_success_principalResult_of_elaborationPrincipalityComplete
+#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_elaborationPrincipalityComplete

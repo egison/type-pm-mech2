@@ -75,7 +75,9 @@ full-cut境界で`infer = none`となることを検証済みである．この�
 任意の吸収的な右辺closureの組から，この有限別名列と共通blockを自動的に構成し，各補助変数が本文の
 hard制約と保留checking要求に現れないことをsourceのfreshnessから導く定理が必要である．一般の
 主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で得られるという
-最終的な整合性が必要である．したがってM2全体は引き続き`partial`である．
+最終的な整合性が必要である．この不足は`ElaborationPrincipalityComplete`という一つの条件へ
+切り出しており，その条件から受理完全性，公開推論の主要性，主要型の有限な変数名変更による
+一意性がすべて従うことは証明済みである．したがってM2全体は引き続き`partial`である．
 
 この基盤を実装するmoduleは`HardWorklistEquivalence.lean`，`FreshAliasElimination.lean`，
 `FreshAliasSaturation.lean`，`FreshAliasSequence.lean`，
@@ -83,7 +85,8 @@ hard制約と保留checking要求に現れないことをsourceのfreshnessか�
 `Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
 `Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，
 `Source/GeneratedAcceptanceTransport.lean`，`Source/ClosureSupportRenaming.lean`，
-`Source/ElaborationCompleteness.lean`，`Source/Principality.lean`である．
+`Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
+`Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 

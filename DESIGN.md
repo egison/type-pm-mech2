@@ -160,7 +160,9 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 有限な別名等式列と共通blockを自動構成し，各別名の補助変数が本文制約に現れないことをsourceの
 freshness不変条件から導く定理である．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
-変数名変更による一意性が従う条件付き定理は用意済みであるが，整合性そのものは未証明である．
+変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
+`ElaborationPrincipalityComplete`として切り出し，そこから受理完全性，公開推論の主要性，
+主要型の有限な変数名変更による一意性まで証明しているが，条件そのものは未証明である．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
 generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTransport.lean`，
@@ -173,7 +175,8 @@ generalize（一般化）と呼ぶ．実装moduleは`Scheme.lean`，`SchemeTrans
 `Source/InterfaceClosureTransport.lean`，`Source/FreshIntervalRenaming.lean`，
 `Source/FinitePartialRenaming.lean`，`Source/AlignmentComposition.lean`，
 `Source/GeneratedAcceptanceTransport.lean`，`Source/ClosureSupportRenaming.lean`，
-`Source/ElaborationCompleteness.lean`，`Source/Principality.lean`，`Source/M2Regression.lean`である．
+`Source/InterfaceAliasCounterexample.lean`，`Source/ElaborationCompleteness.lean`，
+`Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，
 静的な公開推論結果と`Source.Typing`まで検証済みである．このlistingは評価結果を示す例ではないため，
 M5の実行回帰の対象外である．
