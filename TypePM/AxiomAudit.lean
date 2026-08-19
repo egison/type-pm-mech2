@@ -33,6 +33,7 @@ import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Runtime.ValuesRegression
 import TypePM.Runtime.ValueShapeRegression
 import TypePM.Runtime.MatchingStateRegression
+import TypePM.Runtime.MatchingSearchRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -391,6 +392,17 @@ every full build.
 #print axioms TypePM.Runtime.MatchingStateRegression.tuple_children_preserve_source_order
 #print axioms TypePM.Runtime.MatchingStateRegression.product_matcher_delegates_scalar_pattern_once
 #print axioms TypePM.Runtime.MatchingStateRegression.builtin_success_has_relational_rule
+#print axioms TypePM.Runtime.stepMatchingState_eq_ok_iff
+#print axioms TypePM.Runtime.stepMatchingState_notStuck
+#print axioms TypePM.Runtime.searchMatchingFuel_sound
+#print axioms TypePM.Runtime.searchMatchingFuel_notStuck
+#print axioms TypePM.Runtime.MatchingSearchRegression.variable_match_search_exact
+#print axioms TypePM.Runtime.MatchingSearchRegression.value_mismatch_returns_no_answers
+#print axioms TypePM.Runtime.MatchingSearchRegression.tuple_work_and_bindings_preserve_runtime_order
+#print axioms TypePM.Runtime.MatchingSearchRegression.duplicate_branches_remain_distinct
+#print axioms TypePM.Runtime.MatchingSearchRegression.unhandled_atom_is_stuck
+#print axioms TypePM.Runtime.MatchingSearchRegression.normal_failure_is_not_stuck
+#print axioms TypePM.Runtime.MatchingSearchRegression.successful_search_has_depth_first_derivation
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure

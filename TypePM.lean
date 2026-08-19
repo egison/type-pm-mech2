@@ -128,6 +128,8 @@ import TypePM.Runtime.ValueShape
 import TypePM.Runtime.ValueShapeRegression
 import TypePM.Runtime.MatchingState
 import TypePM.Runtime.MatchingStateRegression
+import TypePM.Runtime.MatchingSearch
+import TypePM.Runtime.MatchingSearchRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.MatcherClauseShape
