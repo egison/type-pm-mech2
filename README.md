@@ -65,6 +65,14 @@ closureの局所性とは，生成blockに現れない変数を代入が変更�
 `let`のvalueを閉じた後のcontextの初期supplyはvalueの終了supply以下であり，body開始時の防御的な
 joinはvalueの終了supplyそのものに簡約できる．
 
+同じvalue生成blockを閉じる二つの吸収的closureについては，閉じたcontext，value結果型，一般化schemeを
+一つの有限な変数名変更で対応させ，interface制約の差を左右それぞれの有限な別名等式列と共通制約へ
+自動分解するところまで証明済みである．各別名の新しい端点が観測可能な有限supportの外にあり，既存端点が
+support内にあることも自動導出する．共通interface制約とbodyを合わせたblock全体がその新しい端点を使わないなら，
+保留checkingを含むblockの受理同値を得られる．また，well-formed supplyより後の名前を固定する変数名変更なら，nested `letE`を含むbody elaboration
+全体を同じ開始・終了supplyのまま輸送できる．残る核心は，二つのvalue elaboration自体が異なる生成blockを
+返す場合に，これらの証拠をbodyのtarget・hard制約・保留checking全体へ一度に持ち上げることである．
+
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
 生成済みblockの二種類の変数名変更，異なる主要block closureが作るcontext境界等式を解く性質，closureの有限な
@@ -111,7 +119,9 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
 `Source/InterfaceAliasCounterexample.lean`，`Source/GlobalRenamingCounterexample.lean`，
 `Source/UnwellFormedSupplyPrincipalityCounterexample.lean`，
+`Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
+`Source/RecursiveLetInvariant.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 

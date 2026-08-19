@@ -164,8 +164,11 @@ well-scopednessを構造体に保持する．これにより，束縛変数名�
 最後の負例は実行可能推論の境界を固定するが，`Source.Typing`の不存在はまだ証明していない．
 また，一般の`letE`を含むsource elaboration全体の完全性はまだ与えていない．別名等式を含む
 一般の保留checkingと飽和の輸送，closureの局所性，生成変数の由来，`let`境界のsupply安定性は
-証明済みである．残る核心は，これらを任意の二つの右辺closureの有限な別名分解と共通blockの
-自動構成へ接続することである．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
+証明済みである．同じ生成blockを閉じる任意の二つの吸収的closureからは，閉じたcontext，結果型，
+一般化schemeの正確な対応と，interface差の有限な別名等式分解，その別名端点のsupport上の新鮮さまで
+自動構成できる．well-formed supplyより後を固定する名前変更によるnested body輸送も証明済みである．
+残る核心は，value elaboration自体が異なる生成blockを返す場合に，この対応をbodyのtarget，hard制約，
+保留checkingへ同時に持ち上げることである．一般の主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも
 最終結果型が互いに代入で得られるという整合性が必要である．この整合性から一般の主要型の有限な
 変数名変更による一意性が従う条件付き定理は用意済みである．正確には，この残件を
 公開推論が使うfreshness条件を明示した
@@ -198,7 +201,9 @@ generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，
 `Source/ContextInterfaceSupport.lean`，`Source/LetSupplyStability.lean`，
 `Source/InterfaceAliasCounterexample.lean`，`Source/GlobalRenamingCounterexample.lean`，
 `Source/UnwellFormedSupplyPrincipalityCounterexample.lean`，
+`Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
+`Source/RecursiveLetInvariant.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`，`Source/M2Regression.lean`である．
 論文listing P1-L09の`let`例は，

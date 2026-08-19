@@ -38,10 +38,13 @@ import TypePM.Source.AlignmentComposition
 import TypePM.Source.GeneratedAcceptanceTransport
 import TypePM.Source.ClosureSupportRenaming
 import TypePM.Source.InterfaceAliasCounterexample
+import TypePM.Source.InterfaceAliasDecomposition
+import TypePM.Source.InterfaceAliasFreshness
 import TypePM.Source.GlobalRenamingCounterexample
 import TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample
 import TypePM.Source.ScopedGeneratedEquivalence
 import TypePM.Source.ScopedElaborationComposition
+import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
@@ -140,6 +143,11 @@ every full build.
 #print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
 #print axioms TypePM.Source.InterfaceAliasCounterexample.no_left_addition_decomposition
 #print axioms TypePM.Source.InterfaceAliasCounterexample.commonCoreEquivalent_positive
+#print axioms TypePM.Source.InterfaceAliasDecomposition.AliasFreshness.admissible_of_scopedBy
+#print axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.targets_mutualInstances
+#print axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.fromLet_blockAccepts_iff
+#print axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.interfaceEndpointScopedBy
+#print axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.FreshClosureInterfaceDecomposition.admissible_of_avoids
 #print axioms TypePM.Source.GlobalRenamingCounterexample.executable_elaborates
 #print axioms TypePM.Source.GlobalRenamingCounterexample.alternative_elaborates
 #print axioms TypePM.Source.GlobalRenamingCounterexample.no_global_renaming
@@ -151,6 +159,10 @@ every full build.
 #print axioms TypePM.Source.Elaborates.scopedComparison
 #print axioms TypePM.Source.ElaboratesItems.scopedComparison
 #print axioms TypePM.Source.Elaborates.scopedComparison_of_letFree
+#print axioms TypePM.Source.Elaborates.alignment_of_fixesAtOrAbove
+#print axioms TypePM.Source.Elaborates.transport_of_fixesAtOrAbove
+#print axioms TypePM.Source.GeneratedEquationCommonCore.scopedContextualEquivalent_of_frameAdmissible
+#print axioms TypePM.Source.scopedLetStep
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
