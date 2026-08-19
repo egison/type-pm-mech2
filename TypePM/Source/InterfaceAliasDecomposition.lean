@@ -943,6 +943,10 @@ theorem Cap.substitutionFixes_of_mem_apply_eq
       exact Cap.substitutionFixesList_of_mem_apply_eq substitution items
         (Cap.prod.inj fixed) candidate
         (by simpa [Cap.unificationVars] using member)
+  | con former arguments =>
+      exact Cap.substitutionFixesList_of_mem_apply_eq substitution arguments
+        (Cap.con.inj fixed).2 candidate
+        (by simpa [Cap.unificationVars] using member)
 
 theorem Cap.substitutionFixesList_of_mem_apply_eq
     (substitution : Subst) (items : List Cap)
@@ -985,6 +989,10 @@ theorem Ty.substitutionFixes_of_mem_apply_eq
   | prod items =>
       exact Ty.substitutionFixesList_of_mem_apply_eq substitution items
         (Ty.prod.inj fixed) candidate
+        (by simpa [Ty.unificationVars] using member)
+  | data former arguments =>
+      exact Ty.substitutionFixesList_of_mem_apply_eq substitution arguments
+        (Ty.data.inj fixed).2 candidate
         (by simpa [Ty.unificationVars] using member)
   | matcher capability target =>
       have parts := Ty.matcher.inj fixed
@@ -1072,6 +1080,10 @@ theorem Cap.mem_apply_of_image
       apply Cap.mem_applyList_of_image substitution items input candidate
       · simpa [Cap.unificationVars] using inputMember
       · exact imageMember
+  | con former arguments =>
+      apply Cap.mem_applyList_of_image substitution arguments input candidate
+      · simpa [Cap.unificationVars] using inputMember
+      · exact imageMember
 
 theorem Cap.mem_applyList_of_image
     (substitution : Subst) (items : List Cap)
@@ -1118,6 +1130,10 @@ theorem Ty.mem_apply_of_image
             right imageMember)
   | prod items =>
       apply Ty.mem_applyList_of_image substitution items input candidate
+      · simpa [Ty.unificationVars] using inputMember
+      · exact imageMember
+  | data former arguments =>
+      apply Ty.mem_applyList_of_image substitution arguments input candidate
       · simpa [Ty.unificationVars] using inputMember
       · exact imageMember
   | matcher capability target =>

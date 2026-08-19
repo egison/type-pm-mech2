@@ -68,6 +68,12 @@ every full build.
 #print axioms TypePM.Regression.structured_matcher_checks_at_any_slot
 #print axioms TypePM.unify_none_iff_unsatisfiable
 #print axioms TypePM.unify_completeMGUSolver
+#print axioms TypePM.UnificationRegression.con_same_former_and_arity_succeeds
+#print axioms TypePM.UnificationRegression.data_same_former_and_arity_succeeds
+#print axioms TypePM.UnificationRegression.con_name_mismatch_rejected
+#print axioms TypePM.UnificationRegression.data_name_mismatch_rejected
+#print axioms TypePM.UnificationRegression.con_arity_mismatch_rejected
+#print axioms TypePM.UnificationRegression.data_arity_mismatch_rejected
 #print axioms TypePM.unify_localized
 #print axioms TypePM.Subst.Localized.compose
 #print axioms TypePM.AbsorbingPrincipal.localized

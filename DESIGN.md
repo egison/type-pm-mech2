@@ -47,7 +47,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
-| M3 | partial | 4種類の宣言名を分離した名前型と，5 primitiveの有限な名前集合は実装済み．constructorを持つ型，scheme，signature，pattern declaration，source接続は未実装 |
+| M3 | partial | 4種類の宣言名，5 primitiveの有限な名前集合，`Ty.data`／`Cap.con`と，代入・scheme・単一化・局所性・名前変更への拡張は実装済み．宣言scheme，signature，pattern declaration，source接続は未実装 |
 | M4 | not-started | pattern，`matchAll`，matcher literal，`fix`，pattern functionの静的メタ理論 |
 | M5 | not-started | 評価，matching，adequacy，型保存，progress，no-stuck |
 
@@ -220,8 +220,10 @@ source構文の外から与えられる型要求の表である．List，Boolな
 
 最初の基盤として，`Names.lean`で`DataFormer`，`DataCtor`，`PatternFormer`，`PatternCtor`を
 別々の名前型にし，同じ綴りを安全に別namespaceで使えることを固定した．`Primitive.lean`では論文で
-必要な`add`，`append`，`member`，`deleteFirst`，`map`だけを有限に列挙した．現時点では名前層のみであり，
-型schemeや実行意味はまだM3/M5の完了条件に数えない．
+必要な`add`，`append`，`member`，`deleteFirst`，`map`だけを有限に列挙した．型には引数付きdata適用
+`Ty.data`と，引数付きpattern capability適用`Cap.con`を追加し，代入，scheme，単一化とその健全性・完全性・
+停止性，有限support，変数名変更まで同じ構造を扱うようにした．同名・同引数数なら引数を分解して単一化し，
+名前または引数数が違えば拒否する．宣言schemeや実行意味はまだM3/M5の完了条件に数えない．
 
 予定moduleは`DataTypes.lean`，`Signature.lean`，`Constructors.lean`，`Primitives.lean`，
 `PatternDeclarations.lean`である．論文listing P1-L03のpattern declarationと，multiset matcherの
