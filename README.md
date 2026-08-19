@@ -397,6 +397,8 @@ bodyは評価callbackで与えているため，まだ`matchAll`全体の完了�
 型付けの`Pattern.extendContext`と同じ左から右のsource順で追加する．通常の不一致は後続状態0個となり，同じ結果を持つ二つの
 位置別分岐は二つの答えとして残る．実行と独立したstate-step関係との対応，全atomを
 扱うreducerがstuckしないときの任意fuelでのsearch no-stuckを証明した．
+各atomの埋め込み式は`bindings ++ environment`で評価するため，後ろのvalue patternが左側のbinderを
+静的型付けと同じindexで参照できることもexact回帰で固定した．
 `Runtime/CombinedAtomReducer.lean`は，構文上のatom規則を先に試し，通常の`miss`のときだけ
 user-defined matcher規則へ進む合成を定義する．先行のhit，timeout，stuckは後続規則で隠さない．
 両方のno-stuckとfallbackの全atom処理から，合成後のreducerとbounded searchのno-stuckを得る．

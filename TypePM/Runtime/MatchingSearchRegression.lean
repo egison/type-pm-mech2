@@ -47,6 +47,24 @@ theorem two_variable_bindings_remain_in_source_order :
       .ok [[one, two]] := by
   rfl
 
+def lookupEval (environment : ValueEnvironment) : Expr → FuelResult Value
+  | .var index =>
+      match environment[index]? with
+      | some value => .ok value
+      | none => .stuck
+  | _ => .stuck
+
+def lookupReducer : ValueEnvironment → MatchingAtom →
+    FuelResult (DispatchResult AtomReduction) :=
+  reduceBuiltinAtom lookupEval
+
+theorem later_value_pattern_reads_earlier_binding :
+    searchMatchingFuel lookupReducer 3
+        ⟨[⟨.var, .something, one⟩,
+            ⟨.value (.var 0), .something, one⟩], [], []⟩ =
+      .ok [[one]] := by
+  rfl
+
 /-- Two equal-position branches remain two answers; search never deduplicates. -/
 def duplicateReducer (_ : ValueEnvironment) (_ : MatchingAtom) :
     FuelResult (DispatchResult AtomReduction) :=

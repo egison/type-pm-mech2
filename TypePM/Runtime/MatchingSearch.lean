@@ -41,7 +41,8 @@ def stepMatchingState
   match state.work with
   | [] => .ok (.yield state.bindings)
   | atom :: remaining =>
-      FuelResult.bind (reduceAtom state.environment atom) fun outcome =>
+      FuelResult.bind
+        (reduceAtom (state.bindings ++ state.environment) atom) fun outcome =>
         match outcome with
         | .miss => .stuck
         | .hit reduction =>
@@ -56,7 +57,8 @@ inductive MatchingStateSteps
       MatchingStateSteps reduceAtom
         ⟨[], environment, bindings⟩ (.yield bindings)
   | expand
-      (reduced : reduceAtom environment atom = .ok (.hit reduction)) :
+      (reduced : reduceAtom (bindings ++ environment) atom =
+        .ok (.hit reduction)) :
       MatchingStateSteps reduceAtom
         ⟨atom :: remaining, environment, bindings⟩
         (.expand
@@ -129,14 +131,14 @@ theorem stepMatchingState_notStuck
   | nil => trivial
   | cons atom remaining =>
       simp only [stepMatchingState]
-      cases result : reduceAtom environment atom with
+      cases result : reduceAtom (bindings ++ environment) atom with
       | timeout => trivial
       | stuck =>
-          have contradiction := safe environment atom
+          have contradiction := safe (bindings ++ environment) atom
           simp [result, FuelResult.NotStuck] at contradiction
       | ok outcome =>
           cases outcome with
-          | miss => exact (total environment atom result).elim
+          | miss => exact (total (bindings ++ environment) atom result).elim
           | hit reduction => trivial
 
 /-- Execute all matching alternatives by ordered depth-first search. -/

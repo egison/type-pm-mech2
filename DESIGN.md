@@ -383,6 +383,8 @@ tupleの正確な要素数での子atom生成，product matcherから`something`
 各branchのworkを元の残りworkより先に処理する．pattern bindingは静的`Pattern.extendContext`と同じsource順で末尾へ追加し，
 後続branch 0個を正常な不一致とする．`DepthFirstSearch`との接続後もsource順と重複branchを保存する．
 独立関係との対応と，全atomを扱う局所reducerのno-stuckから任意fuelの探索no-stuckを得る定理を持つ．
+atom reductionに渡す評価環境は`bindings ++ environment`であり，左側のbinderを読む
+後続value patternの実行順序を`Pattern.extendContext`と一致させる．
 `Runtime/CombinedAtomReducer.lean`は複数のatom規則族の優先順位を固定する．先行側の
 `miss`だけがfallbackを許し，hit，timeout，stuckは保存する．fallbackが全atomを扱い，
 両方がstuckしなければ，合成reducerとそれを使う全bounded searchがstuckしない．
