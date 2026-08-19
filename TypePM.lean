@@ -151,6 +151,7 @@ import TypePM.Source.M4Elaboration
 import TypePM.Source.M4PatternTypingRegression
 import TypePM.Source.M4MatchFirstTyping
 import TypePM.Source.M4MatchFirstTypingRegression
+import TypePM.Source.Paper1Programs
 import TypePM.Source.M4FixTyping
 import TypePM.Source.M4FixTypingRegression
 import TypePM.AxiomAudit

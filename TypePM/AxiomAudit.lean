@@ -24,6 +24,7 @@ import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Source.M4PatternTypingRegression
 import TypePM.Source.M4MatchFirstTypingRegression
+import TypePM.Source.Paper1Programs
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -520,6 +521,8 @@ every full build.
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.inconsistent_result_types_rejected
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.bad_matcher_rejected
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.uncovered_final_arm_rejected
+#print axioms TypePM.Source.Paper1Programs.multiset_clause_count
+#print axioms TypePM.Source.Paper1Programs.multiset_clause_shapes_checked
 #print axioms TypePM.Source.elaborateFixUsing_sound
 #print axioms TypePM.Source.FixInference.inferFix_success_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact

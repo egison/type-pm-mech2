@@ -505,6 +505,11 @@ READMEの`P1-L01`--`P1-L15`を，論文1の全code listingを漏れなく追跡�
 `Paper1Programs.lean`へ記述する．機能別回帰で証明した結果を`Paper1Inventory.lean`から
 まとめて参照できるようにする．
 
+P1-L04の7-clause `multiset`は，`member`／`deleteFirst`，nested `matchAll`，source順を保つ2本の
+`map`，tuple-pattern lambda，whole-valueの派生`match`を含めて`Source/Paper1Programs.lean`へ
+記述する．このASTを静的型付けと動的評価の両方からimportし，短縮したcallback fixtureを定義本体の
+代用にしない．
+
 追跡は次の五段階で行う．
 
 1. source構文で表現できる．
