@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様・双方向対応，一般のruntime valueは実装済み．式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様・双方向対応，一般のruntime valueは実装済み．式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -354,6 +354,11 @@ constructor mismatchとfield数不一致を明示的な失敗にする．capture
 後から評価するため，この段階では式を値へ変換しない．独立した関係仕様との双方向対応と静的な
 hole／capture数との一致を証明し，multiset matcherの7 headerを個別に実行した．完全なclause
 dispatchにはcapture式評価，data arm選択，body評価，decompositionの生成がさらに必要である．
+
+`Runtime/OrderedDispatch.lean`は，clauseとdata armをsource順に試す共通のfirst-success制御を
+定義する．通常の不一致`miss`だけが後続候補へ進み，`hit`は直ちに選択される．fuel切れ`timeout`と
+規則不足`stuck`は後続候補で隠さず伝播する．実行関数と独立した順序付き関係の双方向対応，および
+候補ごとの一歩がstuckしない場合のdispatch全体のno-stuckを証明する．
 
 `Runtime/Values.lean`は，M4で確定した`Source.Expr`と`Source.MatcherClause`に対する完全なruntime
 valueを定義する．data constructorの子，tuple要素，closure環境は通常の`List`でsource順を保ち，

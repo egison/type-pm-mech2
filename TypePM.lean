@@ -108,6 +108,8 @@ import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResult
 import TypePM.Runtime.FuelResultRegression
+import TypePM.Runtime.OrderedDispatch
+import TypePM.Runtime.OrderedDispatchRegression
 import TypePM.Runtime.Environment
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearch

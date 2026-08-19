@@ -24,6 +24,7 @@ import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
+import TypePM.Runtime.OrderedDispatchRegression
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Runtime.DataPatternRegression
@@ -295,6 +296,14 @@ every full build.
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_success_exact
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_timeout_stops
 #print axioms TypePM.Runtime.FuelResultRegression.traverse_stuck_distinct_from_timeout
+#print axioms TypePM.Runtime.firstHit_eq_ok_iff
+#print axioms TypePM.Runtime.firstHit_notStuck
+#print axioms TypePM.Runtime.OrderedDispatchRegression.first_success_preserves_source_order
+#print axioms TypePM.Runtime.OrderedDispatchRegression.all_misses_are_normal_failure
+#print axioms TypePM.Runtime.OrderedDispatchRegression.timeout_stops_before_later_success
+#print axioms TypePM.Runtime.OrderedDispatchRegression.stuck_stops_before_later_success
+#print axioms TypePM.Runtime.OrderedDispatchRegression.successful_dispatch_has_relational_derivation
+#print axioms TypePM.Runtime.OrderedDispatchRegression.safe_candidate_dispatch_never_stuck
 #print axioms TypePM.Runtime.getElem?_eq_some_iff_lookup
 #print axioms TypePM.Runtime.Lookup.deterministic
 #print axioms TypePM.Runtime.Lookup.of_append_left
