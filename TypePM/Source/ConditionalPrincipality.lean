@@ -116,8 +116,8 @@ theorem Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
   typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
     complete.toAcceptance
 
-/-- The per-derivation correspondence premise closes the full source
-coherence gap. -/
+/-- The completed per-derivation correspondence gives full source
+coherence. -/
 theorem principalCoherence_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
     (signature : Signature) (context : Context) (expression : Expr) :

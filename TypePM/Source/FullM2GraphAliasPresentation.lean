@@ -1,6 +1,7 @@
 import TypePM.Source.GraphAliasPresentationConstruction
 import TypePM.Source.VisibleGraphSemanticPresentations
 import TypePM.Source.VisibleSupportGraphFreshness
+import TypePM.Source.WholeLetEntailedAssembly
 
 /-!
 # Complete M2 graph-alias presentation

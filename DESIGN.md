@@ -48,7 +48,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | done | bound-index scheme，`letE`，value block一般化，吸収的closureの局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性に加え，一般の入れ子`letE`を含むM2--M3 sourceについて公開推論の完全性と有限な変数名変更による一意性を，well-formed signatureの下で健全性・受理同値・決定可能性・主要性を証明済み |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
-| M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher-root再帰を含む統合M4推論，一般のprivate bindingを持つpattern functionは未実装 |
+| M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む統合M4推論を実装済み．大きいPaper 1 fixtureのexact kernel推論回帰と，一般のprivate bindingを持つpattern functionは未実装 |
 | M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，inline pattern-function展開後の評価，成功時健全性，有限完全性，fuel単調性は実装済み．閉じた整数と再帰的tupleでは実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．built-in matcher断片では型付きbinding／atom／stateと有限DFSの保存・局所progressも条件付きで証明済みである．user-defined matcher clause，data，closure，一般pattern functionへの型安全性拡張は未完了 |
 
 ### M0：独立した基礎
@@ -184,8 +184,9 @@ closure局所性から証明する．body側の別名列を元の座標へ戻し
 `Inference.infer_success_principalResult`，`Inference.infer_principalResult`，`PrincipalTyping.finiteRenamingEq`が成立する．
 `Typing.infer_isSome`と`PrincipalTyping.finiteRenamingEq`にはsignatureの整合性を仮定せず，実行可能推論の
 健全性を使う残りの公開APIは`Signature.WellFormed`を明示的に受け取る．
-開始supplyのwell-formednessは必要であり，公開推論は`context.initialSupply`から始まるため常に満たす．任意の
-well-formedでない開始supplyを含む主張はM2の公開完了条件に含めない．
+内部の関係的elaborationは任意の開始supplyを引数に取るが，M2の完全性・主要性は
+`supply.WellFormedFor context`を定義域とする．公開推論は`context.initialSupply`から始まるため，この条件を
+常に満たす．well-formedでない開始supplyへの拡張はM2の未完課題ではなく，仕様上の範囲外である．
 
 schemeからmonotypeを作る操作をinstantiate（具体化），自由な変数をschemeの量化変数にする操作を
 generalize（一般化）と呼ぶ．実装moduleは`UnificationSupport.lean`，

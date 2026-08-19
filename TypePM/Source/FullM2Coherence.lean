@@ -19,10 +19,10 @@ form needed at a surrounding `letE`: its exact body-context equality and its
 `FixesAtOrAbove` proof feed directly into
 `Elaborates.transport_of_fixesAtOrAbove`.
 
-The module also isolates the remaining recursive proof as a standard
-well-founded source-expression induction.  Ordinary constructors and the
-`letE` constructor are separate premises, so work on the representative-
-sensitive `letE` step does not need to duplicate the recursion argument.
+The module packages the recursive proof as a standard well-founded
+source-expression induction.  Ordinary constructors and the `letE`
+constructor are separate premises, so the representative-sensitive `letE`
+step does not need to duplicate the recursion argument.
 -/
 
 namespace TypePM.Source
@@ -767,8 +767,8 @@ left body derivation to the right closed context without changing its source
 expression or numeric supplies.  The body induction hypothesis can then be
 applied to two derivations in literally the same context.
 
-The remaining outer `letE` work is purely generated-block composition:
-combine the returned body coherence with the two interface equation lists. -/
+The outer `letE` work is then purely generated-block composition: combine
+the returned body coherence with the two interface equation lists. -/
 theorem FullM2PairProperty.transportLetBody
     {value body : Expr}
     (bodyCoherent : FullM2PairProperty body)

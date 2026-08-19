@@ -6,6 +6,8 @@ capabilityは，matcherが入力値のどの形を観察するかを表す型情
 matcher producerは実際のmatcher値の型であり，matcher slotは使用箇所がmatcherへ課す要求型で
 ある．
 
+作業を中断した後の確定状態と次の着手点は[`CHECKPOINT.md`](CHECKPOINT.md)にまとめる．
+
 旧実装は別リポジトリ[`type-pm-mech`](../type-pm-mech/)に保存する．比較が必要な場合は
 両リポジトリを別々に参照，実行する．旧推論器，旧`SourceTyping`，互換層，旧仕様専用の
 回帰をこのリポジトリへコピーせず，新体系の依存関係にも含めない．旧実装で証明済みで
@@ -93,12 +95,14 @@ source生成変数の由来とclosureの局所性から証明した．body側の
 `Typing.infer_isSome`と`PrincipalTyping.finiteRenamingEq`にはsignatureの整合性を仮定せず，実行可能推論の
 健全性を使う残りの公開APIは`Signature.WellFormed`を明示的に受け取る．
 
-このfreshness前提を外すと，contextの自由変数と後から割り当てる変数が衝突し得る．その障害を示すため，
+内部の関係的elaborationは任意の開始supplyを引数に取るが，M2の完全性・主要性定理の定義域は
+`supply.WellFormedFor context`である．公開推論は`context.initialSupply`から開始し，この条件を常に満たす．
+したがって，well-formedでない開始supplyへの拡張は未完の作業ではなく，仕様上の範囲外である．境界回帰として，
 等式の向きを反転する手続きも正当な吸収的solverであること，候補となる二つの局所結果が互いに代入で
-得られないこと，使用した開始supplyがwell-formedでないことをそれぞれkernel proofとして保存する．
-これらを一つの完全なelaboration導出へ接続していないため，このmodule単独では任意supply版の
-完全性条件そのものの否定までは主張しない．また，同じclosed programの異なる正しいlet closureから得る生成済み
-blockが，全体を一度だけ変数名変更した形で一致するというさらに強い主張も偽である．一方が
+得られないこと，その例の開始supplyがwell-formedでないことをそれぞれkernel proofとして保存している．
+これらは任意supply版の完全性条件そのものの否定を主張するためのmoduleではない．また，同じclosed programの
+異なる正しいlet closureから得る生成済みblockが，全体を一度だけ変数名変更した形で一致するというさらに強い
+主張も偽である．一方が
 非自明な別名等式を持ち，他方が自明式を持つ反例を保存している．したがって完成した一般証明では，大域的な
 名前変更ではなく，有限な別名等式とscope外から観測できない局所変数を使う比較を採用した．
 

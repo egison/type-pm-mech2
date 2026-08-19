@@ -8,8 +8,8 @@ Public source inference always starts at `Context.initialSupply`.  The more
 general elaboration relations expose an arbitrary starting supply, but the
 usual freshness and renaming arguments only apply when both components of
 that supply lie above all free names in the source context.  This module
-records that precondition and the elementary preservation facts needed by a
-completeness proof.
+records that precondition and the elementary preservation facts used by the
+completed completeness proof.
 -/
 
 namespace TypePM.Source

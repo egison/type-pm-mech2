@@ -1,14 +1,13 @@
 import TypePM.Source.InterfaceAliasReallocation
-import TypePM.Source.WholeLetEntailedAssembly
+import TypePM.Source.ClosureSupportFutureFixing
 
 /-!
-# Scope and freshness for visible representative-graph aliases
+# Freshness of representative-graph endpoints
 
-A complete closure-support graph can contain edges used only by the closed
-value target.  Such edges must not become aliases of the enclosing `let`.
-This module keeps precisely the edges whose existing endpoint occurs in the
-concrete interface on that side, and discharges the support bookkeeping
-independently of the semantic interface-presentation proof.
+A complete closure-support graph can contain names inherited from the outer
+context and names allocated while elaborating the value.  This module proves
+the provenance and interval-freshness lemmas used when the context-visible
+graph construction selects aliases for an enclosing `let`.
 -/
 
 namespace TypePM.Source
@@ -209,142 +208,6 @@ theorem capTarget_fresh_of_not_outer
       ((Ty.mem_capVars_iff_unificationVars index right.target).mp targetMember)
       |>.resolve_left (fun outerMember => notOuter (by
         simpa [Context.unificationVars] using outerMember))
-
-/-- Retain graph edges whose existing endpoint is visible in `support`. -/
-def visibleAliases (support : List UnificationVar)
-    (aliases : List FreshAliasSequence.Alias) :
-    List FreshAliasSequence.Alias :=
-  aliases.filter fun alias => decide
-    (existingVariable alias ∈ support ∧ freshVariable alias ∉ support)
-
-/-- The hidden names of one side are exactly its retained fresh endpoints. -/
-def hiddenVariables (support : List UnificationVar)
-    (aliases : List FreshAliasSequence.Alias) : List UnificationVar :=
-  (visibleAliases support aliases).map freshVariable
-
-@[simp] theorem mem_visibleAliases_iff
-    {support : List UnificationVar}
-    {aliases : List FreshAliasSequence.Alias}
-    {alias : FreshAliasSequence.Alias} :
-    alias ∈ visibleAliases support aliases ↔
-      alias ∈ aliases ∧ existingVariable alias ∈ support ∧
-        freshVariable alias ∉ support := by
-  simp [visibleAliases]
-
-/-- Filtering a graph scope to the aliases visible in a smaller concrete
-support produces scope over that concrete support. -/
-theorem scopedBy_visibleAliases
-    {graphSupport concreteSupport : List UnificationVar}
-    {aliases : List FreshAliasSequence.Alias}
-    (graphScoped : ScopedBy graphSupport aliases) :
-    ScopedBy concreteSupport (visibleAliases concreteSupport aliases) := by
-  constructor
-  · exact List.Nodup.sublist
-      (List.Sublist.map freshVariable List.filter_sublist) graphScoped.1
-  · intro alias member
-    have split := mem_visibleAliases_iff.mp member
-    exact ⟨split.2.2, split.2.1⟩
-
-/-- Pointwise source-interval freshness becomes freshness of the collected
-hidden endpoint list. -/
-theorem hiddenVariables_fresh
-    {start boundary : Supply} {support : List UnificationVar}
-    {aliases : List FreshAliasSequence.Alias}
-    (fresh : ∀ alias, alias ∈ visibleAliases support aliases →
-      (freshVariable alias).FreshIn start boundary) :
-    VariablesFreshIn start boundary (hiddenVariables support aliases) := by
-  intro candidate member
-  obtain ⟨alias, aliasMember, equality⟩ := List.mem_map.mp member
-  exact equality ▸ fresh alias aliasMember
-
-/-- Every retained alias points to an element of its collected hidden list. -/
-theorem freshVariable_mem_hiddenVariables
-    (support : List UnificationVar)
-    (aliases : List FreshAliasSequence.Alias)
-    (alias : FreshAliasSequence.Alias)
-    (member : alias ∈ visibleAliases support aliases) :
-    freshVariable alias ∈ hiddenVariables support aliases :=
-  List.mem_map.mpr ⟨alias, member, rfl⟩
-
-/-- Any context support contained in the graph support avoids every retained
-fresh endpoint on that side. -/
-theorem contextAvoids_hiddenVariables
-    {concreteSupport contextSupport : List UnificationVar}
-    {aliases : List FreshAliasSequence.Alias}
-    (freshOutside : ∀ alias,
-      alias ∈ visibleAliases concreteSupport aliases →
-        freshVariable alias ∉ contextSupport) :
-    VariablesAvoid (hiddenVariables concreteSupport aliases) contextSupport := by
-  intro candidate contextMember hiddenMember
-  obtain ⟨alias, aliasMember, equality⟩ := List.mem_map.mp hiddenMember
-  exact freshOutside alias aliasMember (equality ▸ contextMember)
-
-/-- Assemble the source-facing graph package once the semantic hard
-presentations and the support inclusions have been established. -/
-def letGraphAliasPresentation
-    {start boundary : Supply}
-    {leftInterface rightInterface : List Equation}
-    {leftBodyContext rightBodyContext : Context}
-    {leftGraphSupport rightGraphSupport : List UnificationVar}
-    (leftGraphAliases rightGraphAliases : List FreshAliasSequence.Alias)
-    (leftGraphScoped : ScopedBy leftGraphSupport leftGraphAliases)
-    (rightGraphScoped : ScopedBy rightGraphSupport rightGraphAliases)
-    (leftFreshOutsideContext : ∀ alias,
-      alias ∈ visibleAliases (TypePM.unificationVars leftInterface)
-          leftGraphAliases →
-        freshVariable alias ∉ leftBodyContext.unificationVars)
-    (rightFreshOutsideContext : ∀ alias,
-      alias ∈ visibleAliases (TypePM.unificationVars rightInterface)
-          rightGraphAliases →
-        freshVariable alias ∉ rightBodyContext.unificationVars)
-    (leftFresh : ∀ alias,
-      alias ∈ visibleAliases (TypePM.unificationVars leftInterface)
-          leftGraphAliases →
-        (freshVariable alias).FreshIn start boundary)
-    (rightFresh : ∀ alias,
-      alias ∈ visibleAliases (TypePM.unificationVars rightInterface)
-          rightGraphAliases →
-        (freshVariable alias).FreshIn start boundary)
-    (leftPresentation : HardEquivalent
-      (EquationLists.addAliases
-        (visibleAliases (TypePM.unificationVars leftInterface)
-          leftGraphAliases) leftInterface)
-      (leftInterface ++ rightInterface))
-    (rightPresentation : HardEquivalent
-      (EquationLists.addAliases
-        (visibleAliases (TypePM.unificationVars rightInterface)
-          rightGraphAliases) rightInterface)
-      (leftInterface ++ rightInterface)) :
-    LetGraphAliasPresentation start boundary leftInterface rightInterface
-      leftBodyContext rightBodyContext := by
-  let leftAliases := visibleAliases
-    (TypePM.unificationVars leftInterface) leftGraphAliases
-  let rightAliases := visibleAliases
-    (TypePM.unificationVars rightInterface) rightGraphAliases
-  let leftHidden := hiddenVariables
-    (TypePM.unificationVars leftInterface) leftGraphAliases
-  let rightHidden := hiddenVariables
-    (TypePM.unificationVars rightInterface) rightGraphAliases
-  let interface : GraphAliasPresentation start boundary
-      leftInterface rightInterface :=
-    { leftHidden := leftHidden
-      rightHidden := rightHidden
-      leftHiddenFresh := hiddenVariables_fresh leftFresh
-      rightHiddenFresh := hiddenVariables_fresh rightFresh
-      leftAliases := leftAliases
-      rightAliases := rightAliases
-      leftPresentation := leftPresentation
-      rightPresentation := rightPresentation
-      leftAliasFresh := freshVariable_mem_hiddenVariables _ _
-      rightAliasFresh := freshVariable_mem_hiddenVariables _ _
-      leftScoped := scopedBy_visibleAliases leftGraphScoped
-      rightScoped := scopedBy_visibleAliases rightGraphScoped }
-  exact
-    { interface := interface
-      leftContextAvoids := contextAvoids_hiddenVariables
-        leftFreshOutsideContext
-      rightContextAvoids := contextAvoids_hiddenVariables
-        rightFreshOutsideContext }
 
 end FilteredGraphScopeFreshness
 

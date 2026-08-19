@@ -27,20 +27,4 @@ theorem wellFormedElaborationPrincipalityComplete_of_letSupportedAssemblyBridge
   wellFormedElaborationPrincipalityComplete_of_fullM2
     (fullM2Coherence_of_letSupportedAssemblyBridge bridge)
 
-/-- The concrete generic closure theorem plus the already completed ordinary
-step reduce full M2 to the derivation-aware `letE` assembly handler. -/
-theorem fullM2Coherence_of_letAssemblyHandler
-    (assemble : FullM2LetAssemblyHandler) :
-    FullM2Coherence :=
-  fullM2Coherence_of_letAssembly
-    supportedCertificateClosureAlignmentComplete assemble
-
-/-- Derivation-aware let assembly also yields the final freshness-safe
-principality completeness theorem. -/
-theorem wellFormedElaborationPrincipalityComplete_of_letAssemblyHandler
-    (assemble : FullM2LetAssemblyHandler) :
-    WellFormedElaborationPrincipalityComplete :=
-  wellFormedElaborationPrincipalityComplete_of_fullM2
-    (fullM2Coherence_of_letAssemblyHandler assemble)
-
 end TypePM.Source

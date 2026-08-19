@@ -214,6 +214,7 @@ every full build.
 #print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.reverseUnify_absorbingMGUSolver
 #print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.targets_not_mutualInstances
 #print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.badSupply_not_wellFormed
+#print axioms TypePM.Source.Supply.wellFormedFor_initialSupply
 #print axioms TypePM.Source.Generated.ScopedContextualEquivalent.blockAccepts_iff
 #print axioms TypePM.Source.Elaborates.sequential_crossAvoidance
 #print axioms TypePM.Source.Elaborates.scopedComparison
@@ -665,6 +666,12 @@ every full build.
 #print axioms TypePM.Source.M3Regression.elaborate_conditional_succeeds
 #print axioms TypePM.Source.M3Regression.primitive_type_mismatch_rejected
 #print axioms TypePM.Source.M3Regression.true_relational_soundness
+#print axioms TypePM.Source.PrimitiveSchemes.instantiate_add
+#print axioms TypePM.Source.PrimitiveSchemes.instantiate_append
+#print axioms TypePM.Source.PrimitiveSchemes.instantiate_member
+#print axioms TypePM.Source.PrimitiveSchemes.instantiate_deleteFirst
+#print axioms TypePM.Source.PrimitiveSchemes.instantiate_map
+#print axioms TypePM.Source.conditionalScheme_instantiate
 #print axioms TypePM.Runtime.RuntimeTyping.elaboration_exact
 #print axioms TypePM.Source.Typing.toRuntimeTyping
 #print axioms TypePM.Runtime.RuntimeTyping.coreSafety

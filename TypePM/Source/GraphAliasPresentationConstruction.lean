@@ -1,8 +1,5 @@
 import TypePM.Source.InterfaceAliasReallocation
 import TypePM.Source.SupportedCertificateClosureAlignment
-import TypePM.Source.WholeLetEntailedAssembly
-import TypePM.Source.FilteredGraphScopeFreshness
-import TypePM.Source.FilteredGraphSemanticHelpers
 
 /-!
 # Constructing the source-facing representative graph
