@@ -82,12 +82,11 @@ def mentionsPatterns (tracked before : Nat) : List Pattern → Bool
       mentionsPattern tracked before pattern ||
         mentionsPatterns tracked (before + patternBindingCount pattern) patterns
 
-/-- Clause captures are available to arm bodies after data-pattern binders.
-The next-matcher expression is evaluated in the matcher definition context
-and therefore introduces no binder shift. -/
+/-- Clause captures are prepended for both next-matcher expressions and arm
+bodies; data-pattern binders additionally precede captures in arm bodies. -/
 def mentionsClause (tracked : Nat) : MatcherClause → Bool
   | .mk header nextMatchers arms =>
-      mentions tracked nextMatchers ||
+      mentions (tracked + header.captureCount) nextMatchers ||
         mentionsArms tracked header.captureCount arms
 
 def mentionsClauses (tracked : Nat) : List MatcherClause → Bool
@@ -180,7 +179,8 @@ decreasing_by all_goals simp_wf <;> omega
 
 def checkClause (tracked : Nat) : MatcherClause → Bool
   | .mk header nextMatchers arms =>
-      check tracked nextMatchers && checkArms tracked header.captureCount arms
+      check (tracked + header.captureCount) nextMatchers &&
+        checkArms tracked header.captureCount arms
 termination_by clause => clause.complexity * 3 + 1
 decreasing_by all_goals simp_wf <;> omega
 
@@ -247,6 +247,30 @@ namespace Fix
 def bodyContext (domain codomain : Ty) (context : Context) : Context :=
   .mono domain :: .mono (.fn domain codomain) :: context
 
+/-- Matcher constructors consume their element matcher directionally, so the
+recursive constructor's parameter starts as a matcher slot rather than as an
+unconstrained ordinary type. -/
+def domain (body : Expr) (supply : Supply) : Ty :=
+  match body with
+  | .matcher _ => .slot (.var ⟨supply.cap⟩) (.var ⟨supply.ty⟩)
+  | _ => .var ⟨supply.ty⟩
+
+/-- A matcher-root fix has a statically known result shape.  Seeding that
+shape in the recursive self type is essential: nested `letE` blocks close
+before the outer fix equation is appended, so an unconstrained codomain would
+otherwise be prematurely unified with a `MatcherSlot`. -/
+def codomain (body : Expr) (supply : Supply) : Ty :=
+  match body with
+  | .matcher _ =>
+      .matcher (.var ⟨supply.cap + 1⟩) (.var ⟨supply.ty + 1⟩)
+  | _ => .var ⟨supply.ty + 1⟩
+
+/-- Supply after reserving the fix domain and codomain shape. -/
+def bodySupply (body : Expr) (supply : Supply) : Supply :=
+  match body with
+  | .matcher _ => ⟨supply.ty + 2, supply.cap + 2⟩
+  | _ => supply.nextTy 2
+
 end Fix
 
 /-- Assemble the constraint block produced by a unary monomorphic fix. -/
@@ -264,11 +288,11 @@ def elaborateFixUsing
     (context : Context) (body : Expr)
     (supply : Supply) : Option (Generated × Supply) := do
   if DirectSelf.check 1 body then
-    let domain : Ty := .var ⟨supply.ty⟩
-    let codomain : Ty := .var ⟨supply.ty + 1⟩
+    let domain := Fix.domain body supply
+    let codomain := Fix.codomain body supply
     let (generatedBody, next) ←
       elaborateBody (Fix.bodyContext domain codomain context) body
-        (supply.nextTy 2)
+        (Fix.bodySupply body supply)
     pure (Generated.fromFix domain codomain generatedBody, next)
   else
     none
@@ -307,10 +331,11 @@ inductive FixElaboratesUsing
       (direct : DirectSelf.Holds body)
       (bodyElaboration :
         BodyElaborates
-          (Fix.bodyContext (.var ⟨supply.ty⟩) (.var ⟨supply.ty + 1⟩) context)
-          body (supply.nextTy 2) generatedBody next) :
+          (Fix.bodyContext (Fix.domain body supply) (Fix.codomain body supply)
+            context)
+          body (Fix.bodySupply body supply) generatedBody next) :
       FixElaboratesUsing BodyElaborates context (.fixE body) supply
-        (Generated.fromFix (.var ⟨supply.ty⟩) (.var ⟨supply.ty + 1⟩)
+        (Generated.fromFix (Fix.domain body supply) (Fix.codomain body supply)
           generatedBody)
         next
 
@@ -346,10 +371,10 @@ theorem elaborateFixUsing_sound
       some (generated, next)) :
     FixElaboratesUsing BodyElaborates context (.fixE body) supply generated next := by
   by_cases direct : DirectSelf.check 1 body = true
-  · let domain : Ty := .var ⟨supply.ty⟩
-    let codomain : Ty := .var ⟨supply.ty + 1⟩
+  · let domain := Fix.domain body supply
+    let codomain := Fix.codomain body supply
     cases bodyResult : elaborateBody (Fix.bodyContext domain codomain context)
-        body (supply.nextTy 2) with
+        body (Fix.bodySupply body supply) with
     | none =>
         simp [elaborateFixUsing, direct, domain, codomain, bodyResult] at success
     | some output =>

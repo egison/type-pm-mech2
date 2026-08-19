@@ -308,14 +308,15 @@ argument位置，`letE`による別名，内側の`fixE`が外側の自己を取
 この構文検査は最終的な`Expr`／`Pattern`／`MatcherClause`／`MatcherArm`全体を相互に走査する．lambdaと
 `letE`のbodyでは1，value patternでは左側で生成済みのbinder数，`matchAll` bodyではpattern全体の
 binder数，matcher arm bodyではdata binder数とcapture数だけ追跡indexをずらす．next-matcher式は
-matcher定義環境で評価するのでclause binderによるずれを入れない．
+captureを前置したmatcher定義環境で評価するので，capture数だけ追跡indexをずらす．
 
-型生成ではfreshなdomainとcodomainを一つずつ割り当て，自己へ`domain → codomain`を単相schemeとして
-置き，本体結果とcodomainをhard等式で接続する．`elaborateFixUsing`／`FixElaboratesUsing`は本体規則を
+通常の型生成ではfreshなdomainとcodomainを一つずつ割り当てる．matcher literalが直下にある場合は，
+domainをfreshなcapabilityとtargetを持つmatcher slot，codomainをfreshなmatcher型として先に固定する．
+自己へ`domain → codomain`を単相schemeとして置き，本体結果とcodomainをhard等式で接続する．
+`elaborateFixUsing`／`FixElaboratesUsing`は本体規則を
 引数に取る合成点であり，M3規則に特殊化した`elaborateFix`／`FixElaborates`の実行健全性と，solver成功から
-独立した`FixTyping`を得る健全性を証明した．ただし現時点の特殊化はmatcher literal本体を拒否する．
-matcher literal側の合成点と再帰的dispatcherを結び，対応する関係的soundnessを証明するまで，
-matcher-root再帰および一般multiset matcherの静的型付けは未実装である．
+独立した`FixTyping`を得る健全性を証明した．M3規則に特殊化した入口はmatcher literal本体を拒否するが，
+再帰的M4 dispatcherはcallback版を使う．
 
 派生`match`の型付けは`M4MatchFirstTyping`に分離する．targetとmatcherを一度ずつ合成した後，各arm patternを
 空binding列からsource順に合成し，pattern targetと共通targetをhard等式で結ぶ．matcherは各armの
@@ -337,10 +338,13 @@ List型へcheckingする．最後のcatch-all，pattern constructorの浅い網�
 組み合わせる`ElaboratesFuel`として独立に定義する．実行成功からこの関係を得るsoundnessと，solver成功から
 公開`Typing`を得るsoundnessを証明済みである．
 
-Paper 1の7 clauseとsource-defined `list`を含む三つの正確なfixtureは，全構文の制約生成には成功する．ただし
-`listMatcherDefinition`のhard制約は，`fixE`の再帰codomainをmatcher literal型へ結ぶ等式を加えた時点で，
-next-matcherのslot要求から得た制約と衝突する．このため三fixtureの公開`infer`成功は未達である．残るM4課題は，
-再帰matcherの結果型と方向付きslot checkingを両立させる規則を定め，この閉包gapを解消することである．
+Paper 1の7 clauseとsource-defined `list`を含むfixtureでは，matcher-root `fixE`を通常の未確定関数として
+開始すると，内側の`letE`が閉じる時点でcodomainがmatcher slotへ誤って固定され，後から追加されるmatcher
+literal型と衝突していた．上記のmatcher専用domain／codomain形によりこの閉包gapを解消した．またcaptureを
+次matcher式のcontextへ前置する実際のscopeに合わせ，whole-value clauseの再帰呼出しをcapture 0，element
+matcher 1，自己2として固定した．小さい`Pattern.value`／`matchFirst`例は公開`M4.infer`の正確な結果と
+`M4.Typing`までkernel proofで接続済みである．大きいlist／multiset／closed fixtureについては実行可能solver
+の成功を確認したが，その長い制約解決traceをkernel回帰として固定する作業は残る．
 
 DESIGNの旧版ではpattern functionをM4の一覧に明記していなかったが，論文のP1/P2回帰をM0--M5に
 収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を

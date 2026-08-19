@@ -67,7 +67,7 @@ def shiftedPatternBody : Expr :=
 
 def shiftedClause : MatcherClause :=
   .mk .capture
-    (.app (.var 1) (.var 0))
+    (.app (.var 2) (.var 1))
     [.mk .var (.app (.var 3) (.var 2))]
 
 def shiftedClauseBody : Expr :=
@@ -79,6 +79,14 @@ theorem unary_body_context_exact
     Fix.bodyContext domain codomain context =
       Scheme.mono domain :: Scheme.mono (.fn domain codomain) :: context := by
   rfl
+
+theorem matcher_root_fix_shape_exact :
+    Fix.domain (.matcher []) ⟨3, 4⟩ =
+        .slot (.var ⟨4⟩) (.var ⟨3⟩) ∧
+      Fix.codomain (.matcher []) ⟨3, 4⟩ =
+        .matcher (.var ⟨5⟩) (.var ⟨4⟩) ∧
+      Fix.bodySupply (.matcher []) ⟨3, 4⟩ = ⟨5, 6⟩ := by
+  exact ⟨rfl, rfl, rfl⟩
 
 theorem direct_body_checked_exact :
     check 1 directBody = true := by
@@ -99,9 +107,9 @@ theorem pattern_shifts_checked_exact :
   simp [shiftedPatternBody, shiftedPattern, check, checkHead, checkPattern,
     checkPatterns, patternBindingCount, patternBindingCountList]
 
-/-- A next-matcher expression uses the definition environment.  An arm body
-has data variable at index zero, capture at index one, fix argument at index
-two, and recursive self at index three. -/
+/-- A next-matcher expression has capture at index zero, fix argument at one,
+and recursive self at two.  An arm body additionally has its data variable at
+index zero, shifting capture, argument, and self to one, two, and three. -/
 theorem clause_shifts_checked_exact :
     check 1 shiftedClauseBody = true := by
   simp [shiftedClauseBody, shiftedClause, check, checkHead, checkClauses,
@@ -136,7 +144,8 @@ theorem elaborate_direct_exact :
       some (directGenerated, ⟨4, 0⟩) := by
   simp [elaborateFix, directBody, directGenerated, DirectSelf.check,
     elaborateFixUsing, DirectSelf.checkHead, Fix.bodyContext, elaborate, Generated.fromFix,
-    Scheme.mono, Scheme.instantiate, Supply.nextTy]
+    Fix.domain, Fix.codomain, Fix.bodySupply, Scheme.mono,
+    Scheme.instantiate, Supply.nextTy]
 
 theorem close_direct_exact :
     (inferGeneratedUsing unify directGenerated).bind

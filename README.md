@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みのsource本体をfrozen interfaceとruntime表へ対応させる境界，private binderを持たないinline断片の全source構文上の展開，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定した．matcher-root再帰を含む統合M4 elaborationと，一般のprivate bindingを持つpattern function実行は未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みsource本体のfrozen interface，matcher clause header，user pattern，`matchAll`，派生surface構文`match`，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む全構文dispatcherを実装済みである．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定し，matcher-rootのsolver閉包gapを解消した．大きいPaper-1 fixtureのexact kernel推論回帰と，一般のprivate bindingを持つpattern function実行は未完了である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．検査済みinline pattern functionはsource展開後に同じ評価器で実行する．閉じた整数と再帰的tupleについては，実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．closure，primitive，matcherと探索状態，一般pattern functionへの型安全性拡張は未完了である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -301,26 +301,25 @@ whole・catchはvariable）と7個すべてのbody構文，静的網羅性を固
 内部の自然数は高階callback再帰の停止性をLeanへ示すためだけに用い，公開APIでは式の構文的な大きさから
 自動的に決める．`Pattern.value`，`matchAll`，`matchFirst`のpattern内式も同じdispatcherへ戻る．
 実行関数とは別に燃料付き関係`ElaboratesFuel`と燃料を隠す`Elaborates`，主要型の置換例を表す`Typing`を定義し，
-実行可能elaborationとinferenceのsoundnessをkernel proofで示した．Paper-1の`listMatcherDefinition`，
-`multisetDefinition`，`closedMultisetDefinition`はいずれも全構文の制約生成まで走査できる．ただし
-source-defined `list`の閉包では，単相`fixE`の再帰結果をmatcher型へ等置する制約と，next-matcherのslot要求から
-導かれる制約が衝突し，公開`infer`はまだ型を返さない．したがって完全なPaper-1 multiset推論は未完了であり，
-残る課題は再帰matcher結果と方向付きmatcher-slot checkingの接続規則である．
+実行可能elaborationとinferenceのsoundnessをkernel proofで示した．matcher literalが`fixE`直下にある場合は，
+自己を「matcher slotを受け，matcher値を返す関数」として最初から型付けする．これにより内側の`letE`が
+外側のmatcher型等式より先に閉じる際の誤ったslot固定を防ぐ．Paper-1の`listMatcherDefinition`，
+`multisetDefinition`，`closedMultisetDefinition`は公開`infer`で型を返すことを実行確認済みである．小さい
+value patternと`matchFirst`は正確な公開`infer`結果と`M4.Typing`をkernel proofで固定した．三つの大きい
+fixtureについて同じ保証を与える長いkernel制約解決traceは未追加である．
 
 `M4FixTyping`は，単項・単相の`fixE`だけを独立した型付けcheckpointとして追加する．本体contextは
 引数，自己，外側contextの順であり，de Bruijn index（最も内側を0とする変数番号）では引数が0，
 自己が1である．自己はapplicationの直接のcalleeとしてだけ使え，値として返す，argumentとして渡す，
 `letE`で別名にする，内側の`fixE`から外側の自己を参照する形は拒否する．検査は最終的な相互`Source`
 構文全体を走査し，lambdaと`letE`のbody，左から右のpattern binder，matcher armのdata binderとcaptureに
-応じて自己のindexをずらす．next-matcher式はmatcher定義環境で評価されるため，clause binderによるindexの
-ずれはない．正例は実行可能elaboration，関係的`FixElaborates`，solverを通した正確な推論結果，独立した
+応じて自己のindexをずらす．next-matcher式はcaptureを前置したmatcher定義環境で評価されるため，capture数だけ
+indexをずらす．正例は実行可能elaboration，関係的`FixElaborates`，solverを通した正確な推論結果，独立した
 `FixTyping`へ接続し，bare／alias／higher-order／mutual-styleの負例は`FixTyping`の不存在まで確認した．
 
-`elaborateFixUsing`と`FixElaboratesUsing`は本体のelaborationを引数に取る合成用の規則である．現在検証した
-`elaborateFix`はM3 elaboratorを本体に使うため，直接自己使用の検査を通るmatcher literalを本体に置いても
-`none`となる．matcher literal側には実行可能・関係的な合成用APIがあるが，再帰的なM4 dispatcherを組み，
-その全体の関係的健全性を
-証明するまでは，一般multiset matcherやmatcher-root再帰が型付け済みとは主張しない．
+`elaborateFixUsing`と`FixElaboratesUsing`は本体のelaborationを引数に取る合成用の規則である．M3に特殊化した
+`elaborateFix`は従来どおりmatcher literal本体を扱わないが，公開M4 dispatcherはcallback版を使って
+matcher-root再帰を全構文の実行可能・関係的規則へ接続する．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 
@@ -332,7 +331,7 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 
 | 番号 | 論文の結果 | 新体系での対応目標 | 現状 | module／theorem |
 |---|---|---|---|---|
-| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1--M3に加え，最終M4構文を再帰処理する`M4.infer`について`M4.infer_success_typing`を証明済み．Paper-1の再帰matcher fixtureは制約生成までは成功するがsolver閉包gapが残る | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing`，`TypePM/Source/M4RecursiveElaboration.lean`／`M4.infer_success_typing` |
+| 5.1 | Acceptance soundness | 公開`infer`が返した型に`Typing`導出が存在する | partial：M1--M3に加え，最終M4構文を再帰処理する`M4.infer`について`M4.infer_success_typing`を証明済み．matcher-rootのsolver閉包gapは解消し，小さいvalue pattern／`matchFirst`をexact `infer`と`Typing`へ接続済み．Paper-1の大きい三fixtureのkernel制約解決traceは未追加 | `TypePM/Inference.lean`／`Inference.infer_success_typing`，`TypePM/Source/Elaboration.lean`／`Source.Inference.infer_success_typing`，`TypePM/Source/M4RecursiveElaboration.lean`／`M4.infer_success_typing` |
 | 5.2 | Acceptance completeness | `Typing`が存在するprogramを公開`infer`が必ず受理する | partial：M1断片に加え，M2--M3の`letE`を含まない断片で`Source.Typing.infer_isSome_of_letFree`を証明済み．一般の`letE`は，公開推論が満たすfreshness条件を含む`WellFormedElaborationAcceptanceComplete`を仮定した形まで証明済みである | `TypePM/InferenceCompleteness.lean`／`Typing.infer_isSome`，`TypePM/Source/ElaborationCompleteness.lean`／`Source.Typing.infer_isSome_of_letFree`，`TypePM/Source/SupplyWellFormed.lean` |
 | 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片に加え，M2--M3の`letE`を含まない断片で受理同値と決定可能性を証明済み．一般の`letE`は`WellFormedElaborationAcceptanceComplete`を仮定した受理同値・決定可能性まで証明済みである | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，`TypePM/Source/ElaborationCompleteness.lean`，`TypePM/Source/SupplyWellFormed.lean` |
 | 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片に加え，M2--M3の`letE`を含まない断片で，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から同じ結論が従う条件付き定理まで証明済みである | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`TypePM/Source/Principality.lean`／`Source.PrincipalTyping.finiteRenamingEq_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete` |

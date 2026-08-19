@@ -50,7 +50,9 @@ def headOnlyClause : MatcherClause :=
 
 def valueConsClause : MatcherClause :=
   .mk (.ctor PatternCtor.cons [.capture, .hole])
-    (.app (.var 1) (.var 0))
+    -- The capture is prepended before next-matcher elaboration: capture 0,
+    -- element matcher 1, recursive multiset constructor 2.
+    (.app (.var 2) (.var 1))
     [.mk .var
       (.ifE (.prim .member [.var 1, .var 0])
         (sourceList [.prim .deleteFirst [.var 1, .var 0]])
