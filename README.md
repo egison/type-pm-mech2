@@ -29,7 +29,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M0 | 型，二種類の変数への代入，raw synthesis，局所checking | done | tuple of matchersのraw主要性と明示された要求型への変換まで検証済みである |
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
-| M3 | data constructor，pattern constructor，primitive，signature | partial | 4種類の宣言名，5 primitiveの有限な名前集合，data型の適用`Ty.data`，pattern capabilityの適用`Cap.con`を定義済みである．二種類の適用を代入・scheme・単一化・局所性・名前変更へ拡張し，同名・同引数数の単一化成功と名前・引数数不一致の拒否を検証済みである．宣言scheme，signature，source elaborationは未実装である |
+| M3 | data constructor，pattern constructor，primitive，signature | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，5 primitiveのscheme，Listの3 pattern scheme，有限signatureとその整合性検査を実装済みである．sourceのconstructor／primitive／if構文とelaborationは未実装である |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | not-started | patternとmatcher固有のsource構文は未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | not-started | value，評価関係，fuel付き評価器，非停止状態の不在は未定義である |
 
@@ -128,7 +128,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 
-## M3の名前・型基盤
+## M3の宣言基盤
 
 M3の宣言を実装する前段として，data型を作る名前，data値を作るconstructor名，patternの能力を表す
 名前，pattern constructor名をLean上でも別々の型にした．たとえばdataの`nil`とpatternの`nil`は
@@ -137,8 +137,13 @@ M3の宣言を実装する前段として，data型を作る名前，data値を�
 固定している．さらに，data型の引数付き適用`Ty.data`と，patternが提供する能力の引数付き適用`Cap.con`を
 追加した．この二つの構造は，二種類の変数への代入，多相scheme，単一化，有限support，変数名変更の
 全経路で扱われる．同じ名前で引数数も同じなら各引数を単一化し，名前または引数数が違えば拒否することを
-正負6件の回帰で確認した．constructorとprimitiveの型scheme，signature，source構文，評価規則はまだ
-与えていない．
+正負6件の回帰で確認した．
+
+BoolとListのdata constructor，`add`，`append`，`member`，`deleteFirst`，`map`，Listのpattern constructor
+`nil`，`cons`，`join`には，量化変数を含む正確なschemeを定義した．有限signatureの整合性検査は，名前の
+重複がないこと，schemeが閉じていること，data resultとpattern resultの名前・引数数がformer宣言と一致すること，
+primitive名とcanonical schemeが一致することを確認する．古い誤ったList capabilityの引数数を持つsignatureを
+拒否する負例もkernel proofで固定した．source構文，elaboration，評価規則は次のM3作業である．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 
@@ -232,7 +237,7 @@ M1の境界例とM2の明示的`let`例を除いて`not-started`である．15�
 |---|---|---|---|---|---|
 | P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | not-started | `MultisetExecution.list_and_multiset_cons_exact` |
 | P1-L02 | `$x :: #(x + 1) :: _` | `[1,2,5,6]`から`[1,5]`を返す | M3--M5 | not-started | `NonLinearPatternExecution.successor_pairs_exact` |
-| P1-L03 | `inductive pattern [a]`宣言 | `[]`，`::`，`++`のpattern signatureを受理する | M3 | not-started | `PatternDeclaration.list_pattern_wellFormed` |
+| P1-L03 | `inductive pattern [a]`宣言 | `[]`，`::`，`++`のpattern signatureを受理する | M3 | done（宣言）：Listの3 pattern schemeのwell-scopedness，閉性，正確な具体化，Paper 1 signature全体の整合性をkernel proofで検証済み | `Source.M3DeclarationsRegression.list_pattern_wellFormed`，`list_pattern_closed`，`list_cons_dual_instantiation_exact`，`paper1_signature_wellFormed` |
 | P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | not-started | `GeneralMultiset.multiset_definition_typing`と7 clause回帰 |
 | P1-L05 | 直接のmultiset `matchAll` | 三要素の`cons`結果を返し，全一貫確認を通る | M3--M5 | not-started | `MultisetExecution.cons_three_end_to_end` |
 | P1-L06 | `unconsWith m target` | matcher要求をslotとして持つ主要型を推論する | M4 | not-started | `MatcherDemand.unconsWith_infer_principal` |
