@@ -453,9 +453,10 @@ tupleの同じ要素数での子atom化，product matcherから`something`への
 後続moduleに残る．
 `Runtime/ClauseDispatch.lean`はこれらを論文のA-MATCHER境界へ接続する．pattern-patternのcapture式は
 照合を開始した側の環境で左から右へ評価し，選択armのbodyはdata binding，capture値，matcher定義環境を
-この順に連結した環境で評価する．次matcher式だけはmatcher定義環境で評価する．通常のheader不一致と
-全arm不一致だけが次clauseへ進み，選択armが空候補列を返した場合は正常な成功として後続arm／clauseを
-試さない．timeoutとstuckの伝播，不正なlist／tuple形，未試行suffixを持つmatcher cursor，branchの
+この順に連結した環境で評価する．次matcher式だけはmatcher定義環境で評価する．headerのpattern-pattern
+（patternを対象にするpattern）が不一致の場合だけ次clauseへ進む．headerが一致したclauseでは，全data armが
+不一致でも正常な空候補列としてclause選択を確定し，後続clauseへ進まない．選択armが空候補列を返した場合も
+同様である．timeoutとstuckの伝播，不正なlist／tuple形，未試行suffixを持つmatcher cursor，branchの
 source順を回帰で固定した．実行成功と，実行関数から独立して定義したclause／arm関係の双方向対応も
 証明済みである．multisetの7 clauseは，captureをdata patternへ混ぜず，論文に掲載された`$tgt` armと
 nil／cons armの個数・順序を保った完全な`MatcherClause`としてatomic dispatchを通る．
@@ -491,17 +492,18 @@ atom reducerで深さ優先探索を行い，各binding groupを元の環境の�
 
 inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡する一覧である．IDは
 `type-pm-paper1.tex`中の`lstlisting`出現順で固定する．M4のsource構文は定義済みだが，型付けとM5の
-評価器は未完成であるため，M1の境界例とM2の明示的`let`例を除いて`not-started`である．15個のlisting環境には，正負の対を分けると
+評価器と型付けの統合はlistingごとに進捗が異なる．実行例はsource定義をそのまま評価する回帰と，独立した
+評価関係`Eval`への接続を別々に記録する．15個のlisting環境には，正負の対を分けると
 19個の独立したprogramまたは宣言が含まれる．一つの行に複数のprogramがある場合も，各々を
 別の回帰として検証する．
 
 | ID | 掲載内容 | 新体系で固定する結果 | 段階 | 状態 | 予定回帰theorem |
 |---|---|---|---|---|---|
-| P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | partial：隠れたruntime primitiveではなくnil／cons／join／catch-allの4-clause source matcherとして`list`依存を定義し，shape検査を固定済み．listing全体の統合型付けと正確な結果列は未完了 | `Source.Paper1Programs.listMatcherDefinition`，`list_matcher_clause_shapes_checked`，`MultisetExecution.list_and_multiset_cons_exact` |
-| P1-L02 | `$x :: #(x + 1) :: _` | `[1,2,5,6]`から`[1,5]`を返す | M3--M5 | not-started | `NonLinearPatternExecution.successor_pairs_exact` |
+| P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | partial：隠れたruntime primitiveではなくsource matcherとして定義し，shape検査を固定済み．exact 7-clause multisetを評価し，`[1,2,3]`から`(1,[2,3])`，`(2,[1,3])`，`(3,[1,2])`をこの順で得ることと独立した`Eval`導出をkernel proofで検証済み．listing全体の統合型付けは未完了 | `Source.Paper1Programs.listMatcherDefinition`，`list_matcher_clause_shapes_checked`，`Runtime.Paper1ExecutionRegression.multiset_cons_preserves_three_source_order_choices_exact`，`multiset_cons_has_independent_derivation` |
+| P1-L02 | `$x :: #(x + 1) :: _` | `[1,2,5,6]`から`[1,5]`を返す | M3--M5 | partial：exact source multiset上の実行結果，独立した`Eval`導出，有限fuelの存在をkernel proofで検証済み．listing全体の統合型付けは未完了 | `Runtime.Paper1ExecutionRegression.successor_pairs_exact`，`successor_pairs_has_independent_derivation`，`successor_pairs_has_finite_fuel` |
 | P1-L03 | `inductive pattern [a]`宣言 | `[]`，`::`，`++`のpattern signatureを受理する | M3 | done（宣言）：Listの3 pattern schemeのwell-scopedness，閉性，正確な具体化，Paper 1 signature全体の整合性をkernel proofで検証済み | `Source.M3DeclarationsRegression.list_pattern_wellFormed`，`list_pattern_closed`，`list_cons_dual_instantiation_exact`，`paper1_signature_wellFormed` |
-| P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | partial：7個すべてを実際の`MatcherClause`としてatomic dispatchし，順序・環境・shapeを検証済み．さらに`member`／`deleteFirst`，nested `matchAll`，2本の`map`，tuple-pattern lambda，whole-value `match`を含む論文本体を省略なしのsource ASTとして固定した．定義全体の統合型付けと終端までの評価は未完了 | `Source.Paper1Programs.multisetDefinition`，`multiset_clause_shapes_checked`，`Runtime.ClauseDispatchRegression`の7 clause回帰，`GeneralMultiset.multiset_definition_typing` |
-| P1-L05 | 直接のmultiset `matchAll` | 三要素の`cons`結果を返し，全一貫確認を通る | M3--M5 | not-started | `MultisetExecution.cons_three_end_to_end` |
+| P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | partial：7個すべてを実際の`MatcherClause`として保持し，順序・環境・shapeを検証済み．さらに`member`／`deleteFirst`，nested `matchAll`，2本の`map`，tuple-pattern lambda，whole-value `match`を含む論文本体を省略なしのsource ASTとして固定した．このexact定義でcons，join，successor value patternを終端まで評価済みだが，定義全体の統合型付けは未完了 | `Source.Paper1Programs.multisetDefinition`，`multiset_clause_shapes_checked`，`Runtime.Paper1ExecutionRegression` |
+| P1-L05 | 直接のmultiset `matchAll` | 三要素の`cons`結果を返し，全一貫確認を通る | M3--M5 | partial：exact 7-clause source multisetを使う`evalFuel`等式と独立した`Eval`導出で，三つの結果とsource順を検証済み．統合型付けと型安全性への接続は未完了 | `Runtime.Paper1ExecutionRegression.multiset_cons_preserves_three_source_order_choices_exact`，`multiset_cons_has_independent_derivation` |
 | P1-L06 | `unconsWith m target` | matcher要求をslotとして持つ主要型を推論する | M4 | not-started | `MatcherDemand.unconsWith_infer_principal` |
 | P1-L07 | `unconsWith`の正負二呼出し | `multiset something`は受理し，bare `something`は宣言的に拒否する | M4 | not-started | `MatcherDemand.unconsWith_multiset_accepted`，`unconsWith_something_not_typable` |
 | P1-L08 | 共有lambda domainの二順序 | **新仕様では両順序を受理する**．旧論文の片方拒否は更新対象である | M1 | done：両順序が同じ型で受理される実行結果と`Typing`導出をkernel proofで固定済み | `M1BoundaryRegression.infer_useFirst_exact`，`infer_applicationFirst_exact`，`accepted_orders_same_target` |

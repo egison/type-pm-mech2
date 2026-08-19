@@ -16,9 +16,10 @@ bindings, capture values, and the matcher definition environment are then
 concatenated in that order for the selected arm body.  The expression for the
 next matchers is evaluated in the matcher definition environment alone.
 
-Only a pattern-pattern mismatch, or the normal failure of every data-pattern
-arm, advances to the next clause.  Once an arm header matches, an empty list of
-decompositions is a successful hit and therefore stops both ordered searches.
+Only a pattern-pattern mismatch advances to the next clause.  Once a pattern
+header matches, failure of every data-pattern arm is the normal empty matching
+result and must not fall through to a less specific pattern clause.  Likewise,
+an arm body returning an empty decomposition list stops both ordered searches.
 `timeout` and `stuck` are propagated by `FuelResult.bind`.
 -/
 
@@ -66,6 +67,14 @@ def tryMatcherArm
                           | none => .stuck
                           | some branches => .ok (.hit branches)
 
+/-- A selected pattern clause owns the atom.  Exhausting its data arms is
+therefore a successful reduction with no matching branches, not permission to
+try a later pattern clause. -/
+def closeMatcherArmsResult :
+    DispatchResult MatchingBranches → DispatchResult MatchingBranches
+  | .miss => .hit []
+  | .hit branches => .hit branches
+
 /-- Try one matcher clause.  Pattern-pattern captures are evaluated
 left-to-right in the atom environment before ordered arm dispatch starts. -/
 def tryMatcherClause
@@ -80,10 +89,11 @@ def tryMatcherClause
           FuelResult.bind
             (FuelResult.traverse (eval atomEnvironment) dispatch.captures)
             fun captureValues =>
-              firstHit
-                (tryMatcherArm eval matcherEnvironment captureValues
-                  dispatch.holes nextMatchers target)
-                arms
+              FuelResult.map closeMatcherArmsResult
+                (firstHit
+                  (tryMatcherArm eval matcherEnvironment captureValues
+                    dispatch.holes nextMatchers target)
+                  arms)
 
 /-- Dispatch a source-ordered clause suffix. -/
 def dispatchMatcherClauses
@@ -193,9 +203,10 @@ inductive MatcherClauseDispatches
       (capturesEval : FuelResult.Traverses (eval atomEnvironment)
         dispatch.captures captureValues)
       (armsDispatch : MatcherArmsDispatch eval matcherEnvironment captureValues
-        dispatch.holes nextMatchers target arms result) :
+        dispatch.holes nextMatchers target arms armsResult) :
       MatcherClauseDispatches eval atomEnvironment matcherEnvironment pattern
-        target (.mk header nextMatchers arms) result
+        target (.mk header nextMatchers arms)
+          (closeMatcherArmsResult armsResult)
 
 /-- Independent first-matching-clause relation. -/
 inductive MatcherClausesDispatch
@@ -338,7 +349,10 @@ theorem tryMatcherClause_eq_ok_iff
         | some dispatch =>
             simp only [headerMatch] at success
             rw [FuelResult.bind_eq_ok_iff] at success
-            rcases success with ⟨captureValues, capturesEval, armResult⟩
+            rcases success with ⟨captureValues, capturesEval, continued⟩
+            rw [FuelResult.map_eq_ok_iff] at continued
+            rcases continued with ⟨armsResult, armResult, output⟩
+            subst result
             exact .matched (inspectPatternPattern_sound headerMatch)
               ((FuelResult.traverse_eq_ok_iff _ _ _).mp capturesEval)
               ((firstHit_arms_eq_ok_iff _ _ _ _ _ _ _ _).mp armResult)
@@ -351,7 +365,8 @@ theorem tryMatcherClause_eq_ok_iff
               (FuelResult.traverse_eq_ok_iff _ _ _).mpr capturesEval
             have armsRan :=
               (firstHit_arms_eq_ok_iff _ _ _ _ _ _ _ _).mpr armsDispatch
-            simp [tryMatcherClause, inspected, evaluated, armsRan]
+            simp [tryMatcherClause, inspected, evaluated, armsRan,
+              closeMatcherArmsResult]
 
 theorem dispatchMatcherClauses_eq_ok_iff
     (eval : ValueEnvironment → Expr → FuelResult Value)

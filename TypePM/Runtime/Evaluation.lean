@@ -212,9 +212,10 @@ mutual
         (headerMatch : PatternPatternMatches header pattern dispatch)
         (capturesEval : Evals atomEnvironment dispatch.captures captureValues)
         (armsDispatch : EvalMatcherArmsDispatch matcherEnvironment captureValues
-          dispatch.holes nextMatchers target arms result) :
+          dispatch.holes nextMatchers target arms armsResult) :
         EvalMatcherClauseDispatches atomEnvironment matcherEnvironment
-          pattern target (.mk header nextMatchers arms) result
+          pattern target (.mk header nextMatchers arms)
+            (closeMatcherArmsResult armsResult)
 
   /-- Source-ordered first-success clause dispatch. -/
   inductive EvalMatcherClausesDispatch :

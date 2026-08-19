@@ -48,6 +48,7 @@ import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
 import TypePM.Runtime.MatchFirstRegression
 import TypePM.Runtime.PatternFunctionEvaluationRegression
+import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
@@ -485,6 +486,19 @@ every full build.
 #print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_has_independent_derivation
 #print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unknown_definition_is_stuck
 #print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.private_binding_definition_is_stuck
+#print axioms TypePM.Runtime.Value.eq_of_toGround?_eq_some
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_ground_projection_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_ground_projection_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_ground_projection_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_enumerates_all_prefixes_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_preserves_three_source_order_choices_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_exact
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_independent_derivation
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_independent_derivation
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_independent_derivation
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_finite_fuel
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_finite_fuel
+#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_finite_fuel
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
@@ -496,6 +510,8 @@ every full build.
 #print axioms TypePM.Runtime.tryMatcherArm_eq_ok_iff
 #print axioms TypePM.Runtime.firstHit_arms_eq_ok_iff
 #print axioms TypePM.Runtime.tryMatcherClause_eq_ok_iff
+#print axioms TypePM.Runtime.ClauseDispatchRegression.all_data_arm_mismatch_is_normal_empty_result
+#print axioms TypePM.Runtime.ClauseDispatchRegression.selected_pattern_clause_does_not_fall_through_after_data_mismatch
 #print axioms TypePM.Runtime.dispatchMatcherClauses_eq_ok_iff
 #print axioms TypePM.Runtime.reduceMatcherAtom_hit_iff
 #print axioms TypePM.Runtime.ClauseDispatchRegression.nil_clause_complete_dispatch_exact

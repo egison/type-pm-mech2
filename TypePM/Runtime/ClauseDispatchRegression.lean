@@ -94,7 +94,8 @@ def joinPattern : Pattern := .ctor PatternCtor.join [.var, .wild]
 
 macro "reduce_multiset_dispatch" : tactic =>
   `(tactic|
-    simp [tryMatcherClause, dispatchMatcherClauses, firstHit,
+    simp [tryMatcherClause, closeMatcherArmsResult,
+      dispatchMatcherClauses, firstHit,
       tryMatcherArm, inspectPatternPattern, inspectPatternPatterns,
       matchValueDataPattern, matchValueDataPatterns,
       PatternDispatch.empty, PatternDispatch.append,
@@ -213,6 +214,22 @@ theorem data_mismatch_alone_advances_to_next_arm :
         [[⟨.tuple [], elementMatcher, .int 1⟩],
           [⟨.tuple [], elementMatcher, .int 2⟩]]) := by
   simp only [firstArmMissClause]
+  reduce_multiset_dispatch
+
+def allDataArmsMissClause : MatcherClause :=
+  .mk catchAllHeader nextOne [.mk (.ctor DataCtor.nil []) bodyEmpty]
+
+theorem all_data_arm_mismatch_is_normal_empty_result :
+    tryMatcherClause shapeEval [] [] (.tuple []) list12
+        allDataArmsMissClause = .ok (.hit []) := by
+  simp only [allDataArmsMissClause]
+  reduce_multiset_dispatch
+
+theorem selected_pattern_clause_does_not_fall_through_after_data_mismatch :
+    dispatchMatcherClauses shapeEval [] []
+        [allDataArmsMissClause, laterCatchClause] (.tuple []) list12 =
+      .ok (.hit []) := by
+  simp only [allDataArmsMissClause, laterCatchClause]
   reduce_multiset_dispatch
 
 def emptyHitClause : MatcherClause :=

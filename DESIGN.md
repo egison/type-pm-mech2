@@ -407,6 +407,11 @@ header側だけに置く．
 規則不足`stuck`は後続候補で隠さず伝播する．実行関数と独立した順序付き関係の双方向対応，および
 候補ごとの一歩がstuckしない場合のdispatch全体のno-stuckを証明する．
 
+matcher clauseの境界では，headerの`PPat`（patternを対象にするpattern）が不一致の場合だけ次clauseを
+試す．一度headerが一致したらそのclauseが選択され，全`DPat`（dataを対象にするpattern）armが不一致でも
+正常な空候補列を返して後続clauseへは進まない．これにより，例えばlistのcons clauseがnil分解を0個返す
+場合にcatch-allへ誤ってフォールスルーすることを防ぐ．実行関数と独立したclause関係は同じ境界を持つ．
+
 `Runtime/Values.lean`は，M4で確定した`Source.Expr`と`Source.MatcherClause`に対する完全なruntime
 valueを定義する．data constructorの子，tuple要素，closure環境は通常の`List`でsource順を保ち，
 探索分岐の重複除去には利用しない．function closureは通常／再帰のtag，定義時環境，bodyを保持する．
@@ -529,6 +534,11 @@ P1-L04の7-clause `multiset`は，`member`／`deleteFirst`，nested `matchAll`�
 `map`，tuple-pattern lambda，whole-valueの派生`match`を含めて`Source/Paper1Programs.lean`へ
 記述する．このASTを静的型付けと動的評価の両方からimportし，短縮したcallback fixtureを定義本体の
 代用にしない．
+
+`Runtime/Paper1ExecutionRegression.lean`は，このsource定義をoracleや専用runtime primitiveへ
+置き換えずに評価する．listのjoinは`[1,2,3]`の全4 prefix分解をsource順に，multisetのconsは三つの
+位置別選択をsource順に返す．successor value patternは`[1,2,5,6]`から`[1,5]`を返す．各結果は
+kernelで検査する正確な`evalFuel`等式と独立した`Eval`導出へ接続する．
 
 追跡は次の五段階で行う．
 

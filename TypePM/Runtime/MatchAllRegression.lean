@@ -81,7 +81,7 @@ private theorem head_atom_reduces :
         [⟨.var, .something, .int 1⟩]], []⟩ := by
   apply EvalAtomReduces.matcher
   apply EvalMatcherClausesDispatch.hit
-  apply EvalMatcherClauseDispatches.matched
+  apply EvalMatcherClauseDispatches.matched (armsResult := .hit _)
   · exact .ctor (.cons .hole (.cons .wild .nil))
   · exact .nil
   · apply EvalMatcherArmsDispatch.hit
@@ -108,7 +108,7 @@ private theorem catch_all_atom_reduces :
   apply EvalMatcherClausesDispatch.skip
   · exact .miss rfl
   · apply EvalMatcherClausesDispatch.hit
-    apply EvalMatcherClauseDispatches.matched
+    apply EvalMatcherClauseDispatches.matched (armsResult := .hit _)
     · exact .hole
     · exact .nil
     · apply EvalMatcherArmsDispatch.hit

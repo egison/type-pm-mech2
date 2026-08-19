@@ -227,6 +227,61 @@ mutual
 
 end
 
+mutual
+
+  /-- A successful ground projection reconstructs the original runtime value.
+  This is the converse direction needed to turn executable ground observations
+  into exact equalities of complete runtime values. -/
+  theorem eq_of_toGround?_eq_some : ∀ {value : Value} {ground : GroundValue},
+      toGround? value = some ground → value = ofGround ground
+    | .int value, ground, success => by
+        simp [toGround?] at success
+        subst ground
+        rfl
+    | .data constructor arguments, ground, success => by
+        cases projected : valuesToGroundValues? arguments with
+        | none => simp [toGround?, projected] at success
+        | some groundArguments =>
+            simp [toGround?, projected] at success
+            subst ground
+            simp [ofGround,
+              eq_of_valuesToGroundValues?_eq_some projected]
+    | .tuple items, ground, success => by
+        cases projected : valuesToGroundValues? items with
+        | none => simp [toGround?, projected] at success
+        | some groundItems =>
+            simp [toGround?, projected] at success
+            subst ground
+            simp [ofGround,
+              eq_of_valuesToGroundValues?_eq_some projected]
+    | .closure _ _ _, _, success => by simp [toGround?] at success
+    | .matcherV _ _ _, _, success => by simp [toGround?] at success
+    | .something, _, success => by simp [toGround?] at success
+
+  theorem eq_of_valuesToGroundValues?_eq_some :
+      ∀ {values : List Value} {grounds : GroundValues},
+        valuesToGroundValues? values = some grounds →
+          values = groundValuesToValues grounds
+    | [], grounds, success => by
+        simp [valuesToGroundValues?] at success
+        subst grounds
+        rfl
+    | head :: tail, grounds, success => by
+        cases headProjected : toGround? head with
+        | none => simp [valuesToGroundValues?, headProjected] at success
+        | some groundHead =>
+            cases tailProjected : valuesToGroundValues? tail with
+            | none =>
+                simp [valuesToGroundValues?, headProjected, tailProjected] at success
+            | some groundTail =>
+                simp [valuesToGroundValues?, headProjected, tailProjected] at success
+                subst grounds
+                simp [groundValuesToValues,
+                  eq_of_toGround?_eq_some headProjected,
+                  eq_of_valuesToGroundValues?_eq_some tailProjected]
+
+end
+
 theorem ofGround_injective : Function.Injective ofGround := by
   intro left right equality
   have projected := congrArg toGround? equality
