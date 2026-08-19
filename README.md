@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え．sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4構文完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約に加え，実行式を持たないclause構造と順序検査を実装済みである．pattern function本体，freeze checker，matcher clause本体，型推論，`Source.Expr`への接続は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，成功／fuel切れ／stuckを区別する共通結果型，newest-first環境，順序付き深さ優先探索の実行手続きと関係的仕様は実装済みである．value，評価関係，matchingの一歩規則，型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索に加え，整数・data constructor・tupleだけからなる閉じたground dataと5 primitiveの実行・独立関係仕様を実装済みである．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -149,8 +149,8 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 M3の宣言を実装する前段として，data型を作る名前，data値を作るconstructor名，patternの能力を表す
 名前，pattern constructor名をLean上でも別々の型にした．たとえばdataの`nil`とpatternの`nil`は
 同じ綴りを持てるが，誤って互いのlookupに渡せない．また，論文のmultiset matcherが使う
-`add`，`append`，`member`，`deleteFirst`，`map`を有限な`PrimOp`として列挙した．この段階では名前だけを
-固定している．さらに，data型の引数付き適用`Ty.data`と，patternが提供する能力の引数付き適用`Cap.con`を
+`add`，`append`，`member`，`deleteFirst`，`map`を有限な`PrimOp`として列挙した．さらに，data型の
+引数付き適用`Ty.data`と，patternが提供する能力の引数付き適用`Cap.con`を
 追加した．この二つの構造は，二種類の変数への代入，多相scheme，単一化，有限support，変数名変更の
 全経路で扱われる．同じ名前で引数数も同じなら各引数を単一化し，名前または引数数が違えば拒否することを
 正負6件の回帰で確認した．
@@ -166,7 +166,8 @@ primitive名とcanonical schemeが一致することを確認する．古い誤�
 引数は通常のapplicationと同じ`Generated.fromApp`制約を左から順に積み重ねる．宣言にない
 名，引数数の不一致，引数型の不一致を拒否し，Boolの二つのconstructorとListの`nil`の
 正確な公開推論結果，List `cons`，`add`，`ifE`の生成成功，推論成功からの関係的
-`Typing`を`Source/M3Regression.lean`で固定した．評価規則はM5で追加する．
+`Typing`を`Source/M3Regression.lean`で固定した．M5のground-data primitive規則も追加済みだが，
+source式の評価規則にはまだ接続していない．
 
 ## M4のfrozen signature基盤
 
@@ -283,6 +284,16 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 証明した．最初の等しい値だけを除く関係`DeletesFirst`についても，成功時と不在時の実行結果を
 特徴付けた．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
 `not-started`のままとする．
+
+`Runtime/GroundValue.lean`は，整数，data constructor適用，tupleを再帰的に持つ`GroundValue`を
+定義する．BoolとListにはcanonicalな構築関数と，全入力に`some`または`none`を返すlist viewを与えた．
+この型はclosureとmatcherを意図的に含まず，完全なruntime valueではない．
+`Runtime/GroundPrimitive.lean`はこの範囲で5個の`PrimOp`を実行し，不正な個数・形の引数を
+`stuck`として明示する．`map`だけは将来の関数適用をcallbackとして受け取り，左から右の順序と
+`timeout`／`stuck`を保存する．`Runtime/GroundPrimitiveAdequacy.lean`では各操作の独立した関係仕様を
+定義し，実行成功とのadequacyとcompletenessを双方向に証明した．append，memberの在／不在，重複を
+含むdeleteFirst，map順序，Bool/List encoding，異常引数とcallback失敗はexact regressionで固定済みである．
+ただし，matcher clauseのdispatchや`Source.Expr`の評価はまだ実装していない．
 
 ## 論文1のcode listing inventory
 

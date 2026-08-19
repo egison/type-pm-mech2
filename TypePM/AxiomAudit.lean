@@ -26,6 +26,7 @@ import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
+import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M3Regression
 import TypePM.GeneralizationTransport
@@ -289,6 +290,27 @@ every full build.
 #print axioms TypePM.Runtime.DepthFirstSearchRegression.depth_first_order_exact
 #print axioms TypePM.Runtime.DepthFirstSearchRegression.successful_run_has_relational_derivation
 #print axioms TypePM.Runtime.DepthFirstSearchRegression.safe_search_never_stuck
+#print axioms TypePM.Runtime.GroundValue.viewList_buildList
+#print axioms TypePM.Runtime.EncodesList.view_iff
+#print axioms TypePM.Runtime.GroundPrimitive.evalAdd_adequate
+#print axioms TypePM.Runtime.GroundPrimitive.evalAdd_complete
+#print axioms TypePM.Runtime.GroundPrimitive.evalAppend_adequate
+#print axioms TypePM.Runtime.GroundPrimitive.evalAppend_complete
+#print axioms TypePM.Runtime.GroundPrimitive.evalMember_adequate
+#print axioms TypePM.Runtime.GroundPrimitive.evalMember_complete
+#print axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_adequate
+#print axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_complete
+#print axioms TypePM.Runtime.GroundPrimitive.evalMap_adequate
+#print axioms TypePM.Runtime.GroundPrimitive.evalMap_complete
+#print axioms TypePM.Runtime.GroundPrimitive.eval_eq_ok_iff
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.append_exact
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.member_present_is_true
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.member_absent_is_false
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.deleteFirst_duplicate_exact
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_preserves_order
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.malformed_list_view_fails
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.append_non_list_stuck
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_timeout_propagates
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup

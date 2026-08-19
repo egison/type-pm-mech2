@@ -112,6 +112,10 @@ import TypePM.Runtime.Environment
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearch
 import TypePM.Runtime.DepthFirstSearchRegression
+import TypePM.Runtime.GroundValue
+import TypePM.Runtime.GroundPrimitive
+import TypePM.Runtime.GroundPrimitiveAdequacy
+import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.AxiomAudit

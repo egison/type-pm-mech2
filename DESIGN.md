@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，実行式を持たないclause構造と順序検査は実装済み．pattern，`matchAll`，matcher clause本体，型推論，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索の実行・関係仕様は実装済み．value，評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索，閉じたground dataと5 primitiveの実行・独立関係仕様・双方向対応は実装済み．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -313,6 +313,15 @@ indexのずれ，既存環境の末尾への追加に対するlookup保存を証
 `depthFirstFuel`の成功から関係的`DepthFirst`を得る健全性，有限な関係導出が十分なfuelで成功する
 完全性，fuelを増やしても成功結果が変わらないこと，各状態の一歩が`stuck`しなければ
 探索全体も`stuck`しないことを証明する．このmoduleは後続のmatching stateの具体定義に依存しない．
+
+`Runtime/GroundValue.lean`は，整数，data constructor適用，tupleからなる再帰的な閉じた値だけを
+扱う．Bool/Listのcanonical constructorとlist view/buildを持つが，closure，matcher，matching stateは
+後続の一般runtime valueへ残す．`Runtime/GroundPrimitive.lean`は，`add`，`append`，`member`，
+`deleteFirst`，callbackを受け取る`map`をこのground fragment上で実行する．不正引数は`stuck`となり，
+`map` callbackの`timeout`と`stuck`は左から右へ伝播する．各操作には実行関数を参照しない関係仕様を
+別に定義し，成功についてadequacyとcompletenessを個別および`PrimOp` dispatch全体で証明済みである．
+`deleteFirst`の最初の出現だけを除く関係は`Runtime.OrderedChoice`の`DeletesFirst`を再利用する．
+これらはprimitive単体のdelta規則であり，完全な`Expr` evaluatorやmatcher evaluatorの主張ではない．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な
