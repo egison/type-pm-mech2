@@ -259,7 +259,9 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 `Runtime/OrderedChoice.lean`では，完全なmatcher評価器に先立ち，`$ :: $`が使う位置ごとの
 要素選択，`$ ++ $`が使う8通りの順序付き分割，`#$val :: $`が使う最初の出現の除去を
 実装した．三要素の正確な列挙順と，重複値を持つ別位置の分岐を統合しないことはkernel proofで
-固定済みである．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
+固定済みである．さらに，位置を一つ除く関係`RemovesOne`と，入力位置を左右へ割り当てる関係
+`Splits`を独立に定義し，実行可能な列挙中のmembershipとこれらの関係が同値であることを双方向に
+証明した．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
 `not-started`のままとする．
 
 ## 論文1のcode listing inventory

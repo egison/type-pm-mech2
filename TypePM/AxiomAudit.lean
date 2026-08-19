@@ -22,6 +22,7 @@ import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoiceRegression
+import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -250,3 +251,7 @@ every full build.
 #print axioms TypePM.Runtime.OrderedChoiceRegression.split_duplicate_positions_preserved
 #print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_present_once
 #print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_absent
+#print axioms TypePM.Runtime.mem_chooseOne_iff
+#print axioms TypePM.Runtime.mem_splitAll_iff
+#print axioms TypePM.Runtime.RemovesOne.perm
+#print axioms TypePM.Runtime.Splits.perm

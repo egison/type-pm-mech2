@@ -103,6 +103,7 @@ import TypePM.Source.MatcherPattern
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoice
 import TypePM.Runtime.OrderedChoiceRegression
+import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.AxiomAudit
 
 /-!
