@@ -21,6 +21,7 @@ private def representative : TyVar := ⟨3⟩
 private def valueStart : Supply := ⟨1, 0⟩
 private def valueFinish : Supply := ⟨4, 0⟩
 private def context : Context := [.mono (.var inherited)]
+private def signature : Signature := Paper1Signature.signature
 
 private theorem inherited_ne_representative :
     inherited ≠ representative := by decide
@@ -65,15 +66,17 @@ private def valueGenerated : Generated :=
 /-- The value block at the obstructing inner `let` is produced by an actual
 source elaboration from a well-formed starting supply. -/
 theorem value_elaborates :
-    Elaborates context valueExpression valueStart
+    Elaborates signature context valueExpression valueStart
       valueGenerated valueFinish := by
   have varDerivation := Elaborates.var (supply := Supply.mk 2 0)
+    (signature := signature)
     (context := [.mono (.var ⟨1⟩), .mono (.var inherited)])
     (index := 1) (by rfl)
   have function := Elaborates.lam
+    (signature := signature)
     (context := [.mono (.var inherited)])
     (supply := Supply.mk 1 0) varDerivation
-  have argument : Elaborates [.mono (.var inherited)] (.lit 0) ⟨2, 0⟩
+  have argument : Elaborates signature [.mono (.var inherited)] (.lit 0) ⟨2, 0⟩
       ⟨.int, [], []⟩ ⟨2, 0⟩ := .lit
   simpa [context, valueExpression, valueGenerated, Scheme.instantiate_mono,
     Supply.nextTy, valueStart, valueFinish, inherited, representative] using
@@ -457,7 +460,7 @@ private def letExpression : Expr :=
 /-- The first obstructing closure is actually selected by a complete source
 `let` derivation. -/
 theorem inherited_let_elaborates :
-    Elaborates context letExpression valueStart
+    Elaborates signature context letExpression valueStart
       (Generated.fromLet
         (context.interfaceEquations inheritedClosure.substitution)
         emptyBody)
@@ -468,7 +471,7 @@ theorem inherited_let_elaborates :
         valueFinish :=
     value_elaborates.letBodySupply_eq inheritedClosure
       inheritedClosure_absorbing valueStart_wellFormed
-  have body : Elaborates
+  have body : Elaborates signature
       ((context.applyFree inheritedClosure.substitution).generalize
           inheritedClosure.target ::
         context.applyFree inheritedClosure.substitution)
@@ -480,7 +483,7 @@ theorem inherited_let_elaborates :
 /-- The opposite representative occurs in a second derivation of the same
 source `let`, at the same well-formed start and finish. -/
 theorem representative_let_elaborates :
-    Elaborates context letExpression valueStart
+    Elaborates signature context letExpression valueStart
       (Generated.fromLet
         (context.interfaceEquations representativeClosure.substitution)
         emptyBody)
@@ -491,7 +494,7 @@ theorem representative_let_elaborates :
         valueFinish :=
     value_elaborates.letBodySupply_eq representativeClosure
       representativeClosure_absorbing valueStart_wellFormed
-  have body : Elaborates
+  have body : Elaborates signature
       ((context.applyFree representativeClosure.substitution).generalize
             representativeClosure.target ::
         context.applyFree representativeClosure.substitution)

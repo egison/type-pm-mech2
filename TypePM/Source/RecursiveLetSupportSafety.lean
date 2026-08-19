@@ -436,10 +436,10 @@ is exactly what is needed to derive body avoidance; constructing the complete
 source-safe closure alignment additionally requires the support and alias
 ordering certificates recorded below. -/
 theorem generatedAvoids_earlierHidden
-    {context : Context} {expression : Expr}
+    {signature : Signature} {context : Context} {expression : Expr}
     {valueStart bodyStart finish : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression bodyStart generated finish)
+    (derivation : Elaborates signature context expression bodyStart generated finish)
     {hidden : List UnificationVar}
     (hiddenFresh : VariablesFreshIn valueStart bodyStart hidden)
     (inheritedBefore : context.initialSupply.Le valueStart) :

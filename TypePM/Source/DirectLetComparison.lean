@@ -120,12 +120,12 @@ complete-block boundary.  Besides the independently necessary supply
 agreement, it asks for direct finite-alias normalization of the blocks
 actually returned by the two source derivations. -/
 def DirectLetNormalizationHandler : Prop :=
-  ∀ {context : Context} {value body : Expr} {start : Supply}
+  ∀ {signature : Signature} {context : Context} {value body : Expr} {start : Supply}
       {leftGenerated rightGenerated : Generated}
       {leftNext rightNext : Supply},
     start.WellFormedFor context →
-      Elaborates context (.letE value body) start leftGenerated leftNext →
-        Elaborates context (.letE value body) start rightGenerated rightNext →
+      Elaborates signature context (.letE value body) start leftGenerated leftNext →
+        Elaborates signature context (.letE value body) start rightGenerated rightNext →
           leftNext = rightNext ∧
             Nonempty (DirectGeneratedComparisonCertificate start leftNext
               leftGenerated rightGenerated)
@@ -176,7 +176,7 @@ theorem scopedGeneratedComparison
 composition handler without any isolated-child renaming premise. -/
 theorem letComparisonHandler
     (normalize : DirectLetNormalizationHandler) : LetComparisonHandler := by
-  intro context value body start leftGenerated rightGenerated leftNext
+  intro signature context value body start leftGenerated rightGenerated leftNext
     rightNext wellFormed leftElaboration rightElaboration
   obtain ⟨nextEquality, ⟨certificate⟩⟩ :=
     normalize wellFormed leftElaboration rightElaboration
