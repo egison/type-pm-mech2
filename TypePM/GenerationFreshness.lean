@@ -27,6 +27,9 @@ inductive TyVarOccurs : TyVar → Ty → Prop where
   | prod {needle items} :
       TyVarOccursList needle items →
       TyVarOccurs needle (.prod items)
+  | data {needle former arguments} :
+      TyVarOccursList needle arguments →
+      TyVarOccurs needle (.data former arguments)
   | matcher {needle capability target} :
       TyVarOccurs needle target →
       TyVarOccurs needle (.matcher capability target)
@@ -252,6 +255,8 @@ theorem index_lt_nextVar_of_occursTy
       exact Nat.lt_of_lt_of_le
         (index_lt_nextVar_of_occursTy codomainOccurs) (Nat.le_max_right _ _)
   | prod listOccurs =>
+      exact index_lt_nextVarList_of_occursTyList listOccurs
+  | data listOccurs =>
       exact index_lt_nextVarList_of_occursTyList listOccurs
   | matcher targetOccurs =>
       simpa [Ty.nextVar] using index_lt_nextVar_of_occursTy targetOccurs

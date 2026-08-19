@@ -18,6 +18,7 @@ def Ty.nextVar : Ty → Nat
   | .int => 0
   | .fn domain codomain => max domain.nextVar codomain.nextVar
   | .prod items => Ty.nextVarList items
+  | .data _ arguments => Ty.nextVarList arguments
   | .matcher _ target => target.nextVar
   | .slot _ target => target.nextVar
 
@@ -32,4 +33,3 @@ def Context.nextVar (context : Context) : Nat :=
   Ty.nextVarList context
 
 end TypePM
-

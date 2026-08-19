@@ -19,6 +19,7 @@ def Cap.apply (substitution : CapSubst) : Cap → Cap
   | .any => .any
   | .var index => substitution index
   | .prod items => .prod (Cap.applyList substitution items)
+  | .con former arguments => .con former (Cap.applyList substitution arguments)
 
 def Cap.applyList (substitution : CapSubst) : List Cap → List Cap
   | [] => []
@@ -38,6 +39,7 @@ def Ty.apply (substitution : Subst) : Ty → Ty
   | .fn domain codomain =>
       .fn (domain.apply substitution) (codomain.apply substitution)
   | .prod items => .prod (Ty.applyList substitution items)
+  | .data former arguments => .data former (Ty.applyList substitution arguments)
   | .matcher capability target =>
       .matcher (capability.apply substitution.cap) (target.apply substitution)
   | .slot capability target =>
@@ -80,6 +82,7 @@ mutual
   | any => rfl
   | var => rfl
   | prod items => simp [Cap.apply, Cap.applyList_id]
+  | con former arguments => simp [Cap.apply, Cap.applyList_id]
 
 @[simp] theorem Cap.applyList_id (items : List Cap) :
     Cap.applyList Subst.id.cap items = items := by
@@ -98,6 +101,7 @@ mutual
   | int => rfl
   | fn domain codomain => simp [Ty.apply, Ty.apply_id]
   | prod items => simp [Ty.apply, Ty.applyList_id]
+  | data former arguments => simp [Ty.apply, Ty.applyList_id]
   | matcher capability target => simp [Ty.apply, Ty.apply_id]
   | slot capability target => simp [Ty.apply, Ty.apply_id]
 
@@ -119,6 +123,7 @@ mutual
   | any => rfl
   | var => rfl
   | prod items => simp [Cap.apply, Cap.applyList_compose]
+  | con former arguments => simp [Cap.apply, Cap.applyList_compose]
 
 @[simp] theorem Cap.applyList_compose
     (later earlier : Subst) (items : List Cap) :
@@ -142,6 +147,7 @@ mutual
   | int => rfl
   | fn domain codomain => simp [Ty.apply, Ty.apply_compose]
   | prod items => simp [Ty.apply, Ty.applyList_compose]
+  | data former arguments => simp [Ty.apply, Ty.applyList_compose]
   | matcher capability target =>
       simp [Ty.apply, Ty.apply_compose, Cap.apply_compose]
   | slot capability target =>

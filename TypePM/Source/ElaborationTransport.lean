@@ -90,6 +90,11 @@ theorem PolyCap.openBound_eq_of_wellScoped
       exact congrArg Cap.prod
         (PolyCap.openBoundList_eq_of_wellScoped (by
           simpa [PolyCap.WellScoped] using wellScoped) agree)
+  | con former arguments =>
+      simp only [PolyCap.openBound]
+      exact congrArg (Cap.con former)
+        (PolyCap.openBoundList_eq_of_wellScoped (by
+          simpa [PolyCap.WellScoped] using wellScoped) agree)
 
 theorem PolyCap.openBoundList_eq_of_wellScoped
     {capArity : Nat} {items : List PolyCap}
@@ -136,6 +141,11 @@ theorem PolyTy.openBound_eq_of_wellScoped
   | prod items =>
       simp only [PolyTy.openBound]
       exact congrArg Ty.prod
+        (PolyTy.openBoundList_eq_of_wellScoped (by
+          simpa [PolyTy.WellScoped] using wellScoped) tyAgree capAgree)
+  | data former arguments =>
+      simp only [PolyTy.openBound]
+      exact congrArg (Ty.data former)
         (PolyTy.openBoundList_eq_of_wellScoped (by
           simpa [PolyTy.WellScoped] using wellScoped) tyAgree capAgree)
   | matcher capability target =>

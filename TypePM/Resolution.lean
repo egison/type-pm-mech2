@@ -183,6 +183,7 @@ private def capabilityResolution (producer consumer : Cap) :
   | .any => .rootedAny
   | .var _ => .equal
   | .prod _ => .equal
+  | .con _ _ => .equal
 
 /-- Classify one obligation after applying the saturated hard substitution.
 
@@ -376,6 +377,7 @@ private theorem Ty.var_image_is_var_of_retract
   | int => simp [Ty.apply, imageEquality] at retracts
   | fn => simp [Ty.apply, imageEquality] at retracts
   | prod => simp [Ty.apply, imageEquality] at retracts
+  | data => simp [Ty.apply, imageEquality] at retracts
   | matcher => simp [Ty.apply, imageEquality] at retracts
   | slot => simp [Ty.apply, imageEquality] at retracts
 
@@ -388,6 +390,7 @@ private theorem Cap.var_image_is_var_of_retract
   | var candidate => exact ⟨candidate, rfl⟩
   | any => simp [Cap.apply, imageEquality] at retracts
   | prod => simp [Cap.apply, imageEquality] at retracts
+  | con => simp [Cap.apply, imageEquality] at retracts
 
 private theorem capabilityResolution_branch_apply_of_retract
     (post retract : Subst) (producer consumer : Cap)
@@ -399,6 +402,7 @@ private theorem capabilityResolution_branch_apply_of_retract
   cases consumer with
   | any => rfl
   | prod => rfl
+  | con => rfl
   | var index =>
       obtain ⟨candidate, imageEquality⟩ :=
         Cap.var_image_is_var_of_retract post retract index consumerRetracts
@@ -417,6 +421,7 @@ private theorem capabilityResolution_equations_apply_of_retract
   cases consumer with
   | any => rfl
   | prod => rfl
+  | con => rfl
   | var index =>
       obtain ⟨candidate, imageEquality⟩ :=
         Cap.var_image_is_var_of_retract post retract index consumerRetracts
@@ -561,6 +566,9 @@ theorem resolve_apply_canonical_of_retract
   | fn domain codomain =>
       simp [Ty.apply, resolve, Resolution.branch,
         Resolution.equations, Equation.apply]
+  | data former arguments =>
+      simp [Ty.apply, resolve, Resolution.branch,
+        Resolution.equations, Equation.apply]
   | slot capability target =>
       simp [Ty.apply, resolve, Resolution.branch,
         Resolution.equations, Equation.apply]
@@ -578,6 +586,9 @@ theorem resolve_apply_canonical_of_retract
           simp [Ty.apply, resolve, Resolution.branch,
             Resolution.equations, Equation.apply]
       | prod items =>
+          simp [Ty.apply, resolve, Resolution.branch,
+            Resolution.equations, Equation.apply]
+      | data former arguments =>
           simp [Ty.apply, resolve, Resolution.branch,
             Resolution.equations, Equation.apply]
       | matcher capability target =>
@@ -609,6 +620,9 @@ theorem resolve_apply_canonical_of_retract
           simp [Ty.apply, resolve, Resolution.branch,
             Resolution.equations, Equation.apply]
       | prod expectedItems =>
+          simp [Ty.apply, resolve, Resolution.branch,
+            Resolution.equations, Equation.apply]
+      | data former arguments =>
           simp [Ty.apply, resolve, Resolution.branch,
             Resolution.equations, Equation.apply]
       | matcher expectedCapability expectedTarget =>

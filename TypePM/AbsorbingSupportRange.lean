@@ -35,6 +35,10 @@ theorem Cap.nodeCount_le_apply_any
       simp only [Cap.nodeCount, Cap.apply]
       exact Nat.add_le_add_left
         (Cap.nodeCountList_le_apply_any substitution items) 1
+  | con former arguments =>
+      simp only [Cap.nodeCount, Cap.apply]
+      exact Nat.add_le_add_left
+        (Cap.nodeCountList_le_apply_any substitution arguments) 1
 
 theorem Cap.nodeCountList_le_apply_any
     (substitution : CapSubst) (items : List Cap) :
@@ -67,6 +71,10 @@ theorem Ty.nodeCount_le_apply_any
       simp only [Ty.nodeCount, Ty.apply]
       exact Nat.add_le_add_left
         (Ty.nodeCountList_le_apply_any substitution items) 1
+  | data former arguments =>
+      simp only [Ty.nodeCount, Ty.apply]
+      exact Nat.add_le_add_left
+        (Ty.nodeCountList_le_apply_any substitution arguments) 1
   | matcher capability target =>
       simp only [Ty.nodeCount, Ty.apply]
       have capLe := Cap.nodeCount_le_apply_any substitution.cap capability
@@ -111,6 +119,11 @@ theorem Cap.nodeCount_lt_apply_of_cap_occurs
       exact Nat.add_lt_add_left
         (Cap.nodeCountList_lt_apply_of_cap_occurs
           substitution index items large occurs) 1
+  | con former arguments =>
+      simp only [Cap.nodeCount, Cap.apply]
+      exact Nat.add_lt_add_left
+        (Cap.nodeCountList_lt_apply_of_cap_occurs
+          substitution index arguments large occurs) 1
 
 theorem Cap.nodeCountList_lt_apply_of_cap_occurs
     (substitution : CapSubst) (index : CapVar) (items : List Cap)
@@ -170,6 +183,11 @@ theorem Ty.nodeCount_lt_apply_of_cap_occurs
       exact Nat.add_lt_add_left
         (Ty.nodeCountList_lt_apply_of_cap_occurs
           substitution index items large occurs) 1
+  | data former arguments =>
+      simp only [Ty.nodeCount, Ty.apply]
+      exact Nat.add_lt_add_left
+        (Ty.nodeCountList_lt_apply_of_cap_occurs
+          substitution index arguments large occurs) 1
   | matcher capability target =>
       simp only [Ty.occursCap] at occurs
       simp only [Ty.nodeCount, Ty.apply]
@@ -260,6 +278,12 @@ theorem Ty.apply_setTy_of_absent
       congr 1
       exact Ty.applyList_setTy_of_absent substitution index replacement
         items absent
+  | data former arguments =>
+      simp only [Ty.unificationVars] at absent
+      rw [Ty.apply]
+      congr 1
+      exact Ty.applyList_setTy_of_absent substitution index replacement
+        arguments absent
   | matcher capability target =>
       simp only [Ty.unificationVars, List.mem_append] at absent
       rw [Ty.apply]
@@ -311,6 +335,12 @@ theorem Cap.apply_setCap_of_absent
       congr 1
       exact Cap.applyList_setCap_of_absent substitution index replacement
         items absent
+  | con former arguments =>
+      simp only [Cap.unificationVars] at absent
+      rw [Cap.apply]
+      congr 1
+      exact Cap.applyList_setCap_of_absent substitution index replacement
+        arguments absent
 
 theorem Cap.applyList_setCap_of_absent
     (substitution : Subst) (index : CapVar) (replacement : Cap)
@@ -353,6 +383,12 @@ theorem Ty.apply_setCap_of_absent
       congr 1
       exact Ty.applyList_setCap_of_absent substitution index replacement
         items absent
+  | data former arguments =>
+      simp only [Ty.unificationVars] at absent
+      rw [Ty.apply]
+      congr 1
+      exact Ty.applyList_setCap_of_absent substitution index replacement
+        arguments absent
   | matcher capability target =>
       simp only [Ty.unificationVars, List.mem_append] at absent
       simp [Ty.apply,
@@ -672,6 +708,7 @@ theorem AbsorbingPrincipal.fixesTyOutside
   | int => simp [Ty.apply, imageEquality] at atIndex
   | fn => simp [Ty.apply, imageEquality] at atIndex
   | prod => simp [Ty.apply, imageEquality] at atIndex
+  | data => simp [Ty.apply, imageEquality] at atIndex
   | matcher => simp [Ty.apply, imageEquality] at atIndex
   | slot => simp [Ty.apply, imageEquality] at atIndex
 
@@ -710,6 +747,7 @@ theorem AbsorbingPrincipal.fixesCapOutside
           idempotentAtImage
         exact imageEquality.symm.trans principalFixed
   | prod => simp [Cap.apply, imageEquality] at atIndex
+  | con => simp [Cap.apply, imageEquality] at atIndex
 
 /-- Every declarative absorbing principal solution is fully localized to its
 input equation support. -/

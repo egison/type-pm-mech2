@@ -72,6 +72,12 @@ theorem cap_apply_mem
         exact covered candidate (by
           simpa [Cap.unificationVars] using candidateMember)) candidate (by
             simpa [Cap.apply, Cap.unificationVars] using member)
+  | con former arguments =>
+      exact capList_apply_mem localized arguments (by
+        intro candidate candidateMember
+        exact covered candidate (by
+          simpa [Cap.unificationVars] using candidateMember)) candidate (by
+            simpa [Cap.apply, Cap.unificationVars] using member)
 
 theorem capList_apply_mem
     {support : List UnificationVar} {substitution : Subst}
@@ -138,6 +144,12 @@ theorem ty_apply_mem
           candidate right
   | prod items =>
       exact tyList_apply_mem localized items (by
+        intro candidate candidateMember
+        exact covered candidate (by
+          simpa [Ty.unificationVars] using candidateMember)) candidate (by
+            simpa [Ty.apply, Ty.unificationVars] using member)
+  | data former arguments =>
+      exact tyList_apply_mem localized arguments (by
         intro candidate candidateMember
         exact covered candidate (by
           simpa [Ty.unificationVars] using candidateMember)) candidate (by

@@ -189,6 +189,8 @@ mutual
   | var index => rfl
   | prod items =>
       simp [Cap.apply, Cap.capVars, Cap.capVarsList_apply_variableRenaming]
+  | con former arguments =>
+      simp [Cap.apply, Cap.capVars, Cap.capVarsList_apply_variableRenaming]
 
 @[simp] theorem Cap.capVarsList_apply_variableRenaming
     (rho : VariableRenaming) (items : List Cap) :
@@ -215,6 +217,9 @@ mutual
   | free index => rfl
   | bound index => rfl
   | prod items =>
+      simp [PolyCap.applyFree, PolyCap.freeCapVars,
+        PolyCap.freeCapVarsList_apply_variableRenaming]
+  | con former arguments =>
       simp [PolyCap.applyFree, PolyCap.freeCapVars,
         PolyCap.freeCapVarsList_apply_variableRenaming]
 
@@ -247,6 +252,9 @@ mutual
       simp [PolyTy.applyFree, PolyTy.freeTyVars,
         PolyTy.freeTyVars_apply_variableRenaming]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.freeTyVars,
+        PolyTy.freeTyVarsList_apply_variableRenaming]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.freeTyVars,
         PolyTy.freeTyVarsList_apply_variableRenaming]
   | matcher capability target =>
@@ -284,6 +292,9 @@ mutual
       simp [PolyTy.applyFree, PolyTy.freeCapVars,
         PolyTy.freeCapVars_apply_variableRenaming]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.freeCapVars,
+        PolyTy.freeCapVarsList_apply_variableRenaming]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.freeCapVars,
         PolyTy.freeCapVarsList_apply_variableRenaming]
   | matcher capability target =>
@@ -398,6 +409,8 @@ mutual
       simp [Ty.apply, Ty.tyVars, Ty.tyVars_apply_variableRenaming]
   | prod items =>
       simp [Ty.apply, Ty.tyVars, Ty.tyVarsList_apply_variableRenaming]
+  | data former arguments =>
+      simp [Ty.apply, Ty.tyVars, Ty.tyVarsList_apply_variableRenaming]
   | matcher capability target =>
       simp [Ty.apply, Ty.tyVars, Ty.tyVars_apply_variableRenaming]
   | slot capability target =>
@@ -429,6 +442,8 @@ mutual
   | fn domain codomain =>
       simp [Ty.apply, Ty.capVars, Ty.capVars_apply_variableRenaming]
   | prod items =>
+      simp [Ty.apply, Ty.capVars, Ty.capVarsList_apply_variableRenaming]
+  | data former arguments =>
       simp [Ty.apply, Ty.capVars, Ty.capVarsList_apply_variableRenaming]
   | matcher capability target =>
       simp [Ty.apply, Ty.capVars, Ty.capVars_apply_variableRenaming,
@@ -497,6 +512,9 @@ theorem PolyCap.close_variableRenaming
   | prod items =>
       simp [Cap.apply, PolyCap.close, PolyCap.applyFree,
         PolyCap.closeList_variableRenaming]
+  | con former arguments =>
+      simp [Cap.apply, PolyCap.close, PolyCap.applyFree,
+        PolyCap.closeList_variableRenaming]
 
 theorem PolyCap.closeList_variableRenaming
     (rho : VariableRenaming) (boundCap : List CapVar)
@@ -561,6 +579,9 @@ theorem PolyTy.close_variableRenaming
       simp [Ty.apply, PolyTy.close, PolyTy.applyFree,
         PolyTy.close_variableRenaming]
   | prod items =>
+      simp [Ty.apply, PolyTy.close, PolyTy.applyFree,
+        PolyTy.closeList_variableRenaming]
+  | data former arguments =>
       simp [Ty.apply, PolyTy.close, PolyTy.applyFree,
         PolyTy.closeList_variableRenaming]
   | matcher capability target =>

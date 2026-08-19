@@ -29,6 +29,8 @@ mutual
       simp [Ty.apply, Ty.rename, Ty.apply_ofTyRenaming]
   | prod items =>
       simp [Ty.apply, Ty.rename, Ty.applyList_ofTyRenaming]
+  | data former arguments =>
+      simp [Ty.apply, Ty.rename, Ty.applyList_ofTyRenaming]
   | matcher capability target =>
       simp only [Ty.apply, Ty.rename]
       rw [show (Subst.ofTyRenaming rho).cap = Subst.id.cap by rfl,

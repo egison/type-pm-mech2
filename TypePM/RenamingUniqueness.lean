@@ -28,6 +28,7 @@ def CapVarOccursCap (needle : CapVar) : Cap → Prop
   | .any => False
   | .var index => needle = index
   | .prod items => CapVarOccursCapList needle items
+  | .con _ arguments => CapVarOccursCapList needle arguments
 
 /-- Occurrence of a capability variable in a list of capabilities. -/
 def CapVarOccursCapList (needle : CapVar) : List Cap → Prop
@@ -47,6 +48,7 @@ def CapVarOccursTy (needle : CapVar) : Ty → Prop
   | .fn domain codomain =>
       CapVarOccursTy needle domain ∨ CapVarOccursTy needle codomain
   | .prod items => CapVarOccursTyList needle items
+  | .data _ arguments => CapVarOccursTyList needle arguments
   | .matcher capability target =>
       CapVarOccursCap needle capability ∨ CapVarOccursTy needle target
   | .slot capability target =>
@@ -80,6 +82,9 @@ private theorem tyVarOccurs_apply_of_eq_var
         (tyVarOccurs_apply_of_eq_var substitution codomainOccurs image_eq)
   | prod listOccurs =>
       exact TyVarOccurs.prod
+        (tyVarOccursList_apply_of_eq_var substitution listOccurs image_eq)
+  | data listOccurs =>
+      exact TyVarOccurs.data
         (tyVarOccursList_apply_of_eq_var substitution listOccurs image_eq)
   | matcher targetOccurs =>
       exact TyVarOccurs.matcher
@@ -118,6 +123,8 @@ private theorem capVarOccursCap_apply_of_eq_var
       simp [Cap.apply, image_eq, CapVarOccursCap]
   | prod items =>
       exact capVarOccursCapList_apply_of_eq_var substitution occurs image_eq
+  | con former arguments =>
+      exact capVarOccursCapList_apply_of_eq_var substitution occurs image_eq
 
 private theorem capVarOccursCapList_apply_of_eq_var
     (substitution : CapSubst) {source image : CapVar} {items : List Cap}
@@ -152,6 +159,8 @@ private theorem capVarOccursTy_apply_of_eq_var
       · exact Or.inr
           (capVarOccursTy_apply_of_eq_var substitution codomainOccurs image_eq)
   | prod items =>
+      exact capVarOccursTyList_apply_of_eq_var substitution occurs image_eq
+  | data former arguments =>
       exact capVarOccursTyList_apply_of_eq_var substitution occurs image_eq
   | matcher capability target =>
       rcases occurs with capabilityOccurs | targetOccurs
@@ -196,6 +205,7 @@ private theorem Ty.eq_var_of_apply_eq_var
   | int => cases equation
   | fn domain codomain => cases equation
   | prod items => cases equation
+  | data former arguments => cases equation
   | matcher capability target => cases equation
   | slot capability target => cases equation
 
@@ -210,6 +220,7 @@ private theorem Cap.eq_var_of_apply_eq_var
   | var source =>
       exact ⟨source, rfl, equation⟩
   | prod items => cases equation
+  | con former arguments => cases equation
 
 mutual
 
@@ -243,6 +254,13 @@ private theorem tyVar_image_of_roundtrip
       cases occurs with
       | prod listOccurs =>
           exact tyVarList_image_of_roundtrip forward backward needle items
+            listOccurs listRoundtrip
+  | data former arguments =>
+      simp only [Ty.apply] at roundtrip
+      have listRoundtrip := Ty.data.inj roundtrip |>.2
+      cases occurs with
+      | data listOccurs =>
+          exact tyVarList_image_of_roundtrip forward backward needle arguments
             listOccurs listRoundtrip
   | matcher capability target =>
       simp only [Ty.apply] at roundtrip
@@ -305,6 +323,11 @@ private theorem capVarCap_image_of_roundtrip
       have listRoundtrip := Cap.prod.inj roundtrip
       exact capVarCapList_image_of_roundtrip forward backward needle items
         occurs listRoundtrip
+  | con former arguments =>
+      simp only [Cap.apply] at roundtrip
+      have listRoundtrip := Cap.con.inj roundtrip |>.2
+      exact capVarCapList_image_of_roundtrip forward backward needle arguments
+        occurs listRoundtrip
 
 /-- List counterpart of `capVarCap_image_of_roundtrip`. -/
 private theorem capVarCapList_image_of_roundtrip
@@ -354,6 +377,11 @@ private theorem capVarTy_image_of_roundtrip
       simp only [Ty.apply] at roundtrip
       have listRoundtrip := Ty.prod.inj roundtrip
       exact capVarTyList_image_of_roundtrip forward backward needle items
+        occurs listRoundtrip
+  | data former arguments =>
+      simp only [Ty.apply] at roundtrip
+      have listRoundtrip := Ty.data.inj roundtrip |>.2
+      exact capVarTyList_image_of_roundtrip forward backward needle arguments
         occurs listRoundtrip
   | matcher capability target =>
       simp only [Ty.apply] at roundtrip

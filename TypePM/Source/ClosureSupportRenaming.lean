@@ -25,6 +25,7 @@ private theorem Ty.variableImage_of_roundtrip
   | int => simp [Ty.apply, imageEquality] at roundtrip
   | fn => simp [Ty.apply, imageEquality] at roundtrip
   | prod => simp [Ty.apply, imageEquality] at roundtrip
+  | data => simp [Ty.apply, imageEquality] at roundtrip
   | matcher => simp [Ty.apply, imageEquality] at roundtrip
   | slot => simp [Ty.apply, imageEquality] at roundtrip
 
@@ -40,6 +41,7 @@ private theorem Cap.variableImage_of_roundtrip
       exact ⟨image, rfl, by
         simpa [Cap.apply, imageEquality] using roundtrip⟩
   | prod => simp [Cap.apply, imageEquality] at roundtrip
+  | con => simp [Cap.apply, imageEquality] at roundtrip
 
 mutual
 
@@ -68,6 +70,10 @@ private theorem Ty.tyImage_of_roundtrip
       simp only [Ty.apply] at roundtrip
       exact Ty.tyListImage_of_roundtrip forward backward needle items
         (by simpa [Ty.tyVars] using member) (Ty.prod.inj roundtrip)
+  | data former arguments =>
+      simp only [Ty.apply] at roundtrip
+      exact Ty.tyListImage_of_roundtrip forward backward needle arguments
+        (by simpa [Ty.tyVars] using member) (Ty.data.inj roundtrip).2
   | matcher capability target =>
       simp only [Ty.apply] at roundtrip
       exact Ty.tyImage_of_roundtrip forward backward needle target
@@ -127,6 +133,9 @@ private theorem PolyTy.freeTy_mem_supportWitness
   | prod items =>
       simpa [PolyTy.openBound, Ty.tyVars] using
         PolyTy.freeTyList_mem_supportWitness items member
+  | data former arguments =>
+      simpa [PolyTy.openBound, Ty.tyVars] using
+        PolyTy.freeTyList_mem_supportWitness arguments member
   | matcher capability target =>
       simpa [PolyTy.openBound, Ty.tyVars] using
         PolyTy.freeTy_mem_supportWitness target member
@@ -163,6 +172,9 @@ private theorem PolyCap.freeCap_mem_supportWitness
   | prod items =>
       simpa [PolyCap.openBound, Cap.capVars] using
         PolyCap.freeCapList_mem_supportWitness items member
+  | con former arguments =>
+      simpa [PolyCap.openBound, Cap.capVars] using
+        PolyCap.freeCapList_mem_supportWitness arguments member
 
 private theorem PolyCap.freeCapList_mem_supportWitness
     (items : List PolyCap) {index : CapVar}
@@ -199,6 +211,9 @@ private theorem PolyTy.freeCap_mem_supportWitness
   | prod items =>
       simpa [PolyTy.openBound, Ty.capVars] using
         PolyTy.freeCapList_mem_supportWitness items member
+  | data former arguments =>
+      simpa [PolyTy.openBound, Ty.capVars] using
+        PolyTy.freeCapList_mem_supportWitness arguments member
   | matcher capability target =>
       simp only [PolyTy.freeCapVars, List.mem_append] at member
       simp only [PolyTy.openBound, Ty.capVars, List.mem_append]
@@ -322,6 +337,10 @@ private theorem Cap.capImage_of_roundtrip
       simp only [Cap.apply] at roundtrip
       exact Cap.capListImage_of_roundtrip forward backward needle items
         (by simpa [Cap.capVars] using member) (Cap.prod.inj roundtrip)
+  | con former arguments =>
+      simp only [Cap.apply] at roundtrip
+      exact Cap.capListImage_of_roundtrip forward backward needle arguments
+        (by simpa [Cap.capVars] using member) (Cap.con.inj roundtrip).2
 
 private theorem Cap.capListImage_of_roundtrip
     (forward backward : CapSubst) (needle : CapVar) (items : List Cap)
@@ -368,6 +387,10 @@ private theorem Ty.capImage_of_roundtrip
       simp only [Ty.apply] at roundtrip
       exact Ty.capListImage_of_roundtrip forward backward needle items
         (by simpa [Ty.capVars] using member) (Ty.prod.inj roundtrip)
+  | data former arguments =>
+      simp only [Ty.apply] at roundtrip
+      exact Ty.capListImage_of_roundtrip forward backward needle arguments
+        (by simpa [Ty.capVars] using member) (Ty.data.inj roundtrip).2
   | matcher capability target =>
       simp only [Ty.apply] at roundtrip
       have parts := Ty.matcher.inj roundtrip
@@ -421,6 +444,9 @@ theorem Cap.apply_eq_of_agree {left right : CapSubst}
   | prod items =>
       exact congrArg Cap.prod
         (Cap.applyList_eq_of_agree items agree)
+  | con former arguments =>
+      exact congrArg (Cap.con former)
+        (Cap.applyList_eq_of_agree arguments agree)
 
 theorem Cap.applyList_eq_of_agree {left right : CapSubst}
     (items : List Cap)
@@ -469,6 +495,9 @@ theorem Ty.apply_eq_of_agree {left right : Subst}
   | prod items =>
       exact congrArg Ty.prod
         (Ty.applyList_eq_of_agree items tyAgree capAgree)
+  | data former arguments =>
+      exact congrArg (Ty.data former)
+        (Ty.applyList_eq_of_agree arguments tyAgree capAgree)
   | matcher capability target =>
       simp only [Ty.apply]
       congr 1

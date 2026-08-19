@@ -25,6 +25,87 @@ theorem solves_iff_of_equation_perm
 def capIndex : CapVar := ⟨0⟩
 def tyIndex : TyVar := ⟨0⟩
 
+def otherPatternFormer : PatternFormer := ⟨"OtherPattern"⟩
+def otherDataFormer : DataFormer := ⟨"OtherData"⟩
+
+def conPositiveEquations : List Equation :=
+  [.cap (.con PatternFormer.list [.var capIndex])
+    (.con PatternFormer.list [.any])]
+
+def dataPositiveEquations : List Equation :=
+  [.ty (.data DataFormer.list [.var tyIndex])
+    (.data DataFormer.list [.int])]
+
+def conNameMismatchEquations : List Equation :=
+  [.cap (.con PatternFormer.list []) (.con otherPatternFormer [])]
+
+def dataNameMismatchEquations : List Equation :=
+  [.ty (.data DataFormer.list []) (.data otherDataFormer [])]
+
+def conArityMismatchEquations : List Equation :=
+  [.cap (.con PatternFormer.list []) (.con PatternFormer.list [.any])]
+
+def dataArityMismatchEquations : List Equation :=
+  [.ty (.data DataFormer.list []) (.data DataFormer.list [.int])]
+
+/-- Equal pattern-former names and arities decompose structurally. -/
+theorem con_same_former_and_arity_succeeds :
+    ∃ result, unify conPositiveEquations = some result := by
+  apply unify_complete
+  refine ⟨Subst.singleCap capIndex .any, ?_⟩
+  simp [conPositiveEquations, Solves, Equation.Holds, Cap.apply,
+    Cap.applyList, Subst.singleCap]
+
+/-- Equal data-former names and arities decompose structurally. -/
+theorem data_same_former_and_arity_succeeds :
+    ∃ result, unify dataPositiveEquations = some result := by
+  apply unify_complete
+  refine ⟨Subst.singleTy tyIndex .int, ?_⟩
+  simp [dataPositiveEquations, Solves, Equation.Holds, Ty.apply,
+    Ty.applyList, Subst.singleTy]
+
+/-- Pattern-former names are rigid during unification. -/
+theorem con_name_mismatch_rejected :
+    unify conNameMismatchEquations = none := by
+  apply (unify_none_iff_unsatisfiable conNameMismatchEquations).mpr
+  rintro ⟨solution, solved⟩
+  have head := (solves_cons solution _ []).mp solved |>.1
+  simp only [Equation.Holds, Cap.apply] at head
+  have formerEquality := (Cap.con.inj head).1
+  exact (by decide : PatternFormer.list ≠ otherPatternFormer) formerEquality
+
+/-- Data-former names are rigid during unification. -/
+theorem data_name_mismatch_rejected :
+    unify dataNameMismatchEquations = none := by
+  apply (unify_none_iff_unsatisfiable dataNameMismatchEquations).mpr
+  rintro ⟨solution, solved⟩
+  have head := (solves_cons solution _ []).mp solved |>.1
+  simp only [Equation.Holds, Ty.apply] at head
+  have formerEquality := (Ty.data.inj head).1
+  exact (by decide : DataFormer.list ≠ otherDataFormer) formerEquality
+
+/-- Pattern-former applications with different arities cannot unify. -/
+theorem con_arity_mismatch_rejected :
+    unify conArityMismatchEquations = none := by
+  apply (unify_none_iff_unsatisfiable conArityMismatchEquations).mpr
+  rintro ⟨solution, solved⟩
+  have head := (solves_cons solution _ []).mp solved |>.1
+  simp only [Equation.Holds, Cap.apply] at head
+  have argumentsEquality := (Cap.con.inj head).2
+  have lengths := congrArg List.length argumentsEquality
+  simp [Cap.applyList] at lengths
+
+/-- Data-former applications with different arities cannot unify. -/
+theorem data_arity_mismatch_rejected :
+    unify dataArityMismatchEquations = none := by
+  apply (unify_none_iff_unsatisfiable dataArityMismatchEquations).mpr
+  rintro ⟨solution, solved⟩
+  have head := (solves_cons solution _ []).mp solved |>.1
+  simp only [Equation.Holds, Ty.apply] at head
+  have argumentsEquality := (Ty.data.inj head).2
+  have lengths := congrArg List.length argumentsEquality
+  simp [Ty.applyList] at lengths
+
 def capOccursEquations : List Equation :=
   [.cap (.var capIndex) (.prod [.var capIndex])]
 

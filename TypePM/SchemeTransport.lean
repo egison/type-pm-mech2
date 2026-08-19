@@ -22,6 +22,9 @@ mutual
   | prod items =>
       simp [PolyCap.ofCap, PolyCap.applyFree, Cap.apply,
         PolyCap.ofCapList_applyFree]
+  | con former arguments =>
+      simp [PolyCap.ofCap, PolyCap.applyFree, Cap.apply,
+        PolyCap.ofCapList_applyFree]
 
 @[simp] theorem PolyCap.ofCapList_applyFree
     (substitution : Subst) (items : List Cap) :
@@ -48,6 +51,9 @@ mutual
       simp [PolyTy.ofTy, PolyTy.applyFree, Ty.apply,
         PolyTy.ofTy_applyFree]
   | prod items =>
+      simp [PolyTy.ofTy, PolyTy.applyFree, Ty.apply,
+        PolyTy.ofTyList_applyFree]
+  | data former arguments =>
       simp [PolyTy.ofTy, PolyTy.applyFree, Ty.apply,
         PolyTy.ofTyList_applyFree]
   | matcher capability target =>
@@ -83,6 +89,8 @@ mutual
   | bound index => rfl
   | prod items =>
       simp [PolyCap.applyFree, PolyCap.applyFreeList_compose]
+  | con former arguments =>
+      simp [PolyCap.applyFree, PolyCap.applyFreeList_compose]
 
 @[simp] theorem PolyCap.applyFreeList_compose
     (later earlier : Subst) (items : List PolyCap) :
@@ -112,6 +120,8 @@ mutual
   | fn domain codomain =>
       simp [PolyTy.applyFree, PolyTy.applyFree_compose]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.applyFreeList_compose]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.applyFreeList_compose]
   | matcher capability target =>
       simp [PolyTy.applyFree, PolyTy.applyFree_compose,
@@ -154,6 +164,9 @@ theorem PolyCap.openBound_applyFree
   | prod items =>
       simp [PolyCap.applyFree, PolyCap.openBound, Cap.apply,
         PolyCap.openBoundList_applyFree]
+  | con former arguments =>
+      simp [PolyCap.applyFree, PolyCap.openBound, Cap.apply,
+        PolyCap.openBoundList_applyFree]
 
 theorem PolyCap.openBoundList_applyFree
     (substitution : Subst) (boundCap : Nat → Cap)
@@ -193,6 +206,9 @@ theorem PolyTy.openBound_applyFree
       simp [PolyTy.applyFree, PolyTy.openBound, Ty.apply,
         PolyTy.openBound_applyFree]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.openBound, Ty.apply,
+        PolyTy.openBoundList_applyFree]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.openBound, Ty.apply,
         PolyTy.openBoundList_applyFree]
   | matcher capability target =>
@@ -238,6 +254,10 @@ theorem PolyCap.applyFree_eq_of_agree
   | prod items =>
       simp only [PolyCap.applyFree]
       apply congrArg PolyCap.prod
+      exact PolyCap.applyFreeList_eq_of_agree agree
+  | con former arguments =>
+      simp only [PolyCap.applyFree]
+      apply congrArg (PolyCap.con former)
       exact PolyCap.applyFreeList_eq_of_agree agree
 
 theorem PolyCap.applyFreeList_eq_of_agree
@@ -308,6 +328,10 @@ theorem PolyTy.applyFree_eq_of_agree
   | prod items =>
       simp only [PolyTy.applyFree]
       apply congrArg PolyTy.prod
+      exact PolyTy.applyFreeList_eq_of_agree tyAgree capAgree
+  | data former arguments =>
+      simp only [PolyTy.applyFree]
+      apply congrArg (PolyTy.data former)
       exact PolyTy.applyFreeList_eq_of_agree tyAgree capAgree
   | matcher capability target =>
       simp only [PolyTy.applyFree]

@@ -660,6 +660,9 @@ mutual
   | prod items =>
       simp [PolyCap.applyFree, PolyCap.freeCapVars,
         PolyCap.freeCapVarsList_applyFree_renaming]
+  | con former arguments =>
+      simp [PolyCap.applyFree, PolyCap.freeCapVars,
+        PolyCap.freeCapVarsList_applyFree_renaming]
 
 @[simp] theorem PolyCap.freeCapVarsList_applyFree_renaming
     (rho : VariableRenaming) (items : List PolyCap) :
@@ -690,6 +693,9 @@ mutual
       simp [PolyTy.applyFree, PolyTy.freeTyVars,
         PolyTy.freeTyVars_applyFree_renaming, List.map_append]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.freeTyVars,
+        PolyTy.freeTyVarsList_applyFree_renaming]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.freeTyVars,
         PolyTy.freeTyVarsList_applyFree_renaming]
   | matcher capability target =>
@@ -728,6 +734,9 @@ mutual
       simp [PolyTy.applyFree, PolyTy.freeCapVars,
         PolyTy.freeCapVars_applyFree_renaming, List.map_append]
   | prod items =>
+      simp [PolyTy.applyFree, PolyTy.freeCapVars,
+        PolyTy.freeCapVarsList_applyFree_renaming]
+  | data former arguments =>
       simp [PolyTy.applyFree, PolyTy.freeCapVars,
         PolyTy.freeCapVarsList_applyFree_renaming]
   | matcher capability target =>

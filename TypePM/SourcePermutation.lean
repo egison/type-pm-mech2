@@ -305,6 +305,7 @@ def Ty.rename (rho : TyRenaming) : Ty → Ty
   | .fn domain codomain =>
       .fn (domain.rename rho) (codomain.rename rho)
   | .prod items => .prod (Ty.renameList rho items)
+  | .data former arguments => .data former (Ty.renameList rho arguments)
   | .matcher capability target =>
       .matcher capability (target.rename rho)
   | .slot capability target =>
@@ -338,6 +339,8 @@ mutual
   | fn domain codomain =>
       exact congrArgTwo Ty.fn (rename_refl domain) (rename_refl codomain)
   | prod items => exact congrArg Ty.prod (renameList_refl items)
+  | data former arguments =>
+      exact congrArg (Ty.data former) (renameList_refl arguments)
   | matcher capability target =>
       exact congrArg (Ty.matcher capability) (rename_refl target)
   | slot capability target =>
@@ -367,6 +370,8 @@ theorem rename_trans
         (rename_trans first second codomain)
   | prod items =>
       exact congrArg Ty.prod (renameList_trans first second items)
+  | data former arguments =>
+      exact congrArg (Ty.data former) (renameList_trans first second arguments)
   | matcher capability target =>
       exact congrArg (Ty.matcher capability)
         (rename_trans first second target)
@@ -400,6 +405,8 @@ mutual
         (rename_symm_apply rho codomain)
   | prod items =>
       exact congrArg Ty.prod (renameList_symm_apply rho items)
+  | data former arguments =>
+      exact congrArg (Ty.data former) (renameList_symm_apply rho arguments)
   | matcher capability target =>
       exact congrArg (Ty.matcher capability) (rename_symm_apply rho target)
   | slot capability target =>
@@ -721,6 +728,9 @@ theorem Ty.rename_apply_renameSolution
   | prod items =>
       exact congrArg Ty.prod
         (Ty.renameList_apply_renameSolution rho substitution items)
+  | data former arguments =>
+      exact congrArg (Ty.data former)
+        (Ty.renameList_apply_renameSolution rho substitution arguments)
   | matcher capability target =>
       exact congrArg (Ty.matcher (capability.apply substitution.cap))
         (Ty.rename_apply_renameSolution rho substitution target)

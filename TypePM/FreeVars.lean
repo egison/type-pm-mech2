@@ -16,6 +16,7 @@ def Cap.occurs (needle : CapVar) : Cap → Bool
   | .any => false
   | .var index => decide (index = needle)
   | .prod items => Cap.occursList needle items
+  | .con _ arguments => Cap.occursList needle arguments
 
 /-- List counterpart of `Cap.occurs`. -/
 def Cap.occursList (needle : CapVar) : List Cap → Bool
@@ -32,6 +33,7 @@ def Ty.occursTy (needle : TyVar) : Ty → Bool
   | .int => false
   | .fn domain codomain => domain.occursTy needle || codomain.occursTy needle
   | .prod items => Ty.occursTyList needle items
+  | .data _ arguments => Ty.occursTyList needle arguments
   | .matcher _ target => target.occursTy needle
   | .slot _ target => target.occursTy needle
 
@@ -50,6 +52,7 @@ def Ty.occursCap (needle : CapVar) : Ty → Bool
   | .int => false
   | .fn domain codomain => domain.occursCap needle || codomain.occursCap needle
   | .prod items => Ty.occursCapList needle items
+  | .data _ arguments => Ty.occursCapList needle arguments
   | .matcher capability target =>
       capability.occurs needle || target.occursCap needle
   | .slot capability target =>

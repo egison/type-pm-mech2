@@ -162,6 +162,7 @@ theorem Reduces.absorbed
       simp only [Equation.Holds, Cap.apply] at head
       exact compose_singleCap_of_equality solution _ _ head.symm
   | capProd => simp
+  | capCon => simp
   | tyVarRefl => simp
   | tyVarLeft =>
       obtain ⟨head, _⟩ := (solves_cons solution _ _).mp solved
@@ -174,6 +175,7 @@ theorem Reduces.absorbed
   | tyInt => simp
   | tyFn => simp
   | tyProd => simp
+  | tyData => simp
   | tyMatcher => simp
   | tySlot => simp
 
@@ -217,6 +219,12 @@ theorem Reduces.complete
       refine ⟨capEquations_complete paired ?_, rest⟩
       simp only [Equation.Holds, Cap.apply] at head
       injection head
+  | capCon paired =>
+      obtain ⟨head, rest⟩ := (solves_cons solution _ _).mp solved
+      apply (solves_append solution _ _).mpr
+      refine ⟨capEquations_complete paired ?_, rest⟩
+      simp only [Equation.Holds, Cap.apply] at head
+      injection head
   | tyVarRefl => exact (solves_cons solution _ _).mp solved |>.2
   | tyVarLeft notOccurs =>
       obtain ⟨_, rest⟩ := (solves_cons solution _ _).mp solved
@@ -243,6 +251,12 @@ theorem Reduces.complete
       exact ⟨by simpa [Equation.Holds] using domain,
         by simpa [Equation.Holds] using codomain, rest⟩
   | tyProd paired =>
+      obtain ⟨head, rest⟩ := (solves_cons solution _ _).mp solved
+      apply (solves_append solution _ _).mpr
+      refine ⟨tyEquations_complete paired ?_, rest⟩
+      simp only [Equation.Holds, Ty.apply] at head
+      injection head
+  | tyData paired =>
       obtain ⟨head, rest⟩ := (solves_cons solution _ _).mp solved
       apply (solves_append solution _ _).mpr
       refine ⟨tyEquations_complete paired ?_, rest⟩

@@ -212,6 +212,9 @@ theorem Ty.rename_eq_self_of_nextVar_le
   | prod items =>
       exact congrArg Ty.prod
         (Ty.renameList_eq_self_of_nextVarList_le items fixed bounded)
+  | data former arguments =>
+      exact congrArg (Ty.data former)
+        (Ty.renameList_eq_self_of_nextVarList_le arguments fixed bounded)
   | matcher capability target =>
       simpa [Ty.rename, Ty.nextVar] using congrArg (Ty.matcher capability)
         (Ty.rename_eq_self_of_nextVar_le target fixed bounded)

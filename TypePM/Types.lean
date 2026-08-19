@@ -1,4 +1,4 @@
-import Std
+import TypePM.Names
 
 /-!
 # Type-PM types used by the independent development
@@ -24,6 +24,7 @@ inductive Cap where
   | any
   | var (index : CapVar)
   | prod (items : List Cap)
+  | con (former : PatternFormer) (arguments : List Cap)
 deriving Repr
 
 /-- Types through M1.  Matcher and slot capabilities use a variable sort
@@ -33,6 +34,7 @@ inductive Ty where
   | int
   | fn (domain codomain : Ty)
   | prod (items : List Ty)
+  | data (former : DataFormer) (arguments : List Ty)
   | matcher (capability : Cap) (target : Ty)
   | slot (capability : Cap) (target : Ty)
 deriving Repr

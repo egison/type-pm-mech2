@@ -21,6 +21,7 @@ def Ty.tyVars : Ty → List TyVar
   | .int => []
   | .fn domain codomain => domain.tyVars ++ codomain.tyVars
   | .prod items => Ty.tyVarsList items
+  | .data _ arguments => Ty.tyVarsList arguments
   | .matcher _ target => target.tyVars
   | .slot _ target => target.tyVars
 
@@ -37,6 +38,7 @@ def Cap.capVars : Cap → List CapVar
   | .any => []
   | .var index => [index]
   | .prod items => Cap.capVarsList items
+  | .con _ arguments => Cap.capVarsList arguments
 
 def Cap.capVarsList : List Cap → List CapVar
   | [] => []
@@ -52,6 +54,7 @@ def Ty.capVars : Ty → List CapVar
   | .int => []
   | .fn domain codomain => domain.capVars ++ codomain.capVars
   | .prod items => Ty.capVarsList items
+  | .data _ arguments => Ty.capVarsList arguments
   | .matcher capability target => capability.capVars ++ target.capVars
   | .slot capability target => capability.capVars ++ target.capVars
 
@@ -208,6 +211,7 @@ inductive PolyCap where
   | free (index : CapVar)
   | bound (index : Nat)
   | prod (items : List PolyCap)
+  | con (former : PatternFormer) (arguments : List PolyCap)
 deriving Repr
 
 /-- Types in a scheme body, with separate constructors for free names and
@@ -218,6 +222,7 @@ inductive PolyTy where
   | int
   | fn (domain codomain : PolyTy)
   | prod (items : List PolyTy)
+  | data (former : DataFormer) (arguments : List PolyTy)
   | matcher (capability : PolyCap) (target : PolyTy)
   | slot (capability : PolyCap) (target : PolyTy)
 deriving Repr
@@ -251,6 +256,7 @@ def PolyCap.ofCap : Cap → PolyCap
   | .any => .any
   | .var index => .free index
   | .prod items => .prod (PolyCap.ofCapList items)
+  | .con former arguments => .con former (PolyCap.ofCapList arguments)
 
 def PolyCap.ofCapList : List Cap → List PolyCap
   | [] => []
@@ -266,6 +272,7 @@ def PolyTy.ofTy : Ty → PolyTy
   | .int => .int
   | .fn domain codomain => .fn (PolyTy.ofTy domain) (PolyTy.ofTy codomain)
   | .prod items => .prod (PolyTy.ofTyList items)
+  | .data former arguments => .data former (PolyTy.ofTyList arguments)
   | .matcher capability target =>
       .matcher (PolyCap.ofCap capability) (PolyTy.ofTy target)
   | .slot capability target =>
@@ -286,6 +293,8 @@ def PolyCap.openBound (boundCap : Nat → Cap) : PolyCap → Cap
   | .free index => .var index
   | .bound index => boundCap index
   | .prod items => .prod (PolyCap.openBoundList boundCap items)
+  | .con former arguments =>
+      .con former (PolyCap.openBoundList boundCap arguments)
 
 def PolyCap.openBoundList (boundCap : Nat → Cap) : List PolyCap → List Cap
   | [] => []
@@ -307,6 +316,8 @@ def PolyTy.openBound (boundTy : Nat → Ty) (boundCap : Nat → Cap) :
       .fn (domain.openBound boundTy boundCap)
         (codomain.openBound boundTy boundCap)
   | .prod items => .prod (PolyTy.openBoundList boundTy boundCap items)
+  | .data former arguments =>
+      .data former (PolyTy.openBoundList boundTy boundCap arguments)
   | .matcher capability target =>
       .matcher (capability.openBound boundCap)
         (target.openBound boundTy boundCap)
@@ -330,6 +341,8 @@ def PolyCap.applyFree (substitution : CapSubst) : PolyCap → PolyCap
   | .free index => PolyCap.ofCap (substitution index)
   | .bound index => .bound index
   | .prod items => .prod (PolyCap.applyFreeList substitution items)
+  | .con former arguments =>
+      .con former (PolyCap.applyFreeList substitution arguments)
 
 def PolyCap.applyFreeList (substitution : CapSubst) :
     List PolyCap → List PolyCap
@@ -350,6 +363,8 @@ def PolyTy.applyFree (substitution : Subst) : PolyTy → PolyTy
   | .fn domain codomain =>
       .fn (domain.applyFree substitution) (codomain.applyFree substitution)
   | .prod items => .prod (PolyTy.applyFreeList substitution items)
+  | .data former arguments =>
+      .data former (PolyTy.applyFreeList substitution arguments)
   | .matcher capability target =>
       .matcher (capability.applyFree substitution.cap)
         (target.applyFree substitution)
@@ -373,6 +388,8 @@ mutual
   | any => rfl
   | var => rfl
   | prod items => simp [PolyCap.ofCap, PolyCap.openBound, PolyCap.ofCapList_open]
+  | con former arguments =>
+      simp [PolyCap.ofCap, PolyCap.openBound, PolyCap.ofCapList_open]
 
 @[simp] theorem PolyCap.ofCapList_open
     (items : List Cap) (boundCap : Nat → Cap) :
@@ -397,6 +414,8 @@ mutual
   | fn domain codomain =>
       simp [PolyTy.ofTy, PolyTy.openBound, PolyTy.ofTy_open]
   | prod items => simp [PolyTy.ofTy, PolyTy.openBound, PolyTy.ofTyList_open]
+  | data former arguments =>
+      simp [PolyTy.ofTy, PolyTy.openBound, PolyTy.ofTyList_open]
   | matcher capability target =>
       simp [PolyTy.ofTy, PolyTy.openBound, PolyTy.ofTy_open]
   | slot capability target =>
@@ -423,6 +442,8 @@ mutual
   | free => rfl
   | bound => rfl
   | prod items => simp [PolyCap.applyFree, PolyCap.applyFreeList_id]
+  | con former arguments =>
+      simp [PolyCap.applyFree, PolyCap.applyFreeList_id]
 
 @[simp] theorem PolyCap.applyFreeList_id (items : List PolyCap) :
     PolyCap.applyFreeList Subst.id.cap items = items := by
@@ -446,6 +467,8 @@ mutual
   | fn domain codomain =>
       simp [PolyTy.applyFree, PolyTy.applyFree_id]
   | prod items => simp [PolyTy.applyFree, PolyTy.applyFreeList_id]
+  | data former arguments =>
+      simp [PolyTy.applyFree, PolyTy.applyFreeList_id]
   | matcher capability target =>
       simp [PolyTy.applyFree, PolyTy.applyFree_id]
   | slot capability target =>
@@ -469,6 +492,7 @@ def PolyCap.WellScoped (capArity : Nat) : PolyCap → Prop
   | .free _ => True
   | .bound index => index < capArity
   | .prod items => ∀ item ∈ items, item.WellScoped capArity
+  | .con _ arguments => ∀ argument ∈ arguments, argument.WellScoped capArity
 
 def PolyTy.WellScoped (tyArity capArity : Nat) : PolyTy → Prop
   | .free _ => True
@@ -479,6 +503,8 @@ def PolyTy.WellScoped (tyArity capArity : Nat) : PolyTy → Prop
         codomain.WellScoped tyArity capArity
   | .prod items =>
       ∀ item ∈ items, item.WellScoped tyArity capArity
+  | .data _ arguments =>
+      ∀ argument ∈ arguments, argument.WellScoped tyArity capArity
   | .matcher capability target =>
       capability.WellScoped capArity ∧ target.WellScoped tyArity capArity
   | .slot capability target =>
@@ -497,6 +523,9 @@ theorem PolyCap.ofCap_wellScoped (capArity : Nat) (capability : Cap) :
   | prod items =>
       simp only [PolyCap.ofCap, PolyCap.WellScoped]
       exact PolyCap.ofCapList_wellScoped capArity items
+  | con former arguments =>
+      simp only [PolyCap.ofCap, PolyCap.WellScoped]
+      exact PolyCap.ofCapList_wellScoped capArity arguments
 
 theorem PolyCap.ofCapList_wellScoped (capArity : Nat) (items : List Cap) :
     ∀ item ∈ PolyCap.ofCapList items, item.WellScoped capArity := by
@@ -529,6 +558,9 @@ theorem PolyTy.ofTy_wellScoped
   | prod items =>
       simp only [PolyTy.ofTy, PolyTy.WellScoped]
       exact PolyTy.ofTyList_wellScoped tyArity capArity items
+  | data former arguments =>
+      simp only [PolyTy.ofTy, PolyTy.WellScoped]
+      exact PolyTy.ofTyList_wellScoped tyArity capArity arguments
   | matcher capability target =>
       simp only [PolyTy.ofTy, PolyTy.WellScoped]
       exact ⟨PolyCap.ofCap_wellScoped capArity capability,
@@ -570,6 +602,10 @@ theorem PolyCap.applyFree_wellScoped
       simp only [PolyCap.WellScoped] at wellScoped
       simp only [PolyCap.applyFree, PolyCap.WellScoped]
       exact PolyCap.applyFreeList_wellScoped substitution capArity items wellScoped
+  | con former arguments =>
+      simp only [PolyCap.WellScoped] at wellScoped
+      simp only [PolyCap.applyFree, PolyCap.WellScoped]
+      exact PolyCap.applyFreeList_wellScoped substitution capArity arguments wellScoped
 
 theorem PolyCap.applyFreeList_wellScoped
     (substitution : CapSubst) (capArity : Nat) (items : List PolyCap)
@@ -613,6 +649,11 @@ theorem PolyTy.applyFree_wellScoped
       simp only [PolyTy.applyFree, PolyTy.WellScoped]
       exact PolyTy.applyFreeList_wellScoped substitution tyArity capArity
         items wellScoped
+  | data former arguments =>
+      simp only [PolyTy.WellScoped] at wellScoped
+      simp only [PolyTy.applyFree, PolyTy.WellScoped]
+      exact PolyTy.applyFreeList_wellScoped substitution tyArity capArity
+        arguments wellScoped
   | matcher capability target =>
       simp only [PolyTy.WellScoped] at wellScoped
       simp only [PolyTy.applyFree, PolyTy.WellScoped]
@@ -653,6 +694,7 @@ def PolyCap.close (boundCap : List CapVar) : Cap → PolyCap
       if boundCap.contains index then .bound (boundCap.idxOf index)
       else .free index
   | .prod items => .prod (PolyCap.closeList boundCap items)
+  | .con former arguments => .con former (PolyCap.closeList boundCap arguments)
 
 def PolyCap.closeList (boundCap : List CapVar) : List Cap → List PolyCap
   | [] => []
@@ -673,6 +715,8 @@ def PolyTy.close (boundTy : List TyVar) (boundCap : List CapVar) : Ty → PolyTy
       .fn (PolyTy.close boundTy boundCap domain)
         (PolyTy.close boundTy boundCap codomain)
   | .prod items => .prod (PolyTy.closeList boundTy boundCap items)
+  | .data former arguments =>
+      .data former (PolyTy.closeList boundTy boundCap arguments)
   | .matcher capability target =>
       .matcher (PolyCap.close boundCap capability)
         (PolyTy.close boundTy boundCap target)
@@ -698,6 +742,8 @@ mutual
   | var => rfl
   | prod items =>
       simp [PolyCap.close, PolyCap.ofCap, PolyCap.closeList_nil]
+  | con former arguments =>
+      simp [PolyCap.close, PolyCap.ofCap, PolyCap.closeList_nil]
 
 @[simp] theorem PolyCap.closeList_nil (items : List Cap) :
     PolyCap.closeList [] items = PolyCap.ofCapList items := by
@@ -720,6 +766,8 @@ mutual
   | fn domain codomain =>
       simp [PolyTy.close, PolyTy.ofTy, PolyTy.close_nil]
   | prod items =>
+      simp [PolyTy.close, PolyTy.ofTy, PolyTy.closeList_nil]
+  | data former arguments =>
       simp [PolyTy.close, PolyTy.ofTy, PolyTy.closeList_nil]
   | matcher capability target =>
       simp [PolyTy.close, PolyTy.ofTy, PolyTy.close_nil]
@@ -753,6 +801,8 @@ mutual
       · rfl
   | prod items =>
       simp [PolyCap.close, PolyCap.openBound, PolyCap.openCloseList]
+  | con former arguments =>
+      simp [PolyCap.close, PolyCap.openBound, PolyCap.openCloseList]
 
 @[simp] theorem PolyCap.openCloseList
     (boundCap : List CapVar) (items : List Cap) :
@@ -784,6 +834,8 @@ mutual
   | fn domain codomain =>
       simp [PolyTy.close, PolyTy.openBound, PolyTy.open_close]
   | prod items =>
+      simp [PolyTy.close, PolyTy.openBound, PolyTy.openCloseList]
+  | data former arguments =>
       simp [PolyTy.close, PolyTy.openBound, PolyTy.openCloseList]
   | matcher capability target =>
       simp [PolyTy.close, PolyTy.openBound, PolyTy.open_close]
@@ -819,6 +871,9 @@ theorem PolyCap.close_wellScoped (boundCap : List CapVar) (capability : Cap) :
   | prod items =>
       simp only [PolyCap.close, PolyCap.WellScoped]
       exact PolyCap.closeList_wellScoped boundCap items
+  | con former arguments =>
+      simp only [PolyCap.close, PolyCap.WellScoped]
+      exact PolyCap.closeList_wellScoped boundCap arguments
 
 theorem PolyCap.closeList_wellScoped
     (boundCap : List CapVar) (items : List Cap) :
@@ -859,6 +914,9 @@ theorem PolyTy.close_wellScoped
   | prod items =>
       simp only [PolyTy.close, PolyTy.WellScoped]
       exact PolyTy.closeList_wellScoped boundTy boundCap items
+  | data former arguments =>
+      simp only [PolyTy.close, PolyTy.WellScoped]
+      exact PolyTy.closeList_wellScoped boundTy boundCap arguments
   | matcher capability target =>
       simp only [PolyTy.close, PolyTy.WellScoped]
       exact ⟨PolyCap.close_wellScoped boundCap capability,
@@ -893,6 +951,7 @@ def PolyCap.freeCapVars : PolyCap → List CapVar
   | .free index => [index]
   | .bound _ => []
   | .prod items => PolyCap.freeCapVarsList items
+  | .con _ arguments => PolyCap.freeCapVarsList arguments
 
 def PolyCap.freeCapVarsList : List PolyCap → List CapVar
   | [] => []
@@ -909,6 +968,7 @@ def PolyTy.freeTyVars : PolyTy → List TyVar
   | .int => []
   | .fn domain codomain => domain.freeTyVars ++ codomain.freeTyVars
   | .prod items => PolyTy.freeTyVarsList items
+  | .data _ arguments => PolyTy.freeTyVarsList arguments
   | .matcher _ target => target.freeTyVars
   | .slot _ target => target.freeTyVars
 
@@ -927,6 +987,7 @@ def PolyTy.freeCapVars : PolyTy → List CapVar
   | .int => []
   | .fn domain codomain => domain.freeCapVars ++ codomain.freeCapVars
   | .prod items => PolyTy.freeCapVarsList items
+  | .data _ arguments => PolyTy.freeCapVarsList arguments
   | .matcher capability target =>
       capability.freeCapVars ++ target.freeCapVars
   | .slot capability target =>
@@ -965,6 +1026,9 @@ theorem PolyCap.mem_freeCapVars_close
   | prod items =>
       simp only [PolyCap.close, PolyCap.freeCapVars, Cap.capVars]
       exact PolyCap.mem_freeCapVars_closeList boundCap items index
+  | con former arguments =>
+      simp only [PolyCap.close, PolyCap.freeCapVars, Cap.capVars]
+      exact PolyCap.mem_freeCapVars_closeList boundCap arguments index
 
 theorem PolyCap.mem_freeCapVars_closeList
     (boundCap : List CapVar) (items : List Cap) (index : CapVar) :
@@ -1023,6 +1087,9 @@ theorem PolyTy.mem_freeTyVars_close
   | prod items =>
       simp only [PolyTy.close, PolyTy.freeTyVars, Ty.tyVars]
       exact PolyTy.mem_freeTyVars_closeList boundTy boundCap items index
+  | data former arguments =>
+      simp only [PolyTy.close, PolyTy.freeTyVars, Ty.tyVars]
+      exact PolyTy.mem_freeTyVars_closeList boundTy boundCap arguments index
   | matcher capability target =>
       simp only [PolyTy.close, PolyTy.freeTyVars, Ty.tyVars]
       exact PolyTy.mem_freeTyVars_close boundTy boundCap target index
@@ -1069,6 +1136,9 @@ theorem PolyTy.mem_freeCapVars_close
   | prod items =>
       simp only [PolyTy.close, PolyTy.freeCapVars, Ty.capVars]
       exact PolyTy.mem_freeCapVars_closeList boundTy boundCap items index
+  | data former arguments =>
+      simp only [PolyTy.close, PolyTy.freeCapVars, Ty.capVars]
+      exact PolyTy.mem_freeCapVars_closeList boundTy boundCap arguments index
   | matcher capability target =>
       simp only [PolyTy.close, PolyTy.freeCapVars, Ty.capVars, List.mem_append]
       rw [PolyCap.mem_freeCapVars_close, PolyTy.mem_freeCapVars_close]

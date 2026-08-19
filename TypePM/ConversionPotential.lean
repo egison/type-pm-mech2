@@ -77,6 +77,7 @@ theorem mayBecomeMatcherProduct_of_apply
   | var => rfl
   | int => simp [Ty.apply, mayBecomeMatcherProduct] at possible
   | fn => simp [Ty.apply, mayBecomeMatcherProduct] at possible
+  | data => simp [Ty.apply, mayBecomeMatcherProduct] at possible
   | matcher => simp [Ty.apply, mayBecomeMatcherProduct] at possible
   | slot => simp [Ty.apply, mayBecomeMatcherProduct] at possible
   | prod items =>

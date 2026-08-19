@@ -25,6 +25,7 @@ def Cap.unificationVars : Cap → List UnificationVar
   | .any => []
   | .var index => [.cap index]
   | .prod items => Cap.unificationVarsList items
+  | .con _ arguments => Cap.unificationVarsList arguments
 
 def Cap.unificationVarsList : List Cap → List UnificationVar
   | [] => []
@@ -40,6 +41,7 @@ def Ty.unificationVars : Ty → List UnificationVar
   | .int => []
   | .fn domain codomain => domain.unificationVars ++ codomain.unificationVars
   | .prod items => Ty.unificationVarsList items
+  | .data _ arguments => Ty.unificationVarsList arguments
   | .matcher capability target =>
       capability.unificationVars ++ target.unificationVars
   | .slot capability target =>
@@ -57,6 +59,7 @@ def Cap.nodeCount : Cap → Nat
   | .any => 1
   | .var _ => 1
   | .prod items => 1 + Cap.nodeCountList items
+  | .con _ arguments => 1 + Cap.nodeCountList arguments
 
 def Cap.nodeCountList : List Cap → Nat
   | [] => 0
@@ -85,6 +88,9 @@ theorem Cap.mem_unificationVars_apply_singleCap
   | prod items =>
       exact Cap.mem_unificationVarsList_apply_singleCap
         candidateVar index replacement items member
+  | con former arguments =>
+      exact Cap.mem_unificationVarsList_apply_singleCap
+        candidateVar index replacement arguments member
 
 theorem Cap.mem_unificationVarsList_apply_singleCap
     (candidateVar : UnificationVar) (index : CapVar) (replacement : Cap)
@@ -140,6 +146,9 @@ theorem Ty.mem_unificationVars_apply_singleCap
   | prod items =>
       exact Ty.mem_unificationVarsList_apply_singleCap
         candidateVar index replacement items member
+  | data former arguments =>
+      exact Ty.mem_unificationVarsList_apply_singleCap
+        candidateVar index replacement arguments member
   | matcher capability target =>
       simp only [Ty.apply, Ty.unificationVars, List.mem_append] at member ⊢
       rcases member with inCapability | inTarget
@@ -221,6 +230,9 @@ theorem Ty.mem_unificationVars_apply_singleTy
   | prod items =>
       exact Ty.mem_unificationVarsList_apply_singleTy
         candidateVar index replacement items member
+  | data former arguments =>
+      exact Ty.mem_unificationVarsList_apply_singleTy
+        candidateVar index replacement arguments member
   | matcher capability target =>
       simp only [Ty.apply, Ty.unificationVars, List.mem_append] at member ⊢
       rcases member with inCapability | inTarget
@@ -284,6 +296,9 @@ theorem Cap.occurs_apply_singleCap_eq_false
   | prod items =>
       exact Cap.occursList_apply_singleCap_eq_false
         index replacement items notOccurs
+  | con former arguments =>
+      exact Cap.occursList_apply_singleCap_eq_false
+        index replacement arguments notOccurs
 
 theorem Cap.occursList_apply_singleCap_eq_false
     (index : CapVar) (replacement : Cap) (items : List Cap)
@@ -316,6 +331,9 @@ theorem Ty.occursCap_apply_singleCap_eq_false
   | prod items =>
       exact Ty.occursCapList_apply_singleCap_eq_false
         index replacement items notOccurs
+  | data former arguments =>
+      exact Ty.occursCapList_apply_singleCap_eq_false
+        index replacement arguments notOccurs
   | matcher capability target =>
       simp [Ty.apply, Ty.occursCap,
         Cap.occurs_apply_singleCap_eq_false index replacement capability notOccurs,
@@ -360,6 +378,9 @@ theorem Ty.occursTy_apply_singleTy_eq_false
   | prod items =>
       exact Ty.occursTyList_apply_singleTy_eq_false
         index replacement items notOccurs
+  | data former arguments =>
+      exact Ty.occursTyList_apply_singleTy_eq_false
+        index replacement arguments notOccurs
   | matcher capability target =>
       simpa [Ty.apply, Ty.occursTy] using
         Ty.occursTy_apply_singleTy_eq_false index replacement target notOccurs
@@ -392,6 +413,7 @@ def Ty.nodeCount : Ty → Nat
   | .int => 1
   | .fn domain codomain => 1 + domain.nodeCount + codomain.nodeCount
   | .prod items => 1 + Ty.nodeCountList items
+  | .data _ arguments => 1 + Ty.nodeCountList arguments
   | .matcher capability target =>
       1 + capability.nodeCount + target.nodeCount
   | .slot capability target =>
@@ -425,6 +447,11 @@ theorem Cap.nodeCount_le_apply_of_occurs
   | prod items =>
       have bounded := Cap.nodeCount_le_applyList_of_occurs
         substitution index items occurs
+      simp only [Cap.apply, Cap.nodeCount]
+      omega
+  | con former arguments =>
+      have bounded := Cap.nodeCount_le_applyList_of_occurs
+        substitution index arguments occurs
       simp only [Cap.apply, Cap.nodeCount]
       omega
 
@@ -470,6 +497,11 @@ theorem Cap.nodeCount_lt_apply_of_proper_occurs
         substitution index items occurs
       simp only [Cap.apply, Cap.nodeCount]
       omega
+  | con former arguments =>
+      have bounded := Cap.nodeCount_le_applyList_of_occurs
+        substitution index arguments occurs
+      simp only [Cap.apply, Cap.nodeCount]
+      omega
 
 mutual
 
@@ -502,6 +534,11 @@ theorem Ty.nodeCount_le_apply_of_occursTy
   | prod items =>
       have bounded := Ty.nodeCount_le_applyList_of_occursTy
         substitution index items occurs
+      simp only [Ty.apply, Ty.nodeCount]
+      omega
+  | data former arguments =>
+      have bounded := Ty.nodeCount_le_applyList_of_occursTy
+        substitution index arguments occurs
       simp only [Ty.apply, Ty.nodeCount]
       omega
   | matcher capability target =>
@@ -569,6 +606,11 @@ theorem Ty.nodeCount_lt_apply_of_proper_occursTy
   | prod items =>
       have bounded := Ty.nodeCount_le_applyList_of_occursTy
         substitution index items occurs
+      simp only [Ty.apply, Ty.nodeCount]
+      omega
+  | data former arguments =>
+      have bounded := Ty.nodeCount_le_applyList_of_occursTy
+        substitution index arguments occurs
       simp only [Ty.apply, Ty.nodeCount]
       omega
   | matcher capability target =>
@@ -796,6 +838,11 @@ theorem Reduces.solvedNodeCount_lt
         Equation.solvedNodeCount, Cap.apply, Cap.nodeCount]
       rw [capEquations_solvedNodeCount paired]
       omega
+  | capCon paired =>
+      simp only [solvedNodeCount_append, solvedNodeCount,
+        Equation.solvedNodeCount, Cap.apply, Cap.nodeCount]
+      rw [capEquations_solvedNodeCount paired]
+      omega
   | tyVarRefl =>
       exact solvedNodeCount_tail_lt _ _ _
   | tyVarLeft =>
@@ -810,6 +857,11 @@ theorem Reduces.solvedNodeCount_lt
       simp [solvedNodeCount, Equation.solvedNodeCount, Ty.apply, Ty.nodeCount]
       omega
   | tyProd paired =>
+      simp only [solvedNodeCount_append, solvedNodeCount,
+        Equation.solvedNodeCount, Ty.apply, Ty.nodeCount]
+      rw [tyEquations_solvedNodeCount paired]
+      omega
+  | tyData paired =>
       simp only [solvedNodeCount_append, solvedNodeCount,
         Equation.solvedNodeCount, Ty.apply, Ty.nodeCount]
       rw [tyEquations_solvedNodeCount paired]
@@ -839,6 +891,7 @@ theorem reduce_some_of_solves
               | any => simp [reduce] at reduced
               | var index => simp [reduce, Cap.occurs] at reduced
               | prod items => simp [Equation.Holds, Cap.apply] at head
+              | con former arguments => simp [Equation.Holds, Cap.apply] at head
           | var index =>
               cases right with
               | any => simp [reduce, Cap.occurs] at reduced
@@ -855,6 +908,16 @@ theorem reduce_some_of_solves
                       head)
                   · have notOccurs : (Cap.prod items).occurs index = false := by
                       cases found : (Cap.prod items).occurs index <;> simp_all
+                    simp [reduce, notOccurs] at reduced
+              | con former arguments =>
+                  by_cases occurs : (Cap.con former arguments).occurs index = true
+                  · simp only [Equation.Holds, Cap.apply] at head
+                    exact False.elim (Cap.occurs_equation_impossible
+                      solution.cap index (.con former arguments) occurs
+                      (by intro equality; cases equality) head)
+                  · have notOccurs :
+                        (Cap.con former arguments).occurs index = false := by
+                      cases found : (Cap.con former arguments).occurs index <;> simp_all
                     simp [reduce, notOccurs] at reduced
           | prod leftItems =>
               cases right with
@@ -878,6 +941,36 @@ theorem reduce_some_of_solves
                     capEquations_exists_of_length_eq length
                   simp only [reduce] at reduced
                   split at reduced <;> simp_all
+              | con former arguments => simp [Equation.Holds, Cap.apply] at head
+          | con leftFormer leftArguments =>
+              cases right with
+              | any => simp [Equation.Holds, Cap.apply] at head
+              | var index =>
+                  by_cases occurs :
+                      (Cap.con leftFormer leftArguments).occurs index = true
+                  · simp only [Equation.Holds, Cap.apply] at head
+                    exact False.elim (Cap.occurs_equation_impossible
+                      solution.cap index (.con leftFormer leftArguments) occurs
+                      (by intro equality; cases equality) head.symm)
+                  · have notOccurs :
+                        (Cap.con leftFormer leftArguments).occurs index = false := by
+                      cases found :
+                        (Cap.con leftFormer leftArguments).occurs index <;> simp_all
+                    simp [reduce, notOccurs] at reduced
+              | prod rightItems => simp [Equation.Holds, Cap.apply] at head
+              | con rightFormer rightArguments =>
+                  simp only [Equation.Holds, Cap.apply] at head
+                  injection head with formerEquality argumentEquality
+                  subst rightFormer
+                  have length : leftArguments.length = rightArguments.length := by
+                    have appliedLength := congrArg List.length argumentEquality
+                    simpa using appliedLength
+                  obtain ⟨children, paired⟩ :=
+                    capEquations_exists_of_length_eq length
+                  simp only [reduce] at reduced
+                  split at reduced
+                  · split at reduced <;> simp_all
+                  · simp_all
       | ty left right =>
           cases left with
           | var index =>
@@ -905,6 +998,16 @@ theorem reduce_some_of_solves
                       (by intro equality; cases equality) head)
                   · have notOccurs : (Ty.prod items).occursTy index = false := by
                       cases found : (Ty.prod items).occursTy index <;> simp_all
+                    simp [reduce, notOccurs] at reduced
+              | data former arguments =>
+                  by_cases occurs : (Ty.data former arguments).occursTy index = true
+                  · simp only [Equation.Holds, Ty.apply] at head
+                    exact False.elim (Ty.occurs_equation_impossible
+                      solution index (.data former arguments) occurs
+                      (by intro equality; cases equality) head)
+                  · have notOccurs :
+                        (Ty.data former arguments).occursTy index = false := by
+                      cases found : (Ty.data former arguments).occursTy index <;> simp_all
                     simp [reduce, notOccurs] at reduced
               | matcher capability target =>
                   by_cases occurs : (Ty.matcher capability target).occursTy index = true
@@ -934,6 +1037,7 @@ theorem reduce_some_of_solves
               | int => simp [reduce] at reduced
               | fn domain codomain => simp [Equation.Holds, Ty.apply] at head
               | prod items => simp [Equation.Holds, Ty.apply] at head
+              | data former arguments => simp [Equation.Holds, Ty.apply] at head
               | matcher capability target => simp [Equation.Holds, Ty.apply] at head
               | slot capability target => simp [Equation.Holds, Ty.apply] at head
           | fn leftDomain leftCodomain =>
@@ -953,6 +1057,7 @@ theorem reduce_some_of_solves
               | int => simp [Equation.Holds, Ty.apply] at head
               | fn rightDomain rightCodomain => simp [reduce] at reduced
               | prod items => simp [Equation.Holds, Ty.apply] at head
+              | data former arguments => simp [Equation.Holds, Ty.apply] at head
               | matcher capability target => simp [Equation.Holds, Ty.apply] at head
               | slot capability target => simp [Equation.Holds, Ty.apply] at head
           | prod leftItems =>
@@ -978,6 +1083,7 @@ theorem reduce_some_of_solves
                     tyEquations_exists_of_length_eq length
                   simp only [reduce] at reduced
                   split at reduced <;> simp_all
+              | data former arguments => simp [Equation.Holds, Ty.apply] at head
               | matcher capability target => simp [Equation.Holds, Ty.apply] at head
               | slot capability target => simp [Equation.Holds, Ty.apply] at head
           | matcher leftCapability leftTarget =>
@@ -998,6 +1104,7 @@ theorem reduce_some_of_solves
               | int => simp [Equation.Holds, Ty.apply] at head
               | fn domain codomain => simp [Equation.Holds, Ty.apply] at head
               | prod items => simp [Equation.Holds, Ty.apply] at head
+              | data former arguments => simp [Equation.Holds, Ty.apply] at head
               | matcher rightCapability rightTarget => simp [reduce] at reduced
               | slot capability target => simp [Equation.Holds, Ty.apply] at head
           | slot leftCapability leftTarget =>
@@ -1017,8 +1124,41 @@ theorem reduce_some_of_solves
               | int => simp [Equation.Holds, Ty.apply] at head
               | fn domain codomain => simp [Equation.Holds, Ty.apply] at head
               | prod items => simp [Equation.Holds, Ty.apply] at head
+              | data former arguments => simp [Equation.Holds, Ty.apply] at head
               | matcher capability target => simp [Equation.Holds, Ty.apply] at head
               | slot rightCapability rightTarget => simp [reduce] at reduced
+          | data leftFormer leftArguments =>
+              cases right with
+              | var index =>
+                  by_cases occurs :
+                      (Ty.data leftFormer leftArguments).occursTy index = true
+                  · simp only [Equation.Holds, Ty.apply] at head
+                    exact False.elim (Ty.occurs_equation_impossible
+                      solution index (.data leftFormer leftArguments) occurs
+                      (by intro equality; cases equality) head.symm)
+                  · have notOccurs :
+                        (Ty.data leftFormer leftArguments).occursTy index = false := by
+                      cases found :
+                        (Ty.data leftFormer leftArguments).occursTy index <;> simp_all
+                    simp [reduce, notOccurs] at reduced
+              | int => simp [Equation.Holds, Ty.apply] at head
+              | fn domain codomain => simp [Equation.Holds, Ty.apply] at head
+              | prod items => simp [Equation.Holds, Ty.apply] at head
+              | data rightFormer rightArguments =>
+                  simp only [Equation.Holds, Ty.apply] at head
+                  injection head with formerEquality argumentEquality
+                  subst rightFormer
+                  have length : leftArguments.length = rightArguments.length := by
+                    have appliedLength := congrArg List.length argumentEquality
+                    simpa using appliedLength
+                  obtain ⟨children, paired⟩ :=
+                    tyEquations_exists_of_length_eq length
+                  simp only [reduce] at reduced
+                  split at reduced
+                  · split at reduced <;> simp_all
+                  · simp_all
+              | matcher capability target => simp [Equation.Holds, Ty.apply] at head
+              | slot capability target => simp [Equation.Holds, Ty.apply] at head
 
 /-- Any fuel at least as large as the instantiated worklist measure is
 sufficient for a known solution.  The bound is semantic--it is computable once
@@ -1120,6 +1260,8 @@ mutual
   | var candidate => simp [Cap.unificationVars, Cap.occurs, eq_comm]
   | prod items =>
       exact Cap.cap_mem_unificationVarsList_iff index items
+  | con former arguments =>
+      exact Cap.cap_mem_unificationVarsList_iff index arguments
 
 @[simp] theorem Cap.cap_mem_unificationVarsList_iff
     (index : CapVar) (items : List Cap) :
@@ -1143,6 +1285,7 @@ mutual
   | any => simp [Cap.unificationVars]
   | var candidate => simp [Cap.unificationVars]
   | prod items => exact Cap.ty_not_mem_unificationVarsList index items
+  | con former arguments => exact Cap.ty_not_mem_unificationVarsList index arguments
 
 @[simp] theorem Cap.ty_not_mem_unificationVarsList
     (index : TyVar) (items : List Cap) :
@@ -1169,6 +1312,7 @@ mutual
       simp [Ty.unificationVars, Ty.occursTy,
         Ty.ty_mem_unificationVars_iff]
   | prod items => exact Ty.ty_mem_unificationVarsList_iff index items
+  | data former arguments => exact Ty.ty_mem_unificationVarsList_iff index arguments
   | matcher capability target =>
       simp [Ty.unificationVars, Ty.occursTy,
         Ty.ty_mem_unificationVars_iff]
@@ -1202,6 +1346,7 @@ mutual
       simp [Ty.unificationVars, Ty.occursCap,
         Ty.cap_mem_unificationVars_iff]
   | prod items => exact Ty.cap_mem_unificationVarsList_iff index items
+  | data former arguments => exact Ty.cap_mem_unificationVarsList_iff index arguments
   | matcher capability target =>
       simp [Ty.unificationVars, Ty.occursCap,
         Ty.cap_mem_unificationVars_iff]
@@ -1433,6 +1578,17 @@ theorem Reduces.unificationVars_subset
             Cap.unificationVars, inRight]
       · simp [unificationVars, Equation.unificationVars,
           Cap.unificationVars, rest]
+  | capCon paired =>
+      simp only [unificationVars_append, List.mem_append] at member
+      rcases member with child | rest
+      · rcases capEquations_mem_unificationVars paired candidateVar child with
+            inLeft | inRight
+        · simp [unificationVars, Equation.unificationVars,
+            Cap.unificationVars, inLeft]
+        · simp [unificationVars, Equation.unificationVars,
+            Cap.unificationVars, inRight]
+      · simp [unificationVars, Equation.unificationVars,
+          Cap.unificationVars, rest]
   | tyVarRefl =>
       simp [unificationVars, Equation.unificationVars,
         Ty.unificationVars, member]
@@ -1458,6 +1614,17 @@ theorem Reduces.unificationVars_subset
         Ty.unificationVars, List.append_assoc, or_comm, or_left_comm,
         or_assoc] using member
   | tyProd paired =>
+      simp only [unificationVars_append, List.mem_append] at member
+      rcases member with child | rest
+      · rcases tyEquations_mem_unificationVars paired candidateVar child with
+            inLeft | inRight
+        · simp [unificationVars, Equation.unificationVars,
+            Ty.unificationVars, inLeft]
+        · simp [unificationVars, Equation.unificationVars,
+            Ty.unificationVars, inRight]
+      · simp [unificationVars, Equation.unificationVars,
+          Ty.unificationVars, rest]
+  | tyData paired =>
       simp only [unificationVars_append, List.mem_append] at member
       rcases member with child | rest
       · rcases tyEquations_mem_unificationVars paired candidateVar child with
@@ -1655,6 +1822,11 @@ theorem Reduces.rawNodeCount_lt_of_no_elimination
         Equation.solvedNodeCount, Cap.apply, Cap.nodeCount]
       rw [capEquations_solvedNodeCount paired]
       omega
+  | capCon paired =>
+      simp only [rawNodeCount, solvedNodeCount_append, solvedNodeCount,
+        Equation.solvedNodeCount, Cap.apply, Cap.nodeCount]
+      rw [capEquations_solvedNodeCount paired]
+      omega
   | tyVarRefl =>
       exact solvedNodeCount_tail_lt Subst.id _ _
   | tyVarLeft notOccurs =>
@@ -1672,6 +1844,11 @@ theorem Reduces.rawNodeCount_lt_of_no_elimination
         Ty.apply, Ty.nodeCount]
       omega
   | tyProd paired =>
+      simp only [rawNodeCount, solvedNodeCount_append, solvedNodeCount,
+        Equation.solvedNodeCount, Ty.apply, Ty.nodeCount]
+      rw [tyEquations_solvedNodeCount paired]
+      omega
+  | tyData paired =>
       simp only [rawNodeCount, solvedNodeCount_append, solvedNodeCount,
         Equation.solvedNodeCount, Ty.apply, Ty.nodeCount]
       rw [tyEquations_solvedNodeCount paired]

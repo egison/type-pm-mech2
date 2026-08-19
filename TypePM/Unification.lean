@@ -85,6 +85,10 @@ theorem Cap.apply_singleCap_of_not_occurs
       simp only [Cap.apply]
       exact congrArg Cap.prod
         (Cap.applyList_singleCap_of_not_occurs index replacement items notOccurs)
+  | con former arguments =>
+      simp only [Cap.apply]
+      exact congrArg (Cap.con former)
+        (Cap.applyList_singleCap_of_not_occurs index replacement arguments notOccurs)
 
 theorem Cap.applyList_singleCap_of_not_occurs
     (index : CapVar) (replacement : Cap) (items : List Cap)
@@ -121,6 +125,10 @@ theorem Ty.apply_singleTy_of_not_occurs
       simp only [Ty.apply]
       exact congrArg Ty.prod
         (Ty.applyList_singleTy_of_not_occurs index replacement items notOccurs)
+  | data former arguments =>
+      simp only [Ty.apply]
+      exact congrArg (Ty.data former)
+        (Ty.applyList_singleTy_of_not_occurs index replacement arguments notOccurs)
   | matcher capability target =>
       simp only [Ty.apply]
       rw [show (Subst.singleTy index replacement).cap = Subst.id.cap by rfl,
@@ -227,6 +235,10 @@ inductive Reduces : List Equation → Subst → List Equation → Prop where
       (paired : capEquations left right = some children) :
       Reduces (.cap (.prod left) (.prod right) :: rest)
         Subst.id (children ++ rest)
+  | capCon {former left right children rest}
+      (paired : capEquations left right = some children) :
+      Reduces (.cap (.con former left) (.con former right) :: rest)
+        Subst.id (children ++ rest)
   | tyVarRefl {index rest} :
       Reduces (.ty (.var index) (.var index) :: rest) Subst.id rest
   | tyVarLeft {index replacement rest}
@@ -249,6 +261,10 @@ inductive Reduces : List Equation → Subst → List Equation → Prop where
   | tyProd {left right children rest}
       (paired : tyEquations left right = some children) :
       Reduces (.ty (.prod left) (.prod right) :: rest)
+        Subst.id (children ++ rest)
+  | tyData {former left right children rest}
+      (paired : tyEquations left right = some children) :
+      Reduces (.ty (.data former left) (.data former right) :: rest)
         Subst.id (children ++ rest)
   | tyMatcher {leftCapability rightCapability leftTarget rightTarget rest} :
       Reduces
@@ -305,6 +321,13 @@ def reduce : (equations : List Equation) → Option (ReductionResult equations)
       | none => none
       | some children =>
           some ⟨Subst.id, children ++ rest, .capProd paired⟩
+  | .cap (.con leftFormer left) (.con rightFormer right) :: rest =>
+      if equality : leftFormer = rightFormer then
+        match paired : capEquations left right with
+        | none => none
+        | some children =>
+            equality ▸ some ⟨Subst.id, children ++ rest, .capCon paired⟩
+      else none
   | .cap _ _ :: _ => none
   | .ty (.var left) (.var right) :: rest =>
       if equality : left = right then
@@ -343,6 +366,13 @@ def reduce : (equations : List Equation) → Option (ReductionResult equations)
       | none => none
       | some children =>
           some ⟨Subst.id, children ++ rest, .tyProd paired⟩
+  | .ty (.data leftFormer left) (.data rightFormer right) :: rest =>
+      if equality : leftFormer = rightFormer then
+        match paired : tyEquations left right with
+        | none => none
+        | some children =>
+            equality ▸ some ⟨Subst.id, children ++ rest, .tyData paired⟩
+      else none
   | .ty (.matcher leftCapability leftTarget)
       (.matcher rightCapability rightTarget) :: rest =>
       some ⟨Subst.id,
@@ -410,6 +440,13 @@ theorem Reduces.sound
       refine ⟨?_, (solves_compose_id_iff later _).mpr rest⟩
       simp only [Equation.Holds, compose_id_right]
       exact congrArg Cap.prod (capEquations_sound paired children)
+  | capCon paired =>
+      rw [solves_cons]
+      obtain ⟨children, rest⟩ := (solves_append later _ _).mp solved
+      refine ⟨?_, (solves_compose_id_iff later _).mpr rest⟩
+      simp only [Equation.Holds, compose_id_right]
+      simp only [Cap.apply]
+      rw [capEquations_sound paired children]
   | tyVarRefl =>
       rw [solves_cons]
       exact ⟨by simp [Equation.Holds],
@@ -447,6 +484,13 @@ theorem Reduces.sound
       refine ⟨?_, (solves_compose_id_iff later _).mpr rest⟩
       simp only [Equation.Holds, compose_id_right]
       exact congrArg Ty.prod (tyEquations_sound paired children)
+  | tyData paired =>
+      rw [solves_cons]
+      obtain ⟨children, rest⟩ := (solves_append later _ _).mp solved
+      refine ⟨?_, (solves_compose_id_iff later _).mpr rest⟩
+      simp only [Equation.Holds, compose_id_right]
+      simp only [Ty.apply]
+      rw [tyEquations_sound paired children]
   | tyMatcher =>
       rw [solves_cons]
       obtain ⟨capability, target, rest⟩ := by

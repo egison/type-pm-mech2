@@ -23,6 +23,9 @@ mutual
   | prod items =>
       simp [PolyCap.ofCap, PolyCap.freeCapVars,
         PolyCap.freeCapVarsList_ofCapList, Cap.capVars]
+  | con former arguments =>
+      simp [PolyCap.ofCap, PolyCap.freeCapVars,
+        PolyCap.freeCapVarsList_ofCapList, Cap.capVars]
 
 @[simp] theorem PolyCap.freeCapVarsList_ofCapList (items : List Cap) :
     PolyCap.freeCapVarsList (PolyCap.ofCapList items) =
@@ -46,6 +49,8 @@ theorem Cap.mem_capVars_iff_unificationVars
   | var candidate => simp [Cap.capVars, Cap.unificationVars]
   | prod items =>
       exact Cap.mem_capVarsList_iff_unificationVarsList index items
+  | con former arguments =>
+      exact Cap.mem_capVarsList_iff_unificationVarsList index arguments
 
 theorem Cap.mem_capVarsList_iff_unificationVarsList
     (index : CapVar) (items : List Cap) :
@@ -72,6 +77,8 @@ theorem Ty.mem_tyVars_iff_unificationVars
       simp [Ty.tyVars, Ty.unificationVars,
         Ty.mem_tyVars_iff_unificationVars]
   | prod items => exact Ty.mem_tyVarsList_iff_unificationVarsList index items
+  | data former arguments =>
+      exact Ty.mem_tyVarsList_iff_unificationVarsList index arguments
   | matcher capability target =>
       simp [Ty.tyVars, Ty.unificationVars,
         Ty.mem_tyVars_iff_unificationVars]
@@ -103,6 +110,8 @@ theorem Ty.mem_capVars_iff_unificationVars
       simp [Ty.capVars, Ty.unificationVars,
         Ty.mem_capVars_iff_unificationVars]
   | prod items => exact Ty.mem_capVarsList_iff_unificationVarsList index items
+  | data former arguments =>
+      exact Ty.mem_capVarsList_iff_unificationVarsList index arguments
   | matcher capability target =>
       simp [Ty.capVars, Ty.unificationVars,
         Cap.mem_capVars_iff_unificationVars,
@@ -137,6 +146,9 @@ mutual
   | prod items =>
       simp [PolyTy.ofTy, PolyTy.freeTyVars,
         PolyTy.freeTyVarsList_ofTyList, Ty.tyVars]
+  | data former arguments =>
+      simp [PolyTy.ofTy, PolyTy.freeTyVars,
+        PolyTy.freeTyVarsList_ofTyList, Ty.tyVars]
   | matcher capability target =>
       simp [PolyTy.ofTy, PolyTy.freeTyVars,
         PolyTy.freeTyVars_ofTy, Ty.tyVars]
@@ -166,6 +178,9 @@ mutual
       simp [PolyTy.ofTy, PolyTy.freeCapVars,
         PolyTy.freeCapVars_ofTy, Ty.capVars]
   | prod items =>
+      simp [PolyTy.ofTy, PolyTy.freeCapVars,
+        PolyTy.freeCapVarsList_ofTyList, Ty.capVars]
+  | data former arguments =>
       simp [PolyTy.ofTy, PolyTy.freeCapVars,
         PolyTy.freeCapVarsList_ofTyList, Ty.capVars]
   | matcher capability target =>
@@ -206,6 +221,8 @@ theorem PolyCap.freeCap_applyFree_origin
   | bound position => simp [PolyCap.applyFree, PolyCap.freeCapVars] at member
   | prod items =>
       exact PolyCap.freeCapList_applyFree_origin substitution items member
+  | con former arguments =>
+      exact PolyCap.freeCapList_applyFree_origin substitution arguments member
 
 theorem PolyCap.freeCapList_applyFree_origin
     (substitution : CapSubst) (items : List PolyCap)
@@ -265,6 +282,8 @@ theorem PolyTy.freeTy_applyFree_origin
           simpa [PolyTy.freeTyVars] using Or.inr inputMember, imageMember⟩
   | prod items =>
       exact PolyTy.freeTyList_applyFree_origin substitution items member
+  | data former arguments =>
+      exact PolyTy.freeTyList_applyFree_origin substitution arguments member
   | matcher capability target =>
       obtain ⟨input, inputMember, imageMember⟩ :=
         PolyTy.freeTy_applyFree_origin substitution target member
@@ -338,6 +357,8 @@ theorem PolyTy.freeCap_applyFree_origin
           exact Or.inr ⟨input, Or.inr inputMember, imageMember⟩
   | prod items =>
       exact PolyTy.freeCapList_applyFree_origin substitution items member
+  | data former arguments =>
+      exact PolyTy.freeCapList_applyFree_origin substitution arguments member
   | matcher capability target =>
       simp only [PolyTy.applyFree, PolyTy.freeCapVars,
         PolyTy.freeTyVars, List.mem_append] at member ⊢
@@ -421,6 +442,12 @@ theorem PolyCap.openBound_supply_cap_origin
         simpa [PolyCap.WellScoped] using wellScoped
       exact PolyCap.openBoundList_supply_cap_origin items capArity supply
         itemsScoped member
+  | con former arguments =>
+      have argumentsScoped : ∀ argument ∈ arguments,
+          argument.WellScoped capArity := by
+        simpa [PolyCap.WellScoped] using wellScoped
+      exact PolyCap.openBoundList_supply_cap_origin arguments capArity supply
+        argumentsScoped member
 
 theorem PolyCap.openBoundList_supply_cap_origin
     (items : List PolyCap) (capArity : Nat) (supply : Supply)
@@ -494,6 +521,12 @@ theorem PolyTy.openBound_supply_ty_origin
         simpa [PolyTy.WellScoped] using wellScoped
       exact PolyTy.openBoundList_supply_ty_origin items tyArity capArity
         supply itemsScoped member
+  | data former arguments =>
+      have argumentsScoped : ∀ argument ∈ arguments,
+          argument.WellScoped tyArity capArity := by
+        simpa [PolyTy.WellScoped] using wellScoped
+      exact PolyTy.openBoundList_supply_ty_origin arguments tyArity capArity
+        supply argumentsScoped member
   | matcher capability target =>
       have parts : capability.WellScoped capArity ∧
           target.WellScoped tyArity capArity := by
@@ -573,6 +606,12 @@ theorem PolyTy.openBound_supply_cap_origin
         simpa [PolyTy.WellScoped] using wellScoped
       exact PolyTy.openBoundList_supply_cap_origin items tyArity capArity
         supply itemsScoped member
+  | data former arguments =>
+      have argumentsScoped : ∀ argument ∈ arguments,
+          argument.WellScoped tyArity capArity := by
+        simpa [PolyTy.WellScoped] using wellScoped
+      exact PolyTy.openBoundList_supply_cap_origin arguments tyArity capArity
+        supply argumentsScoped member
   | matcher capability target =>
       simp only [PolyTy.WellScoped] at wellScoped
       simp only [PolyTy.openBound, Ty.capVars, List.mem_append] at member
