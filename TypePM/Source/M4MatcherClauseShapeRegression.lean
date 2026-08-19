@@ -4,9 +4,10 @@ import TypePM.Source.M4MatcherPatternRegression
 /-!
 # M4 matcher-clause structure regressions
 
-The structures below attach ordered data-pattern arm headers to the seven
-multiset pattern-pattern headers.  They do not attach source expressions or
-claim that the operational matcher clauses have been implemented.
+The structures below are the exact data-pattern erasure of the seven
+multiset matcher clauses printed in Paper 1.  In particular, captures belong
+to the pattern-pattern header; the specialized cons clauses still match the
+target with the single data pattern `$tgt`.
 -/
 
 namespace TypePM.Source.M4MatcherClauseShapeRegression
@@ -18,10 +19,6 @@ def nilArm : MatcherArmHeader :=
 
 def consArm : MatcherArmHeader :=
   MatcherArmHeader.canonical (.ctor DataCtor.cons [.var, .var])
-
-def tupleListArm : MatcherArmHeader :=
-  MatcherArmHeader.canonical
-    (.tuple [.var, .ctor DataCtor.cons [.var, .var]])
 
 def variableArm : MatcherArmHeader :=
   MatcherArmHeader.canonical .var
@@ -37,22 +34,22 @@ def nilClause : MatcherClauseShape :=
 def headOnlyClause : MatcherClauseShape :=
   { header := headOnlyHeader
     holeConvention := .one
-    arms := [consArm, wildcardArm] }
+    arms := [variableArm] }
 
 def valueConsClause : MatcherClauseShape :=
   { header := valueConsHeader
     holeConvention := .one
-    arms := [tupleListArm, wildcardArm] }
+    arms := [variableArm] }
 
 def generalConsClause : MatcherClauseShape :=
   { header := generalConsHeader
     holeConvention := .multiple 2
-    arms := [consArm, wildcardArm] }
+    arms := [variableArm] }
 
 def joinClause : MatcherClauseShape :=
   { header := joinHeader
     holeConvention := .multiple 2
-    arms := [nilArm, consArm, wildcardArm] }
+    arms := [nilArm, consArm] }
 
 def wholeValueClause : MatcherClauseShape :=
   { header := wholeValueHeader
@@ -81,7 +78,7 @@ theorem all_seven_clause_shapes_checked :
     MatcherClauseShapes.isCatchAll, MatcherClauseShape.check,
     multisetClauses, nilClause, headOnlyClause, valueConsClause,
     generalConsClause, joinClause, wholeValueClause, catchAllClause,
-    nilArm, consArm, tupleListArm, variableArm, wildcardArm,
+    nilArm, consArm, variableArm, wildcardArm,
     HoleConvention.ofCount, nilHeader, headOnlyHeader, valueConsHeader,
     generalConsHeader, joinHeader, wholeValueHeader, catchAllHeader,
     PPat.shapeOK, PPat.shapesOK, PPat.captureBeforeFirstHole,
@@ -99,15 +96,15 @@ theorem all_seven_headers_exact :
 
 theorem all_seven_arm_counts_exact :
     multisetClauses.map (fun clause => clause.arms.length) =
-      [2, 2, 2, 2, 3, 1, 1] := by
+      [2, 1, 1, 1, 2, 1, 1] := by
   rfl
 
 theorem value_cons_arm_order_exact :
-    valueConsClause.arms = [tupleListArm, wildcardArm] := by
+    valueConsClause.arms = [variableArm] := by
   rfl
 
 theorem join_arm_order_exact :
-    joinClause.arms = [nilArm, consArm, wildcardArm] := by
+    joinClause.arms = [nilArm, consArm] := by
   rfl
 
 theorem all_checked_arm_slots_linear_and_disjoint :

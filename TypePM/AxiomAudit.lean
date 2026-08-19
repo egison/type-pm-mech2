@@ -435,6 +435,7 @@ every full build.
 #print axioms TypePM.Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact
 #print axioms TypePM.Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact
 #print axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_second_arm_dispatch_exact
+#print axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_first_arm_dispatch_exact
 #print axioms TypePM.Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact
 #print axioms TypePM.Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact
 #print axioms TypePM.Runtime.ClauseDispatchRegression.all_seven_concrete_clause_shapes_checked

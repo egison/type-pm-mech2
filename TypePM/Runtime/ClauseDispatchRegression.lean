@@ -26,8 +26,15 @@ def bodyZero : Expr := .lit 10
 def nextZero : Expr := .lit 11
 def bodyOne : Expr := .lit 20
 def nextOne : Expr := .lit 21
+def bodyValueCons : Expr := .lit 22
+def nextMultiset : Expr := .lit 23
+def bodyJoinEmpty : Expr := .lit 24
+def bodyWholeSuccess : Expr := .lit 25
+def bodyCatchAll : Expr := .lit 26
 def bodyTwo : Expr := .lit 30
 def nextTwo : Expr := .lit 31
+def nextJoin : Expr := .lit 32
+def nextSomething : Expr := .lit 33
 def bodyEmpty : Expr := .lit 40
 def captureExpression : Expr := .lit 100
 
@@ -38,45 +45,46 @@ def shapeEval (_ : ValueEnvironment) : Expr → FuelResult Value
   | .lit 11 => .ok (.tuple [])
   | .lit 20 => .ok (Value.buildList [.int 1, .int 2])
   | .lit 21 => .ok elementMatcher
+  | .lit 22 => .ok (Value.buildList [Value.buildList [.int 2]])
+  | .lit 23 => .ok multisetMatcher
+  | .lit 24 =>
+      .ok (Value.buildList [.tuple [Value.nilValue, Value.nilValue]])
+  | .lit 25 => .ok (Value.buildList [.tuple []])
+  | .lit 26 => .ok (Value.buildList [list12])
   | .lit 30 =>
       .ok (Value.buildList
         [.tuple [.int 1, list12], .tuple [.int 2, Value.nilValue]])
   | .lit 31 => .ok (.tuple [elementMatcher, multisetMatcher])
+  | .lit 32 => .ok (.tuple [multisetMatcher, multisetMatcher])
+  | .lit 33 => .ok .something
   | .lit 40 => .ok Value.nilValue
   | .lit 100 => .ok (.int 1)
   | _ => .stuck
 
 def fallbackArmZero : MatcherArm := .mk .wild bodyEmpty
-def fallbackArmOne : MatcherArm := .mk .wild bodyEmpty
-
 def nilClause : MatcherClause :=
   .mk nilHeader nextZero
     [.mk (.ctor DataCtor.nil []) bodyZero, fallbackArmZero]
 
 def headOnlyClause : MatcherClause :=
-  .mk headOnlyHeader nextOne
-    [.mk (.ctor DataCtor.cons [.var, .var]) bodyOne, fallbackArmOne]
+  .mk headOnlyHeader nextOne [.mk .var bodyOne]
 
 def valueConsClause : MatcherClause :=
-  .mk valueConsHeader nextOne
-    [.mk (.tuple [.var, .ctor DataCtor.cons [.var, .var]]) bodyOne,
-      fallbackArmOne]
+  .mk valueConsHeader nextMultiset [.mk .var bodyValueCons]
 
 def generalConsClause : MatcherClause :=
-  .mk generalConsHeader nextTwo
-    [.mk (.ctor DataCtor.cons [.var, .var]) bodyTwo, fallbackArmOne]
+  .mk generalConsHeader nextTwo [.mk .var bodyTwo]
 
 def joinClause : MatcherClause :=
-  .mk joinHeader nextTwo
-    [.mk (.ctor DataCtor.nil []) bodyEmpty,
-      .mk (.ctor DataCtor.cons [.var, .var]) bodyTwo,
-      fallbackArmOne]
+  .mk joinHeader nextJoin
+    [.mk (.ctor DataCtor.nil []) bodyJoinEmpty,
+      .mk (.ctor DataCtor.cons [.var, .var]) bodyTwo]
 
 def wholeValueClause : MatcherClause :=
-  .mk wholeValueHeader nextZero [.mk .var bodyZero]
+  .mk wholeValueHeader nextZero [.mk .var bodyWholeSuccess]
 
 def catchAllClause : MatcherClause :=
-  .mk catchAllHeader nextOne [.mk .var bodyOne]
+  .mk catchAllHeader nextSomething [.mk .var bodyCatchAll]
 
 def nilPattern : Pattern := .ctor PatternCtor.nil []
 def consPattern : Pattern := .ctor PatternCtor.cons [.var, .wild]
@@ -95,8 +103,10 @@ macro "reduce_multiset_dispatch" : tactic =>
       decodeDecompositions, decodeProduct,
       buildMatchingBranches, zipMatchingAtoms,
       elementMatcher, multisetMatcher, list12,
-      bodyZero, nextZero, bodyOne, nextOne, bodyTwo, nextTwo, bodyEmpty,
-      captureExpression, shapeEval, fallbackArmZero, fallbackArmOne,
+      bodyZero, nextZero, bodyOne, nextOne, bodyValueCons, nextMultiset,
+      bodyJoinEmpty, bodyWholeSuccess, bodyCatchAll, bodyTwo, nextTwo,
+      nextJoin, nextSomething, bodyEmpty,
+      captureExpression, shapeEval, fallbackArmZero,
       nilClause, headOnlyClause, valueConsClause, generalConsClause,
       joinClause, wholeValueClause, catchAllClause,
       nilPattern, consPattern, valueConsPattern, joinPattern,
@@ -116,11 +126,9 @@ theorem head_only_clause_complete_dispatch_exact :
   reduce_multiset_dispatch
 
 theorem value_cons_clause_complete_dispatch_exact :
-    tryMatcherClause shapeEval [] [] valueConsPattern
-        (.tuple [.int 1, list12]) valueConsClause =
+    tryMatcherClause shapeEval [] [] valueConsPattern list12 valueConsClause =
       .ok (.hit
-        [[⟨.wild, elementMatcher, .int 1⟩],
-          [⟨.wild, elementMatcher, .int 2⟩]]) := by
+        [[⟨.wild, multisetMatcher, Value.buildList [.int 2]⟩]]) := by
   reduce_multiset_dispatch
 
 theorem general_cons_clause_complete_dispatch_exact :
@@ -135,9 +143,16 @@ theorem general_cons_clause_complete_dispatch_exact :
 theorem join_clause_second_arm_dispatch_exact :
     tryMatcherClause shapeEval [] [] joinPattern list12 joinClause =
       .ok (.hit
-        [[⟨.var, elementMatcher, .int 1⟩,
+        [[⟨.var, multisetMatcher, .int 1⟩,
             ⟨.wild, multisetMatcher, list12⟩],
-          [⟨.var, elementMatcher, .int 2⟩,
+          [⟨.var, multisetMatcher, .int 2⟩,
+            ⟨.wild, multisetMatcher, Value.nilValue⟩]]) := by
+  reduce_multiset_dispatch
+
+theorem join_clause_first_arm_dispatch_exact :
+    tryMatcherClause shapeEval [] [] joinPattern Value.nilValue joinClause =
+      .ok (.hit
+        [[⟨.var, multisetMatcher, Value.nilValue⟩,
             ⟨.wild, multisetMatcher, Value.nilValue⟩]]) := by
   reduce_multiset_dispatch
 
@@ -149,8 +164,7 @@ theorem whole_value_clause_complete_dispatch_exact :
 theorem catch_all_clause_complete_dispatch_exact :
     tryMatcherClause shapeEval [] [] (.tuple []) list12 catchAllClause =
       .ok (.hit
-        [[⟨.tuple [], elementMatcher, .int 1⟩],
-          [⟨.tuple [], elementMatcher, .int 2⟩]]) := by
+        [[⟨.tuple [], .something, list12⟩]]) := by
   reduce_multiset_dispatch
 
 theorem all_seven_concrete_clause_shapes_checked :
@@ -166,7 +180,7 @@ theorem all_seven_concrete_clause_shapes_checked :
     PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
     DPat.constructorArity?, nilClause, headOnlyClause, valueConsClause,
     generalConsClause, joinClause, wholeValueClause, catchAllClause,
-    fallbackArmZero, fallbackArmOne, nilHeader, headOnlyHeader,
+    fallbackArmZero, nilHeader, headOnlyHeader,
     valueConsHeader, generalConsHeader, joinHeader, wholeValueHeader,
     catchAllHeader, ConstructorSchemes.listNil, ConstructorSchemes.listCons,
     ListPatternSchemes.nil, ListPatternSchemes.cons, ListPatternSchemes.join,

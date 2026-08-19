@@ -355,6 +355,11 @@ constructor mismatchとfield数不一致を明示的な失敗にする．capture
 hole／capture数との一致を証明し，multiset matcherの7 headerを個別に実行した．完全なclause
 dispatchにはcapture式評価，data arm選択，body評価，decompositionの生成がさらに必要である．
 
+`M4MatcherClauseShapeRegression.lean`と`Runtime/ClauseDispatchRegression.lean`の7節fixtureは，
+入れ子の`match`のpatternを外側のmatcher armと混同せず，論文の外側data patternをそのまま保持する．
+specialized cons三節のarmはすべて`$tgt`一つ，join節はnil／consの二つであり，captureはpattern-pattern
+header側だけに置く．
+
 `Runtime/OrderedDispatch.lean`は，clauseとdata armをsource順に試す共通のfirst-success制御を
 定義する．通常の不一致`miss`だけが後続候補へ進み，`hit`は直ちに選択される．fuel切れ`timeout`と
 規則不足`stuck`は後続候補で隠さず伝播する．実行関数と独立した順序付き関係の双方向対応，および

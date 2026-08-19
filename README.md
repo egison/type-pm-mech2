@@ -317,7 +317,7 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 | `$ :: _` | `matchAll [1,2,3] as multiset something with $x :: _ -> x` | `[1,2,3]` | partial：実際のclauseを通るatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact`，`MultisetExecution.head_only_target_order` |
 | `#$val :: $` | `#1 :: $xs`を`[1,1,2]`と`[2,3]`へ適用する | `[[1,2]]`と`[]`．最初の出現だけを除く | partial：captureとarmを含むatomic dispatchは検証済み．具体的なbodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact`，`MultisetExecution.value_cons_removes_first`，`value_cons_absent_is_match_failure` |
 | `$ :: $` | `$x :: $xs`を`[1,2,3]`へ適用する | `[(1,[2,3]),(2,[1,3]),(3,[1,2])]` | partial：2 holeのbranch構築は検証済み．具体的な選択bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact`，`MultisetExecution.cons_three_search_order` |
-| `$ ++ $` | `$xs ++ $ys`を`[1,2,3]`へ適用する | `([], [1,2,3])`，`([3], [1,2])`，`([2], [1,3])`，`([2,3], [1])`，`([1], [2,3])`，`([1,3], [2])`，`([1,2], [3])`，`([1,2,3], [])` | partial：先行armの不一致後に2番目のarmを選ぶatomic dispatchは検証済み．具体的な分割bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.join_clause_second_arm_dispatch_exact`，`MultisetExecution.join_three_split_order` |
+| `$ ++ $` | `$xs ++ $ys`を`[1,2,3]`へ適用する | `([], [1,2,3])`，`([3], [1,2])`，`([2], [1,3])`，`([2,3], [1])`，`([1], [2,3])`，`([1,3], [2])`，`([1,2], [3])`，`([1,2,3], [])` | partial：論文どおりのnil／consの2 armを通るatomic dispatchは両方検証済み．具体的な再帰分割bodyとの接続は未完了 | `Runtime.ClauseDispatchRegression.join_clause_first_arm_dispatch_exact`，`join_clause_second_arm_dispatch_exact`，`MultisetExecution.join_three_split_order` |
 | `#$val` | `#[1,2]`をmultiset対象`[2,1]`と`[1,3]`へ適用する | 一つの成功`[()]`と正常な不一致`[]` | partial：0 holeとcaptureを含むatomic dispatchは検証済み．構造的multiset等価性との接続は未完了 | `Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact`，`MultisetExecution.value_whole_permutation`，`value_whole_mismatch` |
 | catch-all `$` | `matchAll [1,2,3] as multiset something with $xs -> xs` | 対象全体を一度だけ返す`[[1,2,3]]` | partial：対象全体をdata-variableへ渡すatomic dispatchは検証済み．`matchAll`全体は未完了 | `Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact`，`MultisetExecution.catch_all_once` |
 
@@ -387,7 +387,8 @@ tupleの同じ要素数での子atom化，product matcherから`something`への
 全arm不一致だけが次clauseへ進み，選択armが空候補列を返した場合は正常な成功として後続arm／clauseを
 試さない．timeoutとstuckの伝播，不正なlist／tuple形，未試行suffixを持つmatcher cursor，branchの
 source順を回帰で固定した．実行成功と，実行関数から独立して定義したclause／arm関係の双方向対応も
-証明済みである．multisetの7 clauseはそれぞれ完全な`MatcherClause`としてatomic dispatchを通るが，
+証明済みである．multisetの7 clauseは，captureをdata patternへ混ぜず，論文に掲載された`$tgt` armと
+nil／cons armの個数・順序を保った完全な`MatcherClause`としてatomic dispatchを通るが，
 bodyは評価callbackで与えているため，まだ`matchAll`全体の完了とは数えない．
 `reduceMatcherAtom`は同じ`MatchingAtom`を直接受け取り，matcher valueの未試行clause suffixをdispatch
 して，共通の`AtomReduction`へ変換する．matcher value以外では正常な`miss`を返すため，built-in規則との
