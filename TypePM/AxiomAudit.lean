@@ -18,6 +18,7 @@ import TypePM.GeneratedSupport
 import TypePM.ResolutionSupport
 import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
+import TypePM.M3DeclarationsRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -194,3 +195,9 @@ every full build.
 #print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationPrincipalityComplete
 #print axioms TypePM.Source.Inference.infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
 #print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
+#print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_wellFormed
+#print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_closed
+#print axioms TypePM.Source.M3DeclarationsRegression.list_cons_dual_instantiation_exact
+#print axioms TypePM.Source.M3DeclarationsRegression.map_instantiation_exact
+#print axioms TypePM.Source.M3DeclarationsRegression.paper1_signature_wellFormed
+#print axioms TypePM.Source.M3DeclarationsRegression.malformed_list_capability_not_wellFormed

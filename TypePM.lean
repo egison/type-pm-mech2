@@ -89,6 +89,12 @@ import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.M2Regression
+import TypePM.DataTypes
+import TypePM.Constructors
+import TypePM.Primitives
+import TypePM.PatternDeclarations
+import TypePM.Signature
+import TypePM.M3DeclarationsRegression
 import TypePM.AxiomAudit
 
 /-!
