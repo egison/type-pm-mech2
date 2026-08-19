@@ -16,6 +16,7 @@ import TypePM.BlockClosureTransport
 import TypePM.AbsorbingSupportRange
 import TypePM.GeneratedSupport
 import TypePM.GeneratedSemanticAcceptanceRegression
+import TypePM.GeneratedStableSemanticAcceptance
 import TypePM.ResolutionSupport
 import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
@@ -142,6 +143,9 @@ every full build.
 #print axioms TypePM.Generated.exists_semanticSolution_of_blockAccepts
 #print axioms TypePM.Generated.blockAccepts_iff_exists_semanticSolution_of_pending_eq_nil
 #print axioms TypePM.GeneratedSemanticAcceptanceCounterexample.semanticSolution_not_iff_blockAccepts
+#print axioms TypePM.Generated.blockAccepts_iff_exists_stableSemanticSolution
+#print axioms TypePM.Generated.StableSemanticSolution.transportHard
+#print axioms TypePM.Generated.exists_stableSemanticSolution_iff_of_hardEquivalent
 #print axioms TypePM.PrincipalBlockClosure.localized_of_absorbing
 #print axioms TypePM.inferGeneratedUsing_unify_localizedPrincipalBlockClosure
 #print axioms TypePM.Source.Scheme.wellFormed

@@ -35,6 +35,7 @@ import TypePM.SaturationProcedureCompleteness
 import TypePM.Declarative
 import TypePM.DeclarativeCoverage
 import TypePM.GeneratedSemanticAcceptance
+import TypePM.GeneratedStableSemanticAcceptance
 import TypePM.InferenceProcedure
 import TypePM.Inference
 import TypePM.InferenceCompleteness
