@@ -23,6 +23,7 @@ import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
+import TypePM.Runtime.FuelResultRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
@@ -260,6 +261,13 @@ every full build.
 #print axioms TypePM.Runtime.RemovesOne.perm
 #print axioms TypePM.Runtime.DeletesFirst.perm
 #print axioms TypePM.Runtime.Splits.perm
+#print axioms TypePM.Runtime.FuelResult.map_eq_ok_iff
+#print axioms TypePM.Runtime.FuelResult.bind_eq_ok_iff
+#print axioms TypePM.Runtime.FuelResult.traverse_eq_ok_iff
+#print axioms TypePM.Runtime.FuelResult.traverse_notStuck
+#print axioms TypePM.Runtime.FuelResultRegression.traverse_success_exact
+#print axioms TypePM.Runtime.FuelResultRegression.traverse_timeout_stops
+#print axioms TypePM.Runtime.FuelResultRegression.traverse_stuck_distinct_from_timeout
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup
