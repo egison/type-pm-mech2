@@ -47,6 +47,7 @@ import TypePM.Source.ScopedGeneratedEquivalence
 import TypePM.Source.ScopedElaborationComposition
 import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.CrossGeneratedLetNormalization
+import TypePM.Source.RecursiveLetSupportSafety
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
@@ -175,6 +176,14 @@ every full build.
 #print axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_targets_mutualInstances
 #print axioms TypePM.Source.CrossGeneratedClosureAlignment.renamedFromLet_pending_exact
 #print axioms TypePM.Source.IsolatedRenamingCounterexample.not_scopedContextualEquivalent
+#print axioms TypePM.Source.VariableRenaming.FixesOutside.renameGenerated_eq
+#print axioms TypePM.Source.GeneratedFrame.renameGenerated_plug_of_fixesOutside
+#print axioms TypePM.Source.Generated.scopedContextualEquivalent_rename_of_fixesOutside
+#print axioms TypePM.Source.Elaborates.generatedAvoids_earlierHidden
+#print axioms TypePM.Source.SourceSafeWholeLetAlignment.scopedContextualEquivalent
+#print axioms TypePM.Source.SourceSafeWholeLetAlignment.interfaceComparison
+#print axioms TypePM.Source.FrameAdmissibilityCounterexample.not_frameAdmissible
+#print axioms TypePM.Source.FutureFixingCounterexample.no_fresh_fixesOutside
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff

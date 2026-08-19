@@ -85,6 +85,7 @@ import TypePM.Source.ScopedGeneratedEquivalence
 import TypePM.Source.ScopedElaborationComposition
 import TypePM.Source.RecursiveLetInvariant
 import TypePM.Source.CrossGeneratedLetNormalization
+import TypePM.Source.RecursiveLetSupportSafety
 import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality

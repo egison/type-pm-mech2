@@ -75,6 +75,13 @@ interfaceとbodyを合わせた`let`全体の結果型，hard制約，保留chec
 結果型の相互代入関係まで証明済みである．残る条件は，周囲の制約blockが移動対象の変数を共有しないことと，
 有限な別名等式の新しい端点を周囲のblockが使わないことを，source生成変数の由来から各入れ子位置で導くことである．
 子blockだけを名前変更すると，周囲が移動対象を共有する場合には受理が変わり得ることも反例で固定した．
+変数名変更が有限な`hidden`集合の外を固定するなら，名前変更と任意の`hidden`を使わない親blockへの差し込みが
+可換であり，子blockの受理を親の文脈でも保てることを証明した．また，後続bodyのcontextに由来する変数が
+先行valueの開始supplyより前にあるなら，source生成変数の由来からそのbodyがvalue区間の`hidden`名を使わない
+ことも導出できる．一方，未来のfresh名だけを固定する条件は過去の名前交換を禁止せず，共通hard制約だけの
+証拠は保留checkingに現れる別名端点を記録しないため，この二つの弱い条件だけでは親blockへ持ち上げられない．
+これら二つの不足はそれぞれkernel proofによる反例で固定した．したがって残件は，実際のsource導出から，
+名前変更の全supportと別名等式列の順序・freshnessを同時に保持する有限な証拠を構成することである．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
@@ -125,6 +132,7 @@ blockが，全体を一度だけ変数名変更した形で一致するという
 `Source/InterfaceAliasDecomposition.lean`，`Source/InterfaceAliasFreshness.lean`，
 `Source/ScopedGeneratedEquivalence.lean`，`Source/ScopedElaborationComposition.lean`，
 `Source/RecursiveLetInvariant.lean`，`Source/CrossGeneratedLetNormalization.lean`，
+`Source/RecursiveLetSupportSafety.lean`，
 `Source/ElaborationCompleteness.lean`，
 `Source/Principality.lean`，`Source/ConditionalPrincipality.lean`である．
 
