@@ -66,6 +66,13 @@ inductive LetFree : Expr → Prop where
   | app {function argument : Expr} :
       LetFree function → LetFree argument → LetFree (.app function argument)
   | tuple {items : List Expr} : LetFreeItems items → LetFree (.tuple items)
+  | ctor {constructor : DataCtor} {arguments : List Expr} :
+      LetFreeItems arguments → LetFree (.ctor constructor arguments)
+  | prim {operation : PrimOp} {arguments : List Expr} :
+      LetFreeItems arguments → LetFree (.prim operation arguments)
+  | ifE {condition thenBranch elseBranch : Expr} :
+      LetFree condition → LetFree thenBranch → LetFree elseBranch →
+        LetFree (.ifE condition thenBranch elseBranch)
 
 /-- Pointwise let-freedom for tuple items. -/
 inductive LetFreeItems : List Expr → Prop where
@@ -80,11 +87,11 @@ mutual
 /-- Every let-free relational elaboration is replayed literally by the
 executable elaborator. -/
 theorem Elaborates.replay_of_letFree
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression supply generated next)
+    (derivation : Elaborates signature context expression supply generated next)
     (letFree : LetFree expression) :
-    elaborate context expression supply = some (generated, next) := by
+    elaborate signature context expression supply = some (generated, next) := by
   cases derivation with
   | var lookup => simp [elaborate, lookup]
   | lit => simp [elaborate]
@@ -106,15 +113,34 @@ theorem Elaborates.replay_of_letFree
           simp [elaborate,
             ElaboratesItems.replay_of_letFree itemsElaboration itemsLetFree]
   | letE => cases letFree
+  | ctor lookup arity _ call =>
+      cases letFree with
+      | ctor argumentsLetFree =>
+          simp [elaborate, lookup, arity,
+            ElaboratesCall.replay_of_letFree call argumentsLetFree]
+  | prim lookup arity _ call =>
+      cases letFree with
+      | prim argumentsLetFree =>
+          simp [elaborate, lookup, arity,
+            ElaboratesCall.replay_of_letFree call argumentsLetFree]
+  | ifE call =>
+      cases letFree with
+      | ifE conditionLetFree thenLetFree elseLetFree =>
+          simpa [elaborate] using
+            ElaboratesCall.replay_of_letFree call
+              (.cons conditionLetFree
+                (.cons thenLetFree (.cons elseLetFree .nil)))
+termination_by expression.complexity * 3 + 2
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
 /-- List counterpart of `Elaborates.replay_of_letFree`. -/
 theorem ElaboratesItems.replay_of_letFree
-    {context : Context} {expressions : List Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {supply next : Supply}
     {generated : GeneratedItems}
     (derivation :
-      ElaboratesItems context expressions supply generated next)
+      ElaboratesItems signature context expressions supply generated next)
     (letFree : LetFreeItems expressions) :
-    elaborateItems context expressions supply = some (generated, next) := by
+    elaborateItems signature context expressions supply = some (generated, next) := by
   cases derivation with
   | nil => simp [elaborateItems]
   | cons itemElaboration itemsElaboration =>
@@ -123,6 +149,29 @@ theorem ElaboratesItems.replay_of_letFree
           simp [elaborateItems,
             Elaborates.replay_of_letFree itemElaboration itemLetFree,
             ElaboratesItems.replay_of_letFree itemsElaboration itemsLetFree]
+termination_by Expr.listComplexity expressions * 3 + 1
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
+
+/-- Call counterpart of `Elaborates.replay_of_letFree`. -/
+theorem ElaboratesCall.replay_of_letFree
+    {signature : Signature} {context : Context}
+    {accumulated generated : Generated} {expressions : List Expr}
+    {supply next : Supply}
+    (derivation : ElaboratesCall signature context accumulated expressions
+      supply generated next)
+    (letFree : LetFreeItems expressions) :
+    elaborateCall signature context accumulated expressions supply =
+      some (generated, next) := by
+  cases derivation with
+  | nil => simp [elaborateCall]
+  | cons argumentElaboration restElaboration =>
+      cases letFree with
+      | cons argumentLetFree restLetFree =>
+          simp [elaborateCall,
+            Elaborates.replay_of_letFree argumentElaboration argumentLetFree,
+            ElaboratesCall.replay_of_letFree restElaboration restLetFree]
+termination_by Expr.listComplexity expressions * 3
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
 end
 
@@ -130,10 +179,10 @@ end
 /-- An executable elaboration result together with independent evidence that
 its generated constraint block has a principal closure.  This is the exact
 intermediate fact needed for acceptance completeness. -/
-structure ExecutableClosure (context : Context) (expression : Expr) where
+structure ExecutableClosure (signature : Signature) (context : Context) (expression : Expr) where
   generated : Generated
   next : Supply
-  replay : elaborate context expression context.initialSupply =
+  replay : elaborate signature context expression context.initialSupply =
     some (generated, next)
   closure : PrincipalBlockClosure generated
 
@@ -141,12 +190,12 @@ structure ExecutableClosure (context : Context) (expression : Expr) where
 enough to construct an `ExecutableClosure`; no particular principal
 representative has to be supplied. -/
 theorem executableClosure_of_blockAccepts
-    {context : Context} {expression : Expr} {generated : Generated}
+    {signature : Signature} {context : Context} {expression : Expr} {generated : Generated}
     {next : Supply}
-    (replay : elaborate context expression context.initialSupply =
+    (replay : elaborate signature context expression context.initialSupply =
       some (generated, next))
     (accepts : BlockAccepts generated) :
-    Nonempty (ExecutableClosure context expression) := by
+    Nonempty (ExecutableClosure signature context expression) := by
   have succeeds :=
     TypePM.BlockAccepts.inferGeneratedUsing_isSome
       unify_completeMGUSolver accepts
@@ -166,12 +215,12 @@ theorem executableClosure_of_blockAccepts
 principal closure, completeness of the block solver suffices for source
 inference acceptance. -/
 theorem infer_isSome_of_elaboratedClosure
-    {context : Context} {expression : Expr} {generated : Generated}
+    {signature : Signature} {context : Context} {expression : Expr} {generated : Generated}
     {next : Supply}
-    (replay : elaborate context expression context.initialSupply =
+    (replay : elaborate signature context expression context.initialSupply =
       some (generated, next))
     (closure : PrincipalBlockClosure generated) :
-    infer context expression ≠ none := by
+    infer signature context expression ≠ none := by
   have closed : inferGeneratedUsing unify generated ≠ none :=
     closure.inferGeneratedUsing_isSome unify_completeMGUSolver
   cases closureResult : inferGeneratedUsing unify generated with
@@ -181,31 +230,31 @@ theorem infer_isSome_of_elaboratedClosure
 /-- Exact-representative specialization of
 `infer_isSome_of_elaboratedClosure`. -/
 theorem infer_isSome_of_exactRepresentative
-    {context : Context} {expression : Expr} {generated : Generated}
+    {signature : Signature} {context : Context} {expression : Expr} {generated : Generated}
     {next : Supply}
-    (replay : elaborate context expression context.initialSupply =
+    (replay : elaborate signature context expression context.initialSupply =
       some (generated, next))
     (closure : PrincipalBlockClosure generated) :
-    infer context expression ≠ none :=
+    infer signature context expression ≠ none :=
   infer_isSome_of_elaboratedClosure replay closure
 
 /-- An executable elaboration result with a principal block closure is
 accepted by source inference. -/
 theorem ExecutableClosure.infer_isSome
-    {context : Context} {expression : Expr}
-    (witness : ExecutableClosure context expression) :
-    infer context expression ≠ none :=
+    {signature : Signature} {context : Context} {expression : Expr}
+    (witness : ExecutableClosure signature context expression) :
+    infer signature context expression ≠ none :=
   infer_isSome_of_elaboratedClosure witness.replay witness.closure
 
 /-- A let-free blockwise-principal typing is accepted by executable source
 inference. -/
 theorem PrincipalTyping.infer_isSome_of_letFree
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target)
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target)
     (letFree : LetFree expression) :
-    infer context expression ≠ none := by
+    infer signature context expression ≠ none := by
   rcases principal with ⟨derivation⟩
-  let witness : ExecutableClosure context expression :=
+  let witness : ExecutableClosure signature context expression :=
     { generated := derivation.generated
       next := derivation.next
       replay := derivation.elaboration.replay_of_letFree letFree
@@ -216,10 +265,10 @@ theorem PrincipalTyping.infer_isSome_of_letFree
 The requested result type may be any substitution instance of the stored
 blockwise-principal result. -/
 theorem Typing.infer_isSome_of_letFree
-    {context : Context} {expression : Expr} {target : Ty}
-    (typing : Typing context expression target)
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing signature context expression target)
     (letFree : LetFree expression) :
-    infer context expression ≠ none := by
+    infer signature context expression ≠ none := by
   rcases typing with ⟨_, principal, _⟩
   exact principal.infer_isSome_of_letFree letFree
 
@@ -230,12 +279,12 @@ identical) generated block.  `InterfaceClosureTransport` supplies the
 representative-insensitive interface equations needed in the `letE` case;
 finite fresh-name transport supplies the body comparison. -/
 def ElaborationAcceptanceComplete : Prop :=
-  ∀ {context : Context} {expression : Expr} {supply next : Supply}
+  ∀ {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
       {generated : Generated},
-    Elaborates context expression supply generated next →
+    Elaborates signature context expression supply generated next →
       ∀ (closure : PrincipalBlockClosure generated), closure.Absorbing →
         ∃ computed computedNext,
-          elaborate context expression supply =
+          elaborate signature context expression supply =
               some (computed, computedNext) ∧
             BlockAccepts computed
 
@@ -243,9 +292,9 @@ def ElaborationAcceptanceComplete : Prop :=
 completeness for every blockwise-principal source typing. -/
 theorem PrincipalTyping.infer_isSome_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target) :
-    infer context expression ≠ none := by
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target) :
+    infer signature context expression ≠ none := by
   rcases principal with ⟨derivation⟩
   obtain ⟨computed, computedNext, replay, accepts⟩ :=
     complete derivation.elaboration derivation.closure
@@ -257,70 +306,74 @@ theorem PrincipalTyping.infer_isSome_of_elaborationAcceptanceComplete
 completeness once the principal representative is accepted. -/
 theorem Typing.infer_isSome_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (typing : Typing context expression target) :
-    infer context expression ≠ none := by
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing signature context expression target) :
+    infer signature context expression ≠ none := by
   rcases typing with ⟨_, principal, _⟩
   exact principal.infer_isSome_of_elaborationAcceptanceComplete complete
 
 /-- A source expression is typable when it has at least one declarative
 result type. -/
-def Typable (context : Context) (expression : Expr) : Prop :=
-  ∃ target, Typing context expression target
+def Typable (signature : Signature) (context : Context) (expression : Expr) : Prop :=
+  ∃ target, Typing signature context expression target
 
 namespace Inference
 
 /-- On the let-free fragment, public source inference succeeds exactly for
 declaratively typable expressions. -/
 theorem typable_iff_infer_isSome_of_letFree
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr)
     (letFree : LetFree expression) :
-    Typable context expression ↔ infer context expression ≠ none := by
+    Typable signature context expression ↔ infer signature context expression ≠ none := by
   constructor
   · rintro ⟨_, typing⟩
     exact typing.infer_isSome_of_letFree letFree
   · intro succeeds
-    cases computed : infer context expression with
+    cases computed : infer signature context expression with
     | none => exact False.elim (succeeds computed)
-    | some target => exact ⟨target, infer_success_typing computed⟩
+    | some target => exact ⟨target, infer_success_typing wellFormed computed⟩
 
 /-- Let-free source typability is decidable by running public inference. -/
 def typableDecidable_of_letFree
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr)
     (letFree : LetFree expression) :
-    Decidable (Typable context expression) :=
-  match computed : infer context expression with
+    Decidable (Typable signature context expression) :=
+  match computed : infer signature context expression with
   | none => isFalse (by
       rintro ⟨_, typing⟩
       exact typing.infer_isSome_of_letFree letFree computed)
-  | some target => isTrue ⟨target, infer_success_typing computed⟩
+  | some target => isTrue ⟨target, infer_success_typing wellFormed computed⟩
 
 /-- Conditional full-M2 exactness, reduced solely to the explicit
 interface-aware elaboration transport statement above. -/
 theorem typable_iff_infer_isSome_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Typable context expression ↔ infer context expression ≠ none := by
+    Typable signature context expression ↔ infer signature context expression ≠ none := by
   constructor
   · rintro ⟨_, typing⟩
     exact typing.infer_isSome_of_elaborationAcceptanceComplete complete
   · intro succeeds
-    cases computed : infer context expression with
+    cases computed : infer signature context expression with
     | none => exact False.elim (succeeds computed)
-    | some target => exact ⟨target, infer_success_typing computed⟩
+    | some target => exact ⟨target, infer_success_typing wellFormed computed⟩
 
 /-- Conditional full-M2 decision procedure.  Supplying the remaining
 transport proof removes the condition without changing the algorithm. -/
 def typableDecidable_of_elaborationAcceptanceComplete
     (complete : ElaborationAcceptanceComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Decidable (Typable context expression) :=
-  match computed : infer context expression with
+    Decidable (Typable signature context expression) :=
+  match computed : infer signature context expression with
   | none => isFalse (by
       rintro ⟨_, typing⟩
       exact typing.infer_isSome_of_elaborationAcceptanceComplete
         complete computed)
-  | some target => isTrue ⟨target, infer_success_typing computed⟩
+  | some target => isTrue ⟨target, infer_success_typing wellFormed computed⟩
 
 end Inference
 

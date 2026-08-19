@@ -15,27 +15,27 @@ namespace TypePM.Source
 
 /-- All blockwise-principal derivations of one source expression have
 mutually instantiable targets. -/
-def PrincipalCoherence (context : Context) (expression : Expr) : Prop :=
+def PrincipalCoherence (signature : Signature) (context : Context) (expression : Expr) : Prop :=
   ∀ {left right},
-    PrincipalTyping context expression left →
-      PrincipalTyping context expression right →
+    PrincipalTyping signature context expression left →
+      PrincipalTyping signature context expression right →
         IsInstance left right ∧ IsInstance right left
 
 /-- A source type is globally principal when it is a typing and every other
 source typing is its substitution instance. -/
 def PrincipalResult
-    (context : Context) (expression : Expr) (target : Ty) : Prop :=
-  Typing context expression target ∧
-    ∀ other, Typing context expression other → IsInstance target other
+    (signature : Signature) (context : Context) (expression : Expr) (target : Ty) : Prop :=
+  Typing signature context expression target ∧
+    ∀ other, Typing signature context expression other → IsInstance target other
 
 /-- One blockwise-principal witness agrees with the deterministic public
 inference representative in both directions.  This is the narrow structural
 statement that nested-`let` transport must establish. -/
 def AgreesWithInference
-    {context : Context} {expression : Expr} {target : Ty}
-    (_typing : PrincipalTyping context expression target) : Prop :=
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (_typing : PrincipalTyping signature context expression target) : Prop :=
   ∃ inferred,
-    infer context expression = some inferred ∧
+    infer signature context expression = some inferred ∧
       IsInstance inferred target ∧ IsInstance target inferred
 
 private theorem isInstance_trans
@@ -52,11 +52,11 @@ private theorem isInstance_trans
 global source coherence.  Determinism of `infer` identifies the intermediate
 representative used for the two witnesses. -/
 theorem principalCoherence_of_inferenceAgreement
-    {context : Context} {expression : Expr}
+    {signature : Signature} {context : Context} {expression : Expr}
     (agreement : ∀ {target}
-      (typing : PrincipalTyping context expression target),
+      (typing : PrincipalTyping signature context expression target),
         AgreesWithInference typing) :
-    PrincipalCoherence context expression := by
+    PrincipalCoherence signature context expression := by
   intro left right leftPrincipal rightPrincipal
   obtain ⟨leftInferred, leftSuccess, leftForward, leftBackward⟩ :=
     agreement leftPrincipal
@@ -72,9 +72,9 @@ theorem principalCoherence_of_inferenceAgreement
 /-- Let-free elaborations replay literally, so their only possible variation
 comes from two principal closures of the same generated block. -/
 theorem principalCoherence_of_letFree
-    {context : Context} {expression : Expr}
+    {signature : Signature} {context : Context} {expression : Expr}
     (letFree : LetFree expression) :
-    PrincipalCoherence context expression := by
+    PrincipalCoherence signature context expression := by
   intro left right leftPrincipal rightPrincipal
   rcases leftPrincipal with
     ⟨⟨leftGenerated, leftNext, leftElaboration, leftClosure,
@@ -97,16 +97,17 @@ namespace PrincipalTyping
 /-- Every let-free principal witness agrees mutually with the deterministic
 public inference representative. -/
 theorem agreesWithInference_of_letFree
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target)
+    (principal : PrincipalTyping signature context expression target)
     (letFree : LetFree expression) :
     AgreesWithInference principal := by
   have succeeds := principal.infer_isSome_of_letFree letFree
-  cases success : infer context expression with
+  cases success : infer signature context expression with
   | none => exact (succeeds success).elim
   | some inferred =>
       have instances := principalCoherence_of_letFree letFree
-        (Inference.infer_success_principalTyping success) principal
+        (Inference.infer_success_principalTyping wellFormed success) principal
       exact ⟨inferred, success, instances.1, instances.2⟩
 
 end PrincipalTyping
@@ -116,42 +117,46 @@ namespace Inference
 /-- The principal witness constructed directly from a successful executable
 run agrees with that run by the identity substitution. -/
 theorem infer_success_agreesWithInference
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (success : infer context expression = some target) :
-    AgreesWithInference (infer_success_principalTyping success) := by
+    (success : infer signature context expression = some target) :
+    AgreesWithInference (infer_success_principalTyping wellFormed success) := by
   exact ⟨target, success, ⟨Subst.id, by simp⟩, ⟨Subst.id, by simp⟩⟩
 
 /-- Coherence turns a successful blockwise-principal inference result into a
 type more general than every declarative source typing. -/
 theorem infer_principal_of_coherence
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {principal target : Ty}
-    (coherence : PrincipalCoherence context expression)
-    (success : infer context expression = some principal)
-    (typing : Typing context expression target) :
+    (coherence : PrincipalCoherence signature context expression)
+    (success : infer signature context expression = some principal)
+    (typing : Typing signature context expression target) :
     IsInstance principal target := by
   obtain ⟨witness, witnessPrincipal, witnessToTarget⟩ := typing
   exact isInstance_trans
-    (coherence (infer_success_principalTyping success) witnessPrincipal).1
+    (coherence (infer_success_principalTyping wellFormed success) witnessPrincipal).1
     witnessToTarget
 
 /-- Under source coherence, successful inference packages a globally
 principal source result. -/
 theorem infer_success_principalResult_of_coherence
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (coherence : PrincipalCoherence context expression)
-    (success : infer context expression = some target) :
-    PrincipalResult context expression target := by
-  exact ⟨infer_success_typing success,
-    fun _ typing => infer_principal_of_coherence coherence success typing⟩
+    (coherence : PrincipalCoherence signature context expression)
+    (success : infer signature context expression = some target) :
+    PrincipalResult signature context expression target := by
+  exact ⟨infer_success_typing wellFormed success,
+    fun _ typing => infer_principal_of_coherence wellFormed coherence success typing⟩
 
 /-- Public inference is globally principal on the let-free source fragment. -/
 theorem infer_success_principalResult_of_letFree
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
     (letFree : LetFree expression)
-    (success : infer context expression = some target) :
-    PrincipalResult context expression target :=
+    (success : infer signature context expression = some target) :
+    PrincipalResult signature context expression target :=
   infer_success_principalResult_of_coherence
-    (principalCoherence_of_letFree letFree) success
+    wellFormed (principalCoherence_of_letFree letFree) success
 
 end Inference
 
@@ -159,20 +164,20 @@ namespace PrincipalTyping
 
 /-- Coherence immediately compares two blockwise-principal witnesses. -/
 theorem mutualInstances_of_coherence
-    {context : Context} {expression : Expr} {left right : Ty}
-    (coherence : PrincipalCoherence context expression)
-    (leftPrincipal : PrincipalTyping context expression left)
-    (rightPrincipal : PrincipalTyping context expression right) :
+    {signature : Signature} {context : Context} {expression : Expr} {left right : Ty}
+    (coherence : PrincipalCoherence signature context expression)
+    (leftPrincipal : PrincipalTyping signature context expression left)
+    (rightPrincipal : PrincipalTyping signature context expression right) :
     IsInstance left right ∧ IsInstance right left :=
   coherence leftPrincipal rightPrincipal
 
 /-- For the finite source type grammar, mutual instancehood strengthens to a
 finite renaming of exactly the variables occurring in the two targets. -/
 theorem finiteRenamingEq_of_coherence
-    {context : Context} {expression : Expr} {left right : Ty}
-    (coherence : PrincipalCoherence context expression)
-    (leftPrincipal : PrincipalTyping context expression left)
-    (rightPrincipal : PrincipalTyping context expression right) :
+    {signature : Signature} {context : Context} {expression : Expr} {left right : Ty}
+    (coherence : PrincipalCoherence signature context expression)
+    (leftPrincipal : PrincipalTyping signature context expression left)
+    (rightPrincipal : PrincipalTyping signature context expression right) :
     FiniteRenamingEq left right :=
   TypePM.finiteRenamingEq_of_mutualInstances
     (coherence leftPrincipal rightPrincipal)
@@ -180,10 +185,10 @@ theorem finiteRenamingEq_of_coherence
 /-- Two blockwise-principal results for a let-free source expression differ
 only by a finite renaming on their occurring variables. -/
 theorem finiteRenamingEq_of_letFree
-    {context : Context} {expression : Expr} {left right : Ty}
+    {signature : Signature} {context : Context} {expression : Expr} {left right : Ty}
     (letFree : LetFree expression)
-    (leftPrincipal : PrincipalTyping context expression left)
-    (rightPrincipal : PrincipalTyping context expression right) :
+    (leftPrincipal : PrincipalTyping signature context expression left)
+    (rightPrincipal : PrincipalTyping signature context expression right) :
     FiniteRenamingEq left right :=
   finiteRenamingEq_of_coherence
     (principalCoherence_of_letFree letFree)

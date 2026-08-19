@@ -156,14 +156,19 @@ private def cutGenerated : Generated :=
       ⟨.fn (.var ⟨3⟩) (.var ⟨3⟩), .var ⟨4⟩⟩] }
 
 private theorem elaborateExplicitValue :
-    elaborate
+    elaborate Paper1Signature.signature
       (.mono (.var ⟨0⟩) :: requireSlotContext)
       (.app (.var 1) (.var 0)) ⟨1, 0⟩ =
         some (explicitValueGenerated, ⟨3, 0⟩) := by
-  rfl
+  simp [elaborate, explicitValueGenerated, requireSlotContext,
+    requireSlotType, consumerFunction, Scheme.mono, Scheme.instantiate,
+    Scheme.boundTyInstance, Scheme.boundCapInstance, PolyTy.ofTy,
+    PolyTy.ofTyList, PolyTy.openBound, PolyTy.openBoundList,
+    PolyCap.ofCap, PolyCap.ofCapList, PolyCap.openBound,
+    PolyCap.openBoundList, Supply.nextTy]
 
 private theorem elaboratePolymorphicIdentity :
-    elaborateRoot [] polymorphicIdentity =
+    elaborateRoot Paper1Signature.signature [] polymorphicIdentity =
       some polymorphicIdentityGenerated := by
   simp [elaborateRoot, polymorphicIdentity, elaborate, elaborateItems,
     closeIdentityAt, closeIdentityValue, identityValueGenerated,
@@ -186,7 +191,7 @@ private theorem elaboratePolymorphicIdentity :
     Ty.apply, Ty.applyList, Subst.id]
 
 private theorem elaborateExplicitLetPair :
-    elaborate requireSlotContext explicitLet ⟨0, 0⟩ =
+    elaborate Paper1Signature.signature requireSlotContext explicitLet ⟨0, 0⟩ =
       some (explicitLetGenerated, ⟨6, 0⟩) := by
   rw [show explicitLet = .lam
     (.letE (.app (.var 1) (.var 0))
@@ -217,7 +222,7 @@ private theorem elaborateExplicitLetPair :
     Ty.tyVars, Ty.capVars, Cap.capVars, Cap.capVarsList,
     Ty.apply, Ty.applyList, Subst.singleTy, Subst.compose, Subst.id]
 private theorem elaborateExplicitLet :
-    elaborateRoot requireSlotContext explicitLet =
+    elaborateRoot Paper1Signature.signature requireSlotContext explicitLet =
       some explicitLetGenerated := by
   unfold elaborateRoot
   rw [show Context.initialSupply requireSlotContext = ⟨0, 0⟩ by rfl]
@@ -225,7 +230,7 @@ private theorem elaborateExplicitLet :
   rfl
 
 private theorem elaborateCutPair :
-    elaborate requireSlotContext cutRejectsBackflow ⟨0, 0⟩ =
+    elaborate Paper1Signature.signature requireSlotContext cutRejectsBackflow ⟨0, 0⟩ =
       some (cutGenerated, ⟨6, 0⟩) := by
   rw [show cutRejectsBackflow = .lam
     (.letE (.app (.var 1) (.var 0))
@@ -255,7 +260,7 @@ private theorem elaborateCutPair :
     Ty.apply, Ty.applyList, Subst.singleTy, Subst.compose, Subst.id]
 
 private theorem elaborateCut :
-    elaborateRoot requireSlotContext cutRejectsBackflow =
+    elaborateRoot Paper1Signature.signature requireSlotContext cutRejectsBackflow =
       some cutGenerated := by
   unfold elaborateRoot
   rw [show Context.initialSupply requireSlotContext = ⟨0, 0⟩ by rfl]
@@ -337,7 +342,7 @@ private theorem closeCutNone :
 
 /-- The generalized identity is instantiated independently at `Int` and at a
 matcher type. -/
-theorem infer_polymorphicIdentity_exact : infer [] polymorphicIdentity =
+theorem infer_polymorphicIdentity_exact : infer Paper1Signature.signature [] polymorphicIdentity =
     some (.prod [.int, .matcher .any (.var ⟨5⟩)]) := by
   unfold infer
   rw [elaboratePolymorphicIdentity]
@@ -345,25 +350,27 @@ theorem infer_polymorphicIdentity_exact : infer [] polymorphicIdentity =
 
 /-- The explicit-let example from the paper has the intended function type. -/
 theorem infer_explicitLet_exact :
-    infer requireSlotContext explicitLet = some explicitLetType := by
+    infer Paper1Signature.signature requireSlotContext explicitLet = some explicitLetType := by
   unfold infer
   rw [elaborateExplicitLet]
   exact closeExplicitLetTarget
 
 theorem polymorphicIdentityTyping :
-    Typing [] polymorphicIdentity
+    Typing Paper1Signature.signature [] polymorphicIdentity
       (.prod [.int, .matcher .any (.var ⟨5⟩)]) :=
-  Inference.infer_success_typing infer_polymorphicIdentity_exact
+  Inference.infer_success_typing Paper1Signature.wellFormed
+    infer_polymorphicIdentity_exact
 
 theorem explicitLetTyping :
-    Typing requireSlotContext explicitLet explicitLetType :=
-  Inference.infer_success_typing infer_explicitLet_exact
+    Typing Paper1Signature.signature requireSlotContext explicitLet explicitLetType :=
+  Inference.infer_success_typing Paper1Signature.wellFormed
+    infer_explicitLet_exact
 
 /-- Closing the right-hand side fixes `f` before the body tries to apply it to
 an incompatible function argument.  The body demand is not allowed to flow
 back into the already closed right-hand-side block. -/
 theorem infer_cutRejectsBackflow_none :
-    infer requireSlotContext cutRejectsBackflow = none := by
+    infer Paper1Signature.signature requireSlotContext cutRejectsBackflow = none := by
   unfold infer
   rw [elaborateCut]
   simp [closeCutNone]

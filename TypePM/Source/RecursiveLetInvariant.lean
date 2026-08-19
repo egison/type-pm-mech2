@@ -342,24 +342,26 @@ the finite alignment certificate structurally, including through nested
 `letE` nodes. -/
 theorem Elaborates.alignment_of_fixesAtOrAbove
     {rho : VariableRenaming}
-    {context : Context} {expression : Expr} {start next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start next : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression start generated next)
+    (derivation : Elaborates signature context expression start generated next)
     (wellFormed : start.WellFormedFor context)
     (fixed : rho.FixesAtOrAbove start) :
     ElaborationRenaming.Alignment rho derivation start next := by
   cases derivation with
   | @var context index start scheme lookup =>
-      exact .var lookup
+      exact .var (signature := signature) lookup
         (fixed.mapsFrom_self.mapsPrefix scheme.tyArity scheme.capArity)
-  | lit => exact .lit
+  | lit => exact .lit (signature := signature)
   | @something context start =>
-      exact .something (fixed.1 ⟨start.ty⟩ (Nat.le_refl _))
+      exact .something (signature := signature)
+        (fixed.1 ⟨start.ty⟩ (Nat.le_refl _))
   | @lam context body start generatedBody next bodyDerivation =>
       have bodyFixed := fixed.mono (Supply.le_nextTy start 1)
       have bodyAlignment := bodyDerivation.alignment_of_fixesAtOrAbove
         wellFormed.monomorphic_cons_nextTy bodyFixed
-      exact .lam (fixed.1 ⟨start.ty⟩ (Nat.le_refl _)) bodyAlignment
+      exact .lam (signature := signature)
+        (fixed.1 ⟨start.ty⟩ (Nat.le_refl _)) bodyAlignment
   | @app context function argument start generatedFunction afterFunction
       generatedArgument afterArgument functionDerivation argumentDerivation =>
       have functionAlignment :=
@@ -374,12 +376,12 @@ theorem Elaborates.alignment_of_fixesAtOrAbove
       have startToArgument : start.Le afterArgument :=
         Supply.le_trans functionDerivation.supply_le_next
           argumentDerivation.supply_le_next
-      exact .app functionAlignment argumentAlignment
+      exact .app (signature := signature) functionAlignment argumentAlignment
         (fixed.1 ⟨afterArgument.ty⟩ startToArgument.1)
         (fixed.1 ⟨afterArgument.ty + 1⟩
           (Nat.le_trans startToArgument.1 (Nat.le_add_right _ _)))
   | @tuple context items start generatedItems next itemsDerivation =>
-      exact .tuple
+      exact .tuple (signature := signature)
         (itemsDerivation.alignment_of_fixesAtOrAbove wellFormed fixed)
   | @letE context value body start generatedValue afterValue generatedBody
       next valueDerivation closure absorbing bodyDerivation =>
@@ -445,41 +447,123 @@ theorem Elaborates.alignment_of_fixesAtOrAbove
         rw [bodyStartsEqual]
         exact bodyAlignment
       exact ElaborationRenaming.Alignment.letE
-        (absorbing := absorbing) valueAlignment targetBodyAlignment
+        (signature := signature) (absorbing := absorbing)
+        valueAlignment targetBodyAlignment
+  | @ctor context constructor arguments scheme start generated next
+      closed lookup arity callDerivation =>
+      have startToCall : start.Le (scheme.instantiate start).2 := by
+        simp [Supply.Le, Scheme.instantiate]
+      have callAlignment :=
+        callDerivation.alignment_of_fixesAtOrAbove
+          (wellFormed.mono startToCall) (fixed.mono startToCall)
+      exact .ctor (signature := signature) (lookup := closed)
+        (arity := lookup) (closed := arity)
+        (fixed.mapsFrom_self.mapsPrefix scheme.tyArity scheme.capArity)
+        callAlignment rfl
+  | @prim context operation arguments scheme start generated next
+      closed lookup arity callDerivation =>
+      have startToCall : start.Le (scheme.instantiate start).2 := by
+        simp [Supply.Le, Scheme.instantiate]
+      have callAlignment :=
+        callDerivation.alignment_of_fixesAtOrAbove
+          (wellFormed.mono startToCall) (fixed.mono startToCall)
+      exact .prim (signature := signature) (lookup := closed)
+        (arity := lookup) (closed := arity)
+        (fixed.mapsFrom_self.mapsPrefix scheme.tyArity scheme.capArity)
+        callAlignment rfl
+  | @ifE context condition thenBranch elseBranch start generated next
+      callDerivation =>
+      have startToCall : start.Le
+          (conditionalScheme.instantiate start).2 := by
+        simp [Supply.Le, Scheme.instantiate]
+      have callAlignment :=
+        callDerivation.alignment_of_fixesAtOrAbove
+          (wellFormed.mono startToCall) (fixed.mono startToCall)
+      exact .ifE (signature := signature)
+        (fixed.mapsFrom_self.mapsPrefix conditionalScheme.tyArity
+          conditionalScheme.capArity)
+        callAlignment rfl
+termination_by expression.complexity * 3 + 2
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 /-- List counterpart of `Elaborates.alignment_of_fixesAtOrAbove`. -/
 theorem ElaboratesItems.alignment_of_fixesAtOrAbove
     {rho : VariableRenaming}
-    {context : Context} {expressions : List Expr} {start next : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {start next : Supply}
     {generated : GeneratedItems}
     (derivation :
-      ElaboratesItems context expressions start generated next)
+      ElaboratesItems signature context expressions start generated next)
     (wellFormed : start.WellFormedFor context)
     (fixed : rho.FixesAtOrAbove start) :
     ElaborationRenaming.ItemsAlignment rho derivation start next := by
   cases derivation with
-  | nil => exact .nil
+  | nil => exact .nil (signature := signature)
   | @cons context item items start generatedItem afterItem generatedItems
       next itemDerivation itemsDerivation =>
       have itemAlignment :=
         itemDerivation.alignment_of_fixesAtOrAbove wellFormed fixed
       have itemsWellFormed := wellFormed.mono itemDerivation.supply_le_next
       have itemsFixed := fixed.mono itemDerivation.supply_le_next
-      exact .cons itemAlignment
+      exact .cons (signature := signature) itemAlignment
         (itemsDerivation.alignment_of_fixesAtOrAbove
           itemsWellFormed itemsFixed)
+termination_by Expr.listComplexity expressions * 3 + 1
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
+
+/-- Call-fold counterpart of `Elaborates.alignment_of_fixesAtOrAbove`. -/
+theorem ElaboratesCall.alignment_of_fixesAtOrAbove
+    {rho : VariableRenaming}
+    {signature : Signature} {context : Context}
+    {accumulated : Generated} {expressions : List Expr}
+    {start next : Supply} {generated : Generated}
+    (derivation : ElaboratesCall signature context accumulated expressions
+      start generated next)
+    (wellFormed : start.WellFormedFor context)
+    (fixed : rho.FixesAtOrAbove start) :
+    ElaborationRenaming.CallAlignment rho derivation start next := by
+  cases derivation with
+  | nil => exact .nil (signature := signature)
+  | @cons context accumulated argument arguments start generatedArgument
+      afterArgument generated next argumentDerivation restDerivation =>
+      have argumentAlignment :=
+        argumentDerivation.alignment_of_fixesAtOrAbove wellFormed fixed
+      have startToArgument := argumentDerivation.supply_le_next
+      have argumentToRest := Supply.le_nextTy afterArgument 2
+      have startToRest := Supply.le_trans startToArgument argumentToRest
+      have restAlignment :=
+        restDerivation.alignment_of_fixesAtOrAbove
+          (wellFormed.mono startToRest) (fixed.mono startToRest)
+      exact .cons (signature := signature) argumentAlignment
+        (fixed.1 ⟨afterArgument.ty⟩ startToArgument.1)
+        (fixed.1 ⟨afterArgument.ty + 1⟩
+          (Nat.le_trans startToArgument.1 (Nat.le_add_right _ _)))
+        restAlignment
+termination_by Expr.listComplexity expressions * 3
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 end
 
 /-- Direct transport corollary used at the body of a nested `letE`. -/
 theorem Elaborates.transport_of_fixesAtOrAbove
     {rho : VariableRenaming}
-    {context : Context} {expression : Expr} {start next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start next : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression start generated next)
+    (derivation : Elaborates signature context expression start generated next)
     (wellFormed : start.WellFormedFor context)
     (fixed : rho.FixesAtOrAbove start) :
-    Elaborates (ElaborationRenaming.renameContext rho context)
+    Elaborates signature (ElaborationRenaming.renameContext rho context)
       expression start (ElaborationRenaming.renameGenerated rho generated)
       next :=
   (derivation.alignment_of_fixesAtOrAbove wellFormed fixed).transport
@@ -487,10 +571,10 @@ theorem Elaborates.transport_of_fixesAtOrAbove
 /-- Interface equations produced by a completed value cannot mention names
 hidden strictly later by the body comparison. -/
 theorem Elaborates.interfaceEquations_avoid_laterHidden
-    {context : Context} {value : Expr} {start afterValue finish : Supply}
+    {signature : Signature} {context : Context} {value : Expr} {start afterValue finish : Supply}
     {generatedValue : Generated}
     (valueDerivation :
-      Elaborates context value start generatedValue afterValue)
+      Elaborates signature context value start generatedValue afterValue)
     (closure : PrincipalBlockClosure generatedValue)
     (absorbing : closure.Absorbing)
     (wellFormed : start.WellFormedFor context)
@@ -892,12 +976,12 @@ closures subsequently chosen by the two parent constructors.
 The well-formed supply premise is part of the invariant because the same
 claim is false for a supply below `context.initialSupply`. -/
 def ClosureAlignedElaborations : Prop :=
-  ∀ {context : Context} {expression : Expr} {start : Supply}
+  ∀ {signature : Signature} {context : Context} {expression : Expr} {start : Supply}
       {leftGenerated rightGenerated : Generated}
       {leftNext rightNext : Supply},
     start.WellFormedFor context →
-      Elaborates context expression start leftGenerated leftNext →
-        Elaborates context expression start rightGenerated rightNext →
+      Elaborates signature context expression start leftGenerated leftNext →
+        Elaborates signature context expression start rightGenerated rightNext →
           leftNext = rightNext ∧
             ∀ (leftClosure : PrincipalBlockClosure leftGenerated)
                 (rightClosure : PrincipalBlockClosure rightGenerated),
@@ -909,13 +993,13 @@ def ClosureAlignedElaborations : Prop :=
 supply agreement needed by sequential source constructors. -/
 theorem ClosureAlignedElaborations.next_eq
     (coherent : ClosureAlignedElaborations)
-    {context : Context} {expression : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start : Supply}
     {leftGenerated rightGenerated : Generated}
     {leftNext rightNext : Supply}
     (wellFormed : start.WellFormedFor context)
-    (leftElaboration : Elaborates context expression start
+    (leftElaboration : Elaborates signature context expression start
       leftGenerated leftNext)
-    (rightElaboration : Elaborates context expression start
+    (rightElaboration : Elaborates signature context expression start
       rightGenerated rightNext) :
     leftNext = rightNext :=
   (coherent wellFormed leftElaboration rightElaboration).1
@@ -924,13 +1008,13 @@ theorem ClosureAlignedElaborations.next_eq
 at a nested `letE` boundary. -/
 theorem ClosureAlignedElaborations.closureAlignment
     (coherent : ClosureAlignedElaborations)
-    {context : Context} {expression : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start : Supply}
     {leftGenerated rightGenerated : Generated}
     {leftNext rightNext : Supply}
     (wellFormed : start.WellFormedFor context)
-    (leftElaboration : Elaborates context expression start
+    (leftElaboration : Elaborates signature context expression start
       leftGenerated leftNext)
-    (rightElaboration : Elaborates context expression start
+    (rightElaboration : Elaborates signature context expression start
       rightGenerated rightNext)
     (leftClosure : PrincipalBlockClosure leftGenerated)
     (rightClosure : PrincipalBlockClosure rightGenerated)

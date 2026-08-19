@@ -1,4 +1,5 @@
 import TypePM.Source.Syntax
+import TypePM.Signature
 import TypePM.AbsorbingBlockClosure
 import TypePM.ContextInterface
 import TypePM.SolverCertified
@@ -28,6 +29,19 @@ end Supply
 
 namespace Generated
 
+/-- The exact generated block built around a lambda body. -/
+def fromLam (domain : Ty) (body : Generated) : Generated :=
+  ⟨.fn domain body.target, body.hard, body.pending⟩
+
+/-- The ordinary application constraint shape.  Constructor, primitive, and
+conditional calls are left folds of this same operation. -/
+def fromApp (function argument : Generated) (domain target : Ty) : Generated :=
+  ⟨target,
+    function.hard ++ argument.hard ++
+      [.ty function.target (.fn domain target)],
+    function.pending ++ argument.pending ++
+      [⟨argument.target, domain⟩]⟩
+
 /-- Hide a closed right-hand-side block and expose only its effects together
 with the body block. -/
 def fromLet
@@ -38,11 +52,82 @@ def fromLet
 
 end Generated
 
+namespace Scheme
+
+/-- Number of curried arguments before the final result. -/
+def callArity (scheme : Scheme) : Nat :=
+  let rec go : PolyTy → Nat
+    | .fn _ result => go result + 1
+    | _ => 0
+  go scheme.body
+
+end Scheme
+
+/-- Closed internal type scheme used to elaborate a conditional as an
+ordinary three-argument call. -/
+def conditionalScheme : Scheme :=
+  ⟨1, 0,
+    .fn PolyDataTypes.bool
+      (.fn (.bound 0) (.fn (.bound 0) (.bound 0))), by
+    simp [PolyDataTypes.bool, PolyTy.WellScoped]⟩
+
+theorem conditionalScheme_closed : conditionalScheme.Closed := by
+  constructor <;> rfl
+
+mutual
+
+/-- Syntax-node measure shared by mutually recursive source elaborators. -/
+def Expr.complexity : Expr → Nat
+  | .var _ | .lit _ | .something => 1
+  | .lam body => body.complexity + 1
+  | .app function argument =>
+      function.complexity + argument.complexity + 1
+  | .tuple items | .ctor _ items | .prim _ items =>
+      Expr.listComplexity items + 1
+  | .letE value body => value.complexity + body.complexity + 1
+  | .ifE condition thenBranch elseBranch =>
+      condition.complexity + thenBranch.complexity +
+        elseBranch.complexity + 4
+
+def Expr.listComplexity : List Expr → Nat
+  | [] => 0
+  | item :: items => item.complexity + Expr.listComplexity items + 1
+
+end
+
+@[simp] theorem Expr.complexity_var (index : Nat) :
+    (Expr.var index).complexity = 1 := rfl
+@[simp] theorem Expr.complexity_lit (value : Int) :
+    (Expr.lit value).complexity = 1 := rfl
+@[simp] theorem Expr.complexity_something : Expr.something.complexity = 1 := rfl
+@[simp] theorem Expr.complexity_lam (body : Expr) :
+    (Expr.lam body).complexity = body.complexity + 1 := rfl
+@[simp] theorem Expr.complexity_app (function argument : Expr) :
+    (Expr.app function argument).complexity =
+      function.complexity + argument.complexity + 1 := rfl
+@[simp] theorem Expr.complexity_tuple (items : List Expr) :
+    (Expr.tuple items).complexity = Expr.listComplexity items + 1 := rfl
+@[simp] theorem Expr.complexity_letE (value body : Expr) :
+    (Expr.letE value body).complexity =
+      value.complexity + body.complexity + 1 := rfl
+@[simp] theorem Expr.complexity_ctor (constructor : DataCtor) (items : List Expr) :
+    (Expr.ctor constructor items).complexity = Expr.listComplexity items + 1 := rfl
+@[simp] theorem Expr.complexity_prim (operation : PrimOp) (items : List Expr) :
+    (Expr.prim operation items).complexity = Expr.listComplexity items + 1 := rfl
+@[simp] theorem Expr.complexity_ifE (condition thenBranch elseBranch : Expr) :
+    (Expr.ifE condition thenBranch elseBranch).complexity =
+      condition.complexity + thenBranch.complexity +
+        elseBranch.complexity + 4 := rfl
+@[simp] theorem Expr.listComplexity_nil : Expr.listComplexity [] = 0 := rfl
+@[simp] theorem Expr.listComplexity_cons (item : Expr) (items : List Expr) :
+    Expr.listComplexity (item :: items) =
+      item.complexity + Expr.listComplexity items + 1 := rfl
+
 mutual
 
 /-- Executable scheme-aware elaboration.  `letE` invokes the certified M1
 block closer on the generated right-hand side before elaborating the body. -/
-def elaborate (context : Context) :
+def elaborate (signature : Signature) (context : Context) :
     Expr → Supply → Option (Generated × Supply)
   | .var index, supply => do
       let scheme ← context[index]?
@@ -57,15 +142,15 @@ def elaborate (context : Context) :
   | .lam body, supply => do
       let domain : Ty := .var ⟨supply.ty⟩
       let (generatedBody, next) ←
-        elaborate (.mono domain :: context) body (supply.nextTy 1)
+        elaborate signature (.mono domain :: context) body (supply.nextTy 1)
       pure
         (⟨.fn domain generatedBody.target,
           generatedBody.hard, generatedBody.pending⟩, next)
   | .app function argument, supply => do
       let (generatedFunction, afterFunction) ←
-        elaborate context function supply
+        elaborate signature context function supply
       let (generatedArgument, afterArgument) ←
-        elaborate context argument afterFunction
+        elaborate signature context argument afterFunction
       let domain : Ty := .var ⟨afterArgument.ty⟩
       let target : Ty := .var ⟨afterArgument.ty + 1⟩
       pure
@@ -76,36 +161,76 @@ def elaborate (context : Context) :
             [⟨generatedArgument.target, domain⟩]⟩,
           afterArgument.nextTy 2)
   | .tuple items, supply => do
-      let (generatedItems, next) ← elaborateItems context items supply
+      let (generatedItems, next) ← elaborateItems signature context items supply
       pure
         (⟨.prod generatedItems.targets,
           generatedItems.hard, generatedItems.pending⟩, next)
   | .letE value body, supply => do
-      let (generatedValue, afterValue) ← elaborate context value supply
+      let (generatedValue, afterValue) ← elaborate signature context value supply
       let closedValue ← inferGeneratedUsing unify generatedValue
       let closedContext := context.applyFree closedValue.substitution
       let generalized := closedContext.generalize closedValue.target
       let bodySupply := afterValue.join closedContext.initialSupply
       let (generatedBody, next) ←
-        elaborate (generalized :: closedContext) body bodySupply
+        elaborate signature (generalized :: closedContext) body bodySupply
       pure
         (Generated.fromLet
           (context.interfaceEquations closedValue.substitution) generatedBody,
           next)
+  | .ctor constructor arguments, supply => do
+      let scheme ← signature.lookupDataConstructor constructor
+      if arguments.length = scheme.callArity then
+        let instantiated := scheme.instantiate supply
+        elaborateCall signature context
+          ⟨instantiated.1, [], []⟩ arguments instantiated.2
+      else
+        none
+  | .prim operation arguments, supply => do
+      let scheme ← signature.lookupPrimitive operation
+      if arguments.length = scheme.callArity then
+        let instantiated := scheme.instantiate supply
+        elaborateCall signature context
+          ⟨instantiated.1, [], []⟩ arguments instantiated.2
+      else
+        none
+  | .ifE condition thenBranch elseBranch, supply =>
+      let instantiated := conditionalScheme.instantiate supply
+      elaborateCall signature context ⟨instantiated.1, [], []⟩
+        [condition, thenBranch, elseBranch] instantiated.2
+termination_by expression => expression.complexity * 3 + 2
+decreasing_by all_goals simp_wf <;> omega
 
 /-- List counterpart of `elaborate`. -/
-def elaborateItems (context : Context) :
+def elaborateItems (signature : Signature) (context : Context) :
     List Expr → Supply → Option (GeneratedItems × Supply)
   | [], supply => some (⟨[], [], []⟩, supply)
   | item :: items, supply => do
-      let (generatedItem, afterItem) ← elaborate context item supply
+      let (generatedItem, afterItem) ← elaborate signature context item supply
       let (generatedItems, next) ←
-        elaborateItems context items afterItem
+        elaborateItems signature context items afterItem
       pure
         (⟨generatedItem.target :: generatedItems.targets,
           generatedItem.hard ++ generatedItems.hard,
           generatedItem.pending ++ generatedItems.pending⟩,
           next)
+termination_by expressions => Expr.listComplexity expressions * 3 + 1
+decreasing_by all_goals simp_wf <;> omega
+
+/-- Elaborate a fixed-arity call by repeatedly applying the ordinary
+application constraint shape. -/
+def elaborateCall (signature : Signature) (context : Context) :
+    Generated → List Expr → Supply → Option (Generated × Supply)
+  | accumulated, [], supply => some (accumulated, supply)
+  | accumulated, argument :: arguments, supply => do
+      let (generatedArgument, afterArgument) ←
+        elaborate signature context argument supply
+      let domain : Ty := .var ⟨afterArgument.ty⟩
+      let target : Ty := .var ⟨afterArgument.ty + 1⟩
+      elaborateCall signature context
+        (Generated.fromApp accumulated generatedArgument domain target)
+        arguments (afterArgument.nextTy 2)
+termination_by _ arguments _ => Expr.listComplexity arguments * 3
+decreasing_by all_goals simp_wf <;> omega
 
 end
 
@@ -114,30 +239,30 @@ mutual
 /-- Declarative scheme-aware elaboration.  Its `letE` constructor contains a
 `PrincipalBlockClosure`, never a call to the executable inference function. -/
 inductive Elaborates :
-    Context → Expr → Supply → Generated → Supply → Prop where
-  | var {context index supply scheme}
+    Signature → Context → Expr → Supply → Generated → Supply → Prop where
+  | var {signature context index supply scheme}
       (lookup : context[index]? = some scheme) :
-      Elaborates context (.var index) supply
+      Elaborates signature context (.var index) supply
         ⟨(scheme.instantiate supply).1, [], []⟩
         (scheme.instantiate supply).2
-  | lit {context value supply} :
-      Elaborates context (.lit value) supply ⟨.int, [], []⟩ supply
-  | something {context supply} :
-      Elaborates context .something supply
+  | lit {signature context value supply} :
+      Elaborates signature context (.lit value) supply ⟨.int, [], []⟩ supply
+  | something {signature context supply} :
+      Elaborates signature context .something supply
         ⟨.matcher .any (.var ⟨supply.ty⟩), [], []⟩
         (supply.nextTy 1)
-  | lam {context body supply generatedBody next} :
-      Elaborates (.mono (.var ⟨supply.ty⟩) :: context) body
+  | lam {signature context body supply generatedBody next} :
+      Elaborates signature (.mono (.var ⟨supply.ty⟩) :: context) body
         (supply.nextTy 1) generatedBody next →
-      Elaborates context (.lam body) supply
+      Elaborates signature context (.lam body) supply
         ⟨.fn (.var ⟨supply.ty⟩) generatedBody.target,
           generatedBody.hard, generatedBody.pending⟩ next
-  | app {context function argument supply generatedFunction afterFunction
+  | app {signature context function argument supply generatedFunction afterFunction
       generatedArgument afterArgument} :
-      Elaborates context function supply generatedFunction afterFunction →
-      Elaborates context argument afterFunction generatedArgument
+      Elaborates signature context function supply generatedFunction afterFunction →
+      Elaborates signature context argument afterFunction generatedArgument
         afterArgument →
-      Elaborates context (.app function argument) supply
+      Elaborates signature context (.app function argument) supply
         ⟨.var ⟨afterArgument.ty + 1⟩,
           generatedFunction.hard ++ generatedArgument.hard ++
             [.ty generatedFunction.target
@@ -146,42 +271,85 @@ inductive Elaborates :
           generatedFunction.pending ++ generatedArgument.pending ++
             [⟨generatedArgument.target, .var ⟨afterArgument.ty⟩⟩]⟩
         (afterArgument.nextTy 2)
-  | tuple {context items supply generatedItems next} :
-      ElaboratesItems context items supply generatedItems next →
-      Elaborates context (.tuple items) supply
+  | tuple {signature context items supply generatedItems next} :
+      ElaboratesItems signature context items supply generatedItems next →
+      Elaborates signature context (.tuple items) supply
         ⟨.prod generatedItems.targets,
           generatedItems.hard, generatedItems.pending⟩ next
-  | letE {context value body supply generatedValue afterValue
+  | letE {signature context value body supply generatedValue afterValue
       generatedBody next}
       (valueElaboration :
-        Elaborates context value supply generatedValue afterValue)
+        Elaborates signature context value supply generatedValue afterValue)
       (closure : PrincipalBlockClosure generatedValue)
       (absorbing : closure.Absorbing)
       (bodyElaboration :
-        Elaborates
+        Elaborates signature
           ((context.applyFree closure.substitution).generalize closure.target ::
             context.applyFree closure.substitution)
           body
           (afterValue.join
             (context.applyFree closure.substitution).initialSupply)
           generatedBody next) :
-      Elaborates context (.letE value body) supply
+      Elaborates signature context (.letE value body) supply
         (Generated.fromLet
           (context.interfaceEquations closure.substitution) generatedBody)
         next
+  | ctor {signature context constructor arguments scheme supply generated next}
+      (lookup : signature.lookupDataConstructor constructor = some scheme)
+      (arity : arguments.length = scheme.callArity)
+      (closed : scheme.Closed)
+      (call : ElaboratesCall signature context
+        ⟨(scheme.instantiate supply).1, [], []⟩ arguments
+        (scheme.instantiate supply).2 generated next) :
+      Elaborates signature context (.ctor constructor arguments) supply
+        generated next
+  | prim {signature context operation arguments scheme supply generated next}
+      (lookup : signature.lookupPrimitive operation = some scheme)
+      (arity : arguments.length = scheme.callArity)
+      (closed : scheme.Closed)
+      (call : ElaboratesCall signature context
+        ⟨(scheme.instantiate supply).1, [], []⟩ arguments
+        (scheme.instantiate supply).2 generated next) :
+      Elaborates signature context (.prim operation arguments) supply
+        generated next
+  | ifE {signature context condition thenBranch elseBranch supply generated next}
+      (call : ElaboratesCall signature context
+        ⟨(conditionalScheme.instantiate supply).1, [], []⟩
+        [condition, thenBranch, elseBranch]
+        (conditionalScheme.instantiate supply).2 generated next) :
+      Elaborates signature context (.ifE condition thenBranch elseBranch)
+        supply generated next
 
 /-- Relational elaboration for sibling lists. -/
 inductive ElaboratesItems :
-    Context → List Expr → Supply → GeneratedItems → Supply → Prop where
-  | nil {context supply} :
-      ElaboratesItems context [] supply ⟨[], [], []⟩ supply
-  | cons {context item items supply generatedItem afterItem generatedItems next} :
-      Elaborates context item supply generatedItem afterItem →
-      ElaboratesItems context items afterItem generatedItems next →
-      ElaboratesItems context (item :: items) supply
+    Signature → Context → List Expr → Supply → GeneratedItems → Supply → Prop where
+  | nil {signature context supply} :
+      ElaboratesItems signature context [] supply ⟨[], [], []⟩ supply
+  | cons {signature context item items supply generatedItem afterItem generatedItems next} :
+      Elaborates signature context item supply generatedItem afterItem →
+      ElaboratesItems signature context items afterItem generatedItems next →
+      ElaboratesItems signature context (item :: items) supply
         ⟨generatedItem.target :: generatedItems.targets,
           generatedItem.hard ++ generatedItems.hard,
           generatedItem.pending ++ generatedItems.pending⟩ next
+
+/-- Relational counterpart of `elaborateCall`. -/
+inductive ElaboratesCall :
+    Signature → Context → Generated → List Expr → Supply →
+      Generated → Supply → Prop where
+  | nil {signature context accumulated supply} :
+      ElaboratesCall signature context accumulated [] supply
+        accumulated supply
+  | cons {signature context accumulated argument arguments supply
+      generatedArgument afterArgument generated next} :
+      Elaborates signature context argument supply generatedArgument
+        afterArgument →
+      ElaboratesCall signature context
+        (Generated.fromApp accumulated generatedArgument
+          (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+        arguments (afterArgument.nextTy 2) generated next →
+      ElaboratesCall signature context accumulated (argument :: arguments)
+        supply generated next
 
 end
 
@@ -189,10 +357,11 @@ mutual
 
 /-- Executable elaboration is sound for the independent relational judgment. -/
 theorem elaborate_sound
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {supply next : Supply}
     {generated : Generated}
-    (success : elaborate context expression supply = some (generated, next)) :
-    Elaborates context expression supply generated next := by
+    (success : elaborate signature context expression supply = some (generated, next)) :
+    Elaborates signature context expression supply generated next := by
   cases expression with
   | var index =>
       cases lookup : context[index]? with
@@ -224,7 +393,7 @@ theorem elaborate_sound
       subst next
       exact .something
   | lam body =>
-      cases bodyResult : elaborate
+      cases bodyResult : elaborate signature
           (.mono (.var ⟨supply.ty⟩) :: context) body (supply.nextTy 1) with
       | none => simp [elaborate, bodyResult] at success
       | some result =>
@@ -240,15 +409,15 @@ theorem elaborate_sound
               injection equality with generatedEquality nextEquality
               subst generated
               subst next
-              exact .lam (elaborate_sound bodyResult)
+              exact .lam (elaborate_sound wellFormed bodyResult)
   | app function argument =>
-      cases functionResult : elaborate context function supply with
+      cases functionResult : elaborate signature context function supply with
       | none => simp [elaborate, functionResult] at success
       | some functionOutput =>
           cases functionOutput with
           | mk generatedFunction afterFunction =>
               cases argumentResult :
-                  elaborate context argument afterFunction with
+                  elaborate signature context argument afterFunction with
               | none => simp [elaborate, functionResult, argumentResult] at success
               | some argumentOutput =>
                   cases argumentOutput with
@@ -272,10 +441,10 @@ theorem elaborate_sound
                       subst generated
                       subst next
                       exact .app
-                        (elaborate_sound functionResult)
-                        (elaborate_sound argumentResult)
+                        (elaborate_sound wellFormed functionResult)
+                        (elaborate_sound wellFormed argumentResult)
   | tuple items =>
-      cases itemsResult : elaborateItems context items supply with
+      cases itemsResult : elaborateItems signature context items supply with
       | none => simp [elaborate, itemsResult] at success
       | some output =>
           cases output with
@@ -289,9 +458,9 @@ theorem elaborate_sound
               injection equality with generatedEquality nextEquality
               subst generated
               subst next
-              exact .tuple (elaborateItems_sound itemsResult)
+              exact .tuple (elaborateItems_sound wellFormed itemsResult)
   | letE value body =>
-      cases valueResult : elaborate context value supply with
+      cases valueResult : elaborate signature context value supply with
       | none => simp [elaborate, valueResult] at success
       | some valueOutput =>
           cases valueOutput with
@@ -304,7 +473,7 @@ theorem elaborate_sound
                   let generalized :=
                     closedContext.generalize closedValue.target
                   let bodySupply := afterValue.join closedContext.initialSupply
-                  cases bodyResult : elaborate
+                  cases bodyResult : elaborate signature
                       (generalized :: closedContext) body bodySupply with
                   | none =>
                       simp [elaborate, valueResult, closureResult,
@@ -331,7 +500,7 @@ theorem elaborate_sound
                             inferGeneratedUsing_absorbingPrincipalBlockClosure
                               unify_absorbingMGUSolver closureResult
                           have bodyResult' :
-                              elaborate
+                              elaborate signature
                                 ((Context.generalize
                                     (context.applyFree closure.substitution)
                                     closure.target) ::
@@ -347,16 +516,84 @@ theorem elaborate_sound
                               bodyResult
                           simpa [substitutionEquality] using
                             (Elaborates.letE
-                              (elaborate_sound valueResult) closure absorbing
-                              (elaborate_sound bodyResult'))
+                              (elaborate_sound wellFormed valueResult) closure absorbing
+                              (elaborate_sound wellFormed bodyResult'))
+  | ctor constructor arguments =>
+      cases lookup : signature.lookupDataConstructor constructor with
+      | none => simp [elaborate, lookup] at success
+      | some scheme =>
+          by_cases arity : arguments.length = scheme.callArity
+          · cases callResult : elaborateCall signature context
+                ⟨(scheme.instantiate supply).1, [], []⟩ arguments
+                (scheme.instantiate supply).2 with
+            | none => simp [elaborate, lookup, arity, callResult] at success
+            | some output =>
+                cases output with
+                | mk generatedCall afterCall =>
+                    have equality :
+                        (generatedCall, afterCall) = (generated, next) :=
+                      Option.some.inj (by
+                        simpa [elaborate, lookup, arity, callResult]
+                          using success)
+                    injection equality with generatedEquality nextEquality
+                    subst generated
+                    subst next
+                    exact .ctor lookup arity
+                      (wellFormed.dataConstructorClosed_of_lookup lookup)
+                      (elaborateCall_sound wellFormed callResult)
+          · simp [elaborate, lookup, arity] at success
+  | prim operation arguments =>
+      cases lookup : signature.lookupPrimitive operation with
+      | none => simp [elaborate, lookup] at success
+      | some scheme =>
+          by_cases arity : arguments.length = scheme.callArity
+          · cases callResult : elaborateCall signature context
+                ⟨(scheme.instantiate supply).1, [], []⟩ arguments
+                (scheme.instantiate supply).2 with
+            | none => simp [elaborate, lookup, arity, callResult] at success
+            | some output =>
+                cases output with
+                | mk generatedCall afterCall =>
+                    have equality :
+                        (generatedCall, afterCall) = (generated, next) :=
+                      Option.some.inj (by
+                        simpa [elaborate, lookup, arity, callResult]
+                          using success)
+                    injection equality with generatedEquality nextEquality
+                    subst generated
+                    subst next
+                    exact .prim lookup arity
+                      (wellFormed.primitiveClosed_of_lookup lookup)
+                      (elaborateCall_sound wellFormed callResult)
+          · simp [elaborate, lookup, arity] at success
+  | ifE condition thenBranch elseBranch =>
+      cases callResult : elaborateCall signature context
+          ⟨(conditionalScheme.instantiate supply).1, [], []⟩
+          [condition, thenBranch, elseBranch]
+          (conditionalScheme.instantiate supply).2 with
+      | none => simp [elaborate, callResult] at success
+      | some output =>
+          cases output with
+          | mk generatedCall afterCall =>
+              have equality :
+                  (generatedCall, afterCall) = (generated, next) :=
+                Option.some.inj (by
+                  simpa [elaborate, callResult] using success)
+              injection equality with generatedEquality nextEquality
+              subst generated
+              subst next
+              exact .ifE (elaborateCall_sound wellFormed callResult)
+termination_by expression.complexity * 3 + 2
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
 /-- Executable list elaboration is sound. -/
 theorem elaborateItems_sound
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expressions : List Expr} {supply next : Supply}
     {generated : GeneratedItems}
-    (success : elaborateItems context expressions supply =
+    (success : elaborateItems signature context expressions supply =
       some (generated, next)) :
-    ElaboratesItems context expressions supply generated next := by
+    ElaboratesItems signature context expressions supply generated next := by
   cases expressions with
   | nil =>
       have equality :
@@ -367,12 +604,12 @@ theorem elaborateItems_sound
       subst next
       exact .nil
   | cons item items =>
-      cases itemResult : elaborate context item supply with
+      cases itemResult : elaborate signature context item supply with
       | none => simp [elaborateItems, itemResult] at success
       | some itemOutput =>
           cases itemOutput with
           | mk generatedItem afterItem =>
-              cases itemsResult : elaborateItems context items afterItem with
+              cases itemsResult : elaborateItems signature context items afterItem with
               | none =>
                   simp [elaborateItems, itemResult, itemsResult] at success
               | some itemsOutput =>
@@ -391,20 +628,72 @@ theorem elaborateItems_sound
                       subst generated
                       subst next
                       exact .cons
-                        (elaborate_sound itemResult)
-                        (elaborateItems_sound itemsResult)
+                        (elaborate_sound wellFormed itemResult)
+                        (elaborateItems_sound wellFormed itemsResult)
+termination_by Expr.listComplexity expressions * 3 + 1
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
+
+/-- Executable call elaboration is sound. -/
+theorem elaborateCall_sound
+    {signature : Signature} (wellFormed : signature.WellFormed)
+    {context : Context} {accumulated generated : Generated}
+    {expressions : List Expr} {supply next : Supply}
+    (success : elaborateCall signature context accumulated expressions supply =
+      some (generated, next)) :
+    ElaboratesCall signature context accumulated expressions supply
+      generated next := by
+  cases expressions with
+  | nil =>
+      have equality : (accumulated, supply) = (generated, next) :=
+        Option.some.inj (by simpa [elaborateCall] using success)
+      injection equality with generatedEquality nextEquality
+      subst generated
+      subst next
+      exact .nil
+  | cons argument arguments =>
+      cases argumentResult : elaborate signature context argument supply with
+      | none => simp [elaborateCall, argumentResult] at success
+      | some output =>
+          cases output with
+          | mk generatedArgument afterArgument =>
+              let nextAccumulated := Generated.fromApp accumulated
+                generatedArgument (.var ⟨afterArgument.ty⟩)
+                (.var ⟨afterArgument.ty + 1⟩)
+              cases restResult : elaborateCall signature context nextAccumulated
+                  arguments (afterArgument.nextTy 2) with
+              | none =>
+                  simp [elaborateCall, argumentResult, nextAccumulated,
+                    restResult] at success
+              | some restOutput =>
+                  cases restOutput with
+                  | mk generatedRest afterRest =>
+                      have equality :
+                          (generatedRest, afterRest) = (generated, next) :=
+                        Option.some.inj (by
+                          simpa [elaborateCall, argumentResult,
+                            nextAccumulated, restResult] using success)
+                      injection equality with generatedEquality nextEquality
+                      subst generated
+                      subst next
+                      exact .cons
+                        (elaborate_sound wellFormed argumentResult)
+                        (by
+                          simpa [nextAccumulated] using
+                            elaborateCall_sound wellFormed restResult)
+termination_by Expr.listComplexity expressions * 3
+decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
 end
 
 /-- Elaborate a complete source expression above all names in its scheme
 context. -/
-def elaborateRoot (context : Context) (expression : Expr) :
+def elaborateRoot (signature : Signature) (context : Context) (expression : Expr) :
     Option Generated :=
-  (elaborate context expression context.initialSupply).map Prod.fst
+  (elaborate signature context expression context.initialSupply).map Prod.fst
 
 /-- Public executable M2 inference skeleton. -/
-def infer (context : Context) (expression : Expr) : Option Ty := do
-  let generated ← elaborateRoot context expression
+def infer (signature : Signature) (context : Context) (expression : Expr) : Option Ty := do
+  let generated ← elaborateRoot signature context expression
   let closed ← inferGeneratedUsing unify generated
   pure closed.target
 
@@ -413,11 +702,11 @@ source expression.  Nested `letE` right-hand sides are already hidden behind
 the `PrincipalBlockClosure` witnesses inside `Elaborates`.  Global source
 principality requires a separate coherence theorem between such witnesses. -/
 structure PrincipalTypingDerivation
-    (context : Context) (expression : Expr) (target : Ty) where
+    (signature : Signature) (context : Context) (expression : Expr) (target : Ty) where
   generated : Generated
   next : Supply
   elaboration :
-    Elaborates context expression context.initialSupply generated next
+    Elaborates signature context expression context.initialSupply generated next
   closure : PrincipalBlockClosure generated
   absorbing : closure.Absorbing
   target_eq : target = closure.target
@@ -425,34 +714,36 @@ structure PrincipalTypingDerivation
 /-- The source expression has the indicated blockwise-principal result
 according to the declarative elaboration and closure relations. -/
 def PrincipalTyping
-    (context : Context) (expression : Expr) (target : Ty) : Prop :=
-  Nonempty (PrincipalTypingDerivation context expression target)
+    (signature : Signature) (context : Context) (expression : Expr)
+    (target : Ty) : Prop :=
+  Nonempty (PrincipalTypingDerivation signature context expression target)
 
 /-- Declarative source typing is the substitution-instance closure of a
 blockwise-principal source elaboration witness.  This keeps arbitrary result types independent
 of the executable representative selected by `infer`. -/
-def Typing (context : Context) (expression : Expr) (target : Ty) : Prop :=
+def Typing (signature : Signature) (context : Context)
+    (expression : Expr) (target : Ty) : Prop :=
   ∃ principal,
-    PrincipalTyping context expression principal ∧
+    PrincipalTyping signature context expression principal ∧
       IsInstance principal target
 
 namespace PrincipalTyping
 
 /-- A blockwise-principal source result is itself a declarative source typing. -/
 theorem toTyping
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target) :
-    Typing context expression target := by
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target) :
+    Typing signature context expression target := by
   exact ⟨target, principal, Subst.id, by simp⟩
 
 /-- Every substitution instance of a fixed principal derivation is a source
 typing.  This is the representative-local principality fact available before
 different nested-closure representatives have been aligned. -/
 theorem instance_typing
-    {context : Context} {expression : Expr} {principal target : Ty}
-    (principalTyping : PrincipalTyping context expression principal)
+    {signature : Signature} {context : Context} {expression : Expr} {principal target : Ty}
+    (principalTyping : PrincipalTyping signature context expression principal)
     (instantiation : IsInstance principal target) :
-    Typing context expression target :=
+    Typing signature context expression target :=
   ⟨principal, principalTyping, instantiation⟩
 
 end PrincipalTyping
@@ -462,11 +753,12 @@ namespace Inference
 /-- Soundness of the executable M2 skeleton: a returned source type has an
 independent relational elaboration and an absorbing block closure. -/
 theorem infer_success_principalTyping
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (success : infer context expression = some target) :
-    PrincipalTyping context expression target := by
+    (success : infer signature context expression = some target) :
+    PrincipalTyping signature context expression target := by
   unfold infer at success
-  cases elaborated : elaborate context expression context.initialSupply with
+  cases elaborated : elaborate signature context expression context.initialSupply with
   | none => simp [elaborateRoot, elaborated] at success
   | some output =>
       cases output with
@@ -487,7 +779,7 @@ theorem infer_success_principalTyping
               exact ⟨
                 { generated := generated
                   next := next
-                  elaboration := elaborate_sound elaborated
+                  elaboration := elaborate_sound wellFormed elaborated
                   closure := closure
                   absorbing := absorbing
                   target_eq := targetEquality }⟩
@@ -495,10 +787,11 @@ theorem infer_success_principalTyping
 /-- Public M2 inference soundness for the instance-closed declarative
 `Typing` relation. -/
 theorem infer_success_typing
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (success : infer context expression = some target) :
-    Typing context expression target :=
-  (infer_success_principalTyping success).toTyping
+    (success : infer signature context expression = some target) :
+    Typing signature context expression target :=
+  (infer_success_principalTyping wellFormed success).toTyping
 
 end Inference
 

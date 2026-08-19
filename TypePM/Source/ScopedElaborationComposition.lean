@@ -15,14 +15,35 @@ namespace TypePM.Source
 No existence claim is made here: a caller must compare the two complete
 `letE` elaborations, including their possibly different closed contexts. -/
 def LetComparisonHandler : Prop :=
-  ∀ {context : Context} {value body : Expr} {start : Supply}
+  ∀ {signature : Signature} {context : Context} {value body : Expr} {start : Supply}
       {leftGenerated rightGenerated : Generated}
       {leftNext rightNext : Supply},
     start.WellFormedFor context →
-      Elaborates context (.letE value body) start leftGenerated leftNext →
-        Elaborates context (.letE value body) start rightGenerated rightNext →
+      Elaborates signature context (.letE value body) start leftGenerated leftNext →
+        Elaborates signature context (.letE value body) start rightGenerated rightNext →
           ScopedGeneratedComparison start leftNext rightNext
             leftGenerated rightGenerated
+
+/-- Strengthened comparison used while folding constructor or primitive
+arguments.  It retains source provenance for both accumulated application
+blocks, which is what the next argument needs for cross-avoidance. -/
+private def ScopedCallComparison
+    (signature : Signature) (context : Context) (outerStart : Supply)
+    (leftAccumulated : Generated) (arguments : List Expr) (start : Supply)
+    (leftGenerated : Generated) (leftNext : Supply) : Prop :=
+  ∀ {rightAccumulated rightGenerated : Generated} {rightNext : Supply}
+      {accumulatedHidden : List UnificationVar},
+    VariablesFreshIn outerStart start accumulatedHidden →
+      Generated.ScopedContextualEquivalent accumulatedHidden
+        leftAccumulated rightAccumulated →
+      GeneratedSupportProvenance context outerStart start leftAccumulated →
+      GeneratedSupportProvenance context outerStart start rightAccumulated →
+      outerStart.WellFormedFor context →
+      outerStart.Le start →
+      ElaboratesCall signature context rightAccumulated arguments start
+        rightGenerated rightNext →
+      ScopedGeneratedComparison outerStart leftNext rightNext
+        leftGenerated rightGenerated
 
 private theorem scopedGeneratedComparison_refl
     (start next : Supply) (generated : Generated) :
@@ -106,10 +127,10 @@ private theorem TypeAvoids.append_forbidden
 
 private theorem scopedComposition_var
     (_letHandler : LetComparisonHandler)
-    {context : Context} {index : Nat} {start : Supply} {scheme : Scheme}
+    {signature : Signature} {context : Context} {index : Nat} {start : Supply} {scheme : Scheme}
     (lookup : context[index]? = some scheme) :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.var index) start rightGenerated rightNext →
+      Elaborates signature context (.var index) start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start (scheme.instantiate start).2
             rightNext
@@ -128,9 +149,9 @@ private theorem scopedComposition_var
 
 private theorem scopedComposition_lit
     (_letHandler : LetComparisonHandler)
-    {context : Context} {value : Int} {start : Supply} :
+    {signature : Signature} {context : Context} {value : Int} {start : Supply} :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.lit value) start rightGenerated rightNext →
+      Elaborates signature context (.lit value) start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start start rightNext
             { target := .int, hard := [], pending := [] }
@@ -141,9 +162,9 @@ private theorem scopedComposition_lit
 
 private theorem scopedComposition_something
     (_letHandler : LetComparisonHandler)
-    {context : Context} {start : Supply} :
+    {signature : Signature} {context : Context} {start : Supply} :
     ∀ {rightGenerated rightNext},
-      Elaborates context .something start rightGenerated rightNext →
+      Elaborates signature context .something start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start (start.nextTy 1) rightNext
             { target := .matcher .any (.var ⟨start.ty⟩),
@@ -155,20 +176,20 @@ private theorem scopedComposition_something
 
 private theorem scopedComposition_lam
     (_letHandler : LetComparisonHandler)
-    {context : Context} {body : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {body : Expr} {start : Supply}
     {leftBody : Generated} {leftNext : Supply}
-    (_leftBodyElaboration : Elaborates
+    (_leftBodyElaboration : Elaborates signature
       (.mono (.var ⟨start.ty⟩) :: context) body
       (start.nextTy 1) leftBody leftNext)
     (bodyComparison : ∀ {rightBody rightNext},
-      Elaborates (.mono (.var ⟨start.ty⟩) :: context) body
+      Elaborates signature (.mono (.var ⟨start.ty⟩) :: context) body
           (start.nextTy 1) rightBody rightNext →
         (start.nextTy 1).WellFormedFor
             (.mono (.var ⟨start.ty⟩) :: context) →
           ScopedGeneratedComparison (start.nextTy 1)
             leftNext rightNext leftBody rightBody) :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.lam body) start rightGenerated rightNext →
+      Elaborates signature context (.lam body) start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftNext rightNext
             (Generated.fromLam (.var ⟨start.ty⟩) leftBody)
@@ -189,26 +210,26 @@ private theorem scopedComposition_lam
 
 private theorem scopedComposition_app
     (_letHandler : LetComparisonHandler)
-    {context : Context} {function argument : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {function argument : Expr} {start : Supply}
     {leftFunction : Generated} {leftAfterFunction : Supply}
     {leftArgument : Generated} {leftAfterArgument : Supply}
-    (leftFunctionElaboration : Elaborates context function start
+    (leftFunctionElaboration : Elaborates signature context function start
       leftFunction leftAfterFunction)
-    (leftArgumentElaboration : Elaborates context argument leftAfterFunction
+    (leftArgumentElaboration : Elaborates signature context argument leftAfterFunction
       leftArgument leftAfterArgument)
     (functionComparison : ∀ {rightFunction rightAfterFunction},
-      Elaborates context function start rightFunction rightAfterFunction →
+      Elaborates signature context function start rightFunction rightAfterFunction →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftAfterFunction
             rightAfterFunction leftFunction rightFunction)
     (argumentComparison : ∀ {rightArgument rightAfterArgument},
-      Elaborates context argument leftAfterFunction rightArgument
+      Elaborates signature context argument leftAfterFunction rightArgument
           rightAfterArgument →
         leftAfterFunction.WellFormedFor context →
           ScopedGeneratedComparison leftAfterFunction leftAfterArgument
             rightAfterArgument leftArgument rightArgument) :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.app function argument) start
+      Elaborates signature context (.app function argument) start
           rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start (leftAfterArgument.nextTy 2)
@@ -273,17 +294,17 @@ private theorem scopedComposition_app
 
 private theorem scopedComposition_tuple
     (_letHandler : LetComparisonHandler)
-    {context : Context} {items : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {items : List Expr} {start : Supply}
     {leftItems : GeneratedItems} {leftNext : Supply}
     (_leftItemsElaboration :
-      ElaboratesItems context items start leftItems leftNext)
+      ElaboratesItems signature context items start leftItems leftNext)
     (itemsComparison : ∀ {rightItems rightNext},
-      ElaboratesItems context items start rightItems rightNext →
+      ElaboratesItems signature context items start rightItems rightNext →
         start.WellFormedFor context →
           ScopedItemsComparison start leftNext rightNext
             leftItems rightItems) :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.tuple items) start rightGenerated rightNext →
+      Elaborates signature context (.tuple items) start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftNext rightNext
             (GeneratedItems.asTuple leftItems) rightGenerated := by
@@ -298,14 +319,14 @@ private theorem scopedComposition_tuple
 
 private theorem scopedComposition_let
     (letHandler : LetComparisonHandler)
-    {context : Context} {value body : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {value body : Expr} {start : Supply}
     {leftValue : Generated} {leftAfterValue : Supply}
     {leftBody : Generated} {leftNext : Supply}
     (leftValueElaboration :
-      Elaborates context value start leftValue leftAfterValue)
+      Elaborates signature context value start leftValue leftAfterValue)
     (leftClosure : PrincipalBlockClosure leftValue)
     (leftAbsorbing : leftClosure.Absorbing)
-    (leftBodyElaboration : Elaborates
+    (leftBodyElaboration : Elaborates signature
       ((context.applyFree leftClosure.substitution).generalize
           leftClosure.target ::
         context.applyFree leftClosure.substitution)
@@ -314,12 +335,12 @@ private theorem scopedComposition_let
         (context.applyFree leftClosure.substitution).initialSupply)
       leftBody leftNext)
     (_valueComparison : ∀ {rightValue rightAfterValue},
-      Elaborates context value start rightValue rightAfterValue →
+      Elaborates signature context value start rightValue rightAfterValue →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftAfterValue rightAfterValue
             leftValue rightValue)
     (_bodyComparison : ∀ {rightBody rightNext},
-      Elaborates
+      Elaborates signature
           ((context.applyFree leftClosure.substitution).generalize
               leftClosure.target ::
             context.applyFree leftClosure.substitution)
@@ -338,7 +359,7 @@ private theorem scopedComposition_let
               (context.applyFree leftClosure.substitution).initialSupply)
             leftNext rightNext leftBody rightBody) :
     ∀ {rightGenerated rightNext},
-      Elaborates context (.letE value body) start rightGenerated rightNext →
+      Elaborates signature context (.letE value body) start rightGenerated rightNext →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftNext rightNext
             (Generated.fromLet
@@ -353,9 +374,9 @@ private theorem scopedComposition_let
 
 private theorem scopedComposition_items_nil
     (_letHandler : LetComparisonHandler)
-    {context : Context} {start : Supply} :
+    {signature : Signature} {context : Context} {start : Supply} :
     ∀ {rightItems rightNext},
-      ElaboratesItems context [] start rightItems rightNext →
+      ElaboratesItems signature context [] start rightItems rightNext →
         start.WellFormedFor context →
           ScopedItemsComparison start start rightNext
             GeneratedItems.nil rightItems := by
@@ -365,25 +386,25 @@ private theorem scopedComposition_items_nil
 
 private theorem scopedComposition_items_cons
     (_letHandler : LetComparisonHandler)
-    {context : Context} {item : Expr} {items : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {item : Expr} {items : List Expr} {start : Supply}
     {leftItem : Generated} {leftAfterItem : Supply}
     {leftItems : GeneratedItems} {leftNext : Supply}
     (leftItemElaboration :
-      Elaborates context item start leftItem leftAfterItem)
+      Elaborates signature context item start leftItem leftAfterItem)
     (leftItemsElaboration :
-      ElaboratesItems context items leftAfterItem leftItems leftNext)
+      ElaboratesItems signature context items leftAfterItem leftItems leftNext)
     (itemComparison : ∀ {rightItem rightAfterItem},
-      Elaborates context item start rightItem rightAfterItem →
+      Elaborates signature context item start rightItem rightAfterItem →
         start.WellFormedFor context →
           ScopedGeneratedComparison start leftAfterItem rightAfterItem
             leftItem rightItem)
     (itemsComparison : ∀ {rightItems rightNext},
-      ElaboratesItems context items leftAfterItem rightItems rightNext →
+      ElaboratesItems signature context items leftAfterItem rightItems rightNext →
         leftAfterItem.WellFormedFor context →
           ScopedItemsComparison leftAfterItem leftNext rightNext
             leftItems rightItems) :
     ∀ {rightItems rightNext},
-      ElaboratesItems context (item :: items) start rightItems rightNext →
+      ElaboratesItems signature context (item :: items) start rightItems rightNext →
         start.WellFormedFor context →
           ScopedItemsComparison start leftNext rightNext
             (GeneratedItems.cons leftItem leftItems) rightItems := by
@@ -411,17 +432,234 @@ private theorem scopedComposition_items_cons
       · exact GeneratedItems.ScopedContextualEquivalent.cons
           itemRelated itemsRelated leftItemsAvoid rightItemAvoid
 
+private theorem scopedComposition_ctor
+    (_letHandler : LetComparisonHandler)
+    {signature : Signature} {context : Context} {constructor : DataCtor}
+    {arguments : List Expr} {scheme : Scheme} {start finish : Supply}
+    {leftGenerated : Generated}
+    (lookup : signature.lookupDataConstructor constructor = some scheme)
+    (_arity : arguments.length = scheme.callArity)
+    (closed : scheme.Closed)
+    (_leftCall : ElaboratesCall signature context
+      ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 leftGenerated finish)
+    (callComparison : ∀ outerStart, ScopedCallComparison signature context
+      outerStart ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 leftGenerated finish) :
+    ∀ {rightGenerated rightNext},
+      Elaborates signature context (.ctor constructor arguments) start
+          rightGenerated rightNext →
+        start.WellFormedFor context →
+          ScopedGeneratedComparison start finish rightNext
+            leftGenerated rightGenerated := by
+  intro rightGenerated rightNext rightElaboration wellFormed
+  cases rightElaboration with
+  | @ctor _ _ _ rightScheme _ _ _ rightClosed rightLookup _ rightCall =>
+      rename_i rightClosedProof
+      have schemeEquality : scheme = rightScheme := by
+        rw [lookup] at rightClosed
+        exact Option.some.inj rightClosed
+      subst rightScheme
+      exact callComparison start (VariablesFreshIn.nil _ _)
+        (Generated.ScopedContextualEquivalent.refl [] _)
+        (supportProvenance_closed_instantiate closed)
+        (supportProvenance_closed_instantiate rightClosedProof)
+        wellFormed (by simp [Supply.Le, Scheme.instantiate]) rightCall
+
+private theorem scopedComposition_prim
+    (_letHandler : LetComparisonHandler)
+    {signature : Signature} {context : Context} {operation : PrimOp}
+    {arguments : List Expr} {scheme : Scheme} {start finish : Supply}
+    {leftGenerated : Generated}
+    (lookup : signature.lookupPrimitive operation = some scheme)
+    (_arity : arguments.length = scheme.callArity)
+    (closed : scheme.Closed)
+    (_leftCall : ElaboratesCall signature context
+      ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 leftGenerated finish)
+    (callComparison : ∀ outerStart, ScopedCallComparison signature context
+      outerStart ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 leftGenerated finish) :
+    ∀ {rightGenerated rightNext},
+      Elaborates signature context (.prim operation arguments) start
+          rightGenerated rightNext →
+        start.WellFormedFor context →
+          ScopedGeneratedComparison start finish rightNext
+            leftGenerated rightGenerated := by
+  intro rightGenerated rightNext rightElaboration wellFormed
+  cases rightElaboration with
+  | @prim _ _ _ rightScheme _ _ _ rightClosed rightLookup _ rightCall =>
+      rename_i rightClosedProof
+      have schemeEquality : scheme = rightScheme := by
+        rw [lookup] at rightClosed
+        exact Option.some.inj rightClosed
+      subst rightScheme
+      exact callComparison start (VariablesFreshIn.nil _ _)
+        (Generated.ScopedContextualEquivalent.refl [] _)
+        (supportProvenance_closed_instantiate closed)
+        (supportProvenance_closed_instantiate rightClosedProof)
+        wellFormed (by simp [Supply.Le, Scheme.instantiate]) rightCall
+
+private theorem scopedComposition_ifE
+    (_letHandler : LetComparisonHandler)
+    {signature : Signature} {context : Context}
+    {condition thenBranch elseBranch : Expr} {start finish : Supply}
+    {leftGenerated : Generated}
+    (_leftCall : ElaboratesCall signature context
+      ⟨(conditionalScheme.instantiate start).1, [], []⟩
+      [condition, thenBranch, elseBranch]
+      (conditionalScheme.instantiate start).2 leftGenerated finish)
+    (callComparison : ∀ outerStart, ScopedCallComparison signature context
+      outerStart ⟨(conditionalScheme.instantiate start).1, [], []⟩
+      [condition, thenBranch, elseBranch]
+      (conditionalScheme.instantiate start).2 leftGenerated finish) :
+    ∀ {rightGenerated rightNext},
+      Elaborates signature context (.ifE condition thenBranch elseBranch)
+          start rightGenerated rightNext →
+        start.WellFormedFor context →
+          ScopedGeneratedComparison start finish rightNext
+            leftGenerated rightGenerated := by
+  intro rightGenerated rightNext rightElaboration wellFormed
+  cases rightElaboration with
+  | ifE rightCall =>
+      exact callComparison start (VariablesFreshIn.nil _ _)
+        (Generated.ScopedContextualEquivalent.refl [] _)
+        (supportProvenance_closed_instantiate conditionalScheme_closed)
+        (supportProvenance_closed_instantiate conditionalScheme_closed)
+        wellFormed (by simp [Supply.Le, Scheme.instantiate]) rightCall
+
+private theorem scopedComposition_call_nil
+    {signature : Signature} {context : Context}
+    {accumulated : Generated} {start : Supply} :
+    ∀ outerStart, ScopedCallComparison signature context outerStart
+      accumulated [] start accumulated start := by
+  intro outerStart
+  intro rightAccumulated rightGenerated rightNext accumulatedHidden
+    hiddenFresh accumulatedRelated _leftProvenance _rightProvenance
+    _wellFormed _outerToStart rightElaboration
+  cases rightElaboration
+  exact ⟨rfl, accumulatedHidden, hiddenFresh, accumulatedRelated⟩
+
+private theorem scopedComposition_call_cons
+    (_letHandler : LetComparisonHandler)
+    {signature : Signature} {context : Context}
+    {accumulated : Generated} {argument : Expr} {arguments : List Expr}
+    {start : Supply} {leftArgument : Generated}
+    {leftAfterArgument : Supply} {leftGenerated : Generated}
+    {leftNext : Supply}
+    (leftArgumentElaboration : Elaborates signature context argument start
+      leftArgument leftAfterArgument)
+    (_leftRestElaboration : ElaboratesCall signature context
+      (Generated.fromApp accumulated leftArgument
+        (.var ⟨leftAfterArgument.ty⟩)
+        (.var ⟨leftAfterArgument.ty + 1⟩))
+      arguments (leftAfterArgument.nextTy 2) leftGenerated leftNext)
+    (argumentComparison : ∀ {rightArgument rightAfterArgument},
+      Elaborates signature context argument start rightArgument
+          rightAfterArgument →
+        start.WellFormedFor context →
+          ScopedGeneratedComparison start leftAfterArgument
+            rightAfterArgument leftArgument rightArgument)
+    (restComparison : ∀ outerStart, ScopedCallComparison signature context
+      outerStart
+      (Generated.fromApp accumulated leftArgument
+        (.var ⟨leftAfterArgument.ty⟩)
+        (.var ⟨leftAfterArgument.ty + 1⟩))
+      arguments (leftAfterArgument.nextTy 2) leftGenerated leftNext) :
+    ∀ outerStart, ScopedCallComparison signature context outerStart accumulated
+      (argument :: arguments) start leftGenerated leftNext := by
+  intro outerStart
+  intro rightAccumulated rightGenerated rightNext accumulatedHidden
+    accumulatedFresh accumulatedRelated leftAccumulatedProvenance
+    rightAccumulatedProvenance wellFormed outerToStart rightElaboration
+  cases rightElaboration with
+  | @cons _ _ _ _ _ rightArgument rightAfterArgument _ _
+      rightArgumentElaboration rightRestElaboration =>
+      obtain ⟨argumentNextEquality, argumentHidden, argumentFresh,
+          argumentRelated⟩ :=
+        argumentComparison rightArgumentElaboration
+          (wellFormed.mono outerToStart)
+      subst rightAfterArgument
+      have startToAfter : start.Le leftAfterArgument :=
+        leftArgumentElaboration.supply_le_next
+      have afterToNext : leftAfterArgument.Le
+          (leftAfterArgument.nextTy 2) :=
+        Supply.le_nextTy leftAfterArgument 2
+      have outerToAfter : outerStart.Le leftAfterArgument :=
+        Supply.le_trans outerToStart startToAfter
+      have outerToNext : outerStart.Le (leftAfterArgument.nextTy 2) :=
+        Supply.le_trans outerToAfter afterToNext
+      have leftArgumentAvoids : GeneratedAvoids accumulatedHidden
+          leftArgument :=
+        VariablesScopedBy.avoids_earlier accumulatedFresh
+          leftArgumentElaboration.supportProvenance.scopedByInitialSupply
+          wellFormed (Supply.le_refl start)
+      have rightAccumulatedAvoids : GeneratedAvoids argumentHidden
+          rightAccumulated :=
+        VariablesScopedBy.avoids_later
+          rightAccumulatedProvenance.scopedByInitialSupply argumentFresh
+          wellFormed outerToStart (Supply.le_refl start)
+      have domainAvoids : TypeAvoids
+          (accumulatedHidden ++ argumentHidden)
+          (.var ⟨leftAfterArgument.ty⟩) :=
+        TypeAvoids.append_forbidden
+          (accumulatedFresh.typeAvoids_ty_of_finish_le startToAfter.1)
+          (argumentFresh.typeAvoids_ty_of_finish_le (Nat.le_refl _))
+      have targetAvoids : TypeAvoids
+          (accumulatedHidden ++ argumentHidden)
+          (.var ⟨leftAfterArgument.ty + 1⟩) :=
+        TypeAvoids.append_forbidden
+          (accumulatedFresh.typeAvoids_ty_of_finish_le
+            (index := ⟨leftAfterArgument.ty + 1⟩) (by
+              exact Nat.le_trans startToAfter.1 (Nat.le_add_right _ _)))
+          (argumentFresh.typeAvoids_ty_of_finish_le
+            (index := ⟨leftAfterArgument.ty + 1⟩) (by
+              exact Nat.le_add_right _ _))
+      have combinedFresh : VariablesFreshIn outerStart
+          (leftAfterArgument.nextTy 2)
+          (accumulatedHidden ++ argumentHidden) :=
+        VariablesFreshIn.append
+          (accumulatedFresh.widen (Supply.le_refl outerStart)
+            (Supply.le_trans startToAfter afterToNext))
+          (argumentFresh.widen outerToStart afterToNext)
+      have appliedRelated := Generated.ScopedContextualEquivalent.app
+        (.var ⟨leftAfterArgument.ty⟩)
+        (.var ⟨leftAfterArgument.ty + 1⟩)
+        accumulatedRelated argumentRelated leftArgumentAvoids
+        rightAccumulatedAvoids domainAvoids targetAvoids
+      have leftAppliedProvenance : GeneratedSupportProvenance context
+          outerStart (leftAfterArgument.nextTy 2)
+          (Generated.fromApp accumulated leftArgument
+            (.var ⟨leftAfterArgument.ty⟩)
+            (.var ⟨leftAfterArgument.ty + 1⟩)) := by
+        simpa [Generated.fromApp] using
+          supportProvenance_fromApp outerToStart leftArgumentElaboration
+            leftAccumulatedProvenance
+            leftArgumentElaboration.supportProvenance
+      have rightAppliedProvenance : GeneratedSupportProvenance context
+          outerStart (leftAfterArgument.nextTy 2)
+          (Generated.fromApp rightAccumulated rightArgument
+            (.var ⟨leftAfterArgument.ty⟩)
+            (.var ⟨leftAfterArgument.ty + 1⟩)) := by
+        simpa [Generated.fromApp] using
+          supportProvenance_fromApp outerToStart rightArgumentElaboration
+            rightAccumulatedProvenance
+            rightArgumentElaboration.supportProvenance
+      exact restComparison outerStart combinedFresh appliedRelated
+        leftAppliedProvenance rightAppliedProvenance wellFormed outerToNext
+        rightRestElaboration
+
 /-- All ordinary source constructors compose scoped comparisons.  The
 well-formed starting supply is essential; only the representative-sensitive
 `letE` branch is delegated to `letHandler`. -/
 theorem Elaborates.scopedComparison
     (letHandler : LetComparisonHandler)
-    {context : Context} {expression : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start : Supply}
     {leftGenerated rightGenerated : Generated}
     {leftNext rightNext : Supply}
-    (leftElaboration : Elaborates context expression start
+    (leftElaboration : Elaborates signature context expression start
       leftGenerated leftNext)
-    (rightElaboration : Elaborates context expression start
+    (rightElaboration : Elaborates signature context expression start
       rightGenerated rightNext)
     (wellFormed : start.WellFormedFor context) :
     ScopedGeneratedComparison start leftNext rightNext
@@ -429,16 +667,19 @@ theorem Elaborates.scopedComparison
   Elaborates.rec
     (motive_1 := fun context expression start leftGenerated leftNext _ =>
       ∀ {rightGenerated rightNext},
-        Elaborates context expression start rightGenerated rightNext →
+        Elaborates signature context expression start rightGenerated rightNext →
           start.WellFormedFor context →
             ScopedGeneratedComparison start leftNext rightNext
               leftGenerated rightGenerated)
     (motive_2 := fun context expressions start leftItems leftNext _ =>
       ∀ {rightItems rightNext},
-        ElaboratesItems context expressions start rightItems rightNext →
+        ElaboratesItems signature context expressions start rightItems rightNext →
           start.WellFormedFor context →
             ScopedItemsComparison start leftNext rightNext
               leftItems rightItems)
+    (motive_3 := fun context accumulated arguments start leftGenerated leftNext _ =>
+      ∀ outerStart, ScopedCallComparison signature context outerStart
+        accumulated arguments start leftGenerated leftNext)
     (scopedComposition_var letHandler)
     (scopedComposition_lit letHandler)
     (scopedComposition_something letHandler)
@@ -446,36 +687,44 @@ theorem Elaborates.scopedComparison
     (scopedComposition_app letHandler)
     (scopedComposition_tuple letHandler)
     (scopedComposition_let letHandler)
+    (scopedComposition_ctor letHandler)
+    (scopedComposition_prim letHandler)
+    (scopedComposition_ifE letHandler)
     (scopedComposition_items_nil letHandler)
     (scopedComposition_items_cons letHandler)
+    scopedComposition_call_nil
+    (scopedComposition_call_cons letHandler)
     leftElaboration rightElaboration wellFormed
 
 /-- List counterpart of `Elaborates.scopedComparison`, using the same single
 `letE` handler for nested item expressions. -/
 theorem ElaboratesItems.scopedComparison
     (letHandler : LetComparisonHandler)
-    {context : Context} {expressions : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {start : Supply}
     {leftItems rightItems : GeneratedItems}
     {leftNext rightNext : Supply}
-    (leftElaboration : ElaboratesItems context expressions start
+    (leftElaboration : ElaboratesItems signature context expressions start
       leftItems leftNext)
-    (rightElaboration : ElaboratesItems context expressions start
+    (rightElaboration : ElaboratesItems signature context expressions start
       rightItems rightNext)
     (wellFormed : start.WellFormedFor context) :
     ScopedItemsComparison start leftNext rightNext leftItems rightItems :=
   ElaboratesItems.rec
     (motive_1 := fun context expression start leftGenerated leftNext _ =>
       ∀ {rightGenerated rightNext},
-        Elaborates context expression start rightGenerated rightNext →
+        Elaborates signature context expression start rightGenerated rightNext →
           start.WellFormedFor context →
             ScopedGeneratedComparison start leftNext rightNext
               leftGenerated rightGenerated)
     (motive_2 := fun context expressions start leftItems leftNext _ =>
       ∀ {rightItems rightNext},
-        ElaboratesItems context expressions start rightItems rightNext →
+        ElaboratesItems signature context expressions start rightItems rightNext →
           start.WellFormedFor context →
             ScopedItemsComparison start leftNext rightNext
               leftItems rightItems)
+    (motive_3 := fun context accumulated arguments start leftGenerated leftNext _ =>
+      ∀ outerStart, ScopedCallComparison signature context outerStart
+        accumulated arguments start leftGenerated leftNext)
     (scopedComposition_var letHandler)
     (scopedComposition_lit letHandler)
     (scopedComposition_something letHandler)
@@ -483,20 +732,25 @@ theorem ElaboratesItems.scopedComparison
     (scopedComposition_app letHandler)
     (scopedComposition_tuple letHandler)
     (scopedComposition_let letHandler)
+    (scopedComposition_ctor letHandler)
+    (scopedComposition_prim letHandler)
+    (scopedComposition_ifE letHandler)
     (scopedComposition_items_nil letHandler)
     (scopedComposition_items_cons letHandler)
+    scopedComposition_call_nil
+    (scopedComposition_call_cons letHandler)
     leftElaboration rightElaboration wellFormed
 
 /-- Let-free elaborations have an unconditional pairwise scoped comparison:
 no representative-sensitive handler is needed.  The well-formed start is
 kept explicit as the source comparison invariant. -/
 theorem Elaborates.scopedComparison_of_letFree
-    {context : Context} {expression : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start : Supply}
     {leftGenerated rightGenerated : Generated}
     {leftNext rightNext : Supply}
-    (leftElaboration : Elaborates context expression start
+    (leftElaboration : Elaborates signature context expression start
       leftGenerated leftNext)
-    (rightElaboration : Elaborates context expression start
+    (rightElaboration : Elaborates signature context expression start
       rightGenerated rightNext)
     (_wellFormed : start.WellFormedFor context)
     (letFree : LetFree expression) :
@@ -513,12 +767,12 @@ theorem Elaborates.scopedComparison_of_letFree
 
 /-- List counterpart of `Elaborates.scopedComparison_of_letFree`. -/
 theorem ElaboratesItems.scopedComparison_of_letFree
-    {context : Context} {expressions : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {start : Supply}
     {leftItems rightItems : GeneratedItems}
     {leftNext rightNext : Supply}
-    (leftElaboration : ElaboratesItems context expressions start
+    (leftElaboration : ElaboratesItems signature context expressions start
       leftItems leftNext)
-    (rightElaboration : ElaboratesItems context expressions start
+    (rightElaboration : ElaboratesItems signature context expressions start
       rightItems rightNext)
     (_wellFormed : start.WellFormedFor context)
     (letFree : LetFreeItems expressions) :

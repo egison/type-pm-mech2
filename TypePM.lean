@@ -92,6 +92,7 @@ import TypePM.Source.ElaborationCompleteness
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.M2Regression
+import TypePM.Source.M3Regression
 import TypePM.DataTypes
 import TypePM.Constructors
 import TypePM.Primitives

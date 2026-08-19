@@ -363,6 +363,26 @@ private theorem supportProvenance_var
           schemeMember free)
       · exact Or.inr fresh
 
+theorem supportProvenance_closed_instantiate
+    {context : Context} {start : Supply} {scheme : Scheme}
+    (closed : scheme.Closed) :
+    GeneratedSupportProvenance context start (scheme.instantiate start).2
+      { target := (scheme.instantiate start).1, hard := [], pending := [] } := by
+  intro candidate member
+  simp only [Generated.unificationVars, TypePM.unificationVars,
+    pendingUnificationVars, List.append_nil] at member
+  cases candidate with
+  | ty index =>
+      rcases Scheme.instantiate_ty_origin _ _ member with free | fresh
+      · rw [closed.1] at free
+        simp at free
+      · exact Or.inr fresh
+  | cap index =>
+      rcases Scheme.instantiate_cap_origin _ _ member with free | fresh
+      · rw [closed.2] at free
+        simp at free
+      · exact Or.inr fresh
+
 private theorem supportProvenance_lit
     {context : Context} (_value : Int) {start : Supply} :
     GeneratedSupportProvenance context start start
@@ -384,9 +404,9 @@ private theorem supportProvenance_something
   exact Or.inr (by simp [UnificationVar.FreshIn, Supply.nextTy])
 
 private theorem supportProvenance_lam
-    {context : Context} {body : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {body : Expr} {start : Supply}
     {generatedBody : Generated} {finish : Supply}
-    (bodyElaboration : Elaborates
+    (bodyElaboration : Elaborates signature
       (.mono (.var ⟨start.ty⟩) :: context) body
       (start.nextTy 1) generatedBody finish)
     (bodyProvenance : GeneratedSupportProvenance
@@ -441,14 +461,13 @@ private theorem supportProvenance_lam
       · exact Or.inl outer
     · exact Or.inr (fresh.lower_start (Supply.le_nextTy start 1))
 
-private theorem supportProvenance_app
-    {context : Context} {function argument : Expr} {start : Supply}
+theorem supportProvenance_fromApp
+    {signature : Signature} {context : Context} {argument : Expr} {start : Supply}
     {generatedFunction : Generated} {afterFunction : Supply}
     {generatedArgument : Generated} {afterArgument : Supply}
-    (functionElaboration :
-      Elaborates context function start generatedFunction afterFunction)
+    (functionIncreases : start.Le afterFunction)
     (argumentElaboration :
-      Elaborates context argument afterFunction generatedArgument afterArgument)
+      Elaborates signature context argument afterFunction generatedArgument afterArgument)
     (functionProvenance :
       GeneratedSupportProvenance context start afterFunction generatedFunction)
     (argumentProvenance :
@@ -468,7 +487,7 @@ private theorem supportProvenance_app
     unificationVars_append, pendingUnificationVars_append,
     Equation.unificationVars, List.mem_cons, List.not_mem_nil, or_false] at member
   have startToArgument : Supply.Le start afterArgument :=
-    Supply.le_trans functionElaboration.supply_le_next
+    Supply.le_trans functionIncreases
       argumentElaboration.supply_le_next
   have argumentToFinish : Supply.Le afterArgument (afterArgument.nextTy 2) :=
     Supply.le_nextTy afterArgument 2
@@ -491,7 +510,7 @@ private theorem supportProvenance_app
     rcases candidateOrigin with outer | fresh
     · exact Or.inl outer
     · exact Or.inr ((fresh.lower_start
-        functionElaboration.supply_le_next).extend_finish argumentToFinish)
+        functionIncreases).extend_finish argumentToFinish)
   have freshAt (offset : Nat) (offsetLt : offset < 2) :
       UnificationVar.FreshIn start (afterArgument.nextTy 2)
         (.ty ⟨afterArgument.ty + offset⟩) := by
@@ -511,6 +530,7 @@ private theorem supportProvenance_app
       simp only [Generated.unificationVars, List.mem_append]
       exact Or.inl (Or.inl functionTarget)))
   · simpa using Or.inr (freshAt 0 (by omega))
+
   · exact Or.inr (freshAt 1 (by omega))
   · exact liftFunction (functionProvenance candidate (by
       simp only [Generated.unificationVars, List.mem_append]
@@ -523,11 +543,31 @@ private theorem supportProvenance_app
       exact Or.inl (Or.inl argumentTarget)))
   · simpa using Or.inr (freshAt 0 (by omega))
 
+private theorem supportProvenance_app
+    {signature : Signature} {context : Context} {function argument : Expr}
+    {start : Supply} {generatedFunction : Generated}
+    {afterFunction : Supply} {generatedArgument : Generated}
+    {afterArgument : Supply}
+    (functionElaboration :
+      Elaborates signature context function start generatedFunction afterFunction)
+    (argumentElaboration :
+      Elaborates signature context argument afterFunction generatedArgument afterArgument)
+    (functionProvenance :
+      GeneratedSupportProvenance context start afterFunction generatedFunction)
+    (argumentProvenance :
+      GeneratedSupportProvenance context afterFunction afterArgument generatedArgument) :
+    GeneratedSupportProvenance context start (afterArgument.nextTy 2)
+      (Generated.fromApp generatedFunction generatedArgument
+        (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩)) := by
+  simpa [Generated.fromApp] using
+    supportProvenance_fromApp functionElaboration.supply_le_next
+      argumentElaboration functionProvenance argumentProvenance
+
 private theorem supportProvenance_tuple
-    {context : Context} {items : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {items : List Expr} {start : Supply}
     {generatedItems : GeneratedItems} {finish : Supply}
     (_itemsElaboration :
-      ElaboratesItems context items start generatedItems finish)
+      ElaboratesItems signature context items start generatedItems finish)
     (itemsProvenance : GeneratedItemsSupportProvenance
       context start finish generatedItems) :
     GeneratedSupportProvenance context start finish
@@ -547,13 +587,13 @@ private theorem supportProvenance_items_nil
     TypePM.unificationVars, pendingUnificationVars] at member
 
 private theorem supportProvenance_items_cons
-    {context : Context} {item : Expr} {items : List Expr} {start : Supply}
+    {signature : Signature} {context : Context} {item : Expr} {items : List Expr} {start : Supply}
     {generatedItem : Generated} {afterItem : Supply}
     {generatedItems : GeneratedItems} {finish : Supply}
     (itemElaboration :
-      Elaborates context item start generatedItem afterItem)
+      Elaborates signature context item start generatedItem afterItem)
     (itemsElaboration :
-      ElaboratesItems context items afterItem generatedItems finish)
+      ElaboratesItems signature context items afterItem generatedItems finish)
     (itemProvenance : GeneratedSupportProvenance
       context start afterItem generatedItem)
     (itemsProvenance : GeneratedItemsSupportProvenance
@@ -609,14 +649,14 @@ private theorem supportProvenance_items_cons
         exact Or.inr itemsPending))
 
 private theorem supportProvenance_let
-    {context : Context} {value body : Expr} {start : Supply}
+    {signature : Signature} {context : Context} {value body : Expr} {start : Supply}
     {generatedValue : Generated} {afterValue : Supply}
     {generatedBody : Generated} {finish : Supply}
     (valueElaboration :
-      Elaborates context value start generatedValue afterValue)
+      Elaborates signature context value start generatedValue afterValue)
     (closure : PrincipalBlockClosure generatedValue)
     (absorbing : closure.Absorbing)
-    (bodyElaboration : Elaborates
+    (bodyElaboration : Elaborates signature
       ((context.applyFree closure.substitution).generalize closure.target ::
         context.applyFree closure.substitution)
       body
@@ -684,38 +724,154 @@ private theorem supportProvenance_let
       simp only [Generated.unificationVars, List.mem_append]
       exact Or.inr pending)
 
+private theorem supportProvenance_call_nil
+    {context : Context} {accumulated : Generated} {start : Supply} :
+    ∀ outerStart, outerStart.Le start →
+      GeneratedSupportProvenance context outerStart start accumulated →
+      GeneratedSupportProvenance context outerStart start accumulated := by
+  intro outerStart _ provenance
+  exact provenance
+
+private theorem supportProvenance_call_cons
+    {signature : Signature} {context : Context}
+    {accumulated : Generated} {argument : Expr} {arguments : List Expr}
+    {start : Supply} {generatedArgument : Generated}
+    {afterArgument : Supply} {generated : Generated} {finish : Supply}
+    (argumentElaboration : Elaborates signature context argument start
+      generatedArgument afterArgument)
+    (_restElaboration : ElaboratesCall signature context
+      (Generated.fromApp accumulated generatedArgument
+        (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+      arguments (afterArgument.nextTy 2) generated finish)
+    (argumentProvenance : GeneratedSupportProvenance context start
+      afterArgument generatedArgument)
+    (restProvenance : ∀ outerStart,
+      outerStart.Le (afterArgument.nextTy 2) →
+      GeneratedSupportProvenance context outerStart
+        (afterArgument.nextTy 2)
+        (Generated.fromApp accumulated generatedArgument
+          (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩)) →
+      GeneratedSupportProvenance context outerStart finish generated) :
+    ∀ outerStart, outerStart.Le start →
+      GeneratedSupportProvenance context outerStart start accumulated →
+      GeneratedSupportProvenance context outerStart finish generated := by
+  intro outerStart outerToStart accumulatedProvenance
+  have appliedProvenance : GeneratedSupportProvenance context outerStart
+      (afterArgument.nextTy 2)
+      (Generated.fromApp accumulated generatedArgument
+        (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩)) := by
+    simpa [Generated.fromApp] using
+      supportProvenance_fromApp outerToStart argumentElaboration
+        accumulatedProvenance argumentProvenance
+  apply restProvenance outerStart
+  · exact Supply.le_trans outerToStart
+      (Supply.le_trans argumentElaboration.supply_le_next
+        (Supply.le_nextTy afterArgument 2))
+  · exact appliedProvenance
+
+private theorem supportProvenance_ctor
+    {signature : Signature} {context : Context} {constructor : DataCtor}
+    {arguments : List Expr} {scheme : Scheme} {start finish : Supply}
+    {generated : Generated}
+    (_lookup : signature.lookupDataConstructor constructor = some scheme)
+    (_arity : arguments.length = scheme.callArity) (closed : scheme.Closed)
+    (_call : ElaboratesCall signature context
+      ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 generated finish)
+    (callProvenance : ∀ outerStart,
+      outerStart.Le (scheme.instantiate start).2 →
+      GeneratedSupportProvenance context outerStart
+        (scheme.instantiate start).2
+        ⟨(scheme.instantiate start).1, [], []⟩ →
+      GeneratedSupportProvenance context outerStart finish generated) :
+    GeneratedSupportProvenance context start finish generated := by
+  apply callProvenance start
+  · simp [Supply.Le, Scheme.instantiate]
+  · exact supportProvenance_closed_instantiate closed
+
+private theorem supportProvenance_prim
+    {signature : Signature} {context : Context} {operation : PrimOp}
+    {arguments : List Expr} {scheme : Scheme} {start finish : Supply}
+    {generated : Generated}
+    (_lookup : signature.lookupPrimitive operation = some scheme)
+    (_arity : arguments.length = scheme.callArity) (closed : scheme.Closed)
+    (_call : ElaboratesCall signature context
+      ⟨(scheme.instantiate start).1, [], []⟩ arguments
+      (scheme.instantiate start).2 generated finish)
+    (callProvenance : ∀ outerStart,
+      outerStart.Le (scheme.instantiate start).2 →
+      GeneratedSupportProvenance context outerStart
+        (scheme.instantiate start).2
+        ⟨(scheme.instantiate start).1, [], []⟩ →
+      GeneratedSupportProvenance context outerStart finish generated) :
+    GeneratedSupportProvenance context start finish generated := by
+  apply callProvenance start
+  · simp [Supply.Le, Scheme.instantiate]
+  · exact supportProvenance_closed_instantiate closed
+
+private theorem supportProvenance_ifE
+    {signature : Signature} {context : Context}
+    {condition thenBranch elseBranch : Expr} {start finish : Supply}
+    {generated : Generated}
+    (_call : ElaboratesCall signature context
+      ⟨(conditionalScheme.instantiate start).1, [], []⟩
+      [condition, thenBranch, elseBranch]
+      (conditionalScheme.instantiate start).2 generated finish)
+    (callProvenance : ∀ outerStart,
+      outerStart.Le (conditionalScheme.instantiate start).2 →
+      GeneratedSupportProvenance context outerStart
+        (conditionalScheme.instantiate start).2
+        ⟨(conditionalScheme.instantiate start).1, [], []⟩ →
+      GeneratedSupportProvenance context outerStart finish generated) :
+    GeneratedSupportProvenance context start finish generated := by
+  apply callProvenance start
+  · simp [Supply.Le, Scheme.instantiate]
+  · exact supportProvenance_closed_instantiate conditionalScheme_closed
+
 /-- Every generated variable either comes from the input context or was
 allocated by this elaboration. -/
 theorem Elaborates.supportProvenance
-    {context : Context} {expression : Expr} {start finish : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start finish : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression start generated finish) :
+    (derivation : Elaborates signature context expression start generated finish) :
     GeneratedSupportProvenance context start finish generated :=
   Elaborates.rec
     (motive_1 := fun context _ start generated finish _ =>
       GeneratedSupportProvenance context start finish generated)
     (motive_2 := fun context _ start generated finish _ =>
       GeneratedItemsSupportProvenance context start finish generated)
+    (motive_3 := fun context accumulated _ start generated finish _ =>
+      ∀ outerStart, outerStart.Le start →
+        GeneratedSupportProvenance context outerStart start accumulated →
+        GeneratedSupportProvenance context outerStart finish generated)
     supportProvenance_var (fun {_} {value} {_} => supportProvenance_lit value)
     supportProvenance_something supportProvenance_lam
     supportProvenance_app supportProvenance_tuple supportProvenance_let
-    supportProvenance_items_nil supportProvenance_items_cons derivation
+    supportProvenance_ctor supportProvenance_prim supportProvenance_ifE
+    supportProvenance_items_nil supportProvenance_items_cons
+    supportProvenance_call_nil supportProvenance_call_cons derivation
 
 /-- List counterpart of `Elaborates.supportProvenance`. -/
 theorem ElaboratesItems.supportProvenance
-    {context : Context} {expressions : List Expr} {start finish : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {start finish : Supply}
     {generated : GeneratedItems}
-    (derivation : ElaboratesItems context expressions start generated finish) :
+    (derivation : ElaboratesItems signature context expressions start generated finish) :
     GeneratedItemsSupportProvenance context start finish generated :=
   ElaboratesItems.rec
     (motive_1 := fun context _ start generated finish _ =>
       GeneratedSupportProvenance context start finish generated)
     (motive_2 := fun context _ start generated finish _ =>
       GeneratedItemsSupportProvenance context start finish generated)
+    (motive_3 := fun context accumulated _ start generated finish _ =>
+      ∀ outerStart, outerStart.Le start →
+        GeneratedSupportProvenance context outerStart start accumulated →
+        GeneratedSupportProvenance context outerStart finish generated)
     supportProvenance_var (fun {_} {value} {_} => supportProvenance_lit value)
     supportProvenance_something supportProvenance_lam
     supportProvenance_app supportProvenance_tuple supportProvenance_let
-    supportProvenance_items_nil supportProvenance_items_cons derivation
+    supportProvenance_ctor supportProvenance_prim supportProvenance_ifE
+    supportProvenance_items_nil supportProvenance_items_cons
+    supportProvenance_call_nil supportProvenance_call_cons derivation
 
 /-- List provenance gives the same strict output-supply bound as block
 provenance. -/
@@ -744,9 +900,9 @@ theorem GeneratedItemsSupportProvenance.below
 /-- Every variable generated by expression elaboration is below its output
 supply when the input supply covers the context. -/
 theorem Elaborates.support_below
-    {context : Context} {expression : Expr} {start finish : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {start finish : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression start generated finish)
+    (derivation : Elaborates signature context expression start generated finish)
     (wellFormed : start.WellFormedFor context) :
     ∀ candidate, candidate ∈ generated.unificationVars →
       candidate.Below finish.ty finish.cap :=
@@ -754,9 +910,9 @@ theorem Elaborates.support_below
 
 /-- List counterpart of `Elaborates.support_below`. -/
 theorem ElaboratesItems.support_below
-    {context : Context} {expressions : List Expr} {start finish : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {start finish : Supply}
     {generated : GeneratedItems}
-    (derivation : ElaboratesItems context expressions start generated finish)
+    (derivation : ElaboratesItems signature context expressions start generated finish)
     (wellFormed : start.WellFormedFor context) :
     ∀ candidate, candidate ∈ generated.unificationVars →
       candidate.Below finish.ty finish.cap :=
@@ -765,10 +921,10 @@ theorem ElaboratesItems.support_below
 /-- A localized principal closure of an elaborated value cannot raise the
 closed context's initial supply above the value's output supply. -/
 theorem Elaborates.closedContext_initialSupply_le
-    {context : Context} {value : Expr} {start afterValue : Supply}
+    {signature : Signature} {context : Context} {value : Expr} {start afterValue : Supply}
     {generatedValue : Generated}
     (valueElaboration :
-      Elaborates context value start generatedValue afterValue)
+      Elaborates signature context value start generatedValue afterValue)
     (closure : PrincipalBlockClosure generatedValue)
     (absorbing : closure.Absorbing)
     (wellFormed : start.WellFormedFor context) :

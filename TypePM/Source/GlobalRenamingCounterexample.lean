@@ -226,16 +226,17 @@ private theorem alternativeClosure_absorbing :
     Subst.singleTy, Ty.apply, p, a, d, r]
 
 private theorem value_elaborates :
-    Elaborates [.mono (.var p)] valueExpression ⟨1, 0⟩
+    Elaborates Paper1Signature.signature [.mono (.var p)] valueExpression ⟨1, 0⟩
       valueGenerated ⟨4, 0⟩ := by
   have varDerivation :=
     Elaborates.var (supply := Supply.mk 2 0)
+      (signature := Paper1Signature.signature)
       (context := [.mono (.var a), .mono (.var p)])
       (index := 1) (by rfl)
   have function := Elaborates.lam
     (context := [.mono (.var p)]) (supply := Supply.mk 1 0)
     varDerivation
-  have argument : Elaborates [.mono (.var p)] (.lit 0) ⟨2, 0⟩
+  have argument : Elaborates Paper1Signature.signature [.mono (.var p)] (.lit 0) ⟨2, 0⟩
       ⟨.int, [], []⟩ ⟨2, 0⟩ := .lit
   simpa [valueExpression, valueGenerated, Scheme.instantiate_mono,
     Supply.nextTy,
@@ -254,9 +255,14 @@ def alternativeGenerated : Generated :=
 theorem p_ne_r : p ≠ r := by decide
 
 private theorem elaborate_value_exact :
-    elaborate [.mono (.var p)] valueExpression ⟨1, 0⟩ =
+    elaborate Paper1Signature.signature [.mono (.var p)] valueExpression ⟨1, 0⟩ =
       some (valueGenerated, ⟨4, 0⟩) := by
-  rfl
+  simp [elaborate, valueExpression, valueGenerated, Scheme.mono,
+    Scheme.instantiate, Scheme.boundTyInstance, Scheme.boundCapInstance,
+    PolyTy.ofTy, PolyTy.ofTyList, PolyTy.openBound,
+    PolyTy.openBoundList, PolyCap.ofCap, PolyCap.ofCapList,
+    PolyCap.openBound, PolyCap.openBoundList, Supply.nextTy,
+    p, a, d, r]
 
 private theorem close_value_exact :
     inferGeneratedUsing unify valueGenerated =
@@ -281,7 +287,7 @@ private theorem close_value_exact :
 
 /-- Exact deterministic result for the public empty-root elaboration. -/
 theorem executable_exact :
-    elaborate [] expression (Context.initialSupply []) =
+    elaborate Paper1Signature.signature [] expression (Context.initialSupply []) =
       some (executableGenerated, ⟨4, 0⟩) := by
   rw [show Context.initialSupply ([] : Context) = ⟨0, 0⟩ by rfl]
   rw [show expression = .lam (.letE valueExpression (.lit 0)) by rfl]
@@ -289,7 +295,7 @@ theorem executable_exact :
   simp only [Supply.nextTy, Nat.zero_add, p]
   rw [elaborate]
   have valueExact :
-      elaborate [.mono (.var ⟨0⟩)] valueExpression ⟨1, 0⟩ =
+      elaborate Paper1Signature.signature [.mono (.var ⟨0⟩)] valueExpression ⟨1, 0⟩ =
         some (valueGenerated, ⟨4, 0⟩) := by
     simpa [p] using elaborate_value_exact
   rw [valueExact]
@@ -308,16 +314,16 @@ theorem executable_exact :
 
 /-- The deterministic result is also the first relational witness. -/
 theorem executable_elaborates :
-    Elaborates [] expression (Context.initialSupply [])
+    Elaborates Paper1Signature.signature [] expression (Context.initialSupply [])
       executableGenerated ⟨4, 0⟩ :=
-  elaborate_sound executable_exact
+  elaborate_sound Paper1Signature.wellFormed executable_exact
 
 /-- The tautological-interface representative is a valid relational
 elaboration from the public empty-context supply. -/
 theorem alternative_elaborates :
-    Elaborates [] expression (Context.initialSupply [])
+    Elaborates Paper1Signature.signature [] expression (Context.initialSupply [])
       alternativeGenerated ⟨4, 0⟩ := by
-  have body : Elaborates
+  have body : Elaborates Paper1Signature.signature
       ((Context.applyFree alternativeClosure.substitution
           [.mono (.var p)]).generalize
             alternativeClosure.target ::

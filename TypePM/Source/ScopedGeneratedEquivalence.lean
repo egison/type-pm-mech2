@@ -21,22 +21,6 @@ theorem.
 
 namespace TypePM.Source
 
-namespace Generated
-
-/-- The exact generated block built around a lambda body. -/
-def fromLam (domain : Ty) (body : Generated) : Generated :=
-  ⟨.fn domain body.target, body.hard, body.pending⟩
-
-/-- The exact generated block built around an application pair. -/
-def fromApp (function argument : Generated) (domain target : Ty) : Generated :=
-  ⟨target,
-    function.hard ++ argument.hard ++
-      [.ty function.target (.fn domain target)],
-    function.pending ++ argument.pending ++
-      [⟨argument.target, domain⟩]⟩
-
-end Generated
-
 namespace GeneratedItems
 
 def nil : GeneratedItems := ⟨[], [], []⟩
@@ -669,12 +653,12 @@ elaborations.  Names hidden by the earlier child cannot occur in the later
 generated block, and names hidden by the later child cannot occur in the
 earlier generated block. -/
 theorem sequential_crossAvoidance
-    {context : Context} {earlierExpression laterExpression : Expr}
+    {signature : Signature} {context : Context} {earlierExpression laterExpression : Expr}
     {start middle finish : Supply}
     {earlierGenerated laterGenerated : Generated}
-    (earlierElaboration : Elaborates context earlierExpression start
+    (earlierElaboration : Elaborates signature context earlierExpression start
       earlierGenerated middle)
-    (laterElaboration : Elaborates context laterExpression middle
+    (laterElaboration : Elaborates signature context laterExpression middle
       laterGenerated finish)
     (wellFormed : start.WellFormedFor context)
     {earlierHidden laterHidden : List UnificationVar}
@@ -699,11 +683,11 @@ namespace ElaboratesItems
 `GeneratedItems.ScopedContextualEquivalent.cons` for an item followed by its
 sequentially elaborated sibling list. -/
 theorem cons_crossAvoidance
-    {context : Context} {item : Expr} {items : List Expr}
+    {signature : Signature} {context : Context} {item : Expr} {items : List Expr}
     {start middle finish : Supply}
     {generatedItem : Generated} {generatedItems : GeneratedItems}
-    (itemElaboration : Elaborates context item start generatedItem middle)
-    (itemsElaboration : ElaboratesItems context items middle
+    (itemElaboration : Elaborates signature context item start generatedItem middle)
+    (itemsElaboration : ElaboratesItems signature context items middle
       generatedItems finish)
     (wellFormed : start.WellFormedFor context)
     {itemHidden itemsHidden : List UnificationVar}

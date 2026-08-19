@@ -94,9 +94,9 @@ mutual
 
 /-- Relational elaboration never moves either supply component backwards. -/
 theorem Elaborates.supply_le_next
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression supply generated next) :
+    (derivation : Elaborates signature context expression supply generated next) :
     supply.Le next := by
   cases derivation with
   | var lookup =>
@@ -114,27 +114,67 @@ theorem Elaborates.supply_le_next
       exact Supply.le_trans valueElaboration.supply_le_next
         (Supply.le_trans (Supply.le_join_left _ _)
           bodyElaboration.supply_le_next)
+  | ctor lookup arity closed call =>
+      exact Supply.le_trans (by simp [Supply.Le, Scheme.instantiate])
+        call.supply_le_next
+  | prim lookup arity closed call =>
+      exact Supply.le_trans (by simp [Supply.Le, Scheme.instantiate])
+        call.supply_le_next
+  | ifE call =>
+      exact Supply.le_trans (by simp [Supply.Le, Scheme.instantiate])
+        call.supply_le_next
+termination_by expression.complexity * 3 + 2
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 /-- List elaboration has the same componentwise monotonicity property. -/
 theorem ElaboratesItems.supply_le_next
-    {context : Context} {expressions : List Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expressions : List Expr} {supply next : Supply}
     {generated : GeneratedItems}
-    (derivation : ElaboratesItems context expressions supply generated next) :
+    (derivation : ElaboratesItems signature context expressions supply generated next) :
     supply.Le next := by
   cases derivation with
   | nil => exact Supply.le_refl _
   | cons itemElaboration itemsElaboration =>
       exact Supply.le_trans itemElaboration.supply_le_next
         itemsElaboration.supply_le_next
+termination_by Expr.listComplexity expressions * 3 + 1
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
+
+theorem ElaboratesCall.supply_le_next
+    {signature : Signature} {context : Context}
+    {accumulated generated : Generated} {expressions : List Expr}
+    {supply next : Supply}
+    (derivation : ElaboratesCall signature context accumulated expressions
+      supply generated next) : supply.Le next := by
+  cases derivation with
+  | nil => exact Supply.le_refl _
+  | cons argumentElaboration restElaboration =>
+      exact Supply.le_trans argumentElaboration.supply_le_next
+        (Supply.le_trans (Supply.le_nextTy _ _)
+          restElaboration.supply_le_next)
+termination_by Expr.listComplexity expressions * 3
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 end
 
 /-- A well-formed starting supply remains well formed for the outer context
 after relational elaboration, including across `letE`'s supply join. -/
 theorem Elaborates.wellFormedFor_next
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : Generated}
-    (derivation : Elaborates context expression supply generated next)
+    (derivation : Elaborates signature context expression supply generated next)
     (wellFormed : supply.WellFormedFor context) :
     next.WellFormedFor context :=
   wellFormed.mono derivation.supply_le_next
@@ -142,23 +182,24 @@ theorem Elaborates.wellFormedFor_next
 /-- Executable elaboration preserves the same outer-context supply
 invariant. -/
 theorem elaborate_wellFormedFor_next
+    {signature : Signature} (signatureWellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {supply next : Supply}
     {generated : Generated}
-    (success : elaborate context expression supply = some (generated, next))
+    (success : elaborate signature context expression supply = some (generated, next))
     (wellFormed : supply.WellFormedFor context) :
     next.WellFormedFor context :=
-  (elaborate_sound success).wellFormedFor_next wellFormed
+  (elaborate_sound signatureWellFormed success).wellFormedFor_next wellFormed
 
 /-- Acceptance completeness at exactly the supply scope used by public root
 inference and by freshness transport. -/
 def WellFormedElaborationAcceptanceComplete : Prop :=
-  ∀ {context : Context} {expression : Expr} {supply next : Supply}
+  ∀ {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
       {generated : Generated},
     supply.WellFormedFor context →
-      Elaborates context expression supply generated next →
+      Elaborates signature context expression supply generated next →
         ∀ (closure : PrincipalBlockClosure generated), closure.Absorbing →
           ∃ computed computedNext,
-            elaborate context expression supply = some (computed, computedNext) ∧
+            elaborate signature context expression supply = some (computed, computedNext) ∧
               BlockAccepts computed
 
 /-- The older arbitrary-supply premise is strictly stronger syntactically
@@ -166,16 +207,16 @@ than the well-formed-supply statement. -/
 theorem ElaborationAcceptanceComplete.toWellFormed
     (complete : ElaborationAcceptanceComplete) :
     WellFormedElaborationAcceptanceComplete := by
-  intro context expression supply next generated _ derivation closure absorbing
+  intro signature context expression supply next generated _ derivation closure absorbing
   exact complete derivation closure absorbing
 
 /-- The well-formed statement is sufficient for the public root inference
 API, whose relational witness starts at `Context.initialSupply`. -/
 theorem PrincipalTyping.infer_isSome_of_wellFormedElaborationAcceptanceComplete
     (complete : WellFormedElaborationAcceptanceComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target) :
-    infer context expression ≠ none := by
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target) :
+    infer signature context expression ≠ none := by
   rcases principal with ⟨derivation⟩
   obtain ⟨computed, computedNext, replay, accepts⟩ :=
     complete (Supply.wellFormedFor_initialSupply context)
@@ -187,9 +228,9 @@ theorem PrincipalTyping.infer_isSome_of_wellFormedElaborationAcceptanceComplete
 supply once its blockwise-principal representative is accepted. -/
 theorem Typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
     (complete : WellFormedElaborationAcceptanceComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (typing : Typing context expression target) :
-    infer context expression ≠ none := by
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing signature context expression target) :
+    infer signature context expression ≠ none := by
   rcases typing with ⟨_, principal, _⟩
   exact principal.infer_isSome_of_wellFormedElaborationAcceptanceComplete
     complete
@@ -201,41 +242,44 @@ acceptance gives exact agreement between declarative typability and
 executable inference success. -/
 theorem typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
     (complete : WellFormedElaborationAcceptanceComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Typable context expression ↔ infer context expression ≠ none := by
+    Typable signature context expression ↔
+      infer signature context expression ≠ none := by
   constructor
   · rintro ⟨_, typing⟩
     exact typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
       complete
   · intro succeeds
-    cases computed : infer context expression with
+    cases computed : infer signature context expression with
     | none => exact False.elim (succeeds computed)
-    | some target => exact ⟨target, infer_success_typing computed⟩
+    | some target => exact ⟨target, infer_success_typing wellFormed computed⟩
 
 /-- Public source typability is decidable from the executable inference
 result under freshness-safe elaboration acceptance. -/
 def typableDecidable_of_wellFormedElaborationAcceptanceComplete
     (complete : WellFormedElaborationAcceptanceComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Decidable (Typable context expression) :=
-  match computed : infer context expression with
+    Decidable (Typable signature context expression) :=
+  match computed : infer signature context expression with
   | none => isFalse (by
       rintro ⟨_, typing⟩
       exact typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
         complete computed)
-  | some target => isTrue ⟨target, infer_success_typing computed⟩
+  | some target => isTrue ⟨target, infer_success_typing wellFormed computed⟩
 
 end Inference
 
 /-- Principality correspondence restricted to freshness-safe supplies. -/
 def WellFormedElaborationPrincipalityComplete : Prop :=
-  ∀ {context : Context} {expression : Expr} {supply next : Supply}
+  ∀ {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
       {generated : Generated}
-      (_derivation : Elaborates context expression supply generated next)
+      (_derivation : Elaborates signature context expression supply generated next)
       (closure : PrincipalBlockClosure generated),
     supply.WellFormedFor context → closure.Absorbing →
       ∃ (computed : Generated) (computedNext : Supply),
-        elaborate context expression supply = some (computed, computedNext) ∧
+        elaborate signature context expression supply = some (computed, computedNext) ∧
           ∃ computedClosure : PrincipalBlockClosure computed,
             IsInstance computedClosure.target closure.target ∧
               IsInstance closure.target computedClosure.target
@@ -245,7 +289,7 @@ acceptance result. -/
 theorem WellFormedElaborationPrincipalityComplete.toAcceptance
     (complete : WellFormedElaborationPrincipalityComplete) :
     WellFormedElaborationAcceptanceComplete := by
-  intro context expression supply next generated wellFormed derivation closure
+  intro signature context expression supply next generated wellFormed derivation closure
     absorbing
   obtain ⟨computed, computedNext, replay, computedClosure, _⟩ :=
     complete derivation closure wellFormed absorbing

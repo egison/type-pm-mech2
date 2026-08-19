@@ -15,16 +15,16 @@ namespace TypePM.Source
 /-- Every root principal typing derivation carries a closure confined to the
 finite support of its generated block. -/
 theorem PrincipalTypingDerivation.closure_localized
-    {context : Context} {expression : Expr} {target : Ty}
-    (derivation : PrincipalTypingDerivation context expression target) :
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (derivation : PrincipalTypingDerivation signature context expression target) :
     derivation.closure.Localized :=
   derivation.closure.localized_of_absorbing derivation.absorbing
 
 /-- Existential principal typing exposes the same localized closure witness. -/
 theorem PrincipalTyping.localizedClosure
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target) :
-    ∃ derivation : PrincipalTypingDerivation context expression target,
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target) :
+    ∃ derivation : PrincipalTypingDerivation signature context expression target,
       derivation.closure.Localized := by
   rcases principal with ⟨derivation⟩
   exact ⟨derivation, derivation.closure_localized⟩

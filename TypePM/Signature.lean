@@ -143,6 +143,38 @@ structure WellFormed (signature : Signature) : Prop where
   primitiveCanonical : ∀ declaration ∈ signature.primitives,
     declaration.scheme = PrimitiveSchemes.ofPrimOp declaration.operation
 
+namespace WellFormed
+
+theorem dataConstructorClosed_of_lookup
+    {signature : Signature} (wellFormed : signature.WellFormed)
+    {constructor : DataCtor} {scheme : Scheme}
+    (lookup : signature.lookupDataConstructor constructor = some scheme) :
+    scheme.Closed := by
+  unfold lookupDataConstructor at lookup
+  split at lookup
+  next declaration found =>
+    simp only [Option.some.injEq] at lookup
+    subst scheme
+    exact wellFormed.dataConstructorClosed declaration
+      (List.mem_of_find?_eq_some found)
+  next => simp at lookup
+
+theorem primitiveClosed_of_lookup
+    {signature : Signature} (wellFormed : signature.WellFormed)
+    {operation : PrimOp} {scheme : Scheme}
+    (lookup : signature.lookupPrimitive operation = some scheme) :
+    scheme.Closed := by
+  unfold lookupPrimitive at lookup
+  split at lookup
+  next declaration found =>
+    simp only [Option.some.injEq] at lookup
+    subst scheme
+    exact wellFormed.primitiveClosed declaration
+      (List.mem_of_find?_eq_some found)
+  next => simp at lookup
+
+end WellFormed
+
 end Signature
 
 namespace Paper1Signature

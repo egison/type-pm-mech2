@@ -866,6 +866,20 @@ theorem Context.interfaceEquations_renameVariables
         (renameGenerated rho body) := by
   simp [renameGenerated, Generated.fromLet]
 
+theorem Scheme.applyFree_eq_self_of_closed
+    {scheme : Scheme} (closed : scheme.Closed) (substitution : Subst) :
+    scheme.applyFree substitution = scheme := by
+  have equality :
+      scheme.applyFree substitution = scheme.applyFree Subst.id := by
+    apply Scheme.applyFree_eq_of_agree
+    · intro index member
+      rw [closed.1] at member
+      simp at member
+    · intro index member
+      rw [closed.2] at member
+      simp at member
+  simpa using equality
+
 mutual
 
 /-- A finite allocation certificate for one relational elaboration. It
@@ -873,29 +887,29 @@ records only the names actually allocated by the derivation. At `let`, the
 certificate restarts at the two concrete numeric `join` results, so no claim
 that a permutation preserves `max` is hidden in the definition. -/
 inductive Alignment (rho : VariableRenaming) :
-    {context : Context} → {expression : Expr} → {source : Supply} →
+    {signature : Signature} → {context : Context} → {expression : Expr} → {source : Supply} →
       {generated : Generated} → {next : Supply} →
-      Elaborates context expression source generated next →
+      Elaborates signature context expression source generated next →
       Supply → Supply → Prop where
-  | var {context : Context} {index : Nat} {source : Supply} {scheme : Scheme}
+  | var {signature : Signature} {context : Context} {index : Nat} {source : Supply} {scheme : Scheme}
       (lookup : context[index]? = some scheme)
       {target : Supply}
       (names : source.MapsPrefix rho target
         scheme.tyArity scheme.capArity) :
       Alignment rho (Elaborates.var (supply := source) lookup) target
         ((scheme.applyFree rho.substitution).instantiate target).2
-  | lit {context : Context} {value : Int} {source : Supply} {target : Supply} :
+  | lit {signature : Signature} {context : Context} {value : Int} {source : Supply} {target : Supply} :
       Alignment rho
         (Elaborates.lit (context := context) (value := value) (supply := source))
         target target
-  | something {context : Context} {source : Supply} {target : Supply}
+  | something {signature : Signature} {context : Context} {source : Supply} {target : Supply}
       (name : rho.tyForward ⟨source.ty⟩ = ⟨target.ty⟩) :
       Alignment rho
         (Elaborates.something (context := context) (supply := source))
         target (target.nextTy 1)
-  | lam {context : Context} {body : Expr} {source : Supply}
+  | lam {signature : Signature} {context : Context} {body : Expr} {source : Supply}
       {generatedBody : Generated} {next : Supply}
-      {bodyDerivation : Elaborates
+      {bodyDerivation : Elaborates signature
         (.mono (.var ⟨source.ty⟩) :: context) body
         (source.nextTy 1) generatedBody next}
       {target targetNext : Supply}
@@ -903,12 +917,12 @@ inductive Alignment (rho : VariableRenaming) :
       (bodyAlignment : Alignment rho bodyDerivation
         (target.nextTy 1) targetNext) :
       Alignment rho (Elaborates.lam bodyDerivation) target targetNext
-  | app {context : Context} {function argument : Expr} {source : Supply}
+  | app {signature : Signature} {context : Context} {function argument : Expr} {source : Supply}
       {generatedFunction : Generated} {afterFunction : Supply}
       {generatedArgument : Generated} {afterArgument : Supply}
-      {functionDerivation : Elaborates context function source
+      {functionDerivation : Elaborates signature context function source
         generatedFunction afterFunction}
-      {argumentDerivation : Elaborates context argument afterFunction
+      {argumentDerivation : Elaborates signature context argument afterFunction
         generatedArgument afterArgument}
       {target targetAfterFunction targetAfterArgument : Supply}
       (functionAlignment : Alignment rho functionDerivation target
@@ -921,21 +935,21 @@ inductive Alignment (rho : VariableRenaming) :
         ⟨targetAfterArgument.ty + 1⟩) :
       Alignment rho (Elaborates.app functionDerivation argumentDerivation)
         target (targetAfterArgument.nextTy 2)
-  | tuple {context : Context} {items : List Expr} {source : Supply}
+  | tuple {signature : Signature} {context : Context} {items : List Expr} {source : Supply}
       {generatedItems : GeneratedItems} {next : Supply}
-      {itemsDerivation : ElaboratesItems context items source
+      {itemsDerivation : ElaboratesItems signature context items source
         generatedItems next}
       {target targetNext : Supply}
       (itemsAlignment : ItemsAlignment rho itemsDerivation target targetNext) :
       Alignment rho (Elaborates.tuple itemsDerivation) target targetNext
-  | letE {context : Context} {value body : Expr} {source : Supply}
+  | letE {signature : Signature} {context : Context} {value body : Expr} {source : Supply}
       {generatedValue : Generated} {afterValue : Supply}
       {generatedBody : Generated} {next : Supply}
-      {valueDerivation : Elaborates context value source
+      {valueDerivation : Elaborates signature context value source
         generatedValue afterValue}
       {closure : PrincipalBlockClosure generatedValue}
       {absorbing : closure.Absorbing}
-      {bodyDerivation : Elaborates
+      {bodyDerivation : Elaborates signature
         ((context.applyFree closure.substitution).generalize closure.target ::
           context.applyFree closure.substitution)
         body
@@ -952,22 +966,69 @@ inductive Alignment (rho : VariableRenaming) :
       Alignment rho
         (Elaborates.letE valueDerivation closure absorbing bodyDerivation)
         target targetNext
+  | ctor {signature : Signature} {context : Context}
+      {constructor : DataCtor} {arguments : List Expr} {scheme : Scheme}
+      {source : Supply} {generated : Generated} {next : Supply}
+      {lookup : signature.lookupDataConstructor constructor = some scheme}
+      {arity : arguments.length = scheme.callArity} {closed : scheme.Closed}
+      {callDerivation : ElaboratesCall signature context
+        ⟨(scheme.instantiate source).1, [], []⟩ arguments
+        (scheme.instantiate source).2 generated next}
+      {target targetAfterScheme targetNext : Supply}
+      (names : source.MapsPrefix rho target scheme.tyArity scheme.capArity)
+      (callAlignment : CallAlignment rho callDerivation
+        targetAfterScheme targetNext)
+      (afterScheme : targetAfterScheme = (scheme.instantiate target).2) :
+      Alignment rho
+        (Elaborates.ctor lookup arity closed callDerivation)
+        target targetNext
+  | prim {signature : Signature} {context : Context}
+      {operation : PrimOp} {arguments : List Expr} {scheme : Scheme}
+      {source : Supply} {generated : Generated} {next : Supply}
+      {lookup : signature.lookupPrimitive operation = some scheme}
+      {arity : arguments.length = scheme.callArity} {closed : scheme.Closed}
+      {callDerivation : ElaboratesCall signature context
+        ⟨(scheme.instantiate source).1, [], []⟩ arguments
+        (scheme.instantiate source).2 generated next}
+      {target targetAfterScheme targetNext : Supply}
+      (names : source.MapsPrefix rho target scheme.tyArity scheme.capArity)
+      (callAlignment : CallAlignment rho callDerivation
+        targetAfterScheme targetNext)
+      (afterScheme : targetAfterScheme = (scheme.instantiate target).2) :
+      Alignment rho
+        (Elaborates.prim lookup arity closed callDerivation)
+        target targetNext
+  | ifE {signature : Signature} {context : Context}
+      {condition thenBranch elseBranch : Expr} {source : Supply}
+      {generated : Generated} {next : Supply}
+      {callDerivation : ElaboratesCall signature context
+        ⟨(conditionalScheme.instantiate source).1, [], []⟩
+        [condition, thenBranch, elseBranch]
+        (conditionalScheme.instantiate source).2 generated next}
+      {target targetAfterScheme targetNext : Supply}
+      (names : source.MapsPrefix rho target conditionalScheme.tyArity
+        conditionalScheme.capArity)
+      (callAlignment : CallAlignment rho callDerivation
+        targetAfterScheme targetNext)
+      (afterScheme : targetAfterScheme =
+        (conditionalScheme.instantiate target).2) :
+      Alignment rho (Elaborates.ifE callDerivation) target targetNext
 
 /-- Finite allocation certificate for sibling elaboration. -/
 inductive ItemsAlignment (rho : VariableRenaming) :
-    {context : Context} → {expressions : List Expr} → {source : Supply} →
+    {signature : Signature} → {context : Context} → {expressions : List Expr} → {source : Supply} →
       {generated : GeneratedItems} → {next : Supply} →
-      ElaboratesItems context expressions source generated next →
+      ElaboratesItems signature context expressions source generated next →
       Supply → Supply → Prop where
-  | nil {context : Context} {source : Supply} {target : Supply} :
+  | nil {signature : Signature} {context : Context} {source : Supply} {target : Supply} :
       ItemsAlignment rho
         (ElaboratesItems.nil (context := context) (supply := source))
         target target
-  | cons {context : Context} {item : Expr} {items : List Expr}
+  | cons {signature : Signature} {context : Context} {item : Expr} {items : List Expr}
       {source : Supply} {generatedItem : Generated} {afterItem : Supply}
       {generatedItems : GeneratedItems} {next : Supply}
-      {itemDerivation : Elaborates context item source generatedItem afterItem}
-      {itemsDerivation : ElaboratesItems context items afterItem
+      {itemDerivation : Elaborates signature context item source generatedItem afterItem}
+      {itemsDerivation : ElaboratesItems signature context items afterItem
         generatedItems next}
       {target targetAfterItem targetNext : Supply}
       (itemAlignment : Alignment rho itemDerivation target targetAfterItem)
@@ -977,6 +1038,42 @@ inductive ItemsAlignment (rho : VariableRenaming) :
         (ElaboratesItems.cons itemDerivation itemsDerivation)
         target targetNext
 
+/-- Allocation certificate for a left-folded source call. -/
+inductive CallAlignment (rho : VariableRenaming) :
+    {signature : Signature} → {context : Context} →
+      {accumulated : Generated} → {expressions : List Expr} →
+      {source : Supply} → {generated : Generated} → {next : Supply} →
+      ElaboratesCall signature context accumulated expressions source
+        generated next → Supply → Supply → Prop where
+  | nil {signature : Signature} {context : Context}
+      {accumulated : Generated} {source target : Supply} :
+      CallAlignment rho
+        (ElaboratesCall.nil (signature := signature) (context := context)
+          (accumulated := accumulated) (supply := source))
+        target target
+  | cons {signature : Signature} {context : Context}
+      {accumulated : Generated} {argument : Expr} {arguments : List Expr}
+      {source : Supply} {generatedArgument : Generated}
+      {afterArgument : Supply} {generated : Generated} {next : Supply}
+      {argumentDerivation : Elaborates signature context argument source
+        generatedArgument afterArgument}
+      {restDerivation : ElaboratesCall signature context
+        (Generated.fromApp accumulated generatedArgument
+          (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+        arguments (afterArgument.nextTy 2) generated next}
+      {target targetAfterArgument targetNext : Supply}
+      (argumentAlignment : Alignment rho argumentDerivation target
+        targetAfterArgument)
+      (domain : rho.tyForward ⟨afterArgument.ty⟩ =
+        ⟨targetAfterArgument.ty⟩)
+      (result : rho.tyForward ⟨afterArgument.ty + 1⟩ =
+        ⟨targetAfterArgument.ty + 1⟩)
+      (restAlignment : CallAlignment rho restDerivation
+        (targetAfterArgument.nextTy 2) targetNext) :
+      CallAlignment rho
+        (ElaboratesCall.cons argumentDerivation restDerivation)
+        target targetNext
+
 end
 
 mutual
@@ -984,12 +1081,13 @@ mutual
 /-- Transport an elaboration using only its finite allocation certificate. -/
 theorem Alignment.transport
     {rho : VariableRenaming}
+    {signature : Signature}
     {context : Context} {expression : Expr} {source next : Supply}
     {generated : Generated}
-    {derivation : Elaborates context expression source generated next}
+    {derivation : Elaborates signature context expression source generated next}
     {target targetNext : Supply}
     (certificate : Alignment rho derivation target targetNext) :
-    Elaborates (renameContext rho context) expression target
+    Elaborates signature (renameContext rho context) expression target
       (renameGenerated rho generated) targetNext := by
   cases certificate with
   | var lookup names =>
@@ -1003,11 +1101,11 @@ theorem Alignment.transport
         rho scheme names
       simpa [renameGenerated, renameTy, instantiated] using
         (Elaborates.var (supply := target) renamedLookup)
-  | @lit context value source target =>
+  | @lit _signature context source target =>
       simpa [renameGenerated, renameTy, Ty.apply] using
         (Elaborates.lit (context := renameContext rho context)
-          (value := value) (supply := target))
-  | @something context source target name =>
+          (supply := target))
+  | @something _signature context source target name =>
       simpa [renameGenerated, renameTy, VariableRenaming.substitution,
         Ty.apply, Cap.apply, name] using
         (Elaborates.something (context := renameContext rho context)
@@ -1045,8 +1143,7 @@ theorem Alignment.transport
         (Elaborates.tuple itemsTransport)
   | @letE context value body source generatedValue afterValue generatedBody
       next valueDerivation closure absorbing bodyDerivation target
-      targetAfterValue targetNext valueAlignment bodyAlignment
-      =>
+      targetAfterValue targetNext valueAlignment bodyAlignment =>
       have valueTransport := Alignment.transport valueAlignment
       have bodyTransport := Alignment.transport bodyAlignment
       let renamedClosure := renameClosure rho closure
@@ -1096,19 +1193,91 @@ theorem Alignment.transport
       simpa [renamedClosure, interfaceEquality] using
         (Elaborates.letE valueTransport renamedClosure renamedAbsorbing
           bodyTransport)
+  | @ctor context constructor arguments scheme source generated next lookup
+      arity closed callDerivation target targetAfterScheme targetNext names
+      callAlignment afterScheme =>
+      have instantiated := Scheme.instantiate_variableRenaming_prefix
+        rho scheme names
+      have fixed := Scheme.applyFree_eq_self_of_closed
+        (scheme := scheme) closed rho.substitution
+      have instantiated' :
+          renameTy rho (scheme.instantiate source).1 =
+            (scheme.instantiate target).1 := by
+        simpa [renameTy, fixed] using instantiated.symm
+      have callTransport := CallAlignment.transport callAlignment
+      rw [afterScheme] at callTransport
+      have callTransport' :
+          ElaboratesCall signature (renameContext rho context)
+            ⟨(scheme.instantiate target).1, [], []⟩ arguments
+            (scheme.instantiate target).2 (renameGenerated rho generated)
+            targetNext := by
+        simpa [renameGenerated, instantiated'] using
+          callTransport
+      exact Elaborates.ctor lookup arity closed callTransport'
+  | @prim context operation arguments scheme source generated next lookup
+      arity closed callDerivation target targetAfterScheme targetNext names
+      callAlignment afterScheme =>
+      have instantiated := Scheme.instantiate_variableRenaming_prefix
+        rho scheme names
+      have fixed := Scheme.applyFree_eq_self_of_closed
+        (scheme := scheme) closed rho.substitution
+      have instantiated' :
+          renameTy rho (scheme.instantiate source).1 =
+            (scheme.instantiate target).1 := by
+        simpa [renameTy, fixed] using instantiated.symm
+      have callTransport := CallAlignment.transport callAlignment
+      rw [afterScheme] at callTransport
+      have callTransport' :
+          ElaboratesCall signature (renameContext rho context)
+            ⟨(scheme.instantiate target).1, [], []⟩ arguments
+            (scheme.instantiate target).2 (renameGenerated rho generated)
+            targetNext := by
+        simpa [renameGenerated, instantiated'] using
+          callTransport
+      exact Elaborates.prim lookup arity closed callTransport'
+  | @ifE context condition thenBranch elseBranch source generated next
+      callDerivation target targetAfterScheme targetNext names callAlignment
+      afterScheme =>
+      have instantiated := Scheme.instantiate_variableRenaming_prefix
+        rho conditionalScheme names
+      have fixed := Scheme.applyFree_eq_self_of_closed
+        (scheme := conditionalScheme)
+        conditionalScheme_closed rho.substitution
+      have instantiated' :
+          renameTy rho (conditionalScheme.instantiate source).1 =
+            (conditionalScheme.instantiate target).1 := by
+        simpa [renameTy, fixed] using instantiated.symm
+      have callTransport := CallAlignment.transport callAlignment
+      rw [afterScheme] at callTransport
+      have callTransport' :
+          ElaboratesCall signature (renameContext rho context)
+            ⟨(conditionalScheme.instantiate target).1, [], []⟩
+            [condition, thenBranch, elseBranch]
+            (conditionalScheme.instantiate target).2
+            (renameGenerated rho generated) targetNext := by
+        simpa [renameGenerated, instantiated'] using
+          callTransport
+      exact Elaborates.ifE callTransport'
+termination_by expression.complexity * 3 + 2
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 /-- Transport sibling elaboration using its finite allocation certificate. -/
 theorem ItemsAlignment.transport
     {rho : VariableRenaming}
+    {signature : Signature}
     {context : Context} {expressions : List Expr} {source next : Supply}
     {generated : GeneratedItems}
-    {derivation : ElaboratesItems context expressions source generated next}
+    {derivation : ElaboratesItems signature context expressions source generated next}
     {target targetNext : Supply}
     (certificate : ItemsAlignment rho derivation target targetNext) :
-    ElaboratesItems (renameContext rho context) expressions target
+    ElaboratesItems signature (renameContext rho context) expressions target
       (renameGeneratedItems rho generated) targetNext := by
   cases certificate with
-  | @nil context source target =>
+  | @nil _signature context source target =>
       simpa [renameGeneratedItems, Ty.applyList] using
         (ElaboratesItems.nil (context := renameContext rho context)
           (supply := target))
@@ -1121,6 +1290,55 @@ theorem ItemsAlignment.transport
         Ty.apply, Ty.applyList,
         List.map_append] using
         (ElaboratesItems.cons itemTransport itemsTransport)
+termination_by Expr.listComplexity expressions * 3 + 1
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
+
+/-- Transport a left-folded call using its allocation certificate. -/
+theorem CallAlignment.transport
+    {rho : VariableRenaming} {signature : Signature}
+    {context : Context} {accumulated generated : Generated}
+    {expressions : List Expr} {source next : Supply}
+    {derivation : ElaboratesCall signature context accumulated expressions
+      source generated next}
+    {target targetNext : Supply}
+    (certificate : CallAlignment rho derivation target targetNext) :
+    ElaboratesCall signature (renameContext rho context)
+      (renameGenerated rho accumulated) expressions target
+      (renameGenerated rho generated) targetNext := by
+  cases certificate with
+  | @nil context accumulated source target =>
+      exact ElaboratesCall.nil
+  | @cons context accumulated argument arguments source
+      generatedArgument afterArgument generated next argumentDerivation
+      restDerivation target targetAfterArgument targetNext
+      argumentAlignment domain result restAlignment =>
+      have argumentTransport := Alignment.transport argumentAlignment
+      have restTransport := CallAlignment.transport restAlignment
+      have accumulatedEquality :
+          renameGenerated rho
+              (Generated.fromApp accumulated generatedArgument
+                (.var ⟨afterArgument.ty⟩)
+                (.var ⟨afterArgument.ty + 1⟩)) =
+            Generated.fromApp (renameGenerated rho accumulated)
+              (renameGenerated rho generatedArgument)
+              (.var ⟨targetAfterArgument.ty⟩)
+              (.var ⟨targetAfterArgument.ty + 1⟩) := by
+        simp [Generated.fromApp, renameGenerated, renameTy,
+          renameEquation, renameObligation, Equation.apply,
+          CheckObligation.apply, VariableRenaming.substitution,
+          Ty.apply, List.map_append, domain, result]
+      rw [accumulatedEquality] at restTransport
+      exact ElaboratesCall.cons argumentTransport restTransport
+termination_by Expr.listComplexity expressions * 3
+decreasing_by
+  all_goals simp_wf
+  all_goals subst_vars
+  all_goals try simp
+  all_goals omega
 
 end
 

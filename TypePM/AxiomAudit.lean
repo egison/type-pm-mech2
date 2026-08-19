@@ -27,6 +27,7 @@ import TypePM.Runtime.FuelResultRegression
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
+import TypePM.Source.M3Regression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -301,3 +302,10 @@ every full build.
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.bad_arities_rejected
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.duplicate_binding_slots_rejected
 #print axioms TypePM.Source.M4MatcherClauseShapeRegression.wrong_hole_convention_rejected
+#print axioms TypePM.Source.M3Regression.infer_true_exact
+#print axioms TypePM.Source.M3Regression.infer_nil_exact
+#print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds
+#print axioms TypePM.Source.M3Regression.elaborate_add_succeeds
+#print axioms TypePM.Source.M3Regression.elaborate_conditional_succeeds
+#print axioms TypePM.Source.M3Regression.primitive_type_mismatch_rejected
+#print axioms TypePM.Source.M3Regression.true_relational_soundness

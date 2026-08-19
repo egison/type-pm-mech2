@@ -55,10 +55,10 @@ namespace Elaborates
 needed by the generic closure lemma, so the body-side join of every
 well-scoped `let` value is redundant. -/
 theorem letBodySupply_eq
-    {context : Context} {value : Expr} {start afterValue : Supply}
+    {signature : Signature} {context : Context} {value : Expr} {start afterValue : Supply}
     {generatedValue : Generated}
     (valueElaboration :
-      Elaborates context value start generatedValue afterValue)
+      Elaborates signature context value start generatedValue afterValue)
     (closure : PrincipalBlockClosure generatedValue)
     (absorbing : closure.Absorbing)
     (wellFormed : start.WellFormedFor context) :

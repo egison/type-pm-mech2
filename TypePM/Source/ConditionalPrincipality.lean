@@ -20,12 +20,12 @@ completeness strengthened by exactly the two target-instance maps needed for
 global principality; it does not require the two generated blocks or their
 closure substitutions to be equal. -/
 def PrincipalElaborationCorrespondence
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : TypePM.Generated}
-    (_derivation : Elaborates context expression supply generated next)
+    (_derivation : Elaborates signature context expression supply generated next)
     (closure : PrincipalBlockClosure generated) : Prop :=
   ∃ (computed : TypePM.Generated) (computedNext : Supply),
-    elaborate context expression supply = some (computed, computedNext) ∧
+    elaborate signature context expression supply = some (computed, computedNext) ∧
       ∃ computedClosure : PrincipalBlockClosure computed,
         IsInstance computedClosure.target closure.target ∧
           IsInstance closure.target computedClosure.target
@@ -47,11 +47,11 @@ constructors add no target-level obligation when their recursive
 elaborations replay literally; only a representative-changing `letE` can
 force use of the general premise. -/
 theorem of_replay
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : TypePM.Generated}
-    (derivation : Elaborates context expression supply generated next)
+    (derivation : Elaborates signature context expression supply generated next)
     (closure : PrincipalBlockClosure generated)
-    (replay : elaborate context expression supply = some (generated, next)) :
+    (replay : elaborate signature context expression supply = some (generated, next)) :
     PrincipalElaborationCorrespondence derivation closure := by
   exact ⟨generated, next, replay, closure,
     ⟨Subst.id, by simp⟩, ⟨Subst.id, by simp⟩⟩
@@ -59,9 +59,9 @@ theorem of_replay
 /-- In particular, every let-free derivation has the required target
 correspondence without any additional premise. -/
 theorem of_letFree
-    {context : Context} {expression : Expr} {supply next : Supply}
+    {signature : Signature} {context : Context} {expression : Expr} {supply next : Supply}
     {generated : TypePM.Generated}
-    (derivation : Elaborates context expression supply generated next)
+    (derivation : Elaborates signature context expression supply generated next)
     (closure : PrincipalBlockClosure generated)
     (letFree : LetFree expression) :
     PrincipalElaborationCorrespondence derivation closure :=
@@ -75,8 +75,8 @@ namespace PrincipalTyping
 typing agree in both directions with the deterministic inference result. -/
 theorem agreesWithInference_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (principal : PrincipalTyping context expression target) :
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (principal : PrincipalTyping signature context expression target) :
     AgreesWithInference principal := by
   rcases principal with ⟨derivation⟩
   obtain ⟨computed, computedNext, replay, computedClosure,
@@ -94,7 +94,7 @@ theorem agreesWithInference_of_wellFormedElaborationPrincipalityComplete
           (fun _ _ success => unify_mostGeneral success) closureResult
       have inferredInstances :=
         computedClosure.targets_mutualInstances inferredClosure
-      have success : infer context expression = some result.target := by
+      have success : infer signature context expression = some result.target := by
         simp [infer, elaborateRoot, replay, closureResult]
       refine ⟨result.target, success, ?_, ?_⟩
       · rw [inferredTargetEquality, derivation.target_eq]
@@ -110,9 +110,9 @@ end PrincipalTyping
 declaratively typable program at the public `context.initialSupply`. -/
 theorem Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
-    {context : Context} {expression : Expr} {target : Ty}
-    (typing : Typing context expression target) :
-    infer context expression ≠ none :=
+    {signature : Signature} {context : Context} {expression : Expr} {target : Ty}
+    (typing : Typing signature context expression target) :
+    infer signature context expression ≠ none :=
   typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
     complete.toAcceptance
 
@@ -120,8 +120,8 @@ theorem Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
 coherence gap. -/
 theorem principalCoherence_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
-    (context : Context) (expression : Expr) :
-    PrincipalCoherence context expression :=
+    (signature : Signature) (context : Context) (expression : Expr) :
+    PrincipalCoherence signature context expression :=
   principalCoherence_of_inferenceAgreement
     (fun principal =>
       principal.agreesWithInference_of_wellFormedElaborationPrincipalityComplete
@@ -134,30 +134,34 @@ typability is equivalent to success of inference from
 `context.initialSupply`. -/
 theorem typable_iff_infer_isSome_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Typable context expression ↔ infer context expression ≠ none :=
+    Typable signature context expression ↔ infer signature context expression ≠ none :=
   typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
-    complete.toAcceptance context expression
+    complete.toAcceptance signature wellFormed context expression
 
 /-- Public source typability is decidable under freshness-safe
 principality correspondence. -/
 def typableDecidable_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
+    (signature : Signature) (wellFormed : signature.WellFormed)
     (context : Context) (expression : Expr) :
-    Decidable (Typable context expression) :=
+    Decidable (Typable signature context expression) :=
   typableDecidable_of_wellFormedElaborationAcceptanceComplete
-    complete.toAcceptance context expression
+    complete.toAcceptance signature wellFormed context expression
 
 /-- Under the single elaboration correspondence premise, every successful
 full-M2 inference run is a globally principal source result. -/
 theorem infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {target : Ty}
-    (success : infer context expression = some target) :
-    PrincipalResult context expression target :=
+    (success : infer signature context expression = some target) :
+    PrincipalResult signature context expression target :=
   infer_success_principalResult_of_coherence
+    wellFormed
     (principalCoherence_of_wellFormedElaborationPrincipalityComplete
-      complete context expression)
+      complete signature context expression)
     success
 
 /-- A blockwise-principal declarative witness is enough to run inference and
@@ -165,17 +169,18 @@ obtain its globally principal representative under the correspondence
 premise. -/
 theorem infer_principalResult_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
+    {signature : Signature} (wellFormed : signature.WellFormed)
     {context : Context} {expression : Expr} {principal : Ty}
-    (principalTyping : PrincipalTyping context expression principal) :
+    (principalTyping : PrincipalTyping signature context expression principal) :
     ∃ inferred,
-      infer context expression = some inferred ∧
-        PrincipalResult context expression inferred := by
+      infer signature context expression = some inferred ∧
+        PrincipalResult signature context expression inferred := by
   obtain ⟨inferred, success, _, _⟩ :=
     principalTyping.agreesWithInference_of_wellFormedElaborationPrincipalityComplete
       complete
   exact ⟨inferred, success,
     infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
-      complete success⟩
+      complete wellFormed success⟩
 
 end Inference
 
@@ -185,13 +190,13 @@ namespace PrincipalTyping
 differ only by a finite renaming on variables occurring in their targets. -/
 theorem finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
     (complete : WellFormedElaborationPrincipalityComplete)
-    {context : Context} {expression : Expr} {left right : Ty}
-    (leftPrincipal : PrincipalTyping context expression left)
-    (rightPrincipal : PrincipalTyping context expression right) :
+    {signature : Signature} {context : Context} {expression : Expr} {left right : Ty}
+    (leftPrincipal : PrincipalTyping signature context expression left)
+    (rightPrincipal : PrincipalTyping signature context expression right) :
     FiniteRenamingEq left right :=
   finiteRenamingEq_of_coherence
     (principalCoherence_of_wellFormedElaborationPrincipalityComplete
-      complete context expression)
+      complete signature context expression)
     leftPrincipal rightPrincipal
 
 end PrincipalTyping
