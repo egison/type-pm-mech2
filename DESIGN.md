@@ -47,7 +47,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M0 | done | 最小構文のraw synthesis，局所checking，tuple of matchersの主要性 |
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
-| M3 | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，primitive scheme，List pattern scheme，有限signatureと整合性検査は実装済み．source接続は未実装 |
+| M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，実行式を持たないclause構造と順序検査は実装済み．pattern，`matchAll`，matcher clause本体，型推論，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
 | M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索の実行・関係仕様は実装済み．value，評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
@@ -243,12 +243,16 @@ source構文の外から与えられる型要求の表である．List，Boolな
 名前または引数数が違えば拒否する．Bool/List constructorと5 primitiveには閉じたschemeを与えた．Listの
 `nil`，`cons`，`join` pattern schemeは一つのelement capabilityを共有し，result targetとresult capabilityの
 former・引数数を有限signatureの宣言と照合する．primitiveの表は名前ごとのcanonical schemeとの一致も検査する．
-source構文とelaboration，実行意味はまだM3/M5の完了条件に数えない．
+`Source.Expr`にdata constructor呼出し，primitive呼出し，`ifE`を追加し，有限signatureを実行可能な
+elaboration，関係的elaboration，公開`infer`，`Typing`へ明示的に渡す．constructorとprimitiveの
+引数処理は，通常のapplicationと同じ`Generated.fromApp`を左から畳み込む`elaborateCall`と
+`ElaboratesCall`を共用する．signatureの整合性からlookupしたschemeがclosedであることを得て，
+実行成功を独立した関係へ写す．support，freshness，変数名変更，`let`比較の諸定理もこの
+第三のcall帰納に拡張した．実行意味はM5で追加する．
 
 実装moduleは`DataTypes.lean`，`Signature.lean`，`Constructors.lean`，`Primitives.lean`，
-`PatternDeclarations.lean`，`M3DeclarationsRegression.lean`である．論文listing P1-L03のpattern declarationと，
-multiset matcherのclause headerに必要なsignatureは検証済みである．次にconstructor／primitive／ifを
-source elaborationへ接続する．
+`PatternDeclarations.lean`，`M3DeclarationsRegression.lean`，`Source/Elaboration.lean`，`Source/M3Regression.lean`である．
+論文listing P1-L03のpattern declarationと，multiset matcherのclause headerに必要なsignatureは検証済みである．
 
 ### M4：patternとmatcher
 
