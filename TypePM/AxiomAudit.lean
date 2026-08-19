@@ -27,6 +27,7 @@ import TypePM.Runtime.FuelResultRegression
 import TypePM.Runtime.EnvironmentRegression
 import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Runtime.DataPatternRegression
+import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -310,6 +311,17 @@ every full build.
 #print axioms TypePM.Runtime.DataPatternRegression.tuple_arm_bindings_source_order
 #print axioms TypePM.Runtime.DataPatternRegression.constructor_mismatch_rejected
 #print axioms TypePM.Runtime.DataPatternRegression.constructor_arity_mismatch_rejected
+#print axioms TypePM.Runtime.inspectPatternPattern_eq_some_iff
+#print axioms TypePM.Runtime.PatternPatternMatches.counts
+#print axioms TypePM.Runtime.PatternPatternRegression.nil_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.head_only_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.value_cons_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.general_cons_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.join_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.whole_value_header_dispatch_exact
+#print axioms TypePM.Runtime.PatternPatternRegression.catch_all_header_dispatches_once
+#print axioms TypePM.Runtime.PatternPatternRegression.constructor_mismatch_is_failure
+#print axioms TypePM.Runtime.PatternPatternRegression.constructor_arity_mismatch_is_failure
 #print axioms TypePM.Runtime.EncodesList.view_iff
 #print axioms TypePM.Runtime.GroundPrimitive.evalAdd_adequate
 #print axioms TypePM.Runtime.GroundPrimitive.evalAdd_complete

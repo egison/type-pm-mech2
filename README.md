@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，実行式を持たないclause構造と順序検査に加え，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文を実装済みである．pattern function本体，freeze checker，pattern・matcher・`matchAll`・`fix`の型推論は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索に加え，整数・data constructor・tupleだけからなる閉じたground data，data-pattern arm照合，5 primitiveの実行・独立関係仕様を実装済みである．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，newest-first環境，順序付き深さ優先探索に加え，整数・data constructor・tupleだけからなる閉じたground data，pattern-pattern header／data-pattern armの構造照合，5 primitiveの実行・独立関係仕様を実装済みである．closure／matcherを含む一般のvalue，式評価，matchingの一歩規則，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -315,6 +315,13 @@ data constructor名とconstructor／tupleの要素数を正確に検査し，var
 source順で返す．実行関数とは独立した構造的な関係を定義し，実行成功との双方向対応と，返る
 binding数が静的な`DPat.bindingCount`に一致することを証明した．multiset定義で使うnil，cons，
 tuple-list，variable，wildcardのarmと，constructor／要素数不一致を個別のkernel proofで固定した．
+`Runtime/PatternPattern.lean`は，clause headerの`PPat`を利用者のsource `Pattern`へ照合する
+構文上のdispatchを実装する．holeは元のpatternを一度保持し，captureはvalue pattern内部の式を
+保持し，constructor fieldは左から右へ処理する．capture式の評価は後続の式評価器へ分離した．
+実行関数と独立した関係仕様の双方向対応と，抽出するhole／capture数が静的なcountに一致することを
+証明した．multisetの7個のheaderをそれぞれ独立に実行し，nil，head-only，value-cons，general cons，
+join，whole-value，catch-allの抽出結果を固定した．これはheader dispatchだけであり，各clauseの
+decompositionや`matchAll`全体が動作済みであるとはまだ数えない．
 `Runtime/GroundPrimitive.lean`はこの範囲で5個の`PrimOp`を実行し，不正な個数・形の引数を
 `stuck`として明示する．`map`だけは将来の関数適用をcallbackとして受け取り，左から右の順序と
 `timeout`／`stuck`を保存する．`Runtime/GroundPrimitiveAdequacy.lean`では各操作の独立した関係仕様を

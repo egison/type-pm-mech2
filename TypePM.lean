@@ -115,6 +115,8 @@ import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Runtime.GroundValue
 import TypePM.Runtime.DataPattern
 import TypePM.Runtime.DataPatternRegression
+import TypePM.Runtime.PatternPattern
+import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitive
 import TypePM.Runtime.GroundPrimitiveAdequacy
 import TypePM.Runtime.GroundPrimitiveRegression
