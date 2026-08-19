@@ -545,6 +545,12 @@ P1-L04の7-clause `multiset`は，`member`／`deleteFirst`，nested `matchAll`�
 位置別選択をsource順に返す．successor value patternは`[1,2,5,6]`から`[1,5]`を返す．各結果は
 kernelで検査する正確な`evalFuel`等式と独立した`Eval`導出へ接続する．
 
+`Runtime/MultisetClauseExecutionRegression.lean`は，同じexact 7-clause matcherに対して各clauseを
+観測する独立した`matchAll` programを置く．nilと非空対象，head-onlyのsource順，value-consの
+最初の出現だけの削除，general-consの三選択，joinの8分割，whole-valueの正負，catch-allの一回だけの
+返却を終端まで評価する．七つの正例はすべて独立した`Eval`導出へ接続し，通常の不一致は`stuck`でなく
+空の結果列であることも検証する．
+
 追跡は次の五段階で行う．
 
 1. source構文で表現できる．

@@ -150,6 +150,7 @@ import TypePM.Runtime.MatchFirstRegression
 import TypePM.Runtime.PatternFunctionEvaluation
 import TypePM.Runtime.PatternFunctionEvaluationRegression
 import TypePM.Runtime.Paper1ExecutionRegression
+import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch
