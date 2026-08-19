@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定した．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，すべての`Expr.matchAll`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．targetとmatcherの評価，atom還元，source順の探索，各binding groupでのbody評価を接続し，重複branchと`timeout`／`stuck`を保存する．実行成功の関係的健全性，有限導出の完全性，fuel単調性も検証済みである．pattern function atom，単一結果の`matchFirst`実行，実行時型付けと型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．pattern function atom，実行時型付けと型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -444,15 +444,18 @@ head／catch-all matcher closureを`evalFuel`と関係`Eval`の両方で終点�
 `Runtime/CombinedAtomReducer.lean`は，構文上のatom規則を先に試し，通常の`miss`のときだけ
 user-defined matcher規則へ進む合成を定義する．先行のhit，timeout，stuckは後続規則で隠さない．
 両方のno-stuckとfallbackの全atom処理から，合成後のreducerとbounded searchのno-stuckを得る．
-`Runtime/Evaluation.lean`と`Runtime/EvalFuel.lean`は，通常のcore式に加えて`matchAll`の
-call-by-value意味を定義する．`matchAll`はtarget，matcherの順に評価し，builtin規則を先に試す
+`Runtime/Evaluation.lean`と`Runtime/EvalFuel.lean`は，通常のcore式に加えて`matchAll`と
+派生surface `matchFirst`のcall-by-value意味を定義する．`matchAll`はtarget，matcherの順に評価し，builtin規則を先に試す
 atom reducerで深さ優先探索を行い，各binding groupを元の環境の前に置いてbodyを評価する．
 関係`Eval`はclause，arm，atom，探索の順序を実行関数と独立な帰納的関係で保持する．
 実行成功からの健全性，有限な`Eval`導出から十分なfuelを得る完全性，成功値のfuel単調性を
-`matchAll`を含めて検証した．`searchPatternFuel`は探索とbody評価を分離し，将来の単一結果
-`matchFirst`が同じ探索順序を再利用できる境界である．派生surface node `matchFirst`は現段階では
-`stuck`を返す．M5ではAppendix Aどおり，順序付き`matchAll`の結果から最初の一件を選ぶ展開と同値で
-あることを証明してから実行器へ接続する．pattern function atomは未実装で`stuck`を保持する．
+両形式を含めて検証した．`matchFirst`はtargetとmatcherを一度ずつ評価し，armをsource順に試す．
+各armは`searchPatternFuel`により`matchAll`と同じ順序付き探索を行い，結果が空なら次へ進み，
+非空なら先頭binding groupだけを選ぶ．この対応は
+`evalMatchFirstArmsFuel_orderedMatchAll_firstResult`で定義上の等式として固定し，後続結果が重複を
+含んでも並べ替えも重複除去もしない．空arm列まで到達した場合は`stuck`であり，静的elaboratorの
+網羅性検査が受理済みprogramからこの場合を除く．tuple-pattern lambdaとwhole-value形式の複数armを
+実行回帰で確認した．pattern function atomは未実装で`stuck`を保持する．
 
 ## 論文1のcode listing inventory
 

@@ -13,10 +13,11 @@ right.  `timeout` therefore means only that the supplied depth bound was too
 small, whereas malformed variables, applications, primitive calls and
 conditions produce `stuck`.
 
-`matchAll` uses the same remaining fuel for target evaluation, matcher
-evaluation, matching search, every expression evaluated by an atom rule, and
-every clause body.  This is a depth bound, not a global step counter.  The
-matching search preserves source order and duplicate branches.
+`matchAll` and the derived surface `matchFirst` use the same remaining fuel for
+target evaluation, matcher evaluation, matching search, every expression
+evaluated by an atom rule, and every selected body.  This is a depth bound, not
+a global step counter.  Matching search preserves source order and duplicate
+branches.
 -/
 
 namespace TypePM.Runtime
@@ -30,9 +31,7 @@ def evaluationAtomReducer
     AtomReducer :=
   combineAtomReducers (reduceBuiltinAtom evaluate) (reduceMatcherAtom evaluate)
 
-/-- Search one already evaluated target/matcher pair.  Keeping search separate
-from result-body evaluation lets a future single-result `match` reuse the same
-ordered branches and select only its first binding group. -/
+/-- Search one already evaluated target/matcher pair. -/
 def searchPatternFuel
     (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
     (fuel : Nat) (environment : ValueEnvironment)
@@ -40,6 +39,60 @@ def searchPatternFuel
     FuelResult (List (List Value)) :=
   searchMatchingFuel (evaluationAtomReducer evaluate) fuel
     ⟨[⟨pattern, matcher, target⟩], environment, []⟩
+
+/-- Execute the arms of Paper 1's derived single-result `match` in source
+order.  Each arm performs exactly the ordered search used by `matchAll`.  An
+empty result continues with the next arm; a nonempty result selects its first
+binding group, including when later groups are duplicates. -/
+def evalMatchFirstArmsFuel
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (fuel : Nat) (environment : ValueEnvironment)
+    (target matcher : Value) : List Source.MatchFirstArm → FuelResult Value
+  | [] => .stuck
+  | arm :: rest =>
+      FuelResult.bind
+        (searchPatternFuel evaluate fuel environment arm.pattern matcher target)
+        fun bindingGroups =>
+          match bindingGroups with
+          | [] => evalMatchFirstArmsFuel evaluate fuel environment target matcher rest
+          | bindings :: _ => evaluate (bindings ++ environment) arm.body
+
+/-- Exact connection to the Paper 1 desugaring: one source arm runs the same
+ordered search as `matchAll`, then chooses its first result; only an empty
+result advances to the next source arm. -/
+theorem evalMatchFirstArmsFuel_orderedMatchAll_firstResult :
+    evalMatchFirstArmsFuel evaluate fuel environment target matcher (arm :: rest) =
+      FuelResult.bind
+        (searchPatternFuel evaluate fuel environment arm.pattern matcher target)
+        (fun bindingGroups =>
+          match bindingGroups with
+          | [] => evalMatchFirstArmsFuel evaluate fuel environment target matcher rest
+          | bindings :: _ => evaluate (bindings ++ environment) arm.body) :=
+  rfl
+
+/-- A nonempty search result is consumed exactly as `matchAll` would produce
+it, except that only the first result body is evaluated.  The tail is neither
+reordered nor deduplicated; it is deliberately ignored. -/
+theorem evalMatchFirstArmsFuel_firstResult
+    (search : searchPatternFuel evaluate fuel environment arm.pattern matcher target =
+      .ok (bindings :: remaining)) :
+    evalMatchFirstArmsFuel evaluate fuel environment target matcher (arm :: rest) =
+      evaluate (bindings ++ environment) arm.body := by
+  simp [evalMatchFirstArmsFuel, search]
+
+/-- An arm with no `matchAll` result is skipped, preserving source-arm order. -/
+theorem evalMatchFirstArmsFuel_skip
+    (search : searchPatternFuel evaluate fuel environment arm.pattern matcher target =
+      .ok []) :
+    evalMatchFirstArmsFuel evaluate fuel environment target matcher (arm :: rest) =
+      evalMatchFirstArmsFuel evaluate fuel environment target matcher rest := by
+  simp [evalMatchFirstArmsFuel, search]
+
+/-- Exhausting the arm list is dynamically stuck.  The static elaborator's
+coverage gate excludes this case for accepted source programs. -/
+@[simp] theorem evalMatchFirstArmsFuel_nil :
+    evalMatchFirstArmsFuel evaluate fuel environment target matcher [] = .stuck :=
+  rfl
 
 /-- Complete-value primitive execution, parameterized only at the function
 application point needed by `map`. -/
@@ -125,7 +178,11 @@ mutual
                         (fun bindings =>
                           evalFuel fuel (bindings ++ environment) body)
                         bindingGroups)
-        | .matchFirst _ _ _ => .stuck
+        | .matchFirst target matcher arms =>
+            FuelResult.bind (evalFuel fuel environment target) fun targetValue =>
+              FuelResult.bind (evalFuel fuel environment matcher) fun matcherValue =>
+                evalMatchFirstArmsFuel (evalFuel fuel) fuel environment
+                  targetValue matcherValue arms
 
   /-- Fuel-bounded application.  The recursive closure layout is argument at
   index zero followed by self at index one. -/

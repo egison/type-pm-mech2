@@ -278,6 +278,33 @@ private theorem depthFirstFuel_step_mono
               rcases continued with ⟨tailAnswers, tail, output⟩
               exact ⟨tailAnswers, ih tail, output⟩
           | expand successors => exact ih continued
+
+private theorem evalMatchFirstArmsFuel_ok_mono
+    {before after : ValueEnvironment → Source.Expr → FuelResult Value}
+    {beforeFuel afterFuel : Nat}
+    (evaluationMono : ∀ {environment expression value},
+      before environment expression = .ok value →
+        after environment expression = .ok value)
+    (searchMono : ∀ {pattern bindingGroups},
+      searchPatternFuel before beforeFuel environment pattern matcher target =
+          .ok bindingGroups →
+        searchPatternFuel after afterFuel environment pattern matcher target =
+          .ok bindingGroups)
+    (success : evalMatchFirstArmsFuel before beforeFuel environment target matcher
+      arms = .ok result) :
+    evalMatchFirstArmsFuel after afterFuel environment target matcher arms =
+      .ok result := by
+  induction arms with
+  | nil => simp [evalMatchFirstArmsFuel] at success
+  | cons arm rest ih =>
+      simp only [evalMatchFirstArmsFuel] at success ⊢
+      rw [bind_eq_ok_iff] at success ⊢
+      rcases success with ⟨bindingGroups, searchResult, continuation⟩
+      refine ⟨bindingGroups, searchMono searchResult, ?_⟩
+      cases bindingGroups with
+      | nil => exact ih continuation
+      | cons bindings remaining => exact evaluationMono continuation
+
 private theorem fuel_ok_succ : ∀ fuel,
     (∀ {environment expression value},
       evalFuel fuel environment expression = .ok value →
@@ -430,7 +457,22 @@ private theorem fuel_ok_succ : ∀ fuel,
             simp only [FuelResult.bind_ok]
             rw [searchRaised]
             simp [bodiesRaised]
-        | matchFirst target matcher arms => simp [evalFuel] at success
+        | matchFirst target matcher arms =>
+            simp only [evalFuel] at success ⊢
+            rw [bind_eq_ok_iff] at success ⊢
+            rcases success with ⟨targetValue, targetResult, continued⟩
+            refine ⟨targetValue, evalStep targetResult, ?_⟩
+            rw [bind_eq_ok_iff] at continued ⊢
+            rcases continued with ⟨matcherValue, matcherResult, armsResult⟩
+            refine ⟨matcherValue, evalStep matcherResult, ?_⟩
+            exact evalMatchFirstArmsFuel_ok_mono
+              (fun success => evalStep success)
+              (fun {pattern bindingGroups} searchResult => by
+                have callbackRaised := depthFirstFuel_step_mono
+                  (matchingStep_ok_mono
+                    (fun success => evalStep success)) searchResult
+                exact depthFirstFuel_ok_add _ callbackRaised 1)
+              armsResult
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>
@@ -546,6 +588,10 @@ theorem Eval.complete
         FuelResult.traverse
           (fun bindings => evalFuel fuel (bindings ++ environment) body)
           groups = .ok values)
+    (motive_13 := fun environment target matcher arms result _ =>
+      ∃ evaluationFuel searchFuel,
+        evalMatchFirstArmsFuel (evalFuel evaluationFuel) searchFuel environment
+          target matcher arms = .ok result)
   case var =>
       intros environment index value lookup
       refine ⟨1, ?_⟩
@@ -702,6 +748,38 @@ theorem Eval.complete
       simp only [evalFuel, targetRaised, FuelResult.bind_ok, matcherRaised,
         searchPatternFuel, evaluationAtomReducer, searchAtCommon,
         bodiesRaised, FuelResult.map_ok]
+  case matchFirst =>
+      intros environment target targetValue matcher matcherValue arms result
+        targetEval matcherEval armsEval targetIH matcherIH armsIH
+      rcases targetIH with ⟨targetFuel, targetSuccess⟩
+      rcases matcherIH with ⟨matcherFuel, matcherSuccess⟩
+      rcases armsIH with ⟨armsEvalFuel, armsSearchFuel, armsSuccess⟩
+      let common := max targetFuel
+        (max matcherFuel (max armsEvalFuel armsSearchFuel))
+      have targetLe : targetFuel ≤ common := by omega
+      have matcherLe : matcherFuel ≤ common := by omega
+      have armsEvalLe : armsEvalFuel ≤ common := by omega
+      have armsSearchLe : armsSearchFuel ≤ common := by omega
+      have targetRaised := evalFuel_ok_of_le targetLe targetSuccess
+      have matcherRaised := evalFuel_ok_of_le matcherLe matcherSuccess
+      have armsRaised :
+          evalMatchFirstArmsFuel (evalFuel common) common environment
+            targetValue matcherValue arms = .ok result := by
+        exact evalMatchFirstArmsFuel_ok_mono
+          (fun success => evalFuel_ok_of_le armsEvalLe success)
+          (fun {pattern bindingGroups} searchResult => by
+            have callbackRaised := depthFirstFuel_step_mono
+              (matchingStep_ok_mono
+                (fun success => evalFuel_ok_of_le armsEvalLe success))
+              searchResult
+            have fuelRaised := depthFirstFuel_ok_add _ callbackRaised
+              (common - armsSearchFuel)
+            simpa [searchPatternFuel, searchMatchingFuel, evaluationAtomReducer,
+              Nat.add_sub_of_le armsSearchLe] using fuelRaised)
+          armsSuccess
+      refine ⟨common + 1, ?_⟩
+      simp only [evalFuel, targetRaised, FuelResult.bind_ok, matcherRaised,
+        armsRaised]
   case nil =>
       intro environment
       exact ⟨0, rfl⟩
@@ -938,6 +1016,70 @@ theorem Eval.complete
         tailSuccess
       exact ⟨common, by
         simp [FuelResult.traverse, headRaised, tailRaised]⟩
+  case hit =>
+      intros matcher target environment bindings remaining result arm rest
+        matching bodyEval matchingIH bodyIH
+      rcases matchingIH with
+        ⟨matchingEvalFuel, matchingSearchFuel, matchingSuccess⟩
+      rcases bodyIH with ⟨bodyFuel, bodySuccess⟩
+      let common := max matchingEvalFuel (max matchingSearchFuel bodyFuel)
+      have matchingEvalLe : matchingEvalFuel ≤ common := by omega
+      have matchingSearchLe : matchingSearchFuel ≤ common := by omega
+      have bodyLe : bodyFuel ≤ common := by omega
+      have callbackRaised := depthFirstFuel_step_mono
+        (matchingStep_ok_mono
+          (fun success => evalFuel_ok_of_le matchingEvalLe success))
+        matchingSuccess
+      have fuelRaised := depthFirstFuel_ok_add _ callbackRaised
+        (common - matchingSearchFuel)
+      have searchAtCommon :
+          searchPatternFuel (evalFuel common) common environment arm.pattern
+            matcher target = .ok (bindings :: remaining) := by
+        simpa [searchPatternFuel, searchMatchingFuel, evaluationAtomReducer,
+          Nat.add_sub_of_le matchingSearchLe] using fuelRaised
+      have bodyAtCommon := evalFuel_ok_of_le bodyLe bodySuccess
+      exact ⟨common, common, by
+        simp [evalMatchFirstArmsFuel, searchAtCommon, bodyAtCommon]⟩
+  case skip =>
+      intros matcher target environment rest result arm matching tail
+        matchingIH tailIH
+      rcases matchingIH with
+        ⟨matchingEvalFuel, matchingSearchFuel, matchingSuccess⟩
+      rcases tailIH with ⟨tailEvalFuel, tailSearchFuel, tailSuccess⟩
+      let common := max matchingEvalFuel
+        (max matchingSearchFuel (max tailEvalFuel tailSearchFuel))
+      have matchingEvalLe : matchingEvalFuel ≤ common := by omega
+      have matchingSearchLe : matchingSearchFuel ≤ common := by omega
+      have tailEvalLe : tailEvalFuel ≤ common := by omega
+      have tailSearchLe : tailSearchFuel ≤ common := by omega
+      have matchingCallbackRaised := depthFirstFuel_step_mono
+        (matchingStep_ok_mono
+          (fun success => evalFuel_ok_of_le matchingEvalLe success))
+        matchingSuccess
+      have matchingFuelRaised := depthFirstFuel_ok_add _ matchingCallbackRaised
+        (common - matchingSearchFuel)
+      have searchAtCommon :
+          searchPatternFuel (evalFuel common) common environment arm.pattern
+            matcher target = .ok [] := by
+        simpa [searchPatternFuel, searchMatchingFuel, evaluationAtomReducer,
+          Nat.add_sub_of_le matchingSearchLe] using matchingFuelRaised
+      have tailAtCommon :
+          evalMatchFirstArmsFuel (evalFuel common) common environment
+            target matcher rest = .ok result := by
+        exact evalMatchFirstArmsFuel_ok_mono
+          (fun success => evalFuel_ok_of_le tailEvalLe success)
+          (fun {pattern bindingGroups} searchResult => by
+            have callbackRaised := depthFirstFuel_step_mono
+              (matchingStep_ok_mono
+                (fun success => evalFuel_ok_of_le tailEvalLe success))
+              searchResult
+            have fuelRaised := depthFirstFuel_ok_add _ callbackRaised
+              (common - tailSearchFuel)
+            simpa [searchPatternFuel, searchMatchingFuel, evaluationAtomReducer,
+              Nat.add_sub_of_le tailSearchLe] using fuelRaised)
+          tailSuccess
+      exact ⟨common, common, by
+        simp [evalMatchFirstArmsFuel, searchAtCommon, tailAtCommon]⟩
   case t => exact derivation
 
 end TypePM.Runtime

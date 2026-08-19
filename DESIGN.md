@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
 | M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，Paper 1の派生surface `match`の型付け，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher literal，matcher-root再帰を含む統合M4推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，成功時健全性，有限完全性，fuel単調性は実装済み．順序と重複branch，`timeout`／`stuck`を保存する．pattern function atom，単一結果の`matchFirst`実行，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，成功時健全性，有限完全性，fuel単調性は実装済み．`matchFirst`はarmをsource順に試し，最初の非空な`matchAll`探索結果の先頭だけを使う．順序と重複branch，`timeout`／`stuck`を保存する．pattern function atom，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -418,13 +418,15 @@ atom reductionに渡す評価環境は`bindings ++ environment`であり，左�
 `miss`だけがfallbackを許し，hit，timeout，stuckは保存する．fallbackが全atomを扱い，
 両方がstuckしなければ，合成reducerとそれを使う全bounded searchがstuckしない．
 `Runtime/Evaluation.lean`，`Runtime/EvalFuel.lean`，`Runtime/EvaluationAdequacy.lean`，
-`Runtime/EvaluationCompleteness.lean`は，`matchAll`を含む全core式のcall-by-value評価を定義する．
+`Runtime/EvaluationCompleteness.lean`は，`matchAll`と派生surface `matchFirst`を含む全core式のcall-by-value評価を定義する．
 通常closureでは引数をindex 0に置き，再帰closureでは引数をindex 0，自己をindex 1に置く．
 一般value上の5 primitive，実行成功のadequacy，有限な関係導出の完全性，成功値のfuel単調性を
 検証する．`matchAll`はclause式評価を含むatom還元と深さ優先探索を接続し，
-関係`Eval`でもarm，clause，atom，探索の帰納的関係を直接記録する．pattern function atomと
-単一結果の派生surface `matchFirst`実行は次の依存項目である．`matchFirst`は現段階では明示的`stuck`であり，
-順序付き`matchAll`の結果から最初の一件を選ぶAppendix Aの展開と実行結果が同値であることを証明して接続する．
+関係`Eval`でもarm，clause，atom，探索の帰納的関係を直接記録する．`matchFirst`はtargetとmatcherを
+一度ずつ評価し，各armで同じ順序付き`matchAll`探索を実行する．空結果だけが次armへ進み，最初の
+非空結果の先頭binding groupでbodyを評価する．このAppendix Aの展開との対応は実行器の等式と独立な
+`EvalMatchFirstArms`関係で固定し，成功時健全性，有限完全性，fuel単調性まで接続した．空arm列は
+動的には`stuck`だが，静的な網羅性検査が受理済みprogramでは除外する．pattern function atomは次の依存項目である．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な

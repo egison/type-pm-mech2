@@ -43,6 +43,7 @@ import TypePM.Runtime.MatchingSearchRegression
 import TypePM.Runtime.CombinedAtomReducerRegression
 import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
+import TypePM.Runtime.MatchFirstRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
@@ -439,6 +440,9 @@ every full build.
 #print axioms TypePM.Runtime.evalFuel_sound
 #print axioms TypePM.Runtime.Eval.complete
 #print axioms TypePM.Runtime.evalFuel_ok_add
+#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_orderedMatchAll_firstResult
+#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_firstResult
+#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_skip
 #print axioms TypePM.Runtime.EvaluationRegression.map_applies_closure_left_to_right_exact
 #print axioms TypePM.Runtime.EvaluationRegression.map_success_has_relational_derivation
 #print axioms TypePM.Runtime.EvaluationRegression.identity_core_never_stuck
@@ -449,6 +453,14 @@ every full build.
 #print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all
 #print axioms TypePM.Runtime.MatchAllRegression.integrated_head_execution_has_finite_fuel
 #print axioms TypePM.Runtime.MatchAllRegression.pattern_function_atom_is_stuck
+#print axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_executes_exactly
+#print axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_has_independent_derivation
+#print axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_uses_first_successful_arm
+#print axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_preserves_source_arm_order
+#print axioms TypePM.Runtime.MatchFirstRegression.matchFirst_success_has_finite_fuel
+#print axioms TypePM.Runtime.MatchFirstRegression.empty_runtime_arm_list_is_stuck
+#print axioms TypePM.Runtime.MatchFirstRegression.matching_timeout_propagates
+#print axioms TypePM.Runtime.MatchFirstRegression.selected_body_stuck_propagates
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure

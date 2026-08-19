@@ -142,6 +142,7 @@ import TypePM.Runtime.EvaluationAdequacy
 import TypePM.Runtime.EvaluationCompleteness
 import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
+import TypePM.Runtime.MatchFirstRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch

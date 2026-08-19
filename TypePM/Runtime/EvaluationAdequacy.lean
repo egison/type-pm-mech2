@@ -186,6 +186,32 @@ private theorem traverses_to_bindingGroups
   | nil => exact .nil
   | cons head tail ih => exact .cons (sound head) ih
 
+private theorem matchFirstArms_to_eval
+    {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
+    (sound : ∀ {environment expression value},
+      evaluate environment expression = .ok value →
+        Eval environment expression value)
+    (success : evalMatchFirstArmsFuel evaluate fuel environment target matcher
+      arms = .ok result) :
+    EvalMatchFirstArms environment target matcher arms result := by
+  induction arms with
+  | nil => simp [evalMatchFirstArmsFuel] at success
+  | cons arm rest ih =>
+      simp only [evalMatchFirstArmsFuel] at success
+      rw [bind_eq_ok_iff] at success
+      rcases success with ⟨bindingGroups, searchResult, continuation⟩
+      cases bindingGroups with
+      | nil =>
+          exact .skip
+            (depthFirst_to_evalMatching sound
+              (searchMatchingFuel_sound _ searchResult))
+            (ih continuation)
+      | cons bindings remaining =>
+          exact .hit
+            (depthFirst_to_evalMatching sound
+              (searchMatchingFuel_sound _ searchResult))
+            (sound continuation)
+
 theorem evalPrimitive_sound
     {apply : Value → Value → FuelResult Value}
     (applySound : ∀ {function input output},
@@ -396,7 +422,13 @@ private theorem fuel_sound : ∀ fuel,
                 (fun result => evalSound result)
                 ((traverse_eq_ok_iff _ _ _).mp traversal))
         | matchFirst target matcher arms =>
-            simp [evalFuel] at success
+            simp only [evalFuel] at success
+            rw [bind_eq_ok_iff] at success
+            rcases success with ⟨targetValue, targetResult, continued⟩
+            rw [bind_eq_ok_iff] at continued
+            rcases continued with ⟨matcherValue, matcherResult, armsResult⟩
+            exact .matchFirst (evalSound targetResult) (evalSound matcherResult)
+              (matchFirstArms_to_eval evalSound armsResult)
       · intro function argument value success
         cases function with
         | closure kind definitionEnvironment body =>
