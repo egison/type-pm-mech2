@@ -146,6 +146,8 @@ import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M4Elaboration
 import TypePM.Source.M4PatternTypingRegression
+import TypePM.Source.M4FixTyping
+import TypePM.Source.M4FixTypingRegression
 import TypePM.AxiomAudit
 
 /-!

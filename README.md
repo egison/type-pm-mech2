@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文に加え，user patternの実行可能・関係的elaboration，左から右のbinder context，frozen schemeを使うpattern constructor／pattern function適用，単一`matchAll`節の制約生成・関係的健全性を実装済みである．matcher literal，`fix`，pattern function本体，freeze checker，M4式を再帰的に含める統合elaborationは未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節の実行可能・関係的elaborationに加え，単項・単相の直接自己再帰`fixE` checkpointを実装済みである．`fixE`本体では引数がindex 0，自己がindex 1であり，直接callee以外の自己使用を全相互構文で拒否する．matcher literal，pattern function本体，freeze checker，matcher-root再帰を含む統合M4 elaborationは未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，完全のruntime value，matching state/search，builtinからclause規則へ`miss`のときだけ移るreducer合成に加え，`matchAll`以外の全`Expr`に対するcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．一般value上の5 primitive（`map`のclosure callbackを含む），成功時adequacy，有限な関係導出の完全性，fuel単調性を検証済みである．`matchAll`はmatching engine接続前の明示的`stuck`境界であり，具体的matcher clause dispatch，全atom規則，実行時型付けと型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -244,6 +244,20 @@ list tailの`#x`がoccurs checkで拒否されること，value expressionのLis
 variable patternを使う`matchAll`の正確な推論結果，matcher-to-slot保留制約，pattern引数参照，frozen
 pattern-function interfaceだけを使う適用を確認した．matcher literalと`fixE`を再帰的に型付けし，
 同じ公開`infer`へ統合する作業は残る．
+
+`M4FixTyping`は，単項・単相の`fixE`だけを独立した型付けcheckpointとして追加する．本体contextは
+引数，自己，外側contextの順であり，de Bruijn index（最も内側を0とする変数番号）では引数が0，
+自己が1である．自己はapplicationの直接のcalleeとしてだけ使え，値として返す，argumentとして渡す，
+`letE`で別名にする，内側の`fixE`から外側の自己を参照する形は拒否する．検査は最終的な相互`Source`
+構文全体を走査し，lambdaと`letE`のbody，左から右のpattern binder，matcher armのdata binderとcaptureに
+応じて自己のindexをずらす．next-matcher式はmatcher定義環境で評価されるため，clause binderによるindexの
+ずれはない．正例は実行可能elaboration，関係的`FixElaborates`，solverを通した正確な推論結果，独立した
+`FixTyping`へ接続し，bare／alias／higher-order／mutual-styleの負例は`FixTyping`の不存在まで確認した．
+
+`elaborateFixUsing`と`FixElaboratesUsing`は本体のelaborationを引数に取る合成用の規則である．現在検証した
+`elaborateFix`はM3 elaboratorを本体に使うため，直接自己使用の検査を通るmatcher literalを本体に置いても
+`none`となる．matcher literal側の合成用elaboratorと再帰的なM4 dispatcherを組み，その関係的健全性を
+証明するまでは，一般multiset matcherやmatcher-root再帰が型付け済みとは主張しない．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 

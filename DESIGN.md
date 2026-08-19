@@ -48,7 +48,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
-| M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去は実装済み．pattern，`matchAll`，matcher literal，`fix`の型推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
+| M4 | partial | pattern function名とfrozen signature，matcher headerの静的検査，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文，shapeへのcanonicalな消去，user patternと単一`matchAll`節，単項・単相の直接自己再帰`fixE` checkpointは実装済み．matcher literal，matcher-root再帰を含む統合M4推論，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
 | M5 | partial | multisetの順序付き分解，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，一般のruntime value，matching state/search，builtin→clauseのordered reducer合成，具体的matcher clause dispatch，`matchAll`以外の全core式の関係的・実行可能評価，5 primitiveの一般value実行，adequacy，有限完全性，fuel単調性は実装済み．`matchAll`接続，pattern functionを含む全atom規則，実行時型付け，型保存，progress，型付けからのno-stuckは未実装 |
 
 ### M0：独立した基礎
@@ -301,11 +301,26 @@ capabilityとtarget，matcher producerからslotへの一方向のcheckingを独
 matcher literalのclauseはmatcherを構成する分岐であり，holeは次のmatcherへ処理を委譲する
 pattern位置である．
 
+`fixE`は単項・単相の直接自己再帰だけを受理する．本体contextは引数，自己，外側contextの順であり，
+de Bruijn indexでは引数が0，自己が1である．自己の使用はapplicationの直接のcalleeに限り，bareな値，
+argument位置，`letE`による別名，内側の`fixE`が外側の自己を取り込むmutual-styleの形を拒否する．
+この構文検査は最終的な`Expr`／`Pattern`／`MatcherClause`／`MatcherArm`全体を相互に走査する．lambdaと
+`letE`のbodyでは1，value patternでは左側で生成済みのbinder数，`matchAll` bodyではpattern全体の
+binder数，matcher arm bodyではdata binder数とcapture数だけ追跡indexをずらす．next-matcher式は
+matcher定義環境で評価するのでclause binderによるずれを入れない．
+
+型生成ではfreshなdomainとcodomainを一つずつ割り当て，自己へ`domain → codomain`を単相schemeとして
+置き，本体結果とcodomainをhard等式で接続する．`elaborateFixUsing`／`FixElaboratesUsing`は本体規則を
+引数に取る合成点であり，M3規則に特殊化した`elaborateFix`／`FixElaborates`の実行健全性と，solver成功から
+独立した`FixTyping`を得る健全性を証明した．ただし現時点の特殊化はmatcher literal本体を拒否する．
+matcher literal側の合成点と再帰的dispatcherを結び，対応する関係的soundnessを証明するまで，
+matcher-root再帰および一般multiset matcherの静的型付けは未実装である．
+
 DESIGNの旧版ではpattern functionをM4の一覧に明記していなかったが，論文のP1/P2回帰をM0--M5に
 収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を
 仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
 
-予定moduleは`PatternSyntax.lean`，`PatternTyping.lean`，`MatcherTyping.lean`，
+実装moduleには`Source/M4Elaboration.lean`，`Source/M4FixTyping.lean`と各回帰を含む．残る予定moduleは`MatcherTyping.lean`，
 `MatchAllTyping.lean`，`PatternFunctions.lean`，`M4EgisonRegression.lean`である．M4完了時には
 論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
 検証する．
