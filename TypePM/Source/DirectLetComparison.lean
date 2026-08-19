@@ -1,4 +1,5 @@
 import TypePM.Source.RecursiveLetSupportSafety
+import TypePM.Source.FreshIntervalRenaming
 
 /-!
 # Direct comparison of complete `let` blocks
@@ -164,6 +165,133 @@ theorem pending_eq
       DirectGeneratedComparisonCertificate start next left right) :
     left.pending = right.pending :=
   commonCore_pending_eq (certificate.normalize .hole (by trivial))
+
+/-! ## A common core that renames hard and delayed constraints together -/
+
+/-- A finite-name-aware common core.  Each side first applies one finite
+bijective change of variable names to the entire core, including delayed
+checking obligations, and may then add a finite admissible hard-alias
+sequence.  Thus one name correspondence acts on hard and delayed constraints
+together, while the hard aliases still account for representative-sensitive
+interface equations.
+
+Unlike `FreshAliasSequence.CommonCoreEquivalent`, this relation does not
+force the two concrete delayed-obligation lists to be literally equal. -/
+structure RenamingAwareCommonCoreEquivalent (left right : Generated) where
+  core : Generated
+  leftRenaming : VariableRenaming
+  rightRenaming : VariableRenaming
+  leftFinite : leftRenaming.FiniteSupport
+  rightFinite : rightRenaming.FiniteSupport
+  leftAliases : List FreshAliasSequence.Alias
+  rightAliases : List FreshAliasSequence.Alias
+  leftAdmissible : FreshAliasSequence.Admissible leftAliases
+    (ElaborationRenaming.renameGenerated leftRenaming core)
+  rightAdmissible : FreshAliasSequence.Admissible rightAliases
+    (ElaborationRenaming.renameGenerated rightRenaming core)
+  leftHard : HardEquivalent
+    (FreshAliasSequence.addAll leftAliases
+      (ElaborationRenaming.renameGenerated leftRenaming core)).hard
+    left.hard
+  rightHard : HardEquivalent
+    (FreshAliasSequence.addAll rightAliases
+      (ElaborationRenaming.renameGenerated rightRenaming core)).hard
+    right.hard
+  leftPending :
+    (ElaborationRenaming.renameGenerated leftRenaming core).pending =
+      left.pending
+  rightPending :
+    (ElaborationRenaming.renameGenerated rightRenaming core).pending =
+      right.pending
+
+namespace RenamingAwareCommonCoreEquivalent
+
+/-- A finite renaming followed by admissible hard aliases preserves and
+reflects block acceptance.  This is the soundness theorem needed before the
+new relation can replace the refuted hard-only direct certificate. -/
+theorem blockAccepts_iff
+    {left right : Generated}
+    (equivalent : RenamingAwareCommonCoreEquivalent left right) :
+    BlockAccepts left ↔ BlockAccepts right := by
+  let leftCore := ElaborationRenaming.renameGenerated
+    equivalent.leftRenaming equivalent.core
+  let rightCore := ElaborationRenaming.renameGenerated
+    equivalent.rightRenaming equivalent.core
+  have leftPresentation : BlockAccepts leftCore ↔ BlockAccepts left :=
+    FreshAliasSequence.blockAccepts_iff_of_addAll_hardEquivalent
+      equivalent.leftAliases leftCore left equivalent.leftAdmissible
+      equivalent.leftHard (by
+        simpa [leftCore] using equivalent.leftPending)
+  have rightPresentation : BlockAccepts rightCore ↔ BlockAccepts right :=
+    FreshAliasSequence.blockAccepts_iff_of_addAll_hardEquivalent
+      equivalent.rightAliases rightCore right equivalent.rightAdmissible
+      equivalent.rightHard (by
+        simpa [rightCore] using equivalent.rightPending)
+  exact leftPresentation.symm |>.trans
+    ((ElaborationRenaming.blockAccepts_renameVariables_iff
+      equivalent.leftRenaming equivalent.core).symm.trans
+      (ElaborationRenaming.blockAccepts_renameVariables_iff
+        equivalent.rightRenaming equivalent.core)) |>.trans
+    rightPresentation
+
+end RenamingAwareCommonCoreEquivalent
+
+/-- Frame-wise form of `RenamingAwareCommonCoreEquivalent`.  This is the
+replacement target for the refuted hard-only certificate: every admissible
+frame may choose its own finite common-core presentation, but each
+presentation renames hard and delayed constraints together. -/
+structure RenamingAwareDirectGeneratedComparisonCertificate
+    (start next : Supply) (left right : Generated) where
+  hidden : List UnificationVar
+  hiddenFresh : VariablesFreshIn start next hidden
+  normalize : ∀ (frame : GeneratedFrame), frame.Avoids hidden →
+    Nonempty (RenamingAwareCommonCoreEquivalent
+      (frame.plug left) (frame.plug right))
+
+namespace RenamingAwareDirectGeneratedComparisonCertificate
+
+/-- The new frame-wise certificate is sound for the existing scoped source
+comparison consumed by constructor composition. -/
+theorem scopedGeneratedComparison
+    {start next : Supply} {left right : Generated}
+    (certificate :
+      RenamingAwareDirectGeneratedComparisonCertificate
+        start next left right) :
+    ScopedGeneratedComparison start next next left right := by
+  refine ⟨rfl, certificate.hidden, certificate.hiddenFresh, ?_⟩
+  intro frame frameAvoids
+  obtain ⟨equivalent⟩ := certificate.normalize frame frameAvoids
+  exact equivalent.blockAccepts_iff
+
+end RenamingAwareDirectGeneratedComparisonCertificate
+
+/-- Candidate general-`let` invariant after correcting the delayed-checking
+gap in `DirectLetNormalizationHandler`.  Its construction from arbitrary
+well-formed source derivations remains the M2 completeness obligation. -/
+def RenamingAwareDirectLetNormalizationHandler : Prop :=
+  ∀ {signature : Signature} {context : Context} {value body : Expr}
+      {start : Supply} {leftGenerated rightGenerated : Generated}
+      {leftNext rightNext : Supply},
+    start.WellFormedFor context →
+      Elaborates signature context (.letE value body) start
+          leftGenerated leftNext →
+        Elaborates signature context (.letE value body) start
+            rightGenerated rightNext →
+          leftNext = rightNext ∧
+            Nonempty (RenamingAwareDirectGeneratedComparisonCertificate
+              start leftNext leftGenerated rightGenerated)
+
+/-- The corrected normalization handler closes ordinary source composition
+without assuming literal equality of delayed-obligation lists. -/
+theorem RenamingAwareDirectGeneratedComparisonCertificate.letComparisonHandler
+    (normalize : RenamingAwareDirectLetNormalizationHandler) :
+    LetComparisonHandler := by
+  intro signature context value body start leftGenerated rightGenerated
+    leftNext rightNext wellFormed leftElaboration rightElaboration
+  obtain ⟨nextEquality, ⟨certificate⟩⟩ :=
+    normalize wellFormed leftElaboration rightElaboration
+  subst rightNext
+  exact certificate.scopedGeneratedComparison
 
 /-- A frame-stable generated equation decomposition is a convenient
 sufficient presentation of the direct normalization invariant. -/

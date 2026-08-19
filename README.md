@@ -93,7 +93,12 @@ body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうし
 代表名がbodyの保留checkingに現れる例を構成した．fresh別名列はhard制約だけを変更し，保留checkingを文字通り
 同じに保つため，この二つの完全blockは空frameですでに共通blockへ正規化できない．この否定も
 `not_directLetNormalizationHandler`としてkernel proofで固定した．従って一般のM2完全性には，保留checkingを
-名前変更に沿って比較できる，より一般的な直接比較関係が必要である．
+名前変更に沿って比較できる，より一般的な直接比較関係が必要である．その最小の置換候補として，有限な
+変数名変更を共通blockのhard制約と保留checkingの両方へ同時に適用し，その後にhard制約だけへ許容可能な
+別名等式列を加える`RenamingAwareCommonCoreEquivalent`を定義した．この関係がblock受理同値を導くことと，
+上記の否定例の二blockが実際にこの関係を持つことを証明済みである．各許容frameでこの関係を構成する
+`RenamingAwareDirectGeneratedComparisonCertificate`から既存の`ScopedGeneratedComparison`が従うことも
+証明した．任意のwell-formedな`let`二導出からこのframeごとの証拠を作ることが，更新後のM2完全性目標である．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと

@@ -660,7 +660,7 @@ private def representativePendingBody : Generated :=
     pending := [⟨.var inherited, .var ⟨5⟩⟩] }
 
 private theorem inheritedPendingBody_elaborates :
-    Elaborates
+    Elaborates signature
       ((context.applyFree inheritedClosure.substitution).generalize
           inheritedClosure.target ::
         context.applyFree inheritedClosure.substitution)
@@ -680,13 +680,13 @@ private theorem inheritedPendingBody_elaborates :
       Subst.singleTy, Ty.apply, Ty.tyVars, Ty.capVars, dedupFirst, dedup,
       inherited, representative]
   rw [bodyContext_eq]
-  have function : Elaborates
+  have function : Elaborates signature
       [.mono (.var representative), .mono (.var representative)]
       (.lam (.lit 0)) valueFinish
       { target := .fn (.var ⟨4⟩) .int, hard := [], pending := [] }
       ⟨5, 0⟩ := by
     exact .lam .lit
-  have argument : Elaborates
+  have argument : Elaborates signature
       [.mono (.var representative), .mono (.var representative)]
       (.var 0) ⟨5, 0⟩
       { target := .var representative, hard := [], pending := [] }
@@ -694,17 +694,19 @@ private theorem inheritedPendingBody_elaborates :
     simpa [Scheme.instantiate_mono] using
       (Elaborates.var (context :=
         [.mono (.var representative), .mono (.var representative)])
+        (signature := signature)
         (index := 0) (supply := Supply.mk 5 0)
         (scheme := .mono (.var representative)) (by rfl))
   simpa [pendingBodyExpression, inheritedPendingBody, Supply.nextTy,
     valueFinish] using
       Elaborates.app
+        (signature := signature)
         (context :=
           [.mono (.var representative), .mono (.var representative)])
         function argument
 
 private theorem representativePendingBody_elaborates :
-    Elaborates
+    Elaborates signature
       ((context.applyFree representativeClosure.substitution).generalize
           representativeClosure.target ::
         context.applyFree representativeClosure.substitution)
@@ -725,13 +727,13 @@ private theorem representativePendingBody_elaborates :
       Subst.singleTy, Ty.apply, Ty.tyVars, Ty.capVars, dedupFirst, dedup,
       inherited, representative]
   rw [bodyContext_eq]
-  have function : Elaborates
+  have function : Elaborates signature
       [.mono (.var inherited), .mono (.var inherited)]
       (.lam (.lit 0)) valueFinish
       { target := .fn (.var ⟨4⟩) .int, hard := [], pending := [] }
       ⟨5, 0⟩ := by
     exact .lam .lit
-  have argument : Elaborates
+  have argument : Elaborates signature
       [.mono (.var inherited), .mono (.var inherited)]
       (.var 0) ⟨5, 0⟩
       { target := .var inherited, hard := [], pending := [] }
@@ -739,11 +741,13 @@ private theorem representativePendingBody_elaborates :
     simpa [Scheme.instantiate_mono] using
       (Elaborates.var (context :=
         [.mono (.var inherited), .mono (.var inherited)])
+        (signature := signature)
         (index := 0) (supply := Supply.mk 5 0)
         (scheme := .mono (.var inherited)) (by rfl))
   simpa [pendingBodyExpression, representativePendingBody, Supply.nextTy,
     valueFinish] using
       Elaborates.app
+        (signature := signature)
         (context := [.mono (.var inherited), .mono (.var inherited)])
         function argument
 
@@ -753,7 +757,7 @@ private def pendingLetExpression : Expr :=
 /-- The inherited-name representative produces a delayed body check that
 mentions the fresh representative literally. -/
 theorem inherited_pending_let_elaborates :
-    Elaborates context pendingLetExpression valueStart
+    Elaborates signature context pendingLetExpression valueStart
       (Generated.fromLet
         (context.interfaceEquations inheritedClosure.substitution)
         inheritedPendingBody)
@@ -769,7 +773,7 @@ theorem inherited_pending_let_elaborates :
 /-- The opposite representative produces the same delayed check modulo the
 closure renaming, but not as the same Lean list. -/
 theorem representative_pending_let_elaborates :
-    Elaborates context pendingLetExpression valueStart
+    Elaborates signature context pendingLetExpression valueStart
       (Generated.fromLet
         (context.interfaceEquations representativeClosure.substitution)
         representativePendingBody)
@@ -781,6 +785,119 @@ theorem representative_pending_let_elaborates :
   simpa [pendingLetExpression] using
     Elaborates.letE value_elaborates representativeClosure
       representativeClosure_absorbing body
+
+private def pendingCommonName : TyVar := ⟨7⟩
+
+private def pendingCommonCore : Generated :=
+  { target := .var ⟨6⟩
+    hard :=
+      [.ty (.fn (.var ⟨4⟩) .int)
+        (.fn (.var ⟨5⟩) (.var ⟨6⟩))]
+    pending := [⟨.var pendingCommonName, .var ⟨5⟩⟩] }
+
+/-- Swap two ordinary-variable names and leave capability names fixed. -/
+private def variableSwap (left right : TyVar) : VariableRenaming :=
+  let permutation := FinitePermutation.swap left right
+  { tyForward := permutation.forward
+    tyBackward := permutation.backward
+    capForward := id
+    capBackward := id
+    ty_backward_forward := permutation.backward_forward
+    ty_forward_backward := permutation.forward_backward
+    cap_backward_forward := fun _ => rfl
+    cap_forward_backward := fun _ => rfl }
+
+private theorem variableSwap_finiteSupport (left right : TyVar) :
+    (variableSwap left right).FiniteSupport := by
+  obtain ⟨support, fixed⟩ := FinitePermutation.finiteSupport_swap left right
+  constructor
+  · exact ⟨support, by
+      intro index outside
+      exact fixed index outside⟩
+  · exact ⟨[], by
+      intro index _outside
+      rfl⟩
+
+private def commonToRepresentative : VariableRenaming :=
+  variableSwap pendingCommonName representative
+
+private def commonToInherited : VariableRenaming :=
+  variableSwap pendingCommonName inherited
+
+private theorem leftPendingAlias_admissible :
+    (FreshAliasSequence.Alias.ty inherited representative).Admissible
+      (ElaborationRenaming.renameGenerated commonToRepresentative
+        pendingCommonCore) := by
+  apply
+    InterfaceAliasDecomposition.AliasFreshness.alias_admissible_of_not_mem
+  · decide
+  · simp [pendingCommonCore, commonToRepresentative, variableSwap,
+      pendingCommonName, inherited, representative,
+      ElaborationRenaming.renameGenerated,
+      ElaborationRenaming.renameObligation,
+      ElaborationRenaming.renameEquation, ElaborationRenaming.renameTy,
+      VariableRenaming.substitution, FinitePermutation.swap,
+      FinitePermutation.swapIndex, Generated.unificationVars,
+      Equation.unificationVars, CheckObligation.unificationVars,
+      Equation.apply, CheckObligation.apply, TypePM.unificationVars,
+      pendingUnificationVars, Ty.apply, Ty.occursTy]
+
+/-- Positive certificate at the corrected boundary: the same finite
+renaming changes the common pending obligation and hard body constraints,
+while an additional admissible hard alias accounts for the closure
+interface. -/
+noncomputable def pendingBlocks_renamingAwareCommonCoreEquivalent :
+    DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent
+      (Generated.fromLet
+        (context.interfaceEquations inheritedClosure.substitution)
+        inheritedPendingBody)
+      (Generated.fromLet
+        (context.interfaceEquations representativeClosure.substitution)
+        representativePendingBody) := by
+  refine
+    { core := pendingCommonCore
+      leftRenaming := commonToRepresentative
+      rightRenaming := commonToInherited
+      leftFinite := variableSwap_finiteSupport _ _
+      rightFinite := variableSwap_finiteSupport _ _
+      leftAliases := [.ty inherited representative]
+      rightAliases := []
+      leftAdmissible := ⟨leftPendingAlias_admissible, trivial⟩
+      rightAdmissible := trivial
+      leftHard := ?_
+      rightHard := ?_
+      leftPending := ?_
+      rightPending := ?_ }
+  · apply HardEquivalent.refl
+  · exact
+      (HardEquivalent.cons_ty_refl (.var inherited)
+        representativePendingBody.hard).symm
+  · simp [pendingCommonCore, commonToRepresentative, variableSwap,
+      pendingCommonName, representative, inheritedPendingBody,
+      Generated.fromLet, ElaborationRenaming.renameGenerated,
+      ElaborationRenaming.renameObligation, ElaborationRenaming.renameTy,
+      VariableRenaming.substitution, FinitePermutation.swap,
+      FinitePermutation.swapIndex, CheckObligation.apply, Ty.apply]
+  · simp [pendingCommonCore, commonToInherited, variableSwap,
+      pendingCommonName, inherited,
+      representativePendingBody, Generated.fromLet,
+      ElaborationRenaming.renameGenerated,
+      ElaborationRenaming.renameObligation, ElaborationRenaming.renameTy,
+      VariableRenaming.substitution, FinitePermutation.swap,
+      FinitePermutation.swapIndex, CheckObligation.apply, Ty.apply]
+
+/-- The generalized finite-name common core proves block acceptance
+equivalence for the very pair that refutes hard-only normalization. -/
+theorem pendingBlocks_blockAccepts_iff :
+    BlockAccepts
+        (Generated.fromLet
+          (context.interfaceEquations inheritedClosure.substitution)
+          inheritedPendingBody) ↔
+      BlockAccepts
+        (Generated.fromLet
+          (context.interfaceEquations representativeClosure.substitution)
+          representativePendingBody) :=
+  pendingBlocks_renamingAwareCommonCoreEquivalent.blockAccepts_iff
 
 private theorem pendingBlocks_not_commonCoreEquivalent :
     ¬ FreshAliasSequence.CommonCoreEquivalent
