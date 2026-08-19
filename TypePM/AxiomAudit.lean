@@ -25,6 +25,7 @@ import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
 import TypePM.Runtime.EnvironmentRegression
+import TypePM.Runtime.DepthFirstSearchRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
@@ -280,6 +281,13 @@ every full build.
 #print axioms TypePM.Runtime.Lookup.index_lt_length
 #print axioms TypePM.Runtime.EnvironmentRegression.older_relational
 #print axioms TypePM.Runtime.EnvironmentRegression.weakening_shifts_index
+#print axioms TypePM.Runtime.depthFirstFuel_sound
+#print axioms TypePM.Runtime.DepthFirst.complete
+#print axioms TypePM.Runtime.depthFirstFuel_ok_add
+#print axioms TypePM.Runtime.depthFirstFuel_notStuck
+#print axioms TypePM.Runtime.DepthFirstSearchRegression.depth_first_order_exact
+#print axioms TypePM.Runtime.DepthFirstSearchRegression.successful_run_has_relational_derivation
+#print axioms TypePM.Runtime.DepthFirstSearchRegression.safe_search_never_stuck
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
 #print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup

@@ -49,7 +49,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，primitive scheme，List pattern scheme，有限signatureと整合性検査は実装済み．source接続は未実装 |
 | M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，実行式を持たないclause構造と順序検査は実装済み．pattern，`matchAll`，matcher clause本体，型推論，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
-| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境の実行・関係lookupは実装済み．評価，matching，adequacy，型保存，progress，no-stuckは未実装 |
+| M5 | partial | multisetの順序付き分解，共通のfuel結果型，newest-first環境，順序付き深さ優先探索の実行・関係仕様は実装済み．value，評価，matchingの一歩規則，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
 
@@ -303,6 +303,12 @@ constructorとして定義する．左から右へlistを処理する`traverse`�
 `Runtime/Environment.lean`は，de Bruijn index 0を最新の値とする実行環境をlistとして定義する．
 実行可能な`getElem?`と関係的lookup `Lookup`の同値，lookup結果の一意性，先頭への値追加による
 indexのずれ，既存環境の末尾への追加に対するlookup保存を証明済みである．
+
+`Runtime/DepthFirstSearch.lean`は，一つの答えを返す状態と，順序付き後続状態へ展開する状態を
+区別し，後続状態を残りのworklistの前に置く深さ優先探索を定義する．実行可能な
+`depthFirstFuel`の成功から関係的`DepthFirst`を得る健全性，有限な関係導出が十分なfuelで成功する
+完全性，fuelを増やしても成功結果が変わらないこと，各状態の一歩が`stuck`しなければ
+探索全体も`stuck`しないことを証明する．このmoduleは後続のmatching stateの具体定義に依存しない．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な
