@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みのsource本体をfrozen interfaceとruntime表へ対応させる境界，private binderを持たないinline断片の全source構文上の展開，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文，user patternと単一`matchAll`節，Paper 1の派生surface構文`match`（単一結果を返すsource順の複数arm），単項・単相の直接自己再帰`fixE` checkpointを実装済みである．派生`match`は最後のarmが構造的に必ず一致することを検査する．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定した．matcher-root再帰を含む統合M4 elaborationと，一般のprivate bindingを持つpattern function実行は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．検査済みinline pattern functionはsource展開後に同じ評価器で実行し，健全性・有限完全性・fuel単調性を証明済みである．private bindingを隔離する一般pattern-function atom，実行時型付けと型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．検査済みinline pattern functionはsource展開後に同じ評価器で実行する．閉じた整数と再帰的tupleについては，実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．closure，primitive，matcherと探索状態，一般pattern functionへの型安全性拡張は未完了である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -328,14 +328,21 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 | 5.3 | Acceptance equivalence and annotation-freeness | `Typing`の存在と公開`infer`の成功が同値であり，受理を計算で判定できる | partial：M1断片に加え，M2--M3の`letE`を含まない断片で受理同値と決定可能性を証明済み．一般の`letE`は`WellFormedElaborationAcceptanceComplete`を仮定した受理同値・決定可能性まで証明済みである | `TypePM/InferenceExactness.lean`／`Inference.typable_iff_infer_isSome`，`Inference.typableDecidable`，`TypePM/Source/ElaborationCompleteness.lean`，`TypePM/Source/SupplyWellFormed.lean` |
 | 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial：M1断片に加え，M2--M3の`letE`を含まない断片で，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から同じ結論が従う条件付き定理まで証明済みである | `TypePM/RenamingUniqueness.lean`／`PrincipalTyping.finiteRenaming_unique`，`TypePM/Source/Principality.lean`／`Source.PrincipalTyping.finiteRenamingEq_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete` |
 | 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial：M1断片に加え，M2--M3の`letE`を含まない断片で`Source.Inference.infer_success_principalResult_of_letFree`を証明済み．一般の`letE`では`WellFormedElaborationPrincipalityComplete`から主要性が従う条件付き定理まで証明済みだが，条件自体が未証明である | `TypePM/Principality.lean`／`Inference.infer_principal`，`TypePM/Source/Principality.lean`／`Source.Inference.infer_success_principalResult_of_letFree`，`TypePM/Source/ConditionalPrincipality.lean`／`infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete` |
-| 5.6 | State erasure | 推論状態の消去ではなく，最初から状態を含まない`Typing`を実行時型付けへ写す | not-started：`Typing`は状態非依存であるが，実行時型付けが未定義である | `TypePM/RuntimeTyping.lean`／`Typing.toRuntimeTyping` |
-| 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | not-started | `TypePM/CoreSafety.lean`／`Typing.coreSafety` |
-| 5.8 | No stuck states | 型付きclosed programは，任意のfuelで規則の適用不能を表す`stuck`を返さない | not-started | `TypePM/NoStuck.lean`／`Typing.neverStuck`，`Inference.infer_neverStuck` |
+| 5.6 | State erasure | 推論状態の消去ではなく，最初から状態を含まない`Typing`を実行時型付けへ写す | partial：閉じた整数と再帰的tupleについて，値・環境・式の構文的な実行時型付けを定義し，`Source.Typing`からの写像を証明した．closure，matcherとその探索状態は未接続である | `TypePM/RuntimeTyping.lean`／`Source.Typing.toRuntimeTyping` |
+| 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | partial：上記の整数・tuple coreで，式と式列の相互保存を証明した．各fuelの結果はtimeoutまたは型付き値である．matching状態と探索の型保存は未定義である | `TypePM/CoreSafety.lean`／`Runtime.RuntimeTyping.coreSafety`，`Source.Typing.coreSafety` |
+| 5.8 | No stuck states | 型付きclosed programは，任意のfuelで規則の適用不能を表す`stuck`を返さない | partial：上記の整数・tuple coreで，関係的な`Typing`と公開`infer`成功の両方から，任意のfuelに対するno-stuckを証明した．`matchFirst`の空arm列が`stuck`になる実行時境界も固定し，静的な網羅性検査が必要であることを明示した | `TypePM/NoStuck.lean`／`Source.Typing.neverStuck`，`Source.Inference.infer_neverStuck`，`RuntimeTypingRegression.matchFirst_empty_arms_is_stuck` |
 
 一般の`Typing`結果は，主要な型をさらに具体化した型も含むため，互いに変数名の付け替えだけで
 一致するとは限らない．5.4の対応目標は，5.5で特徴付ける主要な代表型どうしに限定する．
 5.6は，新体系では旧推論状態を消す定理ではない．独立した静的型付けを，実行時のvalue，環境，
 matching状態の型付けへ結ぶ定理として再定式化する．5.7と5.8はM5で初めて完了できる．
+
+`RuntimeTyping`は`evalFuel ≠ stuck`として定義せず，source式とruntime valueの構造を型で索引する
+独立な帰納的関係として定義した．現在の完全な証明範囲は，閉じた整数とそれらの再帰的tupleである．
+一般形に必要な追加証明は，closureの定義環境と本体の型保存，Paper 1の固定signatureの
+primitive schemeとprimitive実行の型保存，matcher clauseの実行時shape保存，atom reducerの全入力処理，matching状態と
+探索の保存である．`matchFirst`については，実装済みの評価規則とM4の静的な網羅性検査を
+接続し，空arm列や全arm不一致による`stuck`が型付きprogramでは起きないことの証明が残っている．
 
 ## Egison機能の一貫確認ロードマップ
 

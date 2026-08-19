@@ -51,6 +51,7 @@ import TypePM.Runtime.PatternFunctionEvaluationRegression
 import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
+import TypePM.RuntimeTypingRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
@@ -614,3 +615,13 @@ every full build.
 #print axioms TypePM.Source.M3Regression.elaborate_conditional_succeeds
 #print axioms TypePM.Source.M3Regression.primitive_type_mismatch_rejected
 #print axioms TypePM.Source.M3Regression.true_relational_soundness
+#print axioms TypePM.Runtime.RuntimeTyping.elaboration_exact
+#print axioms TypePM.Source.Typing.toRuntimeTyping
+#print axioms TypePM.Runtime.RuntimeTyping.coreSafety
+#print axioms TypePM.Source.Typing.coreSafety
+#print axioms TypePM.Source.Typing.neverStuck
+#print axioms TypePM.Source.Inference.infer_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.nestedTuple_state_erasure
+#print axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
+#print axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
