@@ -115,10 +115,16 @@ structure DirectGeneratedComparisonCertificate
     FreshAliasSequence.CommonCoreEquivalent
       (frame.plug left) (frame.plug right)
 
-/-- The remaining general-`let` premise stated only at the corrected
+/-- A sufficient general-`let` premise stated only at the corrected
 complete-block boundary.  Besides the independently necessary supply
 agreement, it asks for direct finite-alias normalization of the blocks
-actually returned by the two source derivations. -/
+actually returned by the two source derivations.
+
+This proposition is intentionally kept as a useful sufficient interface.
+It is not valid for every derivation of the current source judgment: hard
+aliases cannot rename a representative occurring in a delayed checking
+obligation.  `SourceSafeAlignmentCounterexample.not_directLetNormalizationHandler`
+kernel-checks that boundary. -/
 def DirectLetNormalizationHandler : Prop :=
   ∀ {signature : Signature} {context : Context} {value body : Expr} {start : Supply}
       {leftGenerated rightGenerated : Generated}
@@ -131,6 +137,33 @@ def DirectLetNormalizationHandler : Prop :=
               leftGenerated rightGenerated)
 
 namespace DirectGeneratedComparisonCertificate
+
+/-- Hard-only fresh-alias normalization cannot alter the delayed checking
+obligations.  This elementary consequence is the exact boundary exposed by
+the general source counterexample. -/
+theorem commonCore_pending_eq
+    {left right : Generated}
+    (equivalent : FreshAliasSequence.CommonCoreEquivalent left right) :
+    left.pending = right.pending := by
+  rcases equivalent with
+    ⟨core, leftAliases, rightAliases, _leftAdmissible,
+      _rightAdmissible, _leftHard, _rightHard, leftPending, rightPending⟩
+  calc
+    left.pending = (FreshAliasSequence.addAll leftAliases core).pending :=
+      leftPending.symm
+    _ = core.pending := FreshAliasSequence.addAll_pending _ _
+    _ = (FreshAliasSequence.addAll rightAliases core).pending :=
+      (FreshAliasSequence.addAll_pending _ _).symm
+    _ = right.pending := rightPending
+
+/-- Every direct certificate therefore requires literal equality of the two
+unframed delayed-obligation lists. -/
+theorem pending_eq
+    {start next : Supply} {left right : Generated}
+    (certificate :
+      DirectGeneratedComparisonCertificate start next left right) :
+    left.pending = right.pending :=
+  commonCore_pending_eq (certificate.normalize .hole (by trivial))
 
 /-- A frame-stable generated equation decomposition is a convenient
 sufficient presentation of the direct normalization invariant. -/

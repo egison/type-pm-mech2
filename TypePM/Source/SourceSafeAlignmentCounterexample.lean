@@ -632,4 +632,183 @@ theorem actual_no_sourceSafeWholeLetAlignment :
       freshClosureAlignment emptyBody) :=
   no_sourceSafeWholeLetAlignment freshClosureAlignment emptyBody
 
+/-! ## A delayed-obligation obstruction to the direct certificate
+
+The direct complete-block certificate succeeds for the literal body above,
+whose delayed-obligation list is empty.  It does not extend to arbitrary
+source bodies: the two closure representatives can occur literally in a
+delayed application check.  `FreshAliasSequence.CommonCoreEquivalent` only
+adds hard alias equations, so it requires the two delayed-obligation lists
+to be literally equal.
+-/
+
+private def pendingBodyExpression : Expr :=
+  .app (.lam (.lit 0)) (.var 0)
+
+private def inheritedPendingBody : Generated :=
+  { target := .var ⟨6⟩
+    hard :=
+      [.ty (.fn (.var ⟨4⟩) .int)
+        (.fn (.var ⟨5⟩) (.var ⟨6⟩))]
+    pending := [⟨.var representative, .var ⟨5⟩⟩] }
+
+private def representativePendingBody : Generated :=
+  { target := .var ⟨6⟩
+    hard :=
+      [.ty (.fn (.var ⟨4⟩) .int)
+        (.fn (.var ⟨5⟩) (.var ⟨6⟩))]
+    pending := [⟨.var inherited, .var ⟨5⟩⟩] }
+
+private theorem inheritedPendingBody_elaborates :
+    Elaborates
+      ((context.applyFree inheritedClosure.substitution).generalize
+          inheritedClosure.target ::
+        context.applyFree inheritedClosure.substitution)
+      pendingBodyExpression valueFinish inheritedPendingBody ⟨7, 0⟩ := by
+  have bodyContext_eq :
+      ((context.applyFree inheritedClosure.substitution).generalize
+          inheritedClosure.target ::
+        context.applyFree inheritedClosure.substitution) =
+      [.mono (.var representative), .mono (.var representative)] := by
+    simp [context, inheritedClosure_substitution,
+      inheritedClosure_target, finalInherited, firstInherited,
+      Context.applyFree, Context.generalize, Context.generalizedTyVars,
+      Context.generalizedCapVars, Context.freeTyVars, Context.freeCapVars,
+      Scheme.applyFree, Scheme.mono, Scheme.freeTyVars, Scheme.freeCapVars,
+      PolyTy.ofTy, PolyTy.applyFree,
+      PolyTy.freeTyVars, PolyTy.freeCapVars, Subst.compose,
+      Subst.singleTy, Ty.apply, Ty.tyVars, Ty.capVars, dedupFirst, dedup,
+      inherited, representative]
+  rw [bodyContext_eq]
+  have function : Elaborates
+      [.mono (.var representative), .mono (.var representative)]
+      (.lam (.lit 0)) valueFinish
+      { target := .fn (.var ⟨4⟩) .int, hard := [], pending := [] }
+      ⟨5, 0⟩ := by
+    exact .lam .lit
+  have argument : Elaborates
+      [.mono (.var representative), .mono (.var representative)]
+      (.var 0) ⟨5, 0⟩
+      { target := .var representative, hard := [], pending := [] }
+      ⟨5, 0⟩ := by
+    simpa [Scheme.instantiate_mono] using
+      (Elaborates.var (context :=
+        [.mono (.var representative), .mono (.var representative)])
+        (index := 0) (supply := Supply.mk 5 0)
+        (scheme := .mono (.var representative)) (by rfl))
+  simpa [pendingBodyExpression, inheritedPendingBody, Supply.nextTy,
+    valueFinish] using
+      Elaborates.app
+        (context :=
+          [.mono (.var representative), .mono (.var representative)])
+        function argument
+
+private theorem representativePendingBody_elaborates :
+    Elaborates
+      ((context.applyFree representativeClosure.substitution).generalize
+          representativeClosure.target ::
+        context.applyFree representativeClosure.substitution)
+      pendingBodyExpression valueFinish representativePendingBody ⟨7, 0⟩ := by
+  have bodyContext_eq :
+      ((context.applyFree representativeClosure.substitution).generalize
+          representativeClosure.target ::
+        context.applyFree representativeClosure.substitution) =
+      [.mono (.var inherited), .mono (.var inherited)] := by
+    simp [context, representativeClosure_substitution,
+      representativeClosure_target, finalRepresentative,
+      firstRepresentative, Context.applyFree, Context.generalize,
+      Context.generalizedTyVars, Context.generalizedCapVars,
+      Context.freeTyVars, Context.freeCapVars, Scheme.applyFree,
+      Scheme.mono, Scheme.freeTyVars, Scheme.freeCapVars, PolyTy.ofTy,
+      PolyTy.applyFree,
+      PolyTy.freeTyVars, PolyTy.freeCapVars, Subst.compose,
+      Subst.singleTy, Ty.apply, Ty.tyVars, Ty.capVars, dedupFirst, dedup,
+      inherited, representative]
+  rw [bodyContext_eq]
+  have function : Elaborates
+      [.mono (.var inherited), .mono (.var inherited)]
+      (.lam (.lit 0)) valueFinish
+      { target := .fn (.var ⟨4⟩) .int, hard := [], pending := [] }
+      ⟨5, 0⟩ := by
+    exact .lam .lit
+  have argument : Elaborates
+      [.mono (.var inherited), .mono (.var inherited)]
+      (.var 0) ⟨5, 0⟩
+      { target := .var inherited, hard := [], pending := [] }
+      ⟨5, 0⟩ := by
+    simpa [Scheme.instantiate_mono] using
+      (Elaborates.var (context :=
+        [.mono (.var inherited), .mono (.var inherited)])
+        (index := 0) (supply := Supply.mk 5 0)
+        (scheme := .mono (.var inherited)) (by rfl))
+  simpa [pendingBodyExpression, representativePendingBody, Supply.nextTy,
+    valueFinish] using
+      Elaborates.app
+        (context := [.mono (.var inherited), .mono (.var inherited)])
+        function argument
+
+private def pendingLetExpression : Expr :=
+  .letE valueExpression pendingBodyExpression
+
+/-- The inherited-name representative produces a delayed body check that
+mentions the fresh representative literally. -/
+theorem inherited_pending_let_elaborates :
+    Elaborates context pendingLetExpression valueStart
+      (Generated.fromLet
+        (context.interfaceEquations inheritedClosure.substitution)
+        inheritedPendingBody)
+      ⟨7, 0⟩ := by
+  have bodyStart := value_elaborates.letBodySupply_eq inheritedClosure
+    inheritedClosure_absorbing valueStart_wellFormed
+  have body := inheritedPendingBody_elaborates
+  rw [← bodyStart] at body
+  simpa [pendingLetExpression] using
+    Elaborates.letE value_elaborates inheritedClosure
+      inheritedClosure_absorbing body
+
+/-- The opposite representative produces the same delayed check modulo the
+closure renaming, but not as the same Lean list. -/
+theorem representative_pending_let_elaborates :
+    Elaborates context pendingLetExpression valueStart
+      (Generated.fromLet
+        (context.interfaceEquations representativeClosure.substitution)
+        representativePendingBody)
+      ⟨7, 0⟩ := by
+  have bodyStart := value_elaborates.letBodySupply_eq representativeClosure
+    representativeClosure_absorbing valueStart_wellFormed
+  have body := representativePendingBody_elaborates
+  rw [← bodyStart] at body
+  simpa [pendingLetExpression] using
+    Elaborates.letE value_elaborates representativeClosure
+      representativeClosure_absorbing body
+
+private theorem pendingBlocks_not_commonCoreEquivalent :
+    ¬ FreshAliasSequence.CommonCoreEquivalent
+      (Generated.fromLet
+        (context.interfaceEquations inheritedClosure.substitution)
+        inheritedPendingBody)
+      (Generated.fromLet
+        (context.interfaceEquations representativeClosure.substitution)
+        representativePendingBody) := by
+  intro equivalent
+  have pendingEquality :=
+    DirectGeneratedComparisonCertificate.commonCore_pending_eq equivalent
+  have impossible : representative = inherited := by
+    simpa [Generated.fromLet, inheritedPendingBody,
+      representativePendingBody] using pendingEquality
+  exact inherited_ne_representative impossible.symm
+
+/-- The proposed direct normalization handler is false for the current
+declarative source judgment.  Both witnesses start from a well-formed supply
+and finish at the same supply; failure already occurs at the empty frame
+because hard-only alias normalization cannot change delayed obligations. -/
+theorem not_directLetNormalizationHandler :
+    ¬ DirectLetNormalizationHandler := by
+  intro normalize
+  obtain ⟨_nextEquality, ⟨certificate⟩⟩ := normalize
+    valueStart_wellFormed inherited_pending_let_elaborates
+      representative_pending_let_elaborates
+  exact pendingBlocks_not_commonCoreEquivalent
+    (certificate.normalize .hole (by trivial))
+
 end TypePM.Source.SourceSafeAlignmentCounterexample

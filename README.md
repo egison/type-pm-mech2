@@ -87,8 +87,13 @@ context変数を動かすため，`hidden`の外を固定する上記の十分�
 body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうしの`ScopedGeneratedComparison`を
 直接構成する必要がある．この反例の二つの完全な`Generated.fromLet` blockについては，継承変数を
 動かす名前変更を使わず，freshな別名端点を各許容frame内で除去する直接比較を証明した．一般の場合に
-残る前提は，二つの終了supplyの一致と，各許容frameを適用した後の完全なblockどうしを有限なfresh別名
-等式列で共通blockへ正規化できることであり，`DirectLetNormalizationHandler`として切り出した．
+十分な前提として，二つの終了supplyの一致と，各許容frameを適用した後の完全なblockどうしを有限なfresh別名
+等式列で共通blockへ正規化できることを`DirectLetNormalizationHandler`として切り出した．ただし，この前提は
+現在の関係的elaborationの任意の二導出については偽である．同じwell-formedなsource `let`の二導出で，closureの
+代表名がbodyの保留checkingに現れる例を構成した．fresh別名列はhard制約だけを変更し，保留checkingを文字通り
+同じに保つため，この二つの完全blockは空frameですでに共通blockへ正規化できない．この否定も
+`not_directLetNormalizationHandler`としてkernel proofで固定した．従って一般のM2完全性には，保留checkingを
+名前変更に沿って比較できる，より一般的な直接比較関係が必要である．
 
 `SchemeTransport`，`GeneralizationTransport`，`ContextInterface`，`BlockClosureTransport`に加えて，
 `Source/ElaborationTransport`以下では，実際に割り当てた有限なfresh区間の名前合わせ，source elaborationと
@@ -106,7 +111,9 @@ body比較を先に組み合わせ，完全な`Generated.fromLet` blockどうし
 受理可能な代表を実行可能elaborationの受理可能な代表へ運ぶ条件
 `WellFormedElaborationAcceptanceComplete`まで還元している．closureの局所性，生成変数の
 由来，`let`境界のsupply安定性は証明済みだが，これらを任意の二つの右辺closureの有限な別名分解と
-共通blockの構成へ接続する完全性証明はまだ完了していない．一般の
+共通blockの構成へ接続する完全性証明はまだ完了していない．hard制約だけを変更する共通blockでは
+保留checkingの代表名の違いを扱えないことが反例で確定したため，次の証明ではhard制約と保留checkingを
+同じ有限な名前対応で同時に比較する必要がある．一般の
 主要性にはさらに，入れ子`letE`で異なる主要closureを選んでも結果型が互いに代入で得られるという
 最終的な整合性が必要である．この不足は，開始supplyがcontext内の全自由変数より新しいことを
 要求する`WellFormedElaborationPrincipalityComplete`という一つの条件へ切り出している．公開推論は

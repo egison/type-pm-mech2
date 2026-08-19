@@ -197,6 +197,8 @@ every full build.
 #print axioms TypePM.Source.FrameAdmissibilityCounterexample.not_frameAdmissible
 #print axioms TypePM.Source.FutureFixingCounterexample.no_fresh_fixesOutside
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.ofEquationCommonCore
+#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.commonCore_pending_eq
+#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.pending_eq
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.scopedGeneratedComparison
 #print axioms TypePM.Source.DirectGeneratedComparisonCertificate.letComparisonHandler
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.no_supported_target_alignment
@@ -206,6 +208,9 @@ every full build.
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_let_elaborates
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_direct_scopedGeneratedComparison
 #print axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_no_sourceSafeWholeLetAlignment
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_pending_let_elaborates
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_pending_let_elaborates
+#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.not_directLetNormalizationHandler
 #print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
 #print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
 #print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
