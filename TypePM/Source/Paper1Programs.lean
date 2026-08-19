@@ -147,7 +147,42 @@ def multisetDefinition : Expr := .fixE (.matcher multisetClauses)
 argument supplies `list`, and the second supplies the element matcher `m`. -/
 def multisetWithListArgument : Expr := .lam multisetDefinition
 
+/-! ## Source-defined library `list` matcher
+
+Paper 1 treats `list` as a library matcher.  The executable regressions keep
+that dependency in the source language instead of replacing it with a hidden
+multiset primitive.  The final catch-all delegates variable, wildcard, and
+value patterns to `something`; the structural clauses handle `nil` and
+`cons` in source order. -/
+
+def listMatcherNilClause : MatcherClause := nilClause
+
+def listMatcherConsClause : MatcherClause :=
+  .mk (.ctor PatternCtor.cons [.hole, .hole])
+    (.tuple [.var 0, .app (.var 1) (.var 0)])
+    [.mk (.ctor DataCtor.cons [.var, .var])
+      (sourceList [.tuple [.var 0, .var 1]])]
+
+def listMatcherCatchAllClause : MatcherClause := catchAllClause
+
+def listMatcherClauses : List MatcherClause :=
+  [listMatcherNilClause, listMatcherConsClause, listMatcherCatchAllClause]
+
+/-- Closed unary library matcher constructor `list`. -/
+def listMatcherDefinition : Expr := .fixE (.matcher listMatcherClauses)
+
+/-- Closed Paper-1 `multiset` constructor with its source-defined `list`
+dependency supplied. -/
+def closedMultisetDefinition : Expr :=
+  .app multisetWithListArgument listMatcherDefinition
+
+/-- The concrete `multiset something` matcher used by several listings. -/
+def multisetSomething : Expr := .app closedMultisetDefinition .something
+
 theorem multiset_clause_count : multisetClauses.length = 7 := by
+  rfl
+
+theorem list_matcher_clause_count : listMatcherClauses.length = 3 := by
   rfl
 
 theorem multiset_clause_shapes_checked :
@@ -164,6 +199,22 @@ theorem multiset_clause_shapes_checked :
     valueConsClause, generalConsClause, joinClause, wholeValueClause,
     catchAllClause, ConstructorSchemes.listNil, ConstructorSchemes.listCons,
     ListPatternSchemes.nil, ListPatternSchemes.cons, ListPatternSchemes.join,
+    PolyDataTypes.list]
+
+theorem list_matcher_clause_shapes_checked :
+    MatcherClause.checkShapes Paper1FrozenSignature.signature
+      listMatcherClauses = true := by
+  simp [MatcherClause.checkShapes, MatcherClause.toShape, MatcherArm.toHeader,
+    MatcherClauseShapes.check, MatcherClauseShapes.catchAllLast,
+    MatcherClauseShapes.isCatchAll, MatcherClauseShape.check,
+    MatcherArmHeader.check, MatcherArmHeader.canonical,
+    HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+    PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+    PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+    DPat.constructorArity?, listMatcherClauses, listMatcherNilClause,
+    listMatcherConsClause, listMatcherCatchAllClause, nilClause,
+    catchAllClause, ConstructorSchemes.listNil, ConstructorSchemes.listCons,
+    ListPatternSchemes.nil, ListPatternSchemes.cons,
     PolyDataTypes.list]
 
 end TypePM.Source.Paper1Programs

@@ -523,6 +523,8 @@ every full build.
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.uncovered_final_arm_rejected
 #print axioms TypePM.Source.Paper1Programs.multiset_clause_count
 #print axioms TypePM.Source.Paper1Programs.multiset_clause_shapes_checked
+#print axioms TypePM.Source.Paper1Programs.list_matcher_clause_count
+#print axioms TypePM.Source.Paper1Programs.list_matcher_clause_shapes_checked
 #print axioms TypePM.Source.elaborateFixUsing_sound
 #print axioms TypePM.Source.FixInference.inferFix_success_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact

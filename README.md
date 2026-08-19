@@ -448,7 +448,7 @@ inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡�
 
 | ID | 掲載内容 | 新体系で固定する結果 | 段階 | 状態 | 予定回帰theorem |
 |---|---|---|---|---|---|
-| P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | not-started | `MultisetExecution.list_and_multiset_cons_exact` |
+| P1-L01 | listとmultisetによる`$x :: $xs` | listは先頭だけ，multisetは三つの選択を正確な順で返す | M3--M5 | partial：隠れたruntime primitiveではなく3-clauseのsource matcherとして`list`依存を定義し，shape検査を固定済み．listing全体の統合型付けと正確な結果列は未完了 | `Source.Paper1Programs.listMatcherDefinition`，`list_matcher_clause_shapes_checked`，`MultisetExecution.list_and_multiset_cons_exact` |
 | P1-L02 | `$x :: #(x + 1) :: _` | `[1,2,5,6]`から`[1,5]`を返す | M3--M5 | not-started | `NonLinearPatternExecution.successor_pairs_exact` |
 | P1-L03 | `inductive pattern [a]`宣言 | `[]`，`::`，`++`のpattern signatureを受理する | M3 | done（宣言）：Listの3 pattern schemeのwell-scopedness，閉性，正確な具体化，Paper 1 signature全体の整合性をkernel proofで検証済み | `Source.M3DeclarationsRegression.list_pattern_wellFormed`，`list_pattern_closed`，`list_cons_dual_instantiation_exact`，`paper1_signature_wellFormed` |
 | P1-L04 | 7 clauseの`multiset`定義 | 定義が型を持ち，各clauseが上表の意味を持つ | M3--M5 | partial：7個すべてを実際の`MatcherClause`としてatomic dispatchし，順序・環境・shapeを検証済み．さらに`member`／`deleteFirst`，nested `matchAll`，2本の`map`，tuple-pattern lambda，whole-value `match`を含む論文本体を省略なしのsource ASTとして固定した．定義全体の統合型付けと終端までの評価は未完了 | `Source.Paper1Programs.multisetDefinition`，`multiset_clause_shapes_checked`，`Runtime.ClauseDispatchRegression`の7 clause回帰，`GeneralMultiset.multiset_definition_typing` |
