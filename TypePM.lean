@@ -173,6 +173,7 @@ import TypePM.Source.M4MatcherTyping
 import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
+import TypePM.Source.MatcherDemandRegression
 import TypePM.AxiomAudit
 
 /-!

@@ -30,6 +30,7 @@ import TypePM.Source.M4MatchFirstTypingRegression
 import TypePM.Source.Paper1Programs
 import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4RecursiveElaborationRegression
+import TypePM.Source.MatcherDemandRegression
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -632,6 +633,9 @@ every full build.
 #print axioms TypePM.Source.M4.infer_success_typing
 #print axioms TypePM.Source.M4RecursiveElaborationRegression.nonexhaustive_match_first_rejected
 #print axioms TypePM.Source.M4RecursiveElaborationRegression.escaping_self_rejected
+#print axioms TypePM.Source.MatcherDemand.unconsWith_infer_principal
+#print axioms TypePM.Source.MatcherDemand.unconsWith_principalTyping
+#print axioms TypePM.Source.MatcherDemand.unconsWith_typing
 #print axioms TypePM.Source.M3Regression.infer_true_exact
 #print axioms TypePM.Source.M3Regression.infer_nil_exact
 #print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds

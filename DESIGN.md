@@ -342,6 +342,12 @@ Paper 1の7 clauseとsource-defined `list`を含む三つの正確なfixtureは�
 next-matcherのslot要求から得た制約と衝突する．このため三fixtureの公開`infer`成功は未達である．残るM4課題は，
 再帰matcherの結果型と方向付きslot checkingを両立させる規則を定め，この閉包gapを解消することである．
 
+再帰matcher本体を必要としない高階要求の境界は先に閉じている．`MatcherDemandRegression`は，論文の
+`unconsWith m target`を二重lambdaと`matchAll`からなる最終source ASTとして固定し，公開`M4.infer`が
+`MatcherSlot [χ] [α] → [α] → [(α,[α])]`の残余変数代表を正確に返すことを証明する．同じ結果には，
+吸収的な主要block closureの証拠と独立した`M4.Typing`導出がある．これは一般M4主要性の完成を
+主張するものではなく，この具体的なlet-free programの公開推論結果を固定する回帰である．
+
 DESIGNの旧版ではpattern functionをM4の一覧に明記していなかったが，論文のP1/P2回帰をM0--M5に
 収めるため，M4の正式な対象とする．pattern functionの引数付きprogramについて，旧実装の拒否を
 仕様として継承しない．新`Typing`で受理または拒否を判定し，拒否の場合は宣言的な非導出を示す．
