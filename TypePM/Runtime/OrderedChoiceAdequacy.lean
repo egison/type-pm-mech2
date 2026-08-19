@@ -28,6 +28,16 @@ inductive Splits : List α → List α → List α → Prop where
       Splits target left right →
       Splits (value :: target) (value :: left) right
 
+/-- Removing the first equal value: every skipped prefix value is known to
+be different from the requested one. -/
+inductive DeletesFirst [DecidableEq α] (chosen : α) :
+    List α → List α → Prop where
+  | here (tail : List α) : DeletesFirst chosen (chosen :: tail) tail
+  | there {head : α} {target rest : List α} :
+      chosen ≠ head →
+      DeletesFirst chosen target rest →
+      DeletesFirst chosen (head :: target) (head :: rest)
+
 theorem mem_chooseOne_iff
     {chosen : α} {target rest : List α} :
     (chosen, rest) ∈ chooseOne target ↔ RemovesOne chosen target rest := by
@@ -94,6 +104,65 @@ theorem mem_splitAll_iff
             right
             exact List.mem_map.mpr ⟨(_, _), ih.mpr tailSplit, rfl⟩
 
+theorem deleteFirst?_eq_some_iff [DecidableEq α]
+    {chosen : α} {target rest : List α} :
+    deleteFirst? chosen target = some rest ↔
+      DeletesFirst chosen target rest := by
+  induction target generalizing rest with
+  | nil =>
+      constructor
+      · simp [deleteFirst?]
+      · intro deleted
+        cases deleted
+  | cons head tail ih =>
+      by_cases same : chosen = head
+      · subst head
+        constructor
+        · intro result
+          simp [deleteFirst?] at result
+          subst rest
+          exact .here tail
+        · intro deleted
+          cases deleted with
+          | here => simp [deleteFirst?]
+          | there different => exact (different rfl).elim
+      · constructor
+        · intro result
+          rw [deleteFirst?, if_neg same] at result
+          cases tailResult : deleteFirst? chosen tail with
+          | none => simp [tailResult] at result
+          | some tailRest =>
+              simp [tailResult] at result
+              subst rest
+              exact .there same (ih.mp tailResult)
+        · intro deleted
+          cases deleted with
+          | here => exact (same rfl).elim
+          | there _ tailDeleted =>
+              rw [deleteFirst?, if_neg same]
+              simp [ih.mpr tailDeleted]
+
+theorem deleteFirst?_eq_none_iff [DecidableEq α]
+    {chosen : α} {target : List α} :
+    deleteFirst? chosen target = none ↔ chosen ∉ target := by
+  induction target with
+  | nil => simp [deleteFirst?]
+  | cons head tail ih =>
+      by_cases same : chosen = head
+      · subst head
+        simp [deleteFirst?]
+      · simp [deleteFirst?, same, ih]
+
+theorem mem_chooseValue_iff [DecidableEq α]
+    {chosen : α} {target rest : List α} :
+    rest ∈ chooseValue chosen target ↔
+      DeletesFirst chosen target rest := by
+  rw [← deleteFirst?_eq_some_iff]
+  unfold chooseValue
+  cases result : deleteFirst? chosen target with
+  | none => simp
+  | some actualRest => simp [eq_comm]
+
 theorem RemovesOne.perm (removed : RemovesOne chosen target rest) :
     target.Perm (chosen :: rest) := by
   induction removed with
@@ -101,6 +170,20 @@ theorem RemovesOne.perm (removed : RemovesOne chosen target rest) :
   | @there head target rest removed ih =>
       exact (List.Perm.cons head ih).trans
         (List.Perm.swap chosen head rest)
+
+theorem DeletesFirst.toRemovesOne {α : Type u} [DecidableEq α]
+    {chosen : α} {target rest : List α}
+    (deleted : DeletesFirst chosen target rest) :
+    RemovesOne chosen target rest := by
+  induction deleted with
+  | here => exact .here _
+  | there _ _ ih => exact .there ih
+
+theorem DeletesFirst.perm {α : Type u} [DecidableEq α]
+    {chosen : α} {target rest : List α}
+    (deleted : DeletesFirst chosen target rest) :
+    target.Perm (chosen :: rest) :=
+  deleted.toRemovesOne.perm
 
 private theorem perm_cons_append (value : α) (lhs rhs : List α) :
     (value :: (lhs ++ rhs)).Perm (lhs ++ value :: rhs) := by

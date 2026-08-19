@@ -261,7 +261,8 @@ clauseは，matcherを構成する一つの分岐である．catch-allは，そ�
 実装した．三要素の正確な列挙順と，重複値を持つ別位置の分岐を統合しないことはkernel proofで
 固定済みである．さらに，位置を一つ除く関係`RemovesOne`と，入力位置を左右へ割り当てる関係
 `Splits`を独立に定義し，実行可能な列挙中のmembershipとこれらの関係が同値であることを双方向に
-証明した．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
+証明した．最初の等しい値だけを除く関係`DeletesFirst`についても，成功時と不在時の実行結果を
+特徴付けた．上表の各clauseは，この分解をmatcher clauseのdispatchとbody評価へ接続するまで
 `not-started`のままとする．
 
 ## 論文1のcode listing inventory

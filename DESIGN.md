@@ -289,7 +289,8 @@ stateは複数の途中課題と既に得た束縛をまとめた実行状態で
 順序，重複する値を持つ別位置の分岐数，`2^n`個のjoin分割を証明済みである．これは探索器の
 基礎であり，clause dispatchや式評価の実装済みを意味しない．実行可能な二つの列挙について，
 位置を一つ除く関係`RemovesOne`，および各位置を左右へ割り当てる関係`Splits`とのmembership同値を
-証明済みであり，後続matching関係のadequacyに再利用する．
+証明済みである．値が現れる最初の位置だけを除く`DeletesFirst`も，実行可能な成功・不在判定と
+同値であり，後続matching関係のadequacyに再利用する．
 
 実行可能評価の成功から関係的評価を得るadequacy，関係的評価から十分大きいfuelでの成功を得る
 完全性，型保存，局所progress，matching結果の型整合性，任意fuelでのno-stuckを証明する．

@@ -253,5 +253,9 @@ every full build.
 #print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_absent
 #print axioms TypePM.Runtime.mem_chooseOne_iff
 #print axioms TypePM.Runtime.mem_splitAll_iff
+#print axioms TypePM.Runtime.deleteFirst?_eq_some_iff
+#print axioms TypePM.Runtime.deleteFirst?_eq_none_iff
+#print axioms TypePM.Runtime.mem_chooseValue_iff
 #print axioms TypePM.Runtime.RemovesOne.perm
+#print axioms TypePM.Runtime.DeletesFirst.perm
 #print axioms TypePM.Runtime.Splits.perm
