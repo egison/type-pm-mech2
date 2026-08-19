@@ -32,6 +32,7 @@ import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Runtime.ValuesRegression
 import TypePM.Runtime.ValueShapeRegression
+import TypePM.Runtime.MatchingStateRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -383,6 +384,13 @@ every full build.
 #print axioms TypePM.Runtime.ValueShapeRegression.two_holes_require_exact_tuple
 #print axioms TypePM.Runtime.ValueShapeRegression.decomposition_order_exact
 #print axioms TypePM.Runtime.ValueShapeRegression.malformed_decomposition_element_rejected
+#print axioms TypePM.Runtime.zipMatchingAtoms_eq_some_iff
+#print axioms TypePM.Runtime.reduceBuiltinAtom_hit_iff
+#print axioms TypePM.Runtime.reduceBuiltinAtom_notStuck
+#print axioms TypePM.Runtime.MatchingStateRegression.something_value_mismatch_is_normal_failure
+#print axioms TypePM.Runtime.MatchingStateRegression.tuple_children_preserve_source_order
+#print axioms TypePM.Runtime.MatchingStateRegression.product_matcher_delegates_scalar_pattern_once
+#print axioms TypePM.Runtime.MatchingStateRegression.builtin_success_has_relational_rule
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure

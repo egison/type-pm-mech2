@@ -31,7 +31,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
 | M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，実行式を持たないclause構造と順序検査に加え，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文を実装済みである．pattern function本体，freeze checker，pattern・matcher・`matchAll`・`fix`の型推論は未定義である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，pattern-pattern header／data-pattern armの構造照合，5 primitiveのground実行に加え，整数・data constructor・tuple・function closure・matcher closure・`something`からなる一般のruntime valueを実装済みである．matcher closureは定義時環境，元のclause列，未試行suffixを保持し，ground fragmentとの往復も検証済みである．式評価，matchingの一歩規則，型安全性は未定義である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，pattern-pattern header／data-pattern armの構造照合，5 primitiveのground実行，完全のruntime value，さらに`something`・tuple・product-to-`something`委譲のmatching atom還元を実装済みである．value pattern不一致とtupleの個数不一致は`stuck`でなく通常の不一致または後続dispatchとして扱う．完全な式評価，matcher clause dispatch，matching state step，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -359,6 +359,12 @@ tupleだけが厳密なconstructor名・要素数で構造分解される．実�
 `Runtime/ValueShape.lean`はclause bodyと次matcher式が共有するruntime表現を固定する．候補列は
 canonicalなList constructorで表し，holeが0個なら空tuple，1個ならscalar，2個以上なら正確な
 要素数のtupleとして復号する．候補順を保存し，不正なlist spineやtuple要素数を明示的に拒否する．
+`Runtime/MatchingState.lean`は，一のpattern，matcher value，target valueを持つmatching atomと，
+順序付き後続atom分岐を定義する．`something`のvariable／wildcard／value pattern，
+tupleの同じ要素数での子atom化，product matcherから`something`への1回の委譲を実行する．
+実行と独立した関係仕様との双方向対応を証明し，埋め込み式評価が`stuck`しなければ
+これらの構文上の還元も`stuck`しないことを証明済みである．user-defined matcher clauseと
+pattern functionのatom規則は後続moduleに残る．
 
 ## 論文1のcode listing inventory
 
