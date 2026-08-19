@@ -303,13 +303,17 @@ every full build.
 #print axioms TypePM.Runtime.GroundPrimitive.evalMap_adequate
 #print axioms TypePM.Runtime.GroundPrimitive.evalMap_complete
 #print axioms TypePM.Runtime.GroundPrimitive.eval_eq_ok_iff
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.bool_views_exact
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.list_encoding_exact
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.append_exact
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.member_present_is_true
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.member_absent_is_false
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.deleteFirst_duplicate_exact
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.map_preserves_order
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.malformed_list_view_fails
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.add_wrong_arity_stuck
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.append_non_list_stuck
+#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_stuck_propagates
 #print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_timeout_propagates
 #print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
 #print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
