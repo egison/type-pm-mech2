@@ -30,7 +30,7 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | partial | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，M2全構文に対する公開`Source.infer`の健全性，正例2件とfull-cut境界の実行可能な拒否を検証済みである．さらに，吸収的なclosureの有限support内への局所性，source生成変数の由来と割当区間，`let`で閉じたcontextのsupplyとbody開始joinの安定性を証明済みである．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・主要型の有限な変数名変更による一意性も検証済みである．一般の`letE`に対する完全性と主要性は未証明である |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，holeとcaptureのsource順要約，実行式を持たないclause構造と順序検査に加え，`Expr`／`Pattern`／matcher clause／armの直接の相互再帰構文を実装済みである．pattern function本体，freeze checker，pattern・matcher・`matchAll`・`fix`の型推論は未定義である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，clause構造と直接の相互再帰構文に加え，user patternの実行可能・関係的elaboration，左から右のbinder context，frozen schemeを使うpattern constructor／pattern function適用，単一`matchAll`節の制約生成・関係的健全性を実装済みである．matcher literal，`fix`，pattern function本体，freeze checker，M4式を再帰的に含める統合elaborationは未定義である |
 | M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解の順序付き選択，共通のfuel結果型，source順のfirst-success dispatch，newest-first環境，順序付き深さ優先探索，pattern-pattern header／data-pattern armの構造照合，5 primitiveのground実行，完全のruntime value，`something`・tuple・product-to-`something`委譲のmatching atom還元，matching state stepと探索，構文規則からclause規則へ`miss`のときだけ移るreducer合成を実装済みである．通常の不一致は空の後続分岐として扱い，重複分岐も統合しない．完全な式評価，具体的matcher clause dispatch，全atom規則，型安全性は未定義である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
@@ -226,9 +226,24 @@ source構文は`Expr`，`Pattern`，`MatcherClause`，`MatcherArm`を一つの�
 headerとbody式を持つ．opaqueな拡張nodeは使わない．実際のclauseから`MatcherClauseShape`への消去では，
 hole数規約とdata-variableの順序を構文からcanonicalに導くため，利用者が矛盾するmetadataを与えられない．
 全構文に`Repr`と構造的な複雑度を定義し，既存のM0--M3 elaboration・support・freshness・名前変更・`let`
-比較の証明が同じ構文上でcompileすることを確認した．一方，M4の型付けを実装済みと誤認しないよう，
-`fixE`，matcher literal，`matchAll`は現在の実行可能elaborationで明示的に`none`を返し，関係的
-`Elaborates`にも対応constructorを置いていない．この静的未受理は実行側と関係側のkernel proofで固定している．
+比較の証明が同じ構文上でcompileすることを確認した．M3までの既存`elaborate`は引き続き`fixE`，
+matcher literal，`matchAll`を明示的に拒否し，M2--M3の証明境界を変更しない．その上に
+`M4Elaboration`を追加し，user patternの実行可能な`elaboratePattern`と独立した関係
+`PatternElaborates`，および単一match siteの`elaborateMatchAll`と`MatchAllElaborates`を定義した．
+patternはcapabilityとtarget型の組を合成し，binder型をsource順にcontextへ追加する．value patternは
+左にあるbinderだけを参照できる．pattern constructorと名前付きpattern functionはfrozen
+`DualScheme`をinstantiateし，子patternのtarget型とcapabilityを宣言fieldへ等式制約として接続する．
+pattern function適用時に本体を再検査せず，保存済みinterfaceだけを使う．`matchAll`はtarget型と
+pattern targetをhard等式で結び，matcher式を`MatcherSlot`へ向けた一方向の保留checkingとして記録し，
+pattern binderを前置したcontextでbodyを型付けして，body型のListを返す．実行可能生成から関係的判断への
+健全性もkernel proofで確認した．
+
+`M4PatternTypingRegression`では，binder後のvalue patternが成功し，binder前の参照が失敗すること，
+list tailの`#x`がoccurs checkで拒否されること，value expressionのList／Integer不一致，`something`の
+`Any` capabilityがcons patternのList capability要求を満たせないことを分離した回帰で固定した．また，
+variable patternを使う`matchAll`の正確な推論結果，matcher-to-slot保留制約，pattern引数参照，frozen
+pattern-function interfaceだけを使う適用を確認した．matcher literalと`fixE`を再帰的に型付けし，
+同じ公開`infer`へ統合する作業は残る．
 
 ## 論文の番号付き結果5.1--5.8との対応目標
 
@@ -393,10 +408,10 @@ inventoryとは，論文に掲載したすべてのcode例を漏れなく追跡�
 | P1-L07 | `unconsWith`の正負二呼出し | `multiset something`は受理し，bare `something`は宣言的に拒否する | M4 | not-started | `MatcherDemand.unconsWith_multiset_accepted`，`unconsWith_something_not_typable` |
 | P1-L08 | 共有lambda domainの二順序 | **新仕様では両順序を受理する**．旧論文の片方拒否は更新対象である | M1 | done：両順序が同じ型で受理される実行結果と`Typing`導出をkernel proofで固定済み | `M1BoundaryRegression.infer_useFirst_exact`，`infer_applicationFirst_exact`，`accepted_orders_same_target` |
 | P1-L09 | `let`で順序を明示した回避例 | M2でも受理する．M1の両順序受理後は必須の回避策ではない | M2 | done（静的）：公開`Source.infer`の正確な成功結果と独立した`Source.Typing`をkernel proofで固定済み．このlistingは評価結果を示す例ではなく，M5の実行回帰の対象外である | `Source.M2Regression.infer_explicitLet_exact`，`Source.M2Regression.explicitLetTyping` |
-| P1-L10 | value pattern内部の`x ++ [1]` | `Integer`と`[Integer]`の不一致で宣言的に拒否する | M3--M4 | not-started | `PatternTyping.value_expression_type_mismatch` |
-| P1-L11 | `$x :: #x` | occurs checkによる無限型を検出し，宣言的に拒否する | M4 | not-started | `PatternTyping.nonlinear_occurs_check_rejected` |
-| P1-L12 | `#x :: $x :: _` | 左でまだ束縛されていない`x`を検出し，宣言的に拒否する | M4 | not-started | `PatternTyping.value_before_binding_rejected` |
-| P1-L13 | `something`でvariable patternと`cons` pattern | variable patternは受理して対象全体を返し，`cons`はcapability不足で拒否する | M4--M5 | not-started | `MatcherDemand.something_variable_accepted`，`something_cons_not_typable` |
+| P1-L10 | value pattern内部の`x ++ [1]` | `Integer`と`[Integer]`の不一致で宣言的に拒否する | M3--M4 | partial：List／Integerの最小制約をunifierが拒否することを確認済み．listing全体と宣言的非導出は未接続 | `M4PatternTypingRegression.value_expression_int_list_mismatch_rejected` |
+| P1-L11 | `$x :: #x` | occurs checkによる無限型を検出し，宣言的に拒否する | M4 | partial：実際のpattern生成と`inferPattern = none`を確認済み．公開式の宣言的非導出は未接続 | `M4PatternTypingRegression.occurs_check_tail_rejected` |
+| P1-L12 | `#x :: $x :: _` | 左でまだ束縛されていない`x`を検出し，宣言的に拒否する | M4 | partial：左から右のcontextと`inferPattern = none`を確認済み．公開式の宣言的非導出は未接続 | `M4PatternTypingRegression.value_before_binder_rejected` |
+| P1-L13 | `something`でvariable patternと`cons` pattern | variable patternは受理して対象全体を返し，`cons`はcapability不足で拒否する | M4--M5 | partial：variable patternの`inferMatchAll`結果と関係的導出，cons要求が作る不可能なcapability等式を確認済み．実行と公開式の非導出は未接続 | `M4PatternTypingRegression.infer_variable_match_exact`，`something_cons_capability_rejected` |
 | P1-L14 | `matchAll 5 as something with #1` | 型が付き，正常な不一致として`[]`を返す | M4--M5 | not-started | `ValuePatternExecution.integer_mismatch_is_empty` |
 | P1-L15 | Bool対象とinteger matcher | matcher targetの`Integer`と対象の`Bool`が一致せず，宣言的に拒否する | M3--M4 | not-started | `MatcherDemand.matcher_target_mismatch_not_typable` |
 

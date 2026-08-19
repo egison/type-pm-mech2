@@ -5,9 +5,11 @@ import TypePM.Source.M4MatcherClauseShapeRegression
 # M4 direct-syntax regressions
 
 These examples make every final M4 source constructor concrete and connect an
-actual matcher clause to its expression-free shape.  M4 typing rules are a
-later checkpoint: `fixE`, matcher literals, and `matchAll` are therefore
-explicitly rejected by both the executable and relational elaborators here.
+actual matcher clause to its expression-free shape.  The M3 expression entry
+point remains deliberately closed to `fixE`, matcher literals, and `matchAll`.
+`M4Elaboration` now supplies separate executable and relational pattern and
+single-match-site judgments; recursive M4 expression elaboration remains a
+later checkpoint.
 -/
 
 namespace TypePM.Source.M4SyntaxRegression
@@ -72,6 +74,8 @@ theorem elaborate_matcher_none
     elaborate signature context (.matcher clauses) supply = none := by
   simp [elaborate]
 
+/-- The older M3 entry point stays honest; M4 clients use
+`elaborateMatchAll` instead. -/
 theorem elaborate_matchAll_none
     (signature : Signature) (context : Context) (target matcher : Expr)
     (pattern : Pattern) (body : Expr) (supply : Supply) :

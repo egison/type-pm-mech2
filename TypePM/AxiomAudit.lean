@@ -21,6 +21,7 @@ import TypePM.ContextInterfaceRegression
 import TypePM.M3DeclarationsRegression
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
+import TypePM.Source.M4PatternTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
 import TypePM.Runtime.FuelResultRegression
@@ -440,6 +441,15 @@ every full build.
 #print axioms TypePM.Source.M4SyntaxRegression.elaborate_fixE_none
 #print axioms TypePM.Source.M4SyntaxRegression.matcher_not_relationally_elaborated
 #print axioms TypePM.Source.M4SyntaxRegression.matchAll_not_relationally_elaborated
+#print axioms TypePM.Source.M4PatternTypingRegression.value_after_binder_elaborates
+#print axioms TypePM.Source.M4PatternTypingRegression.value_before_binder_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.occurs_check_tail_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.value_expression_int_list_mismatch_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.matchAll_constraint_boundary
+#print axioms TypePM.Source.M4PatternTypingRegression.infer_variable_match_exact
+#print axioms TypePM.Source.M4PatternTypingRegression.something_cons_capability_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.stored_pattern_function_interface_only
+#print axioms TypePM.Source.M4PatternTypingRegression.variable_match_relational
 #print axioms TypePM.Source.M3Regression.infer_true_exact
 #print axioms TypePM.Source.M3Regression.infer_nil_exact
 #print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds

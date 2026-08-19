@@ -137,6 +137,8 @@ import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
+import TypePM.Source.M4Elaboration
+import TypePM.Source.M4PatternTypingRegression
 import TypePM.AxiomAudit
 
 /-!
