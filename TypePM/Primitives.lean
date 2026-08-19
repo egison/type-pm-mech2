@@ -49,6 +49,48 @@ def ofPrimOp : PrimOp → Scheme
   | .deleteFirst => deleteFirst
   | .map => map
 
+theorem instantiate_add (supply : Supply) :
+    add.instantiate supply =
+      (.fn .int (.fn .int .int), supply) := by
+  cases supply
+  rfl
+
+theorem instantiate_append (supply : Supply) :
+    append.instantiate supply =
+      (.fn (TypePM.DataTypes.list (.var ⟨supply.ty⟩))
+        (.fn (TypePM.DataTypes.list (.var ⟨supply.ty⟩))
+          (TypePM.DataTypes.list (.var ⟨supply.ty⟩))),
+        ⟨supply.ty + 1, supply.cap⟩) := by
+  cases supply
+  rfl
+
+theorem instantiate_member (supply : Supply) :
+    member.instantiate supply =
+      (.fn (.var ⟨supply.ty⟩)
+        (.fn (TypePM.DataTypes.list (.var ⟨supply.ty⟩))
+          TypePM.DataTypes.bool),
+        ⟨supply.ty + 1, supply.cap⟩) := by
+  cases supply
+  rfl
+
+theorem instantiate_deleteFirst (supply : Supply) :
+    deleteFirst.instantiate supply =
+      (.fn (.var ⟨supply.ty⟩)
+        (.fn (TypePM.DataTypes.list (.var ⟨supply.ty⟩))
+          (TypePM.DataTypes.list (.var ⟨supply.ty⟩))),
+        ⟨supply.ty + 1, supply.cap⟩) := by
+  cases supply
+  rfl
+
+theorem instantiate_map (supply : Supply) :
+    map.instantiate supply =
+      (.fn (.fn (.var ⟨supply.ty⟩) (.var ⟨supply.ty + 1⟩))
+        (.fn (TypePM.DataTypes.list (.var ⟨supply.ty⟩))
+          (TypePM.DataTypes.list (.var ⟨supply.ty + 1⟩))),
+        ⟨supply.ty + 2, supply.cap⟩) := by
+  cases supply
+  rfl
+
 @[simp] theorem ofPrimOp_add : ofPrimOp .add = add := rfl
 @[simp] theorem ofPrimOp_append : ofPrimOp .append = append := rfl
 @[simp] theorem ofPrimOp_member : ofPrimOp .member = member := rfl

@@ -74,6 +74,15 @@ def conditionalScheme : Scheme :=
 theorem conditionalScheme_closed : conditionalScheme.Closed := by
   constructor <;> rfl
 
+theorem conditionalScheme_instantiate (supply : Supply) :
+    conditionalScheme.instantiate supply =
+      (.fn TypePM.DataTypes.bool
+        (.fn (.var ⟨supply.ty⟩)
+          (.fn (.var ⟨supply.ty⟩) (.var ⟨supply.ty⟩))),
+        ⟨supply.ty + 1, supply.cap⟩) := by
+  cases supply
+  rfl
+
 mutual
 
 /-- Syntax-node measure shared by mutually recursive source elaborators and
