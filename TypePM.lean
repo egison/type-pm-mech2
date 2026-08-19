@@ -34,6 +34,7 @@ import TypePM.SaturationProcedure
 import TypePM.SaturationProcedureCompleteness
 import TypePM.Declarative
 import TypePM.DeclarativeCoverage
+import TypePM.GeneratedSemanticAcceptance
 import TypePM.InferenceProcedure
 import TypePM.Inference
 import TypePM.InferenceCompleteness
@@ -89,6 +90,7 @@ import TypePM.Source.RecursiveLetSupportSafety
 import TypePM.Source.DirectLetComparison
 import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
+import TypePM.GeneratedSemanticAcceptanceRegression
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.M2Regression

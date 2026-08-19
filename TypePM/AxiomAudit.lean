@@ -15,6 +15,7 @@ import TypePM.M1BoundaryRegression
 import TypePM.BlockClosureTransport
 import TypePM.AbsorbingSupportRange
 import TypePM.GeneratedSupport
+import TypePM.GeneratedSemanticAcceptanceRegression
 import TypePM.ResolutionSupport
 import TypePM.BlockClosureSupport
 import TypePM.ContextInterfaceRegression
@@ -137,6 +138,9 @@ every full build.
 #print axioms TypePM.Resolution.equations_support
 #print axioms TypePM.CheckObligation.mem_unificationVars_expected
 #print axioms TypePM.Generated.saturationSupport_subset
+#print axioms TypePM.Generated.exists_semanticSolution_of_blockAccepts
+#print axioms TypePM.Generated.blockAccepts_iff_exists_semanticSolution_of_pending_eq_nil
+#print axioms TypePM.GeneratedSemanticAcceptanceCounterexample.semanticSolution_not_iff_blockAccepts
 #print axioms TypePM.PrincipalBlockClosure.localized_of_absorbing
 #print axioms TypePM.inferGeneratedUsing_unify_localizedPrincipalBlockClosure
 #print axioms TypePM.Source.Scheme.wellFormed
