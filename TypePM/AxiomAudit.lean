@@ -31,6 +31,7 @@ import TypePM.Runtime.DataPatternRegression
 import TypePM.Runtime.PatternPatternRegression
 import TypePM.Runtime.GroundPrimitiveRegression
 import TypePM.Runtime.ValuesRegression
+import TypePM.Runtime.ValueShapeRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -375,6 +376,13 @@ every full build.
 #print axioms TypePM.Runtime.ValuesRegression.matcher_is_not_structurally_equal_to_itself
 #print axioms TypePM.Runtime.ValuesRegression.ground_roundtrip_exact
 #print axioms TypePM.Runtime.ValuesRegression.nested_matcher_projection_is_rejected
+#print axioms TypePM.Runtime.Value.viewList_buildList
+#print axioms TypePM.Runtime.decodeProduct_many_exact
+#print axioms TypePM.Runtime.ValueShapeRegression.zero_holes_require_unit_tuple
+#print axioms TypePM.Runtime.ValueShapeRegression.one_hole_uses_scalar
+#print axioms TypePM.Runtime.ValueShapeRegression.two_holes_require_exact_tuple
+#print axioms TypePM.Runtime.ValueShapeRegression.decomposition_order_exact
+#print axioms TypePM.Runtime.ValueShapeRegression.malformed_decomposition_element_rejected
 #print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
 #print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
 #print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure

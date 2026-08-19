@@ -356,6 +356,9 @@ clause／arm評価はこの制御へ後続moduleで接続する．
 variableとwildcardはclosure，matcher value，`something`を含む任意の値を受け取り，data constructorと
 tupleだけが厳密なconstructor名・要素数で構造分解される．実行関数と独立した関係仕様の双方向対応，
 静的binding数との一致，closure／matcherを束縛する正例と構造不一致の負例を検証済みである．
+`Runtime/ValueShape.lean`はclause bodyと次matcher式が共有するruntime表現を固定する．候補列は
+canonicalなList constructorで表し，holeが0個なら空tuple，1個ならscalar，2個以上なら正確な
+要素数のtupleとして復号する．候補順を保存し，不正なlist spineやtuple要素数を明示的に拒否する．
 
 ## 論文1のcode listing inventory
 

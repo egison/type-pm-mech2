@@ -371,6 +371,9 @@ constructor・tupleだけで定義し，closure，matcher，`something`では常
 wildcardはclosure，matcher value，`something`も受け取る一方，data constructorとtupleだけを
 constructor名・要素数が一致するとき構造分解する．実行関数と独立した関係仕様の双方向対応と，
 返すbinding数が静的`DPat.bindingCount`に一致することを証明する．
+`Runtime/ValueShape.lean`はclauseのhole数に応じたruntime積の規約を定義する．0個は空tuple，
+1個はscalar，2個以上は正確な要素数のtupleであり，decomposition全体はcanonicalなList valueで
+表す．全入力を`Option`で検査し，候補順を保持した復号と不正形の拒否を回帰で固定する．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な
