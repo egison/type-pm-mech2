@@ -23,6 +23,7 @@ import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
+import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.GeneralizationTransport
 import TypePM.HardWorklistEquivalence
 import TypePM.FreshAliasElimination
@@ -259,3 +260,16 @@ every full build.
 #print axioms TypePM.Runtime.RemovesOne.perm
 #print axioms TypePM.Runtime.DeletesFirst.perm
 #print axioms TypePM.Runtime.Splits.perm
+#print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
+#print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
+#print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup
+#print axioms TypePM.Source.MatcherClauseShape.capture_arm_bindingSlots_disjoint
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.hole_conventions_zero_one_k_exact
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_clause_shapes_checked
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_headers_exact
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_arm_counts_exact
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_checked_arm_slots_linear_and_disjoint
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.catch_all_not_last_rejected
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.bad_arities_rejected
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.duplicate_binding_slots_rejected
+#print axioms TypePM.Source.M4MatcherClauseShapeRegression.wrong_hole_convention_rejected

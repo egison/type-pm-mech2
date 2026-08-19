@@ -48,7 +48,7 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | partial | bound-index scheme，`letE`，value block一般化，M2全構文に対する公開推論の健全性，吸収的closureの有限support内への局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性は実装済み．`letE`を含まない断片では完全性・受理同値・決定可能性・主要性・有限な変数名変更による一意性も証明済み．一般の`letE`に対する完全性と主要性は未証明 |
 | M3 | partial | 4種類の宣言名，5 primitive，`Ty.data`／`Cap.con`，Bool/List constructor scheme，primitive scheme，List pattern scheme，有限signatureと整合性検査は実装済み．source接続は未実装 |
-| M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，capture-before-first-hole検査，constructor引数数のshape検査は実装済み．pattern，`matchAll`，matcher clause本体，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
+| M4 | partial | pattern function名とfrozen signature，matcher clause headerのpattern pattern／data pattern，hole・captureのsource順要約，実行式を持たないclause構造と順序検査は実装済み．pattern，`matchAll`，matcher clause本体，型推論，`fix`，pattern function本体とfreeze checkerの静的メタ理論は未実装 |
 | M5 | partial | multisetの位置を区別する順序付き選択・join分割・最初の値の除去は実装済み．評価，matching，adequacy，型保存，progress，no-stuckは未実装 |
 
 ### M0：独立した基礎
@@ -261,6 +261,13 @@ capture，pattern constructorからなり，`DPat`は変数，wildcard，data co
 番号に重複がなく，互いに混同できないことを証明する．captureが最初のholeより後に現れないことを実行可能な
 検査で確認し，pattern／data constructorの引数数をfrozen signatureのschemeと照合する．このcheckpointでは
 matcher clause，clause本体，`Source.Expr`へのpattern構文追加を行わない．
+
+次のcheckpointでは，このheaderを順序付きdata-pattern arm headerと組み合わせる`MatcherClauseShape`を
+定義する．これは実行式を含まない．metadata（構文に付随する検査用情報）として，headerが委譲するholeを
+0個，1個，固定された`k`個（2個以上）に分類し，実際のhole数との一致を検査する．各armのbinding slotは
+`DPat`から得る左から右の順序と一致しなければならず，重複を許さない．data-variable slotとheaderのcapture slotは
+異なる種類として保持するため衝突しない．clause列ではbare holeのcatch-all headerを最後に一つだけ置く．
+この検査はclause本体の型付けや実行を仮定せず，それらの健全性を主張しない．
 
 patternの左から右の変数束縛，value pattern内の式の型付け，pattern constructorが要求する
 capabilityとtarget，matcher producerからslotへの一方向のcheckingを独立規則として定義する．
