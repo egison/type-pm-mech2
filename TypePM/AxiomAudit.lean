@@ -628,6 +628,7 @@ every full build.
 #print axioms TypePM.Source.elaborateFixUsing_sound
 #print axioms TypePM.Source.FixInference.inferFix_success_fixTyping
 #print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact
+#print axioms TypePM.Source.M4FixTypingRegression.matcher_root_fix_shape_exact
 #print axioms TypePM.Source.M4FixTypingRegression.pattern_shifts_checked_exact
 #print axioms TypePM.Source.M4FixTypingRegression.clause_shifts_checked_exact
 #print axioms TypePM.Source.M4FixTypingRegression.infer_direct_exact
@@ -648,6 +649,10 @@ every full build.
 #print axioms TypePM.Source.M4.elaborateFuel_sound
 #print axioms TypePM.Source.M4.elaborate_sound
 #print axioms TypePM.Source.M4.infer_success_typing
+#print axioms TypePM.Source.M4RecursiveElaborationRegression.infer_value_pattern_exact
+#print axioms TypePM.Source.M4RecursiveElaborationRegression.value_pattern_typing
+#print axioms TypePM.Source.M4RecursiveElaborationRegression.infer_match_first_exact
+#print axioms TypePM.Source.M4RecursiveElaborationRegression.match_first_typing
 #print axioms TypePM.Source.M4RecursiveElaborationRegression.nonexhaustive_match_first_rejected
 #print axioms TypePM.Source.M4RecursiveElaborationRegression.escaping_self_rejected
 #print axioms TypePM.Source.MatcherDemand.unconsWith_infer_principal
