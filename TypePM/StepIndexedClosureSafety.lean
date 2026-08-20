@@ -231,6 +231,35 @@ theorem fuelValueSafe_list
       (TypePM.DataTypes.list element) :=
   .list lower items
 
+theorem PositiveListValueSafes.of_forall
+    (safe : ∀ value ∈ values,
+      FuelValueSafe (fuel + 1) value element) :
+    PositiveListValueSafes fuel (FuelValueSafe fuel) values element := by
+  induction values with
+  | nil => exact .nil
+  | cons value values induction =>
+      exact .cons (safe value (by simp))
+        (induction (by
+          intro candidate member
+          exact safe candidate (by simp [member])))
+
+/-- A host List is indexed-safe when every element is indexed-safe at the
+same index.  The proof also constructs the cumulative lower layer required
+by the List certificate. -/
+theorem fuelValueSafe_list_of_forall (element : Ty) :
+    ∀ fuel values,
+      (∀ value ∈ values, FuelValueSafe fuel value element) →
+        FuelValueSafe fuel (Value.buildList values)
+          (TypePM.DataTypes.list element)
+  | 0, _, _ => fuelValueSafe_zero _ _
+  | fuel + 1, values, safe => by
+      have lower : FuelValueSafe fuel (Value.buildList values)
+          (TypePM.DataTypes.list element) := by
+        apply fuelValueSafe_list_of_forall element fuel values
+        intro value member
+        exact (safe value member).previous
+      exact .list lower (PositiveListValueSafes.of_forall safe)
+
 /-- `something` is the primitive matcher-safe leaf. -/
 theorem fuelValueSafe_something (target : Ty) :
     ∀ fuel, FuelValueSafe fuel .something (.matcher .any target)

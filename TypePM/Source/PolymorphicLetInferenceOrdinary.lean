@@ -182,6 +182,105 @@ theorem InferenceResidualsOrdinary.of_check
   simp only [inferenceResidualsOrdinaryCheck, success] at checked
   exact ExecutableResidualsOrdinary.of_check checked
 
+mutual
+
+  /-- Sound structural subfragment whose root elaboration creates no delayed
+  checking obligations.  A nested `letE` may have any value expression:
+  that value block is closed internally, so only the supported body can
+  contribute to the root pending list.  Applications and non-nullary calls
+  are intentionally absent. -/
+  inductive RootPendingFree : Expr → Prop where
+    | var : RootPendingFree (.var index)
+    | lit : RootPendingFree (.lit value)
+    | something : RootPendingFree .something
+    | boolTrue : RootPendingFree (.ctor DataCtor.true [])
+    | boolFalse : RootPendingFree (.ctor DataCtor.false [])
+    | listNil : RootPendingFree (.ctor DataCtor.nil [])
+    | tuple (items : RootPendingFrees expressions) :
+        RootPendingFree (.tuple expressions)
+    | letE (body : RootPendingFree bodyExpression) :
+        RootPendingFree (.letE valueExpression bodyExpression)
+
+  inductive RootPendingFrees : List Expr → Prop where
+    | nil : RootPendingFrees []
+    | cons
+        (head : RootPendingFree expression)
+        (tail : RootPendingFrees expressions) :
+        RootPendingFrees (expression :: expressions)
+
+end
+
+mutual
+
+  theorem RootPendingFree.elaboration_pending_nil
+      (supported : RootPendingFree expression)
+      (elaboration : Elaborates signature context expression supply generated next) :
+      generated.pending = [] := by
+    cases supported with
+    | var => cases elaboration; rfl
+    | lit => cases elaboration; rfl
+    | something => cases elaboration; rfl
+    | boolTrue =>
+        cases elaboration with
+        | ctor lookup arity closed call => cases call; rfl
+    | boolFalse =>
+        cases elaboration with
+        | ctor lookup arity closed call => cases call; rfl
+    | listNil =>
+        cases elaboration with
+        | ctor lookup arity closed call => cases call; rfl
+    | tuple items =>
+        cases elaboration with
+        | tuple itemsElaboration =>
+            exact items.elaboration_pending_nil itemsElaboration
+    | letE body =>
+        cases elaboration with
+        | letE valueElaboration closure absorbing bodyElaboration =>
+            simpa [Generated.fromLet] using
+              body.elaboration_pending_nil bodyElaboration
+
+  theorem RootPendingFrees.elaboration_pending_nil
+      (supported : RootPendingFrees expressions)
+      (elaboration : ElaboratesItems signature context expressions supply
+        generated next) :
+      generated.pending = [] := by
+    cases supported with
+    | nil => cases elaboration; rfl
+    | cons head tail =>
+        cases elaboration with
+        | cons headElaboration tailElaboration =>
+            simp [head.elaboration_pending_nil headElaboration,
+              tail.elaboration_pending_nil tailElaboration]
+
+end
+
+/-- A pending-free generated block passes the residual certificate for every
+successful concrete saturation run. -/
+theorem ExecutableResidualsOrdinary.of_pending_nil
+    {generated : Generated} (pending : generated.pending = []) :
+    ExecutableResidualsOrdinary generated := by
+  intro output success obligation membership
+  have saturated := saturateUsing_sound unify
+    (fun equations substitution solved =>
+      (unify_absorbingMGUSolver equations substitution solved).mostGeneral)
+    success
+  have outputPending : output.pending = [] :=
+    Runtime.PromotionClosure.finalPending_eq_nil_of_initial_nil
+      saturated.closure pending
+  rw [outputPending] at membership
+  contradiction
+
+/-- Structural construction of the inference residual certificate.  This is
+the premise-free path for the pending-free subfragment; broader supported
+applications still require a local ordinary-conversion certificate. -/
+theorem RootPendingFree.inferenceResidualsOrdinary
+    (supported : RootPendingFree expression) (wellFormed : signature.WellFormed) :
+    InferenceResidualsOrdinary signature context expression := by
+  intro generated next success
+  have elaboration := elaborate_sound wellFormed success
+  exact ExecutableResidualsOrdinary.of_pending_nil
+    (supported.elaboration_pending_nil elaboration)
+
 /-- Principal source evidence returned from inference together with the
 ordinary residual proof for its exact root closure. -/
 structure OrdinaryPrincipalTypingDerivation
@@ -402,5 +501,120 @@ theorem capturedPolymorphicIdentity_neverStuckFromInfer
     (evalFuel fuel [] capturedPolymorphicIdentity).NotStuck := by
   have _ordinary := capturedPolymorphicIdentity_ordinaryPrincipalFromInfer success
   exact capturedPolymorphicIdentity_neverStuck fuel
+
+/-! ## Structural pending-free regression: nested Boolean value -/
+
+def nestedBoolValueBody : Expr :=
+  .letE (.ctor DataCtor.true []) (.var 0)
+
+theorem nestedBoolValueBody_pendingFree :
+    RootPendingFree nestedBoolValueBody := by
+  exact .letE .var
+
+theorem nestedBoolValueBody_residualsOrdinary :
+    InferenceResidualsOrdinary Paper1Signature.signature []
+      nestedBoolValueBody :=
+  nestedBoolValueBody_pendingFree.inferenceResidualsOrdinary
+    Paper1Signature.wellFormed
+
+theorem infer_nestedBoolValueBody_exact :
+    infer Paper1Signature.signature [] nestedBoolValueBody =
+      some DataTypes.bool := by
+  have emptyUnify : unify [] = some Subst.id := by
+    unfold unify
+    rw [unifyLoop.eq_def]
+  have closeBool : inferGeneratedUsing unify
+      { target := DataTypes.bool, hard := [], pending := [] } =
+      some { substitution := Subst.id, target := DataTypes.bool } := by
+    simp [inferGeneratedUsing, saturateUsing, saturateLoop, emptyUnify,
+      promoteUnder, residualEquations, DataTypes.bool, Ty.apply, Ty.applyList,
+      Cap.apply, Subst.compose, Subst.id]
+  have closeBoolRaw : inferGeneratedUsing unify
+      { target := Ty.data DataFormer.bool [], hard := [], pending := [] } =
+      some { substitution := Subst.id, target := Ty.data DataFormer.bool [] } := by
+    simpa [DataTypes.bool] using closeBool
+  have elaborateExact :
+      elaborateRoot Paper1Signature.signature [] nestedBoolValueBody =
+        some { target := DataTypes.bool, hard := [], pending := [] } := by
+    simp [elaborateRoot, nestedBoolValueBody, elaborate, elaborateCall,
+    Scheme.callArity, Scheme.callArity.go, closeBoolRaw, Context.initialSupply,
+    Context.applyFree, Context.generalize, Context.generalizedTyVars,
+    Context.generalizedCapVars, Context.freeTyVars, Context.freeCapVars,
+    Context.interfaceEquations, ConstructorSchemes.boolTrue,
+    PolyDataTypes.bool, DataTypes.bool, Scheme.instantiate,
+    Scheme.applyFree, Scheme.freeTyVars, Scheme.freeCapVars, PolyTy.close,
+    PolyTy.closeList, PolyTy.openBound, PolyTy.openBoundList,
+    PolyTy.applyFree, PolyTy.applyFreeList, PolyTy.freeTyVars,
+    PolyTy.freeTyVarsList, PolyTy.freeCapVars, PolyTy.freeCapVarsList,
+    PolyCap.applyFree, PolyCap.applyFreeList, PolyCap.freeCapVars,
+    PolyCap.freeCapVarsList, Generated.fromLet, Ty.tyVars, Ty.tyVarsList, Ty.capVars,
+    Ty.capVarsList, Ty.apply, Ty.applyList, Cap.apply, Cap.capVars, Cap.capVarsList,
+    Supply.join, TyVar.next, CapVar.next, dedupFirst, dedup, Subst.id]
+  simp [infer, elaborateExact, closeBool]
+
+private theorem nestedBoolValue_sameClosureCertificate
+    {supply afterValue : Supply} {generatedValue : Generated}
+    (valueElaboration : Elaborates Paper1Signature.signature []
+      (.ctor DataCtor.true []) supply generatedValue afterValue)
+    (closure : PrincipalBlockClosure generatedValue)
+    (_absorbing : closure.Absorbing) :
+    ProtectedNestedLetValueAtClosure valueElaboration closure [] [] := by
+  cases valueElaboration with
+  | ctor lookup arity closed call =>
+      simp only [Paper1Signature.lookup_true, Option.some.injEq] at lookup
+      cases lookup
+      cases call with
+      | nil =>
+          constructor
+          · intro obligation membership
+            have finalPending :=
+              Runtime.PromotionClosure.finalPending_eq_nil_of_initial_nil
+                closure.saturation.closure rfl
+            rw [finalPending] at membership
+            contradiction
+          · simpa [PrincipalBlockClosure.target, Context.applyFree,
+              Context.generalize, Context.generalizedTyVars,
+              Context.generalizedCapVars, Context.freeTyVars,
+              Context.freeCapVars, ConstructorSchemes.boolTrue,
+              PolyDataTypes.bool, DataTypes.bool, Scheme.instantiate, PolyTy.close,
+              PolyTy.closeList, PolyTy.openBound, PolyTy.openBoundList,
+              PolyTy.freeTyVars, PolyTy.freeCapVars, Ty.tyVars,
+              Ty.tyVarsList, Ty.capVars, Ty.capVarsList, Ty.apply,
+              Ty.applyList, Cap.capVars, Cap.capVarsList, dedupFirst,
+              dedup] using
+              (ProtectedRuntimeTyping.runtime RuntimeTyping.boolTrue)
+
+theorem nestedBoolValueBody_runtimeTypingFromInfer
+    (success : infer Paper1Signature.signature [] nestedBoolValueBody =
+      some target) :
+    ProtectedClosureRuntimeTyping [] nestedBoolValueBody target [] := by
+  obtain ⟨certified⟩ := Inference.infer_success_ordinaryPrincipalTyping
+    Paper1Signature.wellFormed success nestedBoolValueBody_residualsOrdinary
+  have semantic := Runtime.strictSemanticSolution_of_closure
+    certified.derivation.closure certified.ordinary
+  have runtimeTyping :=
+    (ProtectedClosureBodySupported.firstOrder
+      (ProtectedBodySupported.var (index := 0))).elaboration_typing_letValue
+        Runtime.paper1SignatureCompatible certified.derivation.elaboration
+          semantic Runtime.ProtectedContextCompatible.nil
+          nestedBoolValue_sameClosureCertificate
+  rw [certified.derivation.target_eq]
+  exact runtimeTyping
+
+theorem nestedBoolValueBody_neverStuckFromInfer
+    (success : infer Paper1Signature.signature [] nestedBoolValueBody =
+      some target)
+    (fuel : Nat) :
+    (evalFuel fuel [] nestedBoolValueBody).NotStuck :=
+  (nestedBoolValueBody_runtimeTypingFromInfer success).neverStuck fuel []
+    EnvironmentTyping.nil
+
+theorem nestedBoolValueBody_runtimeTyping :
+    ProtectedClosureRuntimeTyping [] nestedBoolValueBody DataTypes.bool [] :=
+  nestedBoolValueBody_runtimeTypingFromInfer infer_nestedBoolValueBody_exact
+
+theorem nestedBoolValueBody_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] nestedBoolValueBody).NotStuck :=
+  nestedBoolValueBody_neverStuckFromInfer infer_nestedBoolValueBody_exact fuel
 
 end TypePM.Source.PolymorphicLetInferenceOrdinary

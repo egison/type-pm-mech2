@@ -165,6 +165,8 @@ import TypePM.PatternFunctionSafety
 import TypePM.PatternFunctionSafetyRegression
 import TypePM.PatternFunctionBodyPlanAutomation
 import TypePM.PatternFunctionBodyPlanAutomationRegression
+import TypePM.PatternFunctionNestedBodyPlanAutomation
+import TypePM.PatternFunctionNestedBodyPlanAutomationRegression
 import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Runtime.Paper1NeverStuckRegression
@@ -200,6 +202,8 @@ import TypePM.TotalPlainClosureSafety
 import TypePM.TotalPlainClosureSafetyRegression
 import TypePM.StepIndexedClosureSafety
 import TypePM.StepIndexedPaper1ListSafetyRegression
+import TypePM.ValueIndexedMatchAllSafety
+import TypePM.ValueIndexedPaper1ListJoinMatchAllSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -240,6 +244,7 @@ import TypePM.Source.M4Paper1ClosedMultisetExactRegression
 import TypePM.Source.M4Paper1RecursiveClosureTotalTyping
 import TypePM.Source.M4Paper1MatcherLiteralEvaluationSafetyRegression
 import TypePM.Source.M4Paper1ListJoinSearchSafety
+import TypePM.Source.M4Paper1MultisetSearchSafety
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4Paper1SafetyRegression
 import TypePM.Source.M4CompletenessArchitecture

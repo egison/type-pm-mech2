@@ -104,6 +104,53 @@ def tuple
   ⟨CheckedBodyAtomPlan.expand (CheckedBodyAtomExpansion.tuple zipped)
     children.plan⟩
 
+/-- Repackage the existing checked nested-call rule whose checked callee body
+is one embedded parameter.  This adds no new work-typing constructor. -/
+def applicationParameter
+    (found : definitions.lookup name = some definition)
+    (checked : Nonempty (definition.Checked signature))
+    (arity : nestedArguments.length = definition.parameterCount)
+    (body : definition.body = .embed parameterIndex)
+    (nestedLookup : nestedArguments[parameterIndex]? = some (.embed outerIndex))
+    (outerLookup : arguments[outerIndex]? = some outerArgument)
+    (exported : CheckedScopedWorkTyping signature definitions environmentTypes
+      outerBindingTypes [.atom ⟨outerArgument, matcher, target⟩]
+      afterExportTypes) :
+    CheckedBodyExecution signature definitions environmentTypes arguments
+      outerBindingTypes ⟨.app name nestedArguments, matcher, target⟩
+      afterExportTypes :=
+  ⟨⟨fun tail => .applicationParameter found checked arity body nestedLookup
+    outerLookup exported tail⟩⟩
+
+/-- Repackage the existing checked nested-call rule for the already-supported
+two-parameter conjunction body.  Binding types are threaded from the left
+actual argument to the right one by the two exported certificates. -/
+def applicationAndParameters
+    (found : definitions.lookup name = some definition)
+    (checked : Nonempty (definition.Checked signature))
+    (arity : nestedArguments.length = definition.parameterCount)
+    (body : definition.body =
+      .and (.embed leftParameterIndex) (.embed rightParameterIndex))
+    (matcherEq : matcher = .something)
+    (leftNestedLookup : nestedArguments[leftParameterIndex]? =
+      some (.embed leftOuterIndex))
+    (rightNestedLookup : nestedArguments[rightParameterIndex]? =
+      some (.embed rightOuterIndex))
+    (leftOuterLookup : arguments[leftOuterIndex]? = some leftArgument)
+    (rightOuterLookup : arguments[rightOuterIndex]? = some rightArgument)
+    (leftExported : CheckedScopedWorkTyping signature definitions
+      environmentTypes outerBindingTypes
+      [.atom ⟨leftArgument, matcher, target⟩] afterLeftTypes)
+    (rightExported : CheckedScopedWorkTyping signature definitions
+      environmentTypes afterLeftTypes
+      [.atom ⟨rightArgument, matcher, target⟩] afterRightTypes) :
+    CheckedBodyExecution signature definitions environmentTypes arguments
+      outerBindingTypes ⟨.app name nestedArguments, matcher, target⟩
+      afterRightTypes :=
+  ⟨⟨fun tail => .applicationAndParameters found checked arity body matcherEq
+    leftNestedLookup rightNestedLookup leftOuterLookup rightOuterLookup
+    leftExported rightExported tail⟩⟩
+
 end CheckedBodyExecution
 
 namespace CheckedBodyExecutions
