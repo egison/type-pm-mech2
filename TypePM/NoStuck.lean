@@ -36,6 +36,18 @@ theorem neverStuck
     (Runtime.evalFuel fuel [] expression).NotStuck :=
   (typing.coreSafety compatible supported fuel).notStuck
 
+/-- Fixed-signature form of theorem 5.8 for the currently certified source
+fragment. -/
+theorem neverStuck_standard
+    {signature : Signature} {expression : Expr} {target : Ty}
+    (typing : Typing signature [] expression target)
+    (signatureEq : signature = Runtime.StandardSignature)
+    (supported : Runtime.RuntimeSupported expression)
+    (fuel : Nat) :
+    (Runtime.evalFuel fuel [] expression).NotStuck :=
+  typing.neverStuck
+    (Runtime.signatureCompatible_of_eq_standard signatureEq) supported fuel
+
 end Typing
 
 namespace Inference
@@ -50,6 +62,17 @@ theorem infer_neverStuck
     (fuel : Nat) :
     (Runtime.evalFuel fuel [] expression).NotStuck :=
   (infer_success_typing wellFormed success).neverStuck compatible supported fuel
+
+/-- Executable-inference form at the fixed runtime signature.  Its
+well-formedness and declaration compatibility are discharged once here. -/
+theorem infer_standard_neverStuck
+    {expression : Expr} {target : Ty}
+    (success : infer Runtime.StandardSignature [] expression = some target)
+    (supported : Runtime.RuntimeSupported expression)
+    (fuel : Nat) :
+    (Runtime.evalFuel fuel [] expression).NotStuck :=
+  infer_neverStuck Runtime.standardSignatureWellFormed
+    Runtime.standardSignatureCompatible success supported fuel
 
 end Inference
 

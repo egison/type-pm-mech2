@@ -310,7 +310,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 |---|---|---|---|
 | T1 | 値・環境・core式の型付け | **done** | 整数，Bool/List，tuple，変数，lambda，通常／再帰closure，application，`letE`，`ifE` |
 | T2 | primitive安全性 | **done** | `add`，`append`，`member`，`deleteFirst`，`map`の型保存とno-stuck |
-| T3 | signature整合性 | **done** | source宣言と固定runtime意味の契約に`map`を含める |
+| T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．公開橋はsignature等式だけで使え，内部のlookup契約は無関係な追加宣言も許す |
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
 | T6 | source多相`let`の橋 | **design decision** | bareなgeneric `Ty` lookupは代入で保存されない．量化bindingの由来またはfreshness-aware transportを追加する |
@@ -339,7 +339,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | 5.3 | `Typing`の存在と推論成功が同値で，受理を決定できる | **in progress** | M1とM2--M3は完了．M4完全性の公開化待ち |
 | 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **in progress** | M1とM2--M3は完了．M4 coherence／主要性待ち |
 | 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **in progress** | M1とM2--M3は完了．M4 coherence／replay待ち |
-| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | `Source.Typing.toRuntimeTyping`は`RuntimeSupported`断片まで．source多相`let`とM4 matcher構文が残る |
+| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | `Source.Typing.toRuntimeTyping_standard`は固定signatureと`RuntimeSupported`断片を接続．source多相`let`とM4 matcher構文が残る |
 | 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | coreとbuilt-in matchingは完了．一般user matcherとMNode，共通fuel帰納が残る |
 | 5.8 | 型付きclosed programは任意fuelで`stuck`にならない | **in progress** | core断片と条件付きmatchingは完了．M4-to-runtime橋とT10--T13の合成が残る |
 

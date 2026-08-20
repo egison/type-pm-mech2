@@ -60,9 +60,31 @@ structure SignatureCompatible (signature : Source.Signature) : Prop where
     signature.lookupPrimitive PrimOp.map =
       some Source.PrimitiveSchemes.map
 
+/-- The single source signature whose declarations are implemented by the
+fixed runtime evaluator.  `SignatureCompatible` remains the more flexible
+internal interface: it also permits signatures with irrelevant extra
+declarations. -/
+def StandardSignature : Source.Signature := Source.Paper1Signature.signature
+
+theorem standardSignatureCompatible :
+    SignatureCompatible StandardSignature := by
+  constructor <;> simp [StandardSignature]
+
+theorem standardSignatureWellFormed : StandardSignature.WellFormed := by
+  simpa [StandardSignature] using Source.Paper1Signature.wellFormed
+
+/-- Equality with the fixed runtime signature discharges the observational
+compatibility contract used by the source-to-runtime bridge. -/
+theorem signatureCompatible_of_eq_standard
+    {signature : Source.Signature}
+    (signatureEq : signature = StandardSignature) :
+    SignatureCompatible signature := by
+  subst signature
+  exact standardSignatureCompatible
+
 theorem paper1SignatureCompatible :
     SignatureCompatible Source.Paper1Signature.signature := by
-  constructor <;> simp
+  simpa [StandardSignature] using standardSignatureCompatible
 
 mutual
 
@@ -1097,6 +1119,18 @@ theorem toRuntimeTyping
   rcases instantiation with ⟨substitution, instanceEq⟩
   rw [← instanceEq]
   exact principalTypingRuntime.apply substitution
+
+/-- Public fixed-signature form of `toRuntimeTyping`.  This wrapper makes the
+runtime boundary explicit with one equality instead of nine lookup
+equalities. -/
+theorem toRuntimeTyping_standard
+    {signature : Signature} {expression : Expr} {target : Ty}
+    (typing : Typing signature [] expression target)
+    (signatureEq : signature = Runtime.StandardSignature)
+    (supported : Runtime.RuntimeSupported expression) :
+    Runtime.RuntimeTyping expression target :=
+  typing.toRuntimeTyping
+    (Runtime.signatureCompatible_of_eq_standard signatureEq) supported
 
 end Typing
 

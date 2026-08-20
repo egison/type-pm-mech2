@@ -884,9 +884,13 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_deleteFirst
 #assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_map
 #assert_allowed_axioms TypePM.Source.conditionalScheme_instantiate
+#assert_allowed_axioms TypePM.Runtime.standardSignatureCompatible
+#assert_allowed_axioms TypePM.Runtime.standardSignatureWellFormed
+#assert_allowed_axioms TypePM.Runtime.signatureCompatible_of_eq_standard
 #assert_allowed_axioms TypePM.Runtime.paper1SignatureCompatible
 #assert_allowed_axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
 #assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping
+#assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping_standard
 #assert_allowed_axioms TypePM.Runtime.CheckConversion.apply
 #assert_allowed_axioms TypePM.Runtime.EnvironmentTyping.apply
 #assert_allowed_axioms TypePM.Runtime.RuntimeTyping.applyContext
@@ -898,7 +902,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.RuntimeTyping.neverStuck
 #assert_allowed_axioms TypePM.Source.Typing.coreSafety
 #assert_allowed_axioms TypePM.Source.Typing.neverStuck
+#assert_allowed_axioms TypePM.Source.Typing.neverStuck_standard
 #assert_allowed_axioms TypePM.Source.Inference.infer_neverStuck
+#assert_allowed_axioms TypePM.Source.Inference.infer_standard_neverStuck
 #assert_allowed_axioms TypePM.RuntimeTypingRegression.nestedTuple_state_erasure
 #assert_allowed_axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
 #assert_allowed_axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
