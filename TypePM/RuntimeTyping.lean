@@ -169,15 +169,35 @@ currently certified pattern-pattern and data-pattern fragments are explicit
 below, so adding a source bridge later cannot silently enlarge this theorem.
 -/
 
-/-- Solved typing for the pattern-pattern fragment used by the first typed
-user-matcher slice.  A hole chooses the matcher type delegated to its pattern;
-a capture records the type of the embedded expression extracted at runtime. -/
-inductive RuntimePPatTyping :
-    Source.PPat → Ty → List Dual → List Ty → Prop where
-  | hole (capability : Cap) :
-      RuntimePPatTyping .hole target [⟨capability, target⟩] []
-  | wild : RuntimePPatTyping .wild target [] []
-  | capture : RuntimePPatTyping .capture target [] [target]
+mutual
+
+  /-- Solved typing for the pattern-pattern fragment used by typed user
+  matchers.  A hole chooses the matcher type delegated to its pattern; a
+  capture records the type of the embedded expression extracted at runtime. -/
+  inductive RuntimePPatTyping :
+      Source.PPat → Ty → List Dual → List Ty → Prop where
+    | hole (capability : Cap) :
+        RuntimePPatTyping .hole target [⟨capability, target⟩] []
+    | wild : RuntimePPatTyping .wild target [] []
+    | capture : RuntimePPatTyping .capture target [] [target]
+    /-- Constructor headers combine already solved field targets in source
+    order.  The relation deliberately records no constructor-signature
+    bridge; that remains an M4 obligation. -/
+    | ctor
+        (fields : RuntimePPatsTyping patterns fieldTargets holes captureTypes) :
+        RuntimePPatTyping (.ctor constructor patterns) target holes captureTypes
+
+  /-- Pointwise solved typing for constructor-header fields. -/
+  inductive RuntimePPatsTyping :
+      List Source.PPat → List Ty → List Dual → List Ty → Prop where
+    | nil : RuntimePPatsTyping [] [] [] []
+    | cons
+        (head : RuntimePPatTyping pattern target headHoles headCaptureTypes)
+        (tail : RuntimePPatsTyping patterns targets tailHoles tailCaptureTypes) :
+        RuntimePPatsTyping (pattern :: patterns) (target :: targets)
+          (headHoles ++ tailHoles) (headCaptureTypes ++ tailCaptureTypes)
+
+end
 
 /-- Solved typing for the data-pattern fragment used by the first typed
 user-matcher slice.  Its final index is the source-ordered binding prefix. -/

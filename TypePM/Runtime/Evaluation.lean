@@ -172,7 +172,8 @@ mutual
         (decompositionShape :
           decodeDecompositions holes.length decompositionValue =
             some decompositions)
-        (matcherEval : Eval matcherEnvironment nextMatchers matcherProduct)
+        (matcherEval : Eval (captureValues ++ matcherEnvironment)
+          nextMatchers matcherProduct)
         (matcherShape :
           decodeProduct holes.length matcherProduct = some matchers)
         (branchesBuilt :

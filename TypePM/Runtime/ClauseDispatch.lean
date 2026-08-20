@@ -11,10 +11,10 @@ This module is the atomic A-MATCHER boundary from Paper 1.  It deliberately
 takes expression evaluation as a callback, so expression evaluation and
 matching-state reduction do not form a Lean definition cycle.
 
-Pattern-pattern captures are evaluated in the atom environment.  Data-pattern
-bindings, capture values, and the matcher definition environment are then
-concatenated in that order for the selected arm body.  The expression for the
-next matchers is evaluated in the matcher definition environment alone.
+Pattern-pattern captures are evaluated in the atom environment.  Capture
+values and the matcher definition environment are concatenated in that order
+for the next-matcher expression.  Data-pattern bindings are prefixed to that
+same environment for the selected arm body.
 
 Only a pattern-pattern mismatch advances to the next clause.  Once a pattern
 header matches, failure of every data-pattern arm is the normal empty matching
@@ -57,7 +57,8 @@ def tryMatcherArm
               match decodeDecompositions holes.length decompositionValue with
               | none => .stuck
               | some decompositions =>
-                  FuelResult.bind (eval matcherEnvironment nextMatchers)
+                  FuelResult.bind
+                    (eval (captureValues ++ matcherEnvironment) nextMatchers)
                     fun matcherProduct =>
                       match decodeProduct holes.length matcherProduct with
                       | none => .stuck
@@ -160,7 +161,9 @@ inductive MatcherArmDispatches
       (decompositionShape :
         decodeDecompositions holes.length decompositionValue =
           some decompositions)
-      (matcherEval : eval matcherEnvironment nextMatchers = .ok matcherProduct)
+      (matcherEval :
+        eval (captureValues ++ matcherEnvironment) nextMatchers =
+          .ok matcherProduct)
       (matcherShape : decodeProduct holes.length matcherProduct = some matchers)
       (branchesBuilt :
         buildMatchingBranches holes matchers decompositions = some branches) :

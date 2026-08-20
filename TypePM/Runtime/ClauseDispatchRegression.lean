@@ -253,7 +253,7 @@ def environmentAuditEval : ValueEnvironment → Expr → FuelResult Value
   | [.int 80], .lit 100 => .ok (.int 70)
   | [.int 1, .int 70, .int 90], .lit 101 =>
       .ok (Value.buildList [.tuple []])
-  | [.int 90], .lit 102 => .ok (.tuple [])
+  | [.int 70, .int 90], .lit 102 => .ok (.tuple [])
   | _, _ => .stuck
 
 def environmentAuditClause : MatcherClause :=

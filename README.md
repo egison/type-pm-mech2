@@ -150,7 +150,7 @@ coherenceはbodyから観測できる型付け結果が一致することを保�
 | M2 | bound-index scheme，多相`letE`，value block一般化 | **done** | 一般の入れ子`letE`についてcoherence，replay，公開推論の完全性・主要性まで証明済み |
 | M3 | data／pattern constructor，primitive，signature，`ifE` | **done** | M3固有の宣言・elaborationと，M2--M3全域の公開定理を証明済み．論文例のM4/M5部分は別に追跡する |
 | M4 | pattern，matcher literal，`matchAll`，`matchFirst`，`fixE`，pattern function | **in progress** | 全構文の推論健全性，fuel標準化，fresh renaming，Paper 1の大規模exact回帰に加え，pattern／matcher literal／`matchAll`までのcoherenceを完了．`matchFirst`と最終合成が残る |
-| M5 | 評価，matching探索，runtime typing，型安全性 | **in progress** | core評価とmatching基盤，条件付き安全性，限定されたsource-to-runtime橋まで完了．一般user matcher，多相`let`，MNode全体の安全性が残る |
+| M5 | 評価，matching探索，runtime typing，型安全性 | **in progress** | core評価とmatching基盤に加え，解決済みruntime型を前提に任意長のuser matcher arm／clause列の型保存と進行を証明済み．M4静的型付けとの接続，多相`let`，共通fuel帰納，MNode全体が残る |
 
 M3を`done`とするのは，M3固有のconstructor／primitive／signature基盤とM2--M3の
 静的定理が閉じているためである．Paper 1全体の例が未完であることは，M4/M5と後述の
@@ -170,6 +170,9 @@ inventoryで追跡する．
 - Paper 1のsource-defined `list`とclosed `multiset`について，公開`M4.infer`の正確な型と
   `M4.Typing`をkernel計算だけで固定した．open `multiset`は空contextで`none`になることを
   正確に証明した．
+- user matcherのnext matcher式をcapture値とmatcher定義環境の連結上で評価するよう，実行可能評価と
+  関係的評価の環境順を静的規則へ一致させた．0／1／複数hole，constructor header，capture参照，
+  arm列，clause列について，`timeout`または型付きの正常結果になることを証明した．
 - 公理監査は表示用の`#print axioms`ではなく，許可集合外の公理があればbuildを失敗させる
   `#assert_allowed_axioms`で実施し，CIでも`lake build`を実行する．
 
@@ -381,7 +384,7 @@ matcher機能を使わない式を新体系へ埋め込めるかを調べる独�
 | E4 | ordered choice | **done** | multisetの一要素選択，join分割，位置別の重複とsource順 |
 | E5 | runtime value | **done** | data，tuple，function／recursive closure，matcher closure，`something` |
 | E6 | pattern dispatch | **done** | `PPat`／`DPat`の実行と独立関係，binding数・順序の一致 |
-| E7 | matcher clause dispatch | **done** | header不一致だけが次clauseへ進むfirst-success規則，環境連結順 |
+| E7 | matcher clause dispatch | **done** | header不一致だけが次clauseへ進むfirst-success規則．capture式はatom環境，next matcherはcapture値＋定義環境，arm bodyはdata binding＋capture値＋定義環境で評価 |
 | E8 | matching atom／state | **done** | built-in規則，conjunction，product matcher，user matcher reducerの合成 |
 | E9 | `Eval`と`evalFuel` | **done** | `matchAll`／`matchFirst`を含むcall-by-value評価，成功時健全性，有限完全性，fuel単調性 |
 | E10 | Paper 1 multiset実行 | **done** | 7節それぞれの正確なsource body結果と独立した`Eval`導出 |
@@ -405,8 +408,8 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T6 | source多相`let`の橋 | **in progress** | bareなgeneric `Ty` lookupは代入で保存されない．runtime contextは`List Ty`のまま，量化bindingの由来とfreshnessを外部の証明関係で保持する |
 | T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文に加え，bodyがその断片に属する通常の`fixE`をruntime typingとno-stuckへ接続済み．matcher-rootの`fixE`とmatcher構文が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
-| T9 | matcher closureの型付け部品 | **in progress** | cursor（未試行clauseの現在位置）の不変条件，product/list/slot canonical forms，0／1／複数holeの復号，環境連結順，単一hole clauseの保存は完了 |
-| T10 | 一般user matcher safety | **in progress** | 単一hole／variable armの保存は実証済み．全clause／armと静的網羅性を接続し，正常な`.miss`と復号成功を証明する |
+| T9 | matcher closureとdispatchの型付け部品 | **done** | cursor不変条件，product/list/slot canonical forms，0／1／複数holeの復号，pattern-pattern constructor，環境連結順，任意長arm／clause列の条件付き型保存と進行 |
+| T10 | 一般user matcher safety | **in progress** | runtime側はdata patternのvariable／wildcard断片で`tryMatcherArm_typedSafe`から`dispatchMatcherClauses_typedSafe`まで完成．data constructor／tuple，M4 signature／clause型付けとの橋，静的網羅性による最終`.miss`排除，任意source patternのatom型付けが残る |
 | T11 | 共通fuelの強帰納 | **not started** | 式評価とmatcher探索を同じbudgetで帰納し，embedded evaluatorの条件付き仮定を放電する |
 | T12 | `matchFirst` no-stuck | **not started** | 宣言的`Exhaustive`から実行時の空arm到達を排除する |
 | T13 | MNode／pattern function safety | **not started** | MNode固有application／parameter／nodeDone規則と一般評価を型付けする |
@@ -429,7 +432,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **in progress** | M1とM2--M3は完了．M4 coherence／主要性待ち |
 | 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **in progress** | M1とM2--M3は完了．M4 coherence／replay待ち |
 | 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`は完了．source多相`let`，matcher-rootの`fixE`，M4 matcher構文が残る |
-| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | coreとbuilt-in matchingは完了．一般user matcherとMNode，共通fuel帰納が残る |
+| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，runtime証明書を持つuser matcherの任意長arm／clause列は完了．data-pattern全形，M4静的規則との橋，MNode，共通fuel帰納が残る |
 | 5.8 | 型付きclosed programは任意fuelで`stuck`にならない | **in progress** | core断片と条件付きmatchingは完了．M4-to-runtime橋とT10--T13の合成が残る |
 
 5.6は旧体系の推論状態を後から消す定理ではない．新体系には初めから状態を含まない`Typing`がある
@@ -499,8 +502,8 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    （論文結果5.2--5.5）を無条件の公開定理として閉じる．
 4. M4 `Typing`からruntime typingへの橋をmatcher-rootの`fixE`，matcher literal，
    `matchAll`，`matchFirst`へ広げる．
-5. user matcherの全arm／clauseについて環境の連結順，値の復号，正常な不一致を型付けし，
-   宣言的な網羅性検査へ接続する．
+5. 完成したuser matcherのruntime arm／clause安全性をM4のconstructor signatureと静的clause型付けへ
+   接続し，宣言的な網羅性から最終的な`.miss`を排除する．
 6. source多相`let`の量化bindingの由来を保持する証明関係を追加し，T6のruntime橋を閉じる．
 7. 式評価とmatcher探索を共通fuelで強帰納し，embedded evaluatorへの条件付き仮定を外す．
 8. `matchFirst`とMNode固有規則のno-stuckを証明し，公開freeze checkerが受理した
@@ -544,7 +547,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
 | runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
-| user matcherの型付け部品 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean) |
+| user matcherの型付けと条件付き安全性 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean)，[UserMatcherGeneralSafety.lean](TypePM/UserMatcherGeneralSafety.lean) |
 | pattern function／MNode | [PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean) |
 | 公理監査 | [AxiomAuditCommand.lean](TypePM/AxiomAuditCommand.lean)，[AxiomAudit.lean](TypePM/AxiomAudit.lean) |
 
