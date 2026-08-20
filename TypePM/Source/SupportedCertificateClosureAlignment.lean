@@ -13,13 +13,25 @@ namespace TypePM.Source
 
 open InterfaceAliasDecomposition.AliasFreshness
 
-/-- Concrete implementation of the generic closure theorem consumed by the
-full M2 source induction. -/
-theorem supportedCertificateClosureAlignmentComplete :
-    SupportedCertificateClosureAlignmentComplete := by
-  intro signature context expression start next left right
-    wellFormed leftElaboration rightElaboration certificate
-    leftClosure rightClosure leftAbsorbing rightAbsorbing
+/-- The closure-alignment construction depends on an elaboration only through
+its supply increase and generated-support bound.  Stating that dependency
+directly lets later source extensions reuse the completed M2 graph argument
+without fabricating an M2 derivation for their new syntax. -/
+theorem supportedCertificateClosureAlignment_of_support
+    {context : Context} {start next : Supply} {left right : Generated}
+    (wellFormed : start.WellFormedFor context)
+    (increases : start.Le next)
+    (rightSupportBelow : ∀ candidate,
+      candidate ∈ right.unificationVars →
+        candidate.Below next.ty next.cap)
+    (certificate : SupportedEntailedAlignmentCertificate
+      start next left right)
+    (leftClosure : PrincipalBlockClosure left)
+    (rightClosure : PrincipalBlockClosure right)
+    (leftAbsorbing : leftClosure.Absorbing)
+    (rightAbsorbing : rightClosure.Absorbing) :
+    Nonempty (ProvenancedFreshClosureAlignment
+      leftClosure rightClosure context next) := by
   have leftAdmissible : FreshAliasSequence.Admissible
       certificate.leftAliases left :=
     admissible_of_scopedBy certificate.leftScoped
@@ -54,12 +66,11 @@ theorem supportedCertificateClosureAlignmentComplete :
         candidate.Below next.ty next.cap := by
     apply FreshAliasSequence.addAll_support_below_of_scopedBy
       certificate.rightAliases right next certificate.rightScoped
-      (fun _ member => member)
-      (rightElaboration.support_below wellFormed)
+      (fun _ member => member) rightSupportBelow
     intro alias member
     exact (rightFresh alias member).below
   have contextBelow : context.initialSupply.Le next :=
-    Supply.le_trans wellFormed rightElaboration.supply_le_next
+    Supply.le_trans wellFormed increases
   exact ⟨provenancedAliasedEntailedFreshClosureAlignment
     certificate.leftAliases certificate.rightAliases
     leftAdmissible rightAdmissible
@@ -68,5 +79,17 @@ theorem supportedCertificateClosureAlignmentComplete :
     leftAbsorbing rightAbsorbing context next
     leftContextFixed rightContextFixed contextBelow
     rightAugmentedBelow⟩
+
+/-- Concrete implementation of the generic closure theorem consumed by the
+full M2 source induction. -/
+theorem supportedCertificateClosureAlignmentComplete :
+    SupportedCertificateClosureAlignmentComplete := by
+  intro signature context expression start next left right
+    wellFormed leftElaboration rightElaboration certificate
+    leftClosure rightClosure leftAbsorbing rightAbsorbing
+  exact supportedCertificateClosureAlignment_of_support wellFormed
+    rightElaboration.supply_le_next
+    (rightElaboration.support_below wellFormed) certificate
+    leftClosure rightClosure leftAbsorbing rightAbsorbing
 
 end TypePM.Source

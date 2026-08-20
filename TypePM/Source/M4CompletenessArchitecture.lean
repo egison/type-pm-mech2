@@ -217,7 +217,7 @@ def FullM4FuelPairProperty (expression : Expr) : Prop :=
   ∀ {signature : FrozenSignature} {context : Context} {start : Supply}
       {leftGenerated rightGenerated : Generated}
       {leftNext rightNext : Supply} {leftFuel rightFuel : Nat},
-    start.WellFormedFor context →
+    signature.WellFormed → start.WellFormedFor context →
       ElaboratesFuel signature leftFuel context expression start
           leftGenerated leftNext →
         ElaboratesFuel signature rightFuel context expression start
@@ -231,7 +231,8 @@ theorem fullM4FuelPairProperty_of_m2Fragment
     {expression : Expr} (fragment : M2Fragment expression) :
     FullM4FuelPairProperty expression := by
   intro signature context start leftGenerated rightGenerated leftNext rightNext
-    leftFuel rightFuel wellFormed leftDerivation rightDerivation
+    leftFuel rightFuel _signatureWellFormed wellFormed leftDerivation
+    rightDerivation
   exact fullM2CoherenceComplete expression wellFormed
     (elaboratesFuel_toM2_of_m2Fragment fragment leftDerivation)
     (elaboratesFuel_toM2_of_m2Fragment fragment rightDerivation)
@@ -241,7 +242,7 @@ def FullM4PairProperty (expression : Expr) : Prop :=
   ∀ {signature : FrozenSignature} {context : Context} {start : Supply}
       {leftGenerated rightGenerated : Generated}
       {leftNext rightNext : Supply},
-    start.WellFormedFor context →
+    signature.WellFormed → start.WellFormedFor context →
       M4.Elaborates signature context expression start leftGenerated leftNext →
         M4.Elaborates signature context expression start rightGenerated rightNext →
           Nonempty (FullM2PairCoherence start leftNext rightNext
@@ -252,10 +253,11 @@ theorem FullM4FuelPairProperty.toPublic
     {expression : Expr} (coherent : FullM4FuelPairProperty expression) :
     FullM4PairProperty expression := by
   intro signature context start leftGenerated rightGenerated leftNext rightNext
-    wellFormed leftDerivation rightDerivation
+    signatureWellFormed wellFormed leftDerivation rightDerivation
   obtain ⟨leftFuel, leftFuelDerivation⟩ := leftDerivation
   obtain ⟨rightFuel, rightFuelDerivation⟩ := rightDerivation
-  exact coherent wellFormed leftFuelDerivation rightFuelDerivation
+  exact coherent signatureWellFormed wellFormed leftFuelDerivation
+    rightFuelDerivation
 
 /-- Public coherence for the embedded M2--M3 fragment. -/
 theorem fullM4PairProperty_of_m2Fragment
@@ -366,7 +368,7 @@ def WellFormedM4ElaborationPrincipalityComplete : Prop :=
       {supply next : Supply} {generated : Generated},
     M4.Elaborates signature context expression supply generated next →
       ∀ (closure : PrincipalBlockClosure generated),
-        supply.WellFormedFor context → closure.Absorbing →
+        signature.WellFormed → supply.WellFormedFor context → closure.Absorbing →
           ∃ computed computedNext,
             M4.elaborate signature context expression supply =
                 some (computed, computedNext) ∧
@@ -388,10 +390,11 @@ theorem wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
     (coherent : FullM4Coherence) (replay : FullM4ExecutableReplay) :
     WellFormedM4ElaborationPrincipalityComplete := by
   intro signature context expression supply next generated derivation closure
-    wellFormed absorbing
+    signatureWellFormed wellFormed absorbing
   obtain ⟨computed, computedNext, executable, computedDerivation⟩ :=
     replay derivation wellFormed
-  obtain ⟨pair⟩ := coherent expression wellFormed derivation computedDerivation
+  obtain ⟨pair⟩ := coherent expression signatureWellFormed wellFormed
+    derivation computedDerivation
   have computedAccepts : BlockAccepts computed := by
     exact (pair.blockAccepts_iff .hole trivial).mp
       (blockAccepts_of_principal closure)
@@ -414,12 +417,14 @@ theorem wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
 theorem Typing.infer_isSome_of_principalityComplete
     (complete : WellFormedM4ElaborationPrincipalityComplete)
     {signature : FrozenSignature} {context : Context} {expression : Expr}
-    {target : Ty} (typing : M4.Typing signature context expression target) :
+    {target : Ty} (wellFormed : signature.WellFormed)
+    (typing : M4.Typing signature context expression target) :
     M4.infer signature context expression ≠ none := by
   obtain ⟨principal, ⟨derivation⟩, _instance⟩ := typing
   obtain ⟨computed, computedNext, executable, computedClosure, _⟩ :=
     complete derivation.elaboration derivation.closure
-      (Supply.wellFormedFor_initialSupply context) derivation.absorbing
+      wellFormed (Supply.wellFormedFor_initialSupply context)
+      derivation.absorbing
   have closes :=
     computedClosure.inferGeneratedUsing_isSome unify_completeMGUSolver
   cases closureResult : inferGeneratedUsing unify computed with

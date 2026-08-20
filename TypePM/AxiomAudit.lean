@@ -39,6 +39,7 @@ import TypePM.Source.M4ElaborationFuelTransport
 import TypePM.Source.M4ElaborationFuelMonotonicity
 import TypePM.Source.M4CompletenessArchitecture
 import TypePM.Source.M4SupplySupport
+import TypePM.Source.M4SupportedCoherence
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -793,6 +794,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4PairProperty_of_m2Fragment
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_components
+#assert_allowed_axioms TypePM.Source.supportedCertificateClosureAlignment_of_support
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.FullM2PairCoherence.ofM4Supported
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.SupportedM4FuelPairProperty.toFull
 #assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.supply_le_next
 #assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.supportProvenance
 #assert_allowed_axioms TypePM.Source.M4.Elaborates.supportProvenance
