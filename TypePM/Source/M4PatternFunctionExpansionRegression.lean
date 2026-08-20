@@ -71,13 +71,13 @@ def nestedClause : MatcherClause :=
   .mk .hole .something
     [.mk .wild
       (.matchFirst (.lit 0) .something
-        [.mk (.app unitName []) (.tuple [])])]
+        [.mk (.app unitName []) (.tuple [])] (.lit 9))]
 
 def expandedNestedClause : MatcherClause :=
   .mk .hole .something
     [.mk .wild
       (.matchFirst (.lit 0) .something
-        [.mk (.tuple []) (.tuple [])])]
+        [.mk (.tuple []) (.tuple [])] (.lit 9))]
 
 theorem matcher_and_matchFirst_expand_exact :
     expandExpr definitions (.matcher [nestedClause]) =

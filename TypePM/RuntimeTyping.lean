@@ -59,6 +59,12 @@ structure SignatureCompatible (signature : Source.Signature) : Prop where
   map :
     signature.lookupPrimitive PrimOp.map =
       some Source.PrimitiveSchemes.map
+  pairFirst :
+    signature.lookupPrimitive PrimOp.pairFirst =
+      some Source.PrimitiveSchemes.pairFirst
+  pairSecond :
+    signature.lookupPrimitive PrimOp.pairSecond =
+      some Source.PrimitiveSchemes.pairSecond
 
 /-- The single source signature whose declarations are implemented by the
 fixed runtime evaluator.  `SignatureCompatible` remains the more flexible
@@ -141,6 +147,14 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
       (target : RuntimeTyping targetExpression (TypePM.DataTypes.list domain) context) :
       RuntimeTyping (.prim PrimOp.map [functionExpression, targetExpression])
         (TypePM.DataTypes.list codomain) context
+  | pairFirst
+      (pair : RuntimeTyping pairExpression (.prod [firstTarget, secondTarget])
+        context) :
+      RuntimeTyping (.prim PrimOp.pairFirst [pairExpression]) firstTarget context
+  | pairSecond
+      (pair : RuntimeTyping pairExpression (.prod [firstTarget, secondTarget])
+        context) :
+      RuntimeTyping (.prim PrimOp.pairSecond [pairExpression]) secondTarget context
   | ifE (condition : RuntimeTyping conditionExpression TypePM.DataTypes.bool context)
       (thenBranch : RuntimeTyping thenExpression branchTarget context)
       (elseBranch : RuntimeTyping elseExpression branchTarget context) :
@@ -504,6 +518,7 @@ possibly polymorphic runtime type. -/
 inductive RuntimeSupported : Source.Expr → Prop where
   | var : RuntimeSupported (.var index)
   | lit : RuntimeSupported (.lit value)
+  | something : RuntimeSupported .something
   | boolTrue : RuntimeSupported (.ctor DataCtor.true [])
   | boolFalse : RuntimeSupported (.ctor DataCtor.false [])
   | listNil : RuntimeSupported (.ctor DataCtor.nil [])
@@ -533,6 +548,10 @@ inductive RuntimeSupported : Source.Expr → Prop where
   | map (function : RuntimeSupported functionExpression)
       (target : RuntimeSupported targetExpression) :
       RuntimeSupported (.prim PrimOp.map [functionExpression, targetExpression])
+  | pairFirst (pair : RuntimeSupported pairExpression) :
+      RuntimeSupported (.prim PrimOp.pairFirst [pairExpression])
+  | pairSecond (pair : RuntimeSupported pairExpression) :
+      RuntimeSupported (.prim PrimOp.pairSecond [pairExpression])
   | ifE (condition : RuntimeSupported conditionExpression)
       (thenBranch : RuntimeSupported thenExpression)
       (elseBranch : RuntimeSupported elseExpression) :
@@ -684,6 +703,12 @@ protected def RuntimeTyping.applyContext
   | .map function target => by
       simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using RuntimeTyping.map
         (function.applyContext substitution) (target.applyContext substitution)
+  | .pairFirst pair => by
+      simpa [Ty.apply, Ty.applyList] using RuntimeTyping.pairFirst
+        (pair.applyContext substitution)
+  | .pairSecond pair => by
+      simpa [Ty.apply, Ty.applyList] using RuntimeTyping.pairSecond
+        (pair.applyContext substitution)
   | .ifE condition thenBranch elseBranch => by
       simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] using RuntimeTyping.ifE
         (condition.applyContext substitution)
@@ -792,6 +817,9 @@ theorem RuntimeSupported.elaboration_typing
   | lit =>
       cases elaboration
       exact .lit _
+  | something =>
+      cases elaboration
+      exact .something _
   | boolTrue =>
       cases elaboration with
       | ctor lookup _arity _closed call =>
@@ -1050,6 +1078,50 @@ theorem RuntimeSupported.elaboration_typing
                   rw [← secondParts.2]
                   exact .map (.checked functionTyping functionConversion)
                     (.checked targetTyping targetConversion)
+  | pairFirst pair =>
+      cases elaboration with
+      | prim lookup _arity _closed call =>
+          rw [compatible.pairFirst] at lookup
+          cases lookup
+          cases call with
+          | cons pairElaboration rest =>
+              cases rest
+              obtain ⟨_initialSemantic, pairSemantic, equation, pairCheck⟩ :=
+                fromApp_semantic_parts semantic
+              have pairTyping := pair.elaboration_typing compatible
+                pairElaboration pairSemantic contextCompatible
+              obtain ⟨_pairClass, pairConversion⟩ := pairCheck
+              simp only [Ty.apply] at pairConversion
+              simp only [Equation.Holds, Ty.apply] at equation
+              simp only [Source.PrimitiveSchemes.instantiate_pairFirst]
+                at equation
+              simp only [Source.Generated.fromApp, Ty.apply] at equation ⊢
+              have parts := Ty.fn.inj equation
+              rw [← parts.1] at pairConversion
+              rw [← parts.2]
+              exact .pairFirst (.checked pairTyping pairConversion)
+  | pairSecond pair =>
+      cases elaboration with
+      | prim lookup _arity _closed call =>
+          rw [compatible.pairSecond] at lookup
+          cases lookup
+          cases call with
+          | cons pairElaboration rest =>
+              cases rest
+              obtain ⟨_initialSemantic, pairSemantic, equation, pairCheck⟩ :=
+                fromApp_semantic_parts semantic
+              have pairTyping := pair.elaboration_typing compatible
+                pairElaboration pairSemantic contextCompatible
+              obtain ⟨_pairClass, pairConversion⟩ := pairCheck
+              simp only [Ty.apply] at pairConversion
+              simp only [Equation.Holds, Ty.apply] at equation
+              simp only [Source.PrimitiveSchemes.instantiate_pairSecond]
+                at equation
+              simp only [Source.Generated.fromApp, Ty.apply] at equation ⊢
+              have parts := Ty.fn.inj equation
+              rw [← parts.1] at pairConversion
+              rw [← parts.2]
+              exact .pairSecond (.checked pairTyping pairConversion)
   | ifE condition thenBranch elseBranch =>
       cases elaboration with
       | ifE call =>

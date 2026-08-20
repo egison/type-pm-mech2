@@ -103,9 +103,9 @@ def Expr.complexity : Expr → Nat
   | .matchAll target matcher pattern body =>
       target.complexity + matcher.complexity + pattern.complexity +
         body.complexity + 1
-  | .matchFirst target matcher arms =>
+  | .matchFirst target matcher arms fallback =>
       target.complexity + matcher.complexity +
-        MatchFirstArm.listComplexity arms + 1
+        MatchFirstArm.listComplexity arms + fallback.complexity + 1
 
 def Expr.listComplexity : List Expr → Nat
   | [] => 0
@@ -187,10 +187,10 @@ end
       target.complexity + matcher.complexity + pattern.complexity +
         body.complexity + 1 := rfl
 @[simp] theorem Expr.complexity_matchFirst
-    (target matcher : Expr) (arms : List MatchFirstArm) :
-    (Expr.matchFirst target matcher arms).complexity =
+    (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr) :
+    (Expr.matchFirst target matcher arms fallback).complexity =
       target.complexity + matcher.complexity +
-        MatchFirstArm.listComplexity arms + 1 := rfl
+        MatchFirstArm.listComplexity arms + fallback.complexity + 1 := rfl
 @[simp] theorem Expr.listComplexity_nil : Expr.listComplexity [] = 0 := rfl
 @[simp] theorem Expr.listComplexity_cons (item : Expr) (items : List Expr) :
     Expr.listComplexity (item :: items) =
@@ -331,7 +331,7 @@ def elaborate (signature : Signature) (context : Context) :
   | .fixE _, _ => none
   | .matcher _, _ => none
   | .matchAll _ _ _ _, _ => none
-  | .matchFirst _ _ _, _ => none
+  | .matchFirst _ _ _ _, _ => none
 termination_by expression => expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> omega
 
@@ -721,7 +721,7 @@ theorem elaborate_sound
   | fixE body => simp [elaborate] at success
   | matcher clauses => simp [elaborate] at success
   | matchAll target matcher pattern body => simp [elaborate] at success
-  | matchFirst target matcher arms => simp [elaborate] at success
+  | matchFirst target matcher arms fallback => simp [elaborate] at success
 termination_by expression.complexity * 3 + 2
 decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 

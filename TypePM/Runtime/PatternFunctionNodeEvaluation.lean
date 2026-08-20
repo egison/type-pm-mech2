@@ -209,23 +209,24 @@ theorem stepPatternFunctionHead_mnodeFree_atom
   · exact False.elim (free.not_embed rfl)
   · exact False.elim (free.not_app rfl)
 
-/-- Execute derived single-result matching with the scoped pattern-function
+/-- Execute core single-result matching with the scoped pattern-function
 search.  Source-arm order and first-result selection agree with
 `evalMatchFirstArmsFuel`; only the search engine is extended with MNodes. -/
 def evalPatternFunctionNodeArmsFuel
     (definitions : PatternFunctionDefinitions)
     (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
     (fuel : Nat) (environment : ValueEnvironment)
-    (target matcher : Value) : List Source.MatchFirstArm → FuelResult Value
-  | [] => .stuck
-  | arm :: rest =>
+    (target matcher : Value) :
+    List Source.MatchFirstArm → Source.Expr → FuelResult Value
+  | [], fallback => evaluate environment fallback
+  | arm :: rest, fallback =>
       FuelResult.bind
         (searchPatternFunctionsFuel definitions evaluate fuel environment
           arm.pattern matcher target)
         fun bindingGroups =>
           match bindingGroups with
           | [] => evalPatternFunctionNodeArmsFuel definitions evaluate fuel
-              environment target matcher rest
+              environment target matcher rest fallback
           | bindings :: _ => evaluate (bindings ++ environment) arm.body
 
 mutual
@@ -313,7 +314,7 @@ mutual
                               evalPatternFunctionNodesFuel definitions fuel
                                 (bindings ++ environment) body)
                             bindingGroups)
-        | .matchFirst target matcher arms =>
+        | .matchFirst target matcher arms fallback =>
             FuelResult.bind
               (evalPatternFunctionNodesFuel definitions fuel environment target)
               fun targetValue =>
@@ -322,7 +323,7 @@ mutual
                   fun matcherValue =>
                     evalPatternFunctionNodeArmsFuel definitions
                       (evalPatternFunctionNodesFuel definitions fuel) fuel
-                      environment targetValue matcherValue arms
+                      environment targetValue matcherValue arms fallback
 
   /-- Application companion of `evalPatternFunctionNodesFuel`. -/
   def applyPatternFunctionNodesFuel
@@ -373,6 +374,22 @@ private theorem evalPrimitive_callback_irrelevant
       rcases tail with _ | ⟨second, tail⟩
       · rfl
       rcases tail with _ | ⟨third, tail⟩ <;> rfl
+  | pairFirst =>
+      change (match arguments with
+        | [.tuple [first, _second]] => FuelResult.ok first
+        | _ => FuelResult.stuck) =
+        (match arguments with
+        | [.tuple [first, _second]] => FuelResult.ok first
+        | _ => FuelResult.stuck)
+      rfl
+  | pairSecond =>
+      change (match arguments with
+        | [.tuple [_first, second]] => FuelResult.ok second
+        | _ => FuelResult.stuck) =
+        (match arguments with
+        | [.tuple [_first, second]] => FuelResult.ok second
+        | _ => FuelResult.stuck)
+      rfl
 
 mutual
 

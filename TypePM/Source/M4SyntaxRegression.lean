@@ -86,8 +86,8 @@ theorem elaborate_matchAll_none
 
 theorem elaborate_matchFirst_none
     (signature : Signature) (context : Context) (target matcher : Expr)
-    (arms : List MatchFirstArm) (supply : Supply) :
-    elaborate signature context (.matchFirst target matcher arms) supply =
+    (arms : List MatchFirstArm) (fallback : Expr) (supply : Supply) :
+    elaborate signature context (.matchFirst target matcher arms fallback) supply =
       none := by
   simp [elaborate]
 
@@ -118,9 +118,9 @@ theorem matchAll_not_relationally_elaborated
 
 theorem matchFirst_not_relationally_elaborated
     (signature : Signature) (context : Context) (target matcher : Expr)
-    (arms : List MatchFirstArm) (supply next : Supply)
+    (arms : List MatchFirstArm) (fallback : Expr) (supply next : Supply)
     (generated : Generated) :
-    ¬ Elaborates signature context (.matchFirst target matcher arms)
+    ¬ Elaborates signature context (.matchFirst target matcher arms fallback)
       supply generated next := by
   intro derivation
   cases derivation

@@ -11,7 +11,7 @@ the convention fixed by the source `fixE` binder: the argument is index zero
 and the closure itself is index one, so its body environment is
 `argument :: closure :: definitionEnvironment`.
 
-The `matchAll` rule and the derived surface `matchFirst` rule delegate atom
+The `matchAll` and core single-result `matchFirst` rules delegate atom
 reduction and ordered search to independent relations parameterized by this
 same evaluation relation.  This makes the recursive boundary through
 matcher-clause expressions explicit without building the executable evaluator
@@ -98,8 +98,8 @@ mutual
         (targetEval : Eval environment target targetValue)
         (matcherEval : Eval environment matcher matcherValue)
         (armsEval : EvalMatchFirstArms environment targetValue matcherValue
-          arms result) :
-        Eval environment (.matchFirst target matcher arms) result
+          arms fallback result) :
+        Eval environment (.matchFirst target matcher arms fallback) result
 
   /-- Left-to-right call-by-value evaluation of an expression sequence. -/
   inductive Evals : ValueEnvironment → List Source.Expr → List Value → Prop where
@@ -154,6 +154,10 @@ mutual
         (applications : AppliesList function inputs outputs) :
         PrimitiveEvaluates .map [function, target]
           (Value.buildList outputs)
+    | pairFirst :
+        PrimitiveEvaluates .pairFirst [.tuple [first, second]] first
+    | pairSecond :
+        PrimitiveEvaluates .pairSecond [.tuple [first, second]] second
 
   /-- Relational successful attempt of one matcher arm. -/
   inductive EvalMatcherArmDispatches :
@@ -309,23 +313,31 @@ mutual
         EvalBindingGroups environment body
           (bindings :: groups) (value :: values)
 
-  /-- Paper 1's derived single-result `match`: try arms in source order, using
-  the complete ordered `matchAll` search for each arm, and evaluate the body
-  under the first binding group of the first nonempty search. -/
+  /-- Paper 1's single-result `match`: try ordinary arms in source order,
+  using the complete ordered `matchAll` search for each arm, and evaluate the
+  body under the first binding group of the first nonempty search.  If every
+  ordinary arm has an empty search result, evaluate the explicit fallback in
+  the original environment, without pattern bindings. -/
   inductive EvalMatchFirstArms :
       ValueEnvironment → Value → Value → List Source.MatchFirstArm →
-      Value → Prop where
+      Source.Expr → Value → Prop where
+    | fallback
+        (fallbackEval : Eval environment fallback result) :
+        EvalMatchFirstArms environment target matcher [] fallback result
     | hit
         (matching : EvalMatchingSearch
           [⟨[⟨arm.pattern, matcher, target⟩], environment, []⟩]
           (bindings :: remaining))
         (bodyEval : Eval (bindings ++ environment) arm.body result) :
-        EvalMatchFirstArms environment target matcher (arm :: rest) result
+        EvalMatchFirstArms environment target matcher (arm :: rest) fallback
+          result
     | skip
         (matching : EvalMatchingSearch
           [⟨[⟨arm.pattern, matcher, target⟩], environment, []⟩] [])
-        (tail : EvalMatchFirstArms environment target matcher rest result) :
-        EvalMatchFirstArms environment target matcher (arm :: rest) result
+        (tail : EvalMatchFirstArms environment target matcher rest fallback
+          result) :
+        EvalMatchFirstArms environment target matcher (arm :: rest) fallback
+          result
 
 end
 

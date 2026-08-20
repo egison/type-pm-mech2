@@ -88,6 +88,10 @@ private theorem evalPrimitive_ok_mono
                   (fun application => monotone application) oldTraversal
                 simp [evalPrimitive, targetView, newTraversal]
       · simp [evalPrimitive] at success
+  | pairFirst =>
+      simpa only [evalPrimitive] using success
+  | pairSecond =>
+      simpa only [evalPrimitive] using success
 
 private theorem matcherArmDispatches_mono
     {before after : ValueEnvironment → Source.Expr → FuelResult Value}
@@ -295,11 +299,11 @@ private theorem evalMatchFirstArmsFuel_ok_mono
         searchPatternFuel after afterFuel environment pattern matcher target =
           .ok bindingGroups)
     (success : evalMatchFirstArmsFuel before beforeFuel environment target matcher
-      arms = .ok result) :
-    evalMatchFirstArmsFuel after afterFuel environment target matcher arms =
-      .ok result := by
+      arms fallback = .ok result) :
+    evalMatchFirstArmsFuel after afterFuel environment target matcher arms
+      fallback = .ok result := by
   induction arms with
-  | nil => simp [evalMatchFirstArmsFuel] at success
+  | nil => exact evaluationMono success
   | cons arm rest ih =>
       simp only [evalMatchFirstArmsFuel] at success ⊢
       rw [bind_eq_ok_iff] at success ⊢
@@ -461,7 +465,7 @@ private theorem fuel_ok_succ : ∀ fuel,
             simp only [FuelResult.bind_ok]
             rw [searchRaised]
             simp [bodiesRaised]
-        | matchFirst target matcher arms =>
+        | matchFirst target matcher arms fallback =>
             simp only [evalFuel] at success ⊢
             rw [bind_eq_ok_iff] at success ⊢
             rcases success with ⟨targetValue, targetResult, continued⟩
@@ -592,10 +596,10 @@ theorem Eval.complete
         FuelResult.traverse
           (fun bindings => evalFuel fuel (bindings ++ environment) body)
           groups = .ok values)
-    (motive_13 := fun environment target matcher arms result _ =>
+    (motive_13 := fun environment target matcher arms fallback result _ =>
       ∃ evaluationFuel searchFuel,
         evalMatchFirstArmsFuel (evalFuel evaluationFuel) searchFuel environment
-          target matcher arms = .ok result)
+          target matcher arms fallback = .ok result)
   case var =>
       intros environment index value lookup
       refine ⟨1, ?_⟩
@@ -753,7 +757,7 @@ theorem Eval.complete
         searchPatternFuel, evaluationAtomReducer, searchAtCommon,
         bodiesRaised, FuelResult.map_ok]
   case matchFirst =>
-      intros environment target targetValue matcher matcherValue arms result
+      intros environment target targetValue matcher matcherValue arms fallback result
         targetEval matcherEval armsEval targetIH matcherIH armsIH
       rcases targetIH with ⟨targetFuel, targetSuccess⟩
       rcases matcherIH with ⟨matcherFuel, matcherSuccess⟩
@@ -768,7 +772,7 @@ theorem Eval.complete
       have matcherRaised := evalFuel_ok_of_le matcherLe matcherSuccess
       have armsRaised :
           evalMatchFirstArmsFuel (evalFuel common) common environment
-            targetValue matcherValue arms = .ok result := by
+            targetValue matcherValue arms fallback = .ok result := by
         exact evalMatchFirstArmsFuel_ok_mono
           (fun success => evalFuel_ok_of_le armsEvalLe success)
           (fun {pattern bindingGroups} searchResult => by
@@ -844,6 +848,12 @@ theorem Eval.complete
       intros target inputs function outputs encoding applications applicationsIH
       rcases applicationsIH with ⟨fuel, success⟩
       exact ⟨fuel, by simp [evalPrimitive, encoding, success]⟩
+  case pairFirst =>
+      intros first second
+      exact ⟨0, rfl⟩
+  case pairSecond =>
+      intros first second
+      exact ⟨0, rfl⟩
   case miss =>
       intros header target matcherEnvironment captureValues holes nextMatchers
         body mismatch
@@ -1028,8 +1038,12 @@ theorem Eval.complete
         tailSuccess
       exact ⟨common, by
         simp [FuelResult.traverse, headRaised, tailRaised]⟩
+  case fallback =>
+      intros environment fallback result target matcher fallbackEval fallbackIH
+      rcases fallbackIH with ⟨fuel, success⟩
+      exact ⟨fuel, fuel, success⟩
   case hit =>
-      intros matcher target environment bindings remaining result arm rest
+      intros matcher target environment bindings remaining result arm rest fallback
         matching bodyEval matchingIH bodyIH
       rcases matchingIH with
         ⟨matchingEvalFuel, matchingSearchFuel, matchingSuccess⟩
@@ -1053,7 +1067,7 @@ theorem Eval.complete
       exact ⟨common, common, by
         simp [evalMatchFirstArmsFuel, searchAtCommon, bodyAtCommon]⟩
   case skip =>
-      intros matcher target environment rest result arm matching tail
+      intros matcher target environment rest fallback result arm matching tail
         matchingIH tailIH
       rcases matchingIH with
         ⟨matchingEvalFuel, matchingSearchFuel, matchingSuccess⟩
@@ -1077,7 +1091,7 @@ theorem Eval.complete
           Nat.add_sub_of_le matchingSearchLe] using matchingFuelRaised
       have tailAtCommon :
           evalMatchFirstArmsFuel (evalFuel common) common environment
-            target matcher rest = .ok result := by
+            target matcher rest fallback = .ok result := by
         exact evalMatchFirstArmsFuel_ok_mono
           (fun success => evalFuel_ok_of_le tailEvalLe success)
           (fun {pattern bindingGroups} searchResult => by

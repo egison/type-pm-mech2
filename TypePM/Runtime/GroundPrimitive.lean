@@ -66,7 +66,17 @@ def evalMap (apply : GroundValue → FuelResult GroundValue) :
       | none => .stuck
   | _ => .stuck
 
-/-- Dispatch the five `PrimOp` names on the ground-data fragment. -/
+/-- Project the first field of an exact two-item ground tuple. -/
+def evalPairFirst : List GroundValue → FuelResult GroundValue
+  | [.tuple (.cons first (.cons _second .nil))] => .ok first
+  | _ => .stuck
+
+/-- Project the second field of an exact two-item ground tuple. -/
+def evalPairSecond : List GroundValue → FuelResult GroundValue
+  | [.tuple (.cons _first (.cons second .nil))] => .ok second
+  | _ => .stuck
+
+/-- Dispatch the `PrimOp` names on the ground-data fragment. -/
 def eval (apply : GroundValue → FuelResult GroundValue) :
     PrimOp → List GroundValue → FuelResult GroundValue
   | .add => evalAdd
@@ -74,6 +84,8 @@ def eval (apply : GroundValue → FuelResult GroundValue) :
   | .member => evalMember
   | .deleteFirst => evalDeleteFirst
   | .map => evalMap apply
+  | .pairFirst => evalPairFirst
+  | .pairSecond => evalPairSecond
 
 @[simp] theorem eval_add (apply) : eval apply .add = evalAdd := rfl
 @[simp] theorem eval_append (apply) : eval apply .append = evalAppend := rfl
@@ -81,6 +93,8 @@ def eval (apply : GroundValue → FuelResult GroundValue) :
 @[simp] theorem eval_deleteFirst (apply) :
     eval apply .deleteFirst = evalDeleteFirst := rfl
 @[simp] theorem eval_map (apply) : eval apply .map = evalMap apply := rfl
+@[simp] theorem eval_pairFirst (apply) : eval apply .pairFirst = evalPairFirst := rfl
+@[simp] theorem eval_pairSecond (apply) : eval apply .pairSecond = evalPairSecond := rfl
 
 end GroundPrimitive
 

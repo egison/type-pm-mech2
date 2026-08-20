@@ -560,82 +560,59 @@ theorem elaborateTailUsing_success_transport
 theorem elaborateArmsUsing_success_transport
     {sourceElaborator targetElaborator : ExpressionElaborator}
     (transport : ElaboratorSuccessTransport sourceElaborator targetElaborator)
-    {signature context targetType matcherType arms supply generated next}
+    {signature context targetType matcherType fallback arms supply generated next}
     (success : elaborateArmsUsing sourceElaborator signature context targetType
-      matcherType arms supply = some (generated, next)) :
+      matcherType fallback arms supply = some (generated, next)) :
     elaborateArmsUsing targetElaborator signature context targetType matcherType
-      arms supply = some (generated, next) := by
+      fallback arms supply = some (generated, next) := by
   cases arms with
   | nil => simp [elaborateArmsUsing] at success
-  | cons arm arms =>
-      cases arm with
-      | mk pattern body =>
-          cases patternResult : elaboratePatternUsing sourceElaborator signature
-              context [] pattern [] supply with
-          | none => simp [elaborateArmsUsing, patternResult] at success
+  | cons first rest =>
+      cases fallbackResult : sourceElaborator context fallback supply with
+      | none => simp [elaborateArmsUsing, fallbackResult] at success
+      | some output =>
+          rcases output with ⟨generatedFallback, afterFallback⟩
+          have fallbackTo := transport fallbackResult
+          cases armsResult : elaborateTailUsing sourceElaborator signature
+              context targetType matcherType generatedFallback.target
+              (first :: rest) afterFallback with
+          | none =>
+              simp [elaborateArmsUsing, fallbackResult, armsResult] at success
           | some output =>
-              rcases output with ⟨generatedPattern, afterPattern⟩
-              have patternTo := M4.elaboratePatternUsing_success_transport
-                transport patternResult
-              cases bodyResult : sourceElaborator
-                  (Pattern.extendContext generatedPattern.bindings context)
-                  body afterPattern with
-              | none =>
-                  simp [elaborateArmsUsing, patternResult, bodyResult] at success
-              | some output =>
-                  rcases output with ⟨generatedBody, afterBody⟩
-                  have bodyTo := transport bodyResult
-                  cases tailResult : elaborateTailUsing sourceElaborator signature
-                      context targetType matcherType generatedBody.target arms
-                      afterBody with
-                  | none =>
-                      simp [elaborateArmsUsing, patternResult, bodyResult,
-                        tailResult] at success
-                  | some output =>
-                      rcases output with ⟨generatedTail, afterTail⟩
-                      have tailTo := elaborateTailUsing_success_transport transport
-                        tailResult
-                      simp [elaborateArmsUsing, patternResult, bodyResult,
-                        tailResult] at success
-                      simpa [elaborateArmsUsing, patternTo, bodyTo, tailTo]
-                        using success
+              rcases output with ⟨generatedArms, afterArms⟩
+              have armsTo := elaborateTailUsing_success_transport transport
+                armsResult
+              simpa [elaborateArmsUsing, fallbackResult, fallbackTo,
+                armsResult, armsTo] using success
 
 theorem elaborateUsing_success_transport
     {sourceElaborator targetElaborator : ExpressionElaborator}
     (transport : ElaboratorSuccessTransport sourceElaborator targetElaborator)
-    {signature context target matcher arms supply generated next}
+    {signature context target matcher arms fallback supply generated next}
     (success : elaborateUsing sourceElaborator signature context target matcher
-      arms supply = some (generated, next)) :
-    elaborateUsing targetElaborator signature context target matcher arms supply =
+      arms fallback supply = some (generated, next)) :
+    elaborateUsing targetElaborator signature context target matcher arms fallback supply =
       some (generated, next) := by
-  by_cases exhaustive : armsExhaustive arms
-  · cases targetResult : sourceElaborator context target supply with
-    | none => simp [elaborateUsing, exhaustive, targetResult] at success
-    | some output =>
-        rcases output with ⟨generatedTarget, afterTarget⟩
-        have targetTo := transport targetResult
-        cases matcherResult : sourceElaborator context matcher afterTarget with
-        | none =>
-            simp [elaborateUsing, exhaustive, targetResult, matcherResult]
-              at success
-        | some output =>
-            rcases output with ⟨generatedMatcher, afterMatcher⟩
-            have matcherTo := transport matcherResult
-            cases armsResult : elaborateArmsUsing sourceElaborator signature
-                context generatedTarget.target generatedMatcher.target arms
-                afterMatcher with
-            | none =>
-                simp [elaborateUsing, exhaustive, targetResult, matcherResult,
-                  armsResult] at success
-            | some output =>
-                rcases output with ⟨generatedArms, afterArms⟩
-                have armsTo := elaborateArmsUsing_success_transport transport
-                  armsResult
-                simp [elaborateUsing, exhaustive, targetResult, matcherResult,
-                  armsResult] at success
-                simpa [elaborateUsing, exhaustive, targetTo, matcherTo, armsTo]
-                  using success
-  · simp [elaborateUsing, exhaustive] at success
+  cases targetResult : sourceElaborator context target supply with
+  | none => simp [elaborateUsing, targetResult] at success
+  | some output =>
+      rcases output with ⟨generatedTarget, afterTarget⟩
+      have targetTo := transport targetResult
+      cases matcherResult : sourceElaborator context matcher afterTarget with
+      | none => simp [elaborateUsing, targetResult, matcherResult] at success
+      | some output =>
+          rcases output with ⟨generatedMatcher, afterMatcher⟩
+          have matcherTo := transport matcherResult
+          cases armsResult : elaborateArmsUsing sourceElaborator signature
+              context generatedTarget.target generatedMatcher.target fallback arms
+              afterMatcher with
+          | none =>
+              simp [elaborateUsing, targetResult, matcherResult, armsResult] at success
+          | some output =>
+              rcases output with ⟨generatedArms, afterArms⟩
+              have armsTo := elaborateArmsUsing_success_transport transport armsResult
+              simp [elaborateUsing, targetResult, matcherResult, armsResult] at success
+              simpa [elaborateUsing, targetTo, matcherTo, armsTo] using success
 
 end TypePM.Source.MatchFirstTyping
 
@@ -848,7 +825,7 @@ theorem elaborateFuelUsing_success_transport
       | matchAll target matcher pattern body =>
           exact elaborateMatchAllUsing_success_transport recurTransport
             (by simpa [elaborateFuelUsing] using success)
-      | matchFirst target matcher arms =>
+      | matchFirst target matcher arms fallback =>
           exact MatchFirstTyping.elaborateUsing_success_transport recurTransport
             (by simpa [elaborateFuelUsing] using success)
 
@@ -860,5 +837,145 @@ theorem elaborateFuel_success_of_solverFuel_success
       some (generated, next) := by
   exact elaborateFuelUsing_success_transport unify_eq_of_unifyWithFuel_success
     success
+
+/-- Once a fuel-indexed executable run succeeds, increasing only its
+structural recursion fuel preserves the exact generated block and finishing
+supply.  The solver and every source-order callback remain unchanged. -/
+theorem elaborateFuelUsing_success_mono
+    {solveHard : List Equation → Option Subst} {signature : FrozenSignature}
+    {smaller larger : Nat} (fuel_le : smaller ≤ larger) :
+    ElaboratorSuccessTransport
+      (elaborateFuelUsing solveHard signature smaller)
+      (elaborateFuelUsing solveHard signature larger) := by
+  induction smaller generalizing larger with
+  | zero =>
+      intro context expression supply generated next success
+      simp [elaborateFuelUsing] at success
+  | succ smaller induction =>
+      cases larger with
+      | zero => omega
+      | succ larger =>
+          have childFuelLe : smaller ≤ larger :=
+            Nat.succ_le_succ_iff.mp fuel_le
+          intro context expression supply generated next success
+          have recurTransport : ElaboratorSuccessTransport
+              (elaborateFuelUsing solveHard signature smaller)
+              (elaborateFuelUsing solveHard signature larger) :=
+            induction childFuelLe
+          cases expression with
+          | var index =>
+              simpa [elaborateFuelUsing] using success
+          | lit value =>
+              simpa [elaborateFuelUsing] using success
+          | something =>
+              simpa [elaborateFuelUsing] using success
+          | lam body =>
+              cases bodyResult : elaborateFuelUsing solveHard signature smaller
+                  (.mono (.var ⟨supply.ty⟩) :: context) body
+                  (supply.nextTy 1) with
+              | none => simp [elaborateFuelUsing, bodyResult] at success
+              | some output =>
+                  rcases output with ⟨generatedBody, afterBody⟩
+                  have bodyTo := recurTransport bodyResult
+                  simp [elaborateFuelUsing, bodyResult] at success
+                  simpa [elaborateFuelUsing, bodyTo] using success
+          | app function argument =>
+              cases functionResult : elaborateFuelUsing solveHard signature
+                  smaller context function supply with
+              | none => simp [elaborateFuelUsing, functionResult] at success
+              | some output =>
+                  rcases output with ⟨generatedFunction, afterFunction⟩
+                  have functionTo := recurTransport functionResult
+                  cases argumentResult : elaborateFuelUsing solveHard signature
+                      smaller context argument afterFunction with
+                  | none =>
+                      simp [elaborateFuelUsing, functionResult, argumentResult]
+                        at success
+                  | some output =>
+                      rcases output with ⟨generatedArgument, afterArgument⟩
+                      have argumentTo := recurTransport argumentResult
+                      simp [elaborateFuelUsing, functionResult, argumentResult]
+                        at success
+                      simpa [elaborateFuelUsing, functionTo, argumentTo] using
+                        success
+          | tuple items =>
+              cases itemsResult : elaborateItemsUsing
+                  (elaborateFuelUsing solveHard signature smaller) context items
+                  supply with
+              | none => simp [elaborateFuelUsing, itemsResult] at success
+              | some output =>
+                  rcases output with ⟨generatedItems, afterItems⟩
+                  have itemsTo := elaborateItemsUsing_success_transport
+                    recurTransport itemsResult
+                  simp [elaborateFuelUsing, itemsResult] at success
+                  simpa [elaborateFuelUsing, itemsTo] using success
+          | letE value body =>
+              cases valueResult : elaborateFuelUsing solveHard signature smaller
+                  context value supply with
+              | none => simp [elaborateFuelUsing, valueResult] at success
+              | some output =>
+                  rcases output with ⟨generatedValue, afterValue⟩
+                  have valueTo := recurTransport valueResult
+                  cases closureResult : inferGeneratedUsing solveHard
+                      generatedValue with
+                  | none =>
+                      simp [elaborateFuelUsing, valueResult, closureResult]
+                        at success
+                  | some closed =>
+                      cases bodyResult : elaborateFuelUsing solveHard signature
+                          smaller
+                          ((context.applyFree closed.substitution).generalize
+                              closed.target ::
+                            context.applyFree closed.substitution)
+                          body (afterValue.join
+                            (context.applyFree closed.substitution).initialSupply) with
+                      | none =>
+                          simp [elaborateFuelUsing, valueResult, closureResult,
+                            bodyResult] at success
+                      | some output =>
+                          rcases output with ⟨generatedBody, afterBody⟩
+                          have bodyTo := recurTransport bodyResult
+                          simp [elaborateFuelUsing, valueResult, closureResult,
+                            bodyResult] at success
+                          simpa [elaborateFuelUsing, valueTo, closureResult,
+                            bodyTo] using success
+          | ctor constructor arguments =>
+              cases lookup : signature.base.lookupDataConstructor constructor with
+              | none => simp [elaborateFuelUsing, lookup] at success
+              | some scheme =>
+                  by_cases arity : arguments.length = scheme.callArity
+                  · have transported := elaborateCallUsing_success_transport
+                        recurTransport
+                        (by simpa [elaborateFuelUsing, lookup, arity] using
+                          success)
+                    simpa [elaborateFuelUsing, lookup, arity] using transported
+                  · simp [elaborateFuelUsing, lookup, arity] at success
+          | prim operation arguments =>
+              cases lookup : signature.base.lookupPrimitive operation with
+              | none => simp [elaborateFuelUsing, lookup] at success
+              | some scheme =>
+                  by_cases arity : arguments.length = scheme.callArity
+                  · have transported := elaborateCallUsing_success_transport
+                        recurTransport
+                        (by simpa [elaborateFuelUsing, lookup, arity] using
+                          success)
+                    simpa [elaborateFuelUsing, lookup, arity] using transported
+                  · simp [elaborateFuelUsing, lookup, arity] at success
+          | ifE condition thenBranch elseBranch =>
+              exact elaborateCallUsing_success_transport recurTransport
+                (by simpa [elaborateFuelUsing] using success)
+          | fixE body =>
+              have transported := elaborateFixUsing_success_transport
+                recurTransport (by simpa [elaborateFuelUsing] using success)
+              simpa [elaborateFuelUsing] using transported
+          | matcher clauses =>
+              exact MatcherTyping.elaborateMatcherLiteralUsing_success_transport
+                recurTransport (by simpa [elaborateFuelUsing] using success)
+          | matchAll target matcher pattern body =>
+              exact elaborateMatchAllUsing_success_transport recurTransport
+                (by simpa [elaborateFuelUsing] using success)
+          | matchFirst target matcher arms fallback =>
+              exact MatchFirstTyping.elaborateUsing_success_transport
+                recurTransport (by simpa [elaborateFuelUsing] using success)
 
 end TypePM.Source.M4

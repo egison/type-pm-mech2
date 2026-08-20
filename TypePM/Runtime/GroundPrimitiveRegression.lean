@@ -89,6 +89,22 @@ theorem map_order_relational :
     Maps increment [integers [1, 2, 3]] (integers [2, 3, 4]) :=
   evalMap_adequate map_preserves_order
 
+theorem pair_first_exact :
+    evalPairFirst [tupleValue [.int 3, .int 4]] = .ok (.int 3) := by
+  rfl
+
+theorem pair_second_exact :
+    evalPairSecond [tupleValue [.int 3, .int 4]] = .ok (.int 4) := by
+  rfl
+
+theorem pair_first_relational :
+    ProjectsFirst [tupleValue [.int 3, .int 4]] (.int 3) :=
+  evalPairFirst_adequate pair_first_exact
+
+theorem pair_second_relational :
+    ProjectsSecond [tupleValue [.int 3, .int 4]] (.int 4) :=
+  evalPairSecond_adequate pair_second_exact
+
 /-- Wrong primitive arity is an explicit rule-coverage failure. -/
 theorem add_wrong_arity_stuck :
     evalAdd [.int 1] = .stuck := by
@@ -98,6 +114,10 @@ theorem add_wrong_arity_stuck :
 theorem append_non_list_stuck :
     evalAppend [.int 1, integers [2]] = .stuck := by
   simp [evalAppend, integers, integer, viewList]
+
+theorem pair_projection_wrong_shape_stuck :
+    evalPairFirst [tupleValue [.int 1]] = .stuck := by
+  rfl
 
 /-- Callback failure stops `map` at that element. -/
 theorem map_callback_stuck_propagates :

@@ -9,6 +9,14 @@ introducing source-level pattern-function bodies or a freeze checker.
 
 namespace TypePM.Source.M4FrozenSignatureRegression
 
+theorem frozen_pair_projection_coverage :
+    Paper1FrozenSignature.signature.lookupPrimitive .pairFirst =
+        some PrimitiveSchemes.pairFirst ∧
+      Paper1FrozenSignature.signature.lookupPrimitive .pairSecond =
+        some PrimitiveSchemes.pairSecond := by
+  exact ⟨Paper1FrozenSignature.lookup_pairFirst,
+    Paper1FrozenSignature.lookup_pairSecond⟩
+
 def emptyListPattern : PatternFunName := ⟨"emptyList"⟩
 
 def emptyListDeclaration : PatternFunctionDeclaration :=

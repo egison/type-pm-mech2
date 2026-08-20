@@ -3,10 +3,11 @@ import TypePM.Source.M4Elaboration
 /-!
 # M4 single-result, source-ordered match typing
 
-Paper 1 uses a single-result `match` in the whole-value multiset clause and
-inside tuple-pattern lambdas.  Unlike `matchAll`, this form returns an arm
-body directly rather than wrapping every result in a list.  The target and
-matcher are elaborated once; arms are then checked from left to right.
+Paper 1 uses a single-result `match` in the whole-value multiset clause.
+Unlike `matchAll`, this form returns one expression result directly rather
+than wrapping results in a list.  The target and matcher are elaborated once;
+ordinary arms are checked from left to right against the type of a separate,
+mandatory matcher-independent fallback expression.
 
 The executable rules are parameterized by the expression elaborator used for
 subexpressions.  The M3-specialized public wrapper is useful immediately, and
@@ -22,177 +23,15 @@ namespace MatchFirstTyping
 abbrev ExpressionElaborator :=
   Context → Expr → Supply → Option (Generated × Supply)
 
-mutual
-
-/-- Conservative structural test for a pattern that matches every value of
-its target type.  Constructor, value, embedded, and named patterns may fail;
-tuples are irrefutable exactly when all of their fields are. -/
-def structurallyIrrefutable : Pattern → Bool
-  | .var | .wild => true
-  | .tuple fields => allStructurallyIrrefutable fields
-  | .and left right =>
-      structurallyIrrefutable left && structurallyIrrefutable right
-  | .or left right =>
-      structurallyIrrefutable left || structurallyIrrefutable right
-  | .value _ | .ctor _ _ | .embed _ | .app _ _ => false
-
-def allStructurallyIrrefutable : List Pattern → Bool
-  | [] => true
-  | pattern :: patterns =>
-      structurallyIrrefutable pattern &&
-        allStructurallyIrrefutable patterns
-
-end
-
-
-/-- The source-ordered list is exhaustive when its final arm is
-structurally irrefutable. -/
-def armsExhaustive : List MatchFirstArm → Bool
-  | [] => false
-  | [.mk pattern _] => structurallyIrrefutable pattern
-  | _ :: arms => armsExhaustive arms
-
-mutual
-
-/-- Proof-level characterization of patterns accepted by the executable
-irrefutability check.  In particular, conjunction requires both sides,
-whereas either side of a disjunction is enough. -/
-inductive Irrefutable : Pattern → Prop where
-  | var : Irrefutable .var
-  | wild : Irrefutable .wild
-  | tuple {fields} (fieldsIrrefutable : AllIrrefutable fields) :
-      Irrefutable (.tuple fields)
-  | and {left right} (leftIrrefutable : Irrefutable left)
-      (rightIrrefutable : Irrefutable right) :
-      Irrefutable (.and left right)
-  | orLeft {left right} (leftIrrefutable : Irrefutable left) :
-      Irrefutable (.or left right)
-  | orRight {left right} (rightIrrefutable : Irrefutable right) :
-      Irrefutable (.or left right)
-
-/-- Pointwise proof-level irrefutability for tuple fields. -/
-inductive AllIrrefutable : List Pattern → Prop where
-  | nil : AllIrrefutable []
-  | cons {pattern patterns} (head : Irrefutable pattern)
-      (tail : AllIrrefutable patterns) :
-      AllIrrefutable (pattern :: patterns)
-
-end
-
-mutual
-
-/-- The proof-level pattern judgment implies executable acceptance. -/
-theorem Irrefutable.sound : {pattern : Pattern} →
-    Irrefutable pattern → structurallyIrrefutable pattern = true
-  | _, .var => rfl
-  | _, .wild => rfl
-  | _, .tuple fieldsIrrefutable => by
-      simpa [structurallyIrrefutable] using
-        AllIrrefutable.sound fieldsIrrefutable
-  | _, .and leftIrrefutable rightIrrefutable => by
-      simp [structurallyIrrefutable, Irrefutable.sound leftIrrefutable,
-        Irrefutable.sound rightIrrefutable]
-  | _, .orLeft leftIrrefutable => by
-      simp [structurallyIrrefutable, Irrefutable.sound leftIrrefutable]
-  | _, .orRight rightIrrefutable => by
-      simp [structurallyIrrefutable, Irrefutable.sound rightIrrefutable]
-
-/-- The list judgment implies the executable tuple-field check. -/
-theorem AllIrrefutable.sound : {patterns : List Pattern} →
-    AllIrrefutable patterns → allStructurallyIrrefutable patterns = true
-  | _, .nil => rfl
-  | _, .cons head tail => by
-      simp [allStructurallyIrrefutable, Irrefutable.sound head,
-        AllIrrefutable.sound tail]
-
-end
-
-
-mutual
-
-/-- Executable acceptance reconstructs the proof-level pattern judgment. -/
-theorem Irrefutable.of_check {pattern : Pattern}
-    (checked : structurallyIrrefutable pattern = true) :
-    Irrefutable pattern := by
-  cases pattern with
-  | var => exact .var
-  | wild => exact .wild
-  | value expression => simp [structurallyIrrefutable] at checked
-  | ctor constructor fields => simp [structurallyIrrefutable] at checked
-  | tuple fields =>
-      exact .tuple (AllIrrefutable.of_check (by
-        simpa [structurallyIrrefutable] using checked))
-  | and left right =>
-      simp only [structurallyIrrefutable, Bool.and_eq_true] at checked
-      exact .and (Irrefutable.of_check checked.1)
-        (Irrefutable.of_check checked.2)
-  | or left right =>
-      simp only [structurallyIrrefutable, Bool.or_eq_true] at checked
-      cases checked with
-      | inl leftChecked => exact .orLeft (Irrefutable.of_check leftChecked)
-      | inr rightChecked => exact .orRight (Irrefutable.of_check rightChecked)
-  | embed name => simp [structurallyIrrefutable] at checked
-  | app name fields => simp [structurallyIrrefutable] at checked
-
-/-- Executable tuple-field acceptance reconstructs the pointwise judgment. -/
-theorem AllIrrefutable.of_check {patterns : List Pattern}
-    (checked : allStructurallyIrrefutable patterns = true) :
-    AllIrrefutable patterns := by
-  cases patterns with
-  | nil => exact .nil
-  | cons pattern patterns =>
-      simp only [allStructurallyIrrefutable, Bool.and_eq_true] at checked
-      exact .cons (Irrefutable.of_check checked.1)
-        (AllIrrefutable.of_check checked.2)
-
-end
-
-/-- The structural judgment is exactly the executable irrefutability test. -/
-theorem irrefutable_iff_structurallyIrrefutable (pattern : Pattern) :
-    Irrefutable pattern ↔ structurallyIrrefutable pattern = true :=
-  ⟨Irrefutable.sound, Irrefutable.of_check⟩
-
-/-- Proof-level source-order exhaustiveness: earlier arms may be refutable,
-but the final arm has a structurally irrefutable pattern. -/
-inductive Exhaustive : List MatchFirstArm → Prop where
-  | last {pattern body}
-      (irrefutable : Irrefutable pattern) :
-      Exhaustive [.mk pattern body]
-  | skip {arm arms} (tail : Exhaustive arms) : Exhaustive (arm :: arms)
-
-theorem exhaustive_iff_armsExhaustive (arms : List MatchFirstArm) :
-    Exhaustive arms ↔ armsExhaustive arms = true := by
-  constructor
-  · intro exhaustive
-    induction exhaustive with
-    | last irrefutable => exact irrefutable.sound
-    | skip tail induction =>
-        cases tail <;> simpa [armsExhaustive] using induction
-  · induction arms with
-    | nil => simp [armsExhaustive]
-    | cons arm arms induction =>
-        cases arms with
-        | nil =>
-            cases arm with
-            | mk pattern body =>
-                intro checked
-                exact .last (Irrefutable.of_check checked)
-        | cons next rest =>
-            intro checked
-            exact .skip (induction (by simpa [armsExhaustive] using checked))
-
-instance (arms : List MatchFirstArm) : Decidable (Exhaustive arms) :=
-  decidable_of_iff (armsExhaustive arms = true)
-    (exhaustive_iff_armsExhaustive arms).symm
-
-/-- Constraints contributed by the nonempty, source-ordered arm list. -/
+/-- Constraints contributed by the source-ordered ordinary arm list and the
+mandatory matcher-independent fallback expression. -/
 structure GeneratedArms where
   target : Ty
   hard : List Equation
   pending : List CheckObligation
 deriving Repr
 
-/-- Constraints contributed by arms after the first one. -/
+/-- Constraints contributed by ordinary arms. -/
 structure GeneratedTail where
   hard : List Equation
   pending : List CheckObligation
@@ -208,18 +47,14 @@ def GeneratedTail.fromArm
       [⟨matcherType, .slot pattern.dual.capability targetType⟩] ++
         body.pending }
 
-/-- First-arm constraints.  Its body type is the direct result type; no list
-constructor and no fresh result alias are introduced. -/
-def GeneratedArms.fromFirst
-    (targetType matcherType : Ty)
-    (pattern : GeneratedPattern) (body : Generated)
-    (tail : GeneratedTail) : GeneratedArms :=
-  { target := body.target
-    hard := [.ty pattern.dual.target targetType] ++ pattern.hard ++
-      body.hard ++ tail.hard
-    pending := pattern.pending ++
-      [⟨matcherType, .slot pattern.dual.capability targetType⟩] ++
-        body.pending ++ tail.pending }
+/-- The fallback fixes the result type; every ordinary arm is checked against
+that type.  The public source rule requires at least one ordinary arm, while
+the generated tail itself still has an empty recursive endpoint. -/
+def GeneratedArms.fromFallback
+    (fallback : Generated) (arms : GeneratedTail) : GeneratedArms :=
+  { target := fallback.target
+    hard := fallback.hard ++ arms.hard
+    pending := fallback.pending ++ arms.pending }
 
 /-- Add the once-only target and matcher blocks around the arms. -/
 def Generated.fromMatchFirst
@@ -228,8 +63,8 @@ def Generated.fromMatchFirst
     hard := target.hard ++ matcher.hard ++ arms.hard
     pending := target.pending ++ matcher.pending ++ arms.pending }
 
-/-- Fuel-structural elaboration of every arm after the first, preserving
-source order.  One unit is consumed for each tail cell. -/
+/-- Fuel-structural elaboration of every ordinary arm, preserving source
+order.  One unit is consumed for each list cell. -/
 def elaborateTailUsingFuel
     (elaborateExpression : ExpressionElaborator)
     (signature : FrozenSignature) (context : Context)
@@ -266,44 +101,38 @@ def elaborateTailUsing
     matcherType expectedResult (MatchFirstArm.listComplexity arms * 2 + 1)
     arms supply
 
-/-- Elaborate a nonempty arm list.  The first body fixes the direct result
-type against which later bodies are equated. -/
+/-- Elaborate the mandatory fallback and then all ordinary arms.  The
+fallback's type is the expected result type for every arm body. -/
 def elaborateArmsUsing
     (elaborateExpression : ExpressionElaborator)
     (signature : FrozenSignature) (context : Context)
-    (targetType matcherType : Ty) :
-    List MatchFirstArm → Supply → Option (GeneratedArms × Supply)
-  | [], _ => none
-  | .mk pattern body :: arms, supply => do
-      let (generatedPattern, afterPattern) ←
-        elaboratePatternUsing elaborateExpression signature context [] pattern [] supply
-      let (generatedBody, afterBody) ←
-        elaborateExpression
-          (Pattern.extendContext generatedPattern.bindings context)
-          body afterPattern
-      let (generatedTail, next) ←
+    (targetType matcherType : Ty) (fallback : Expr)
+    (arms : List MatchFirstArm) (supply : Supply) :
+    Option (GeneratedArms × Supply) :=
+  match arms with
+  | [] => none
+  | first :: rest => do
+      let (generatedFallback, afterFallback) ←
+        elaborateExpression context fallback supply
+      let (generatedArms, next) ←
         elaborateTailUsing elaborateExpression signature context targetType
-          matcherType generatedBody.target arms afterBody
-      pure
-        (GeneratedArms.fromFirst targetType matcherType generatedPattern
-          generatedBody generatedTail,
-          next)
+          matcherType generatedFallback.target (first :: rest) afterFallback
+      pure (GeneratedArms.fromFallback generatedFallback generatedArms, next)
 
 /-- Executable rule for a single-result match.  Target and matcher callbacks
 are invoked exactly once before arm elaboration starts. -/
 def elaborateUsing
     (elaborateExpression : ExpressionElaborator)
     (signature : FrozenSignature) (context : Context)
-    (target matcher : Expr) (arms : List MatchFirstArm)
+    (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr)
     (supply : Supply) : Option (Generated × Supply) := do
-  if !armsExhaustive arms then none else pure ()
   let (generatedTarget, afterTarget) ←
     elaborateExpression context target supply
   let (generatedMatcher, afterMatcher) ←
     elaborateExpression context matcher afterTarget
   let (generatedArms, next) ←
     elaborateArmsUsing elaborateExpression signature context
-      generatedTarget.target generatedMatcher.target arms afterMatcher
+      generatedTarget.target generatedMatcher.target fallback arms afterMatcher
   pure
     (Generated.fromMatchFirst generatedTarget generatedMatcher generatedArms,
       next)
@@ -311,21 +140,21 @@ def elaborateUsing
 /-- M3-specialized root wrapper. -/
 def elaborate
     (signature : FrozenSignature) (context : Context)
-    (target matcher : Expr) (arms : List MatchFirstArm)
+    (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr)
     (supply : Supply) : Option (Generated × Supply) :=
   elaborateUsing (TypePM.Source.elaborate signature.base) signature context
-    target matcher arms supply
+    target matcher arms fallback supply
 
 /-- Close and solve one M3-subexpression single-result match. -/
 def infer
     (signature : FrozenSignature) (context : Context)
-    (target matcher : Expr) (arms : List MatchFirstArm) : Option Ty := do
+    (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr) : Option Ty := do
   let (generated, _) ←
-    elaborate signature context target matcher arms context.initialSupply
+    elaborate signature context target matcher arms fallback context.initialSupply
   let closed ← inferGeneratedUsing unify generated
   pure closed.target
 
-/-- Relational mirror of later-arm elaboration. -/
+/-- Relational mirror of ordinary-arm elaboration. -/
 inductive TailElaboratesUsing
     (ExpressionElaborates :
       Context → Expr → Supply → Generated → Supply → Prop)
@@ -355,30 +184,24 @@ inductive TailElaboratesUsing
               generatedPattern generatedBody).pending ++ generatedTail.pending⟩
         next
 
-/-- Relational mirror of nonempty arm elaboration. -/
+/-- Relational mirror of fallback and ordinary-arm elaboration. -/
 inductive ArmsElaborateUsing
     (ExpressionElaborates :
       Context → Expr → Supply → Generated → Supply → Prop)
     (signature : FrozenSignature) (context : Context)
     (targetType matcherType : Ty) :
-    List MatchFirstArm → Supply → GeneratedArms → Supply → Prop where
-  | cons {pattern body arms supply generatedPattern afterPattern
-      generatedBody afterBody generatedTail next}
-      (patternElaboration :
-        PatternElaboratesUsing ExpressionElaborates signature context [] pattern [] supply
-          generatedPattern afterPattern)
-      (bodyElaboration :
-        ExpressionElaborates
-          (Pattern.extendContext generatedPattern.bindings context)
-          body afterPattern generatedBody afterBody)
-      (tailElaboration :
+    Expr → List MatchFirstArm → Supply → GeneratedArms → Supply → Prop where
+  | fromFallback {fallback first rest supply generatedFallback afterFallback
+      generatedArms next}
+      (fallbackElaboration :
+        ExpressionElaborates context fallback supply generatedFallback afterFallback)
+      (armsElaboration :
         TailElaboratesUsing ExpressionElaborates signature context targetType
-          matcherType generatedBody.target arms afterBody generatedTail next) :
+          matcherType generatedFallback.target (first :: rest) afterFallback
+          generatedArms next) :
       ArmsElaborateUsing ExpressionElaborates signature context targetType
-        matcherType (.mk pattern body :: arms) supply
-        (GeneratedArms.fromFirst targetType matcherType generatedPattern
-          generatedBody generatedTail)
-        next
+        matcherType fallback (first :: rest) supply
+        (GeneratedArms.fromFallback generatedFallback generatedArms) next
 
 /-- Independent relational single-result match rule. -/
 inductive ElaboratesUsing
@@ -386,9 +209,8 @@ inductive ElaboratesUsing
       Context → Expr → Supply → Generated → Supply → Prop)
     (signature : FrozenSignature) (context : Context) :
     Expr → Supply → Generated → Supply → Prop where
-  | matchFirst {target matcher arms supply generatedTarget afterTarget
+  | matchFirst {target matcher arms fallback supply generatedTarget afterTarget
       generatedMatcher afterMatcher generatedArms next}
-      (exhaustive : Exhaustive arms)
       (targetElaboration :
         ExpressionElaborates context target supply generatedTarget afterTarget)
       (matcherElaboration :
@@ -396,31 +218,12 @@ inductive ElaboratesUsing
           afterMatcher)
       (armsElaboration :
         ArmsElaborateUsing ExpressionElaborates signature context
-          generatedTarget.target generatedMatcher.target arms afterMatcher
+          generatedTarget.target generatedMatcher.target fallback arms afterMatcher
           generatedArms next) :
       ElaboratesUsing ExpressionElaborates signature context
-        (.matchFirst target matcher arms) supply
+        (.matchFirst target matcher arms fallback) supply
         (Generated.fromMatchFirst generatedTarget generatedMatcher generatedArms)
         next
-
-namespace ElaboratesUsing
-
-/-- Every relational derivation records the conservative coverage gate used
-by the executable rule. -/
-theorem exhaustive
-    {ExpressionElaborates :
-      Context → Expr → Supply → Generated → Supply → Prop}
-    {signature : FrozenSignature} {context : Context}
-    {target matcher : Expr} {arms : List MatchFirstArm}
-    {supply next : Supply} {generated : Generated}
-    (elaboration :
-      ElaboratesUsing ExpressionElaborates signature context
-        (.matchFirst target matcher arms) supply generated next) :
-    Exhaustive arms := by
-  cases elaboration
-  assumption
-
-end ElaboratesUsing
 
 abbrev Elaborates
     (signature : FrozenSignature) (context : Context) :=
@@ -507,46 +310,31 @@ theorem elaborateArmsUsing_sound
       elaborateExpression context expression supply = some (generated, next) →
         ExpressionElaborates context expression supply generated next)
     {signature : FrozenSignature} (wellFormed : signature.WellFormed)
-    {context : Context} {targetType matcherType : Ty}
+    {context : Context} {targetType matcherType : Ty} {fallback : Expr}
     {arms : List MatchFirstArm} {supply next : Supply}
     {generated : GeneratedArms}
     (success : elaborateArmsUsing elaborateExpression signature context
-      targetType matcherType arms supply = some (generated, next)) :
+      targetType matcherType fallback arms supply = some (generated, next)) :
     ArmsElaborateUsing ExpressionElaborates signature context targetType
-      matcherType arms supply generated next := by
+      matcherType fallback arms supply generated next := by
   cases arms with
   | nil => simp [elaborateArmsUsing] at success
-  | cons arm arms =>
-      cases arm with
-      | mk pattern body =>
-          cases patternResult : elaboratePatternUsing elaborateExpression signature context [] pattern []
-              supply with
-          | none => simp [elaborateArmsUsing, patternResult] at success
-          | some patternOutput =>
-              rcases patternOutput with ⟨generatedPattern, afterPattern⟩
-              cases bodyResult : elaborateExpression
-                  (Pattern.extendContext generatedPattern.bindings context)
-                  body afterPattern with
-              | none =>
-                  simp [elaborateArmsUsing, patternResult, bodyResult] at success
-              | some bodyOutput =>
-                  rcases bodyOutput with ⟨generatedBody, afterBody⟩
-                  cases tailResult : elaborateTailUsing elaborateExpression
-                      signature context targetType matcherType
-                      generatedBody.target arms afterBody with
-                  | none =>
-                      simp [elaborateArmsUsing, patternResult, bodyResult,
-                        tailResult] at success
-                  | some tailOutput =>
-                      rcases tailOutput with ⟨generatedTail, afterTail⟩
-                      simp [elaborateArmsUsing, patternResult, bodyResult,
-                        tailResult] at success
-                      rcases success with ⟨rfl, rfl⟩
-                      exact .cons
-                        (elaboratePatternUsing_sound expressionSound wellFormed patternResult)
-                        (expressionSound bodyResult)
-                        (elaborateTailUsing_sound expressionSound wellFormed
-                          tailResult)
+  | cons first rest =>
+      cases fallbackResult : elaborateExpression context fallback supply with
+      | none => simp [elaborateArmsUsing, fallbackResult] at success
+      | some fallbackOutput =>
+          rcases fallbackOutput with ⟨generatedFallback, afterFallback⟩
+          cases armsResult : elaborateTailUsing elaborateExpression signature
+              context targetType matcherType generatedFallback.target
+              (first :: rest) afterFallback with
+          | none =>
+              simp [elaborateArmsUsing, fallbackResult, armsResult] at success
+          | some armsOutput =>
+              rcases armsOutput with ⟨generatedArms, afterArms⟩
+              simp [elaborateArmsUsing, fallbackResult, armsResult] at success
+              rcases success with ⟨rfl, rfl⟩
+              exact .fromFallback (expressionSound fallbackResult)
+                (elaborateTailUsing_sound expressionSound wellFormed armsResult)
 
 theorem elaborateUsing_sound
     {elaborateExpression : ExpressionElaborator}
@@ -556,48 +344,40 @@ theorem elaborateUsing_sound
       elaborateExpression context expression supply = some (generated, next) →
         ExpressionElaborates context expression supply generated next)
     {signature : FrozenSignature} (wellFormed : signature.WellFormed)
-    {context : Context} {target matcher : Expr} {arms : List MatchFirstArm}
+    {context : Context} {target matcher fallback : Expr} {arms : List MatchFirstArm}
     {supply next : Supply} {generated : Generated}
     (success : elaborateUsing elaborateExpression signature context target
-      matcher arms supply = some (generated, next)) :
+      matcher arms fallback supply = some (generated, next)) :
     ElaboratesUsing ExpressionElaborates signature context
-      (.matchFirst target matcher arms) supply generated next := by
-  by_cases exhaustive : armsExhaustive arms = true
-  · cases targetResult : elaborateExpression context target supply with
-    | none => simp [elaborateUsing, exhaustive, targetResult] at success
-    | some targetOutput =>
-        rcases targetOutput with ⟨generatedTarget, afterTarget⟩
-        cases matcherResult : elaborateExpression context matcher afterTarget with
-        | none =>
-            simp [elaborateUsing, exhaustive, targetResult, matcherResult]
-              at success
-        | some matcherOutput =>
-            rcases matcherOutput with ⟨generatedMatcher, afterMatcher⟩
-            cases armsResult : elaborateArmsUsing elaborateExpression signature
-                context generatedTarget.target generatedMatcher.target arms
-                afterMatcher with
-            | none =>
-                simp [elaborateUsing, exhaustive, targetResult, matcherResult,
-                  armsResult] at success
-            | some armsOutput =>
-                rcases armsOutput with ⟨generatedArms, afterArms⟩
-                simp [elaborateUsing, exhaustive, targetResult, matcherResult,
-                  armsResult] at success
-                rcases success with ⟨rfl, rfl⟩
-                exact .matchFirst
-                  ((exhaustive_iff_armsExhaustive arms).2 exhaustive)
-                  (expressionSound targetResult)
-                  (expressionSound matcherResult)
-                  (elaborateArmsUsing_sound expressionSound wellFormed armsResult)
-  · simp [elaborateUsing, exhaustive] at success
+      (.matchFirst target matcher arms fallback) supply generated next := by
+  cases targetResult : elaborateExpression context target supply with
+  | none => simp [elaborateUsing, targetResult] at success
+  | some targetOutput =>
+      rcases targetOutput with ⟨generatedTarget, afterTarget⟩
+      cases matcherResult : elaborateExpression context matcher afterTarget with
+      | none => simp [elaborateUsing, targetResult, matcherResult] at success
+      | some matcherOutput =>
+          rcases matcherOutput with ⟨generatedMatcher, afterMatcher⟩
+          cases armsResult : elaborateArmsUsing elaborateExpression signature
+              context generatedTarget.target generatedMatcher.target fallback arms
+              afterMatcher with
+          | none =>
+              simp [elaborateUsing, targetResult, matcherResult, armsResult] at success
+          | some armsOutput =>
+              rcases armsOutput with ⟨generatedArms, afterArms⟩
+              simp [elaborateUsing, targetResult, matcherResult, armsResult] at success
+              rcases success with ⟨rfl, rfl⟩
+              exact .matchFirst (expressionSound targetResult)
+                (expressionSound matcherResult)
+                (elaborateArmsUsing_sound expressionSound wellFormed armsResult)
 
 theorem elaborate_sound
     {signature : FrozenSignature} (wellFormed : signature.WellFormed)
-    {context : Context} {target matcher : Expr} {arms : List MatchFirstArm}
+    {context : Context} {target matcher fallback : Expr} {arms : List MatchFirstArm}
     {supply next : Supply} {generated : Generated}
-    (success : elaborate signature context target matcher arms supply =
+    (success : elaborate signature context target matcher arms fallback supply =
       some (generated, next)) :
-    Elaborates signature context (.matchFirst target matcher arms) supply
+    Elaborates signature context (.matchFirst target matcher arms fallback) supply
       generated next := by
   apply elaborateUsing_sound
     (elaborateExpression := TypePM.Source.elaborate signature.base)
@@ -608,25 +388,5 @@ theorem elaborate_sound
   simpa [elaborate] using success
 
 end MatchFirstTyping
-
-namespace Expr
-
-/-- Exact source desugaring of a unary pattern lambda.  The anonymous
-argument remains behind all source-order pattern binders in the arm body. -/
-def patternLambda (pattern : Pattern) (matcher body : Expr) : Expr :=
-  .lam (.matchFirst (.var 0) matcher [.mk pattern body])
-
-/-- Paper 1's `\(left,right) -> body` form, using a product of `something`
-matchers for the two tuple fields. -/
-def tuplePatternLambda (body : Expr) : Expr :=
-  patternLambda (.tuple [.var, .var])
-    (.tuple [.something, .something]) body
-
-@[simp] theorem tuplePatternLambda_eq (body : Expr) :
-    tuplePatternLambda body =
-      .lam (.matchFirst (.var 0) (.tuple [.something, .something])
-        [.mk (.tuple [.var, .var]) body]) := rfl
-
-end Expr
 
 end TypePM.Source

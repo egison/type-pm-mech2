@@ -32,6 +32,22 @@ private theorem identityAtMatcher :
   refine ⟨Subst.singleTy ⟨0⟩ (.matcher .any (.var ⟨5⟩)), ?_⟩
   simp [identityType, Subst.singleTy, Ty.apply]
 
+/-- Public inference exposes the actual value/body elaboration boundary of
+the source `letE`.  At that boundary the generalized identity type is
+automatically separated from the support generated later by the body; no
+disjointness or substitution-fixedness premise is supplied by this
+regression. -/
+theorem polymorphicIdentity_actualLetBoundarySeparated :
+    ClosedLetBoundVariableSupportSeparated Paper1Signature.signature
+      (.lam (.var 0))
+      (.tuple [
+        .app (.var 0) (.lit 1),
+        .app (.var 0) .something]) := by
+  apply inferSuccessClosedLetBoundVariableSupportSeparated
+    Paper1Signature.wellFormed
+  simpa [M2Regression.polymorphicIdentity] using
+    M2Regression.infer_polymorphicIdentity_exact
+
 /-- The proof-only runtime derivation uses one generic context entry at two
 different types.  Neither use is available through `RuntimeTyping.var`; both
 must cite the `true` provenance entry introduced by `letPoly`. -/

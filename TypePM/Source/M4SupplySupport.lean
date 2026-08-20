@@ -355,23 +355,21 @@ theorem TailElaboratesUsing.supply_le_next
         (pattern.supply_le_next expressionIncreases)
         (Supply.le_trans (expressionIncreases body) induction)
 
-/-- A nonempty `matchFirst` arm list preserves supply monotonicity. -/
+/-- The fallback and ordinary `matchFirst` arms preserve supply monotonicity. -/
 theorem ArmsElaborateUsing.supply_le_next
     {ExpressionElaborates :
       Context → Expr → Supply → Generated → Supply → Prop}
     (expressionIncreases : ∀ {context expression start generated finish},
       ExpressionElaborates context expression start generated finish →
         start.Le finish)
-    {signature context targetType matcherType arms start generated finish}
+    {signature context targetType matcherType fallback arms start generated finish}
     (derivation : ArmsElaborateUsing ExpressionElaborates signature context
-      targetType matcherType arms start generated finish) :
+      targetType matcherType fallback arms start generated finish) :
     start.Le finish := by
   cases derivation with
-  | cons pattern body tail =>
-      exact Supply.le_trans
-        (pattern.supply_le_next expressionIncreases)
-        (Supply.le_trans (expressionIncreases body)
-          (tail.supply_le_next expressionIncreases))
+  | fromFallback fallback arms =>
+      exact Supply.le_trans (expressionIncreases fallback)
+        (arms.supply_le_next expressionIncreases)
 
 /-- `matchFirst` preserves supply monotonicity. -/
 theorem ElaboratesUsing.supply_le_next
@@ -385,7 +383,7 @@ theorem ElaboratesUsing.supply_le_next
       expression start generated finish) :
     start.Le finish := by
   cases derivation with
-  | matchFirst exhaustive target matcher arms =>
+  | matchFirst target matcher arms =>
       exact Supply.le_trans (expressionIncreases target)
         (Supply.le_trans (expressionIncreases matcher)
           (arms.supply_le_next expressionIncreases))
@@ -3436,8 +3434,8 @@ theorem TailElaboratesUsing.supportProvenance
           unificationVars_append, pendingUnificationVars_append]
           using member)
 
-/-- The first arm fixes the result type; later arms are checked against that
-same supported type. -/
+/-- The mandatory fallback fixes the result type; ordinary arms are checked
+against that same supported type. -/
 theorem ArmsElaborateUsing.supportProvenance
     {ExpressionElaborates : M4ExpressionElaborationRelation}
     (wellFormed : signature.WellFormed)
@@ -3447,124 +3445,42 @@ theorem ArmsElaborateUsing.supportProvenance
     (expressionSupport : ∀ {context expression start generated finish},
       ExpressionElaborates context expression start generated finish →
         GeneratedSupportProvenance context start finish generated)
-    {context outerStart targetType matcherType arms start generated finish}
+    {context outerStart targetType matcherType fallback arms start generated finish}
     (targetSupport : VariablesSupportProvenance context outerStart start
       targetType.unificationVars)
     (matcherSupport : VariablesSupportProvenance context outerStart start
       matcherType.unificationVars)
     (outerToStart : outerStart.Le start)
     (derivation : ArmsElaborateUsing ExpressionElaborates signature context
-      targetType matcherType arms start generated finish) :
+      targetType matcherType fallback arms start generated finish) :
     GeneratedArmsSupportProvenance context outerStart finish generated := by
   cases derivation with
-  | @cons pattern body arms start generatedPattern afterPattern generatedBody
-      afterBody generatedTail finish patternElaboration bodyElaboration
-      tailElaboration =>
-      have emptyArguments : VariablesSupportProvenance context outerStart start
-          (dualUnificationVars []) := by
-        intro candidate member
-        simp [dualUnificationVars] at member
-      have emptyBindings : VariablesSupportProvenance context outerStart start
-          (Ty.unificationVarsList []) := by
-        intro candidate member
-        simp [Ty.unificationVarsList] at member
-      have patternSupport := patternElaboration.supportProvenance wellFormed
-        expressionIncreases expressionSupport emptyArguments emptyBindings
+  | fromFallback fallbackElaboration armsElaboration =>
+      rename_i generatedFallback afterFallback generatedArms
+      have startToFallback := expressionIncreases fallbackElaboration
+      have fallbackSupport := (expressionSupport fallbackElaboration).lower_start
         outerToStart
-      have startToPattern := patternElaboration.supply_le_next
-        expressionIncreases
-      have patternToBody := expressionIncreases bodyElaboration
-      have bindingsSupport : VariablesSupportProvenance context outerStart
-          afterPattern (Ty.unificationVarsList generatedPattern.bindings) := by
+      have fallbackTargetSupport : VariablesSupportProvenance context outerStart
+          afterFallback generatedFallback.target.unificationVars := by
         intro candidate member
-        exact patternSupport candidate (by
-          simp [GeneratedPattern.unificationVars, member])
-      have bodySupport := (expressionSupport bodyElaboration).rebase_context
-        (Supply.le_trans outerToStart startToPattern) patternToBody
-        (Pattern.extendContext_support bindingsSupport)
-      have startToBody := Supply.le_trans startToPattern patternToBody
-      have bodyTargetAtBody : VariablesSupportProvenance context outerStart
-          afterBody generatedBody.target.unificationVars := by
-        intro candidate member
-        exact bodySupport candidate (by simp [Generated.unificationVars, member])
-      have tailSupport := tailElaboration.supportProvenance wellFormed
+        exact fallbackSupport candidate (by
+          simp [Generated.unificationVars, member])
+      have armsSupport := armsElaboration.supportProvenance wellFormed
         expressionIncreases expressionSupport
-        (targetSupport.extend_finish startToBody)
-        (matcherSupport.extend_finish startToBody)
-        bodyTargetAtBody (Supply.le_trans outerToStart startToBody)
-      have bodyToFinish := tailElaboration.supply_le_next expressionIncreases
-      have patternFinal := patternSupport.extend_finish
-        (Supply.le_trans patternToBody bodyToFinish)
-      have bodyFinal := bodySupport.extend_finish bodyToFinish
-      have targetFinal := targetSupport.extend_finish
-        (Supply.le_trans startToBody bodyToFinish)
-      have matcherFinal := matcherSupport.extend_finish
-        (Supply.le_trans startToBody bodyToFinish)
-      have patternTarget : VariablesSupportProvenance context outerStart finish
-          generatedPattern.dual.target.unificationVars := by
-        intro candidate member
-        exact patternFinal candidate (by
-          simp [GeneratedPattern.unificationVars, dualVariables, member])
-      have patternCapability : VariablesSupportProvenance context outerStart finish
-          generatedPattern.dual.capability.unificationVars := by
-        intro candidate member
-        exact patternFinal candidate (by
-          simp [GeneratedPattern.unificationVars, dualVariables, member])
-      have obligationSupport : VariablesSupportProvenance context outerStart finish
-          (CheckObligation.unificationVars
-            ⟨matcherType, .slot generatedPattern.dual.capability targetType⟩) := by
-        intro candidate member
-        have origin : candidate ∈ matcherType.unificationVars ∨
-            candidate ∈ generatedPattern.dual.capability.unificationVars ∨
-            candidate ∈ targetType.unificationVars := by
-          simpa [CheckObligation.unificationVars, Ty.unificationVars] using member
-        exact Or.elim origin
-          (fun item => matcherFinal candidate item)
-          (fun rest => Or.elim rest
-            (fun item => patternCapability candidate item)
-            (fun item => targetFinal candidate item))
-      have patternHard : VariablesSupportProvenance context outerStart finish
-          (TypePM.unificationVars generatedPattern.hard) := by
-        intro candidate member
-        exact patternFinal candidate (by
-          simp [GeneratedPattern.unificationVars, member])
-      have patternPending : VariablesSupportProvenance context outerStart finish
-          (pendingUnificationVars generatedPattern.pending) := by
-        intro candidate member
-        exact patternFinal candidate (by
-          simp [GeneratedPattern.unificationVars, member])
-      have tailHard : VariablesSupportProvenance context outerStart finish
-          (TypePM.unificationVars generatedTail.hard) := by
-        intro candidate member
-        exact tailSupport candidate (by
-          simp [GeneratedTail.unificationVars, member])
-      have tailPending : VariablesSupportProvenance context outerStart finish
-          (pendingUnificationVars generatedTail.pending) := by
-        intro candidate member
-        exact tailSupport candidate (by
-          simp [GeneratedTail.unificationVars, member])
-      have bodyTarget : VariablesSupportProvenance context outerStart finish
-          generatedBody.target.unificationVars := by
-        intro candidate member
-        exact bodyFinal candidate (by simp [Generated.unificationVars, member])
-      have bodyHard : VariablesSupportProvenance context outerStart finish
-          (TypePM.unificationVars generatedBody.hard) := by
-        intro candidate member
-        exact bodyFinal candidate (by simp [Generated.unificationVars, member])
-      have bodyPending : VariablesSupportProvenance context outerStart finish
-          (pendingUnificationVars generatedBody.pending) := by
-        intro candidate member
-        exact bodyFinal candidate (by simp [Generated.unificationVars, member])
+        (targetSupport.extend_finish startToFallback)
+        (matcherSupport.extend_finish startToFallback)
+        fallbackTargetSupport (Supply.le_trans outerToStart startToFallback)
+      have fallbackToFinish := armsElaboration.supply_le_next expressionIncreases
+      have fallbackFinal := fallbackSupport.extend_finish fallbackToFinish
       intro candidate member
-      exact ((((bodyTarget.append patternTarget).append targetFinal).append
-        ((patternHard.append bodyHard).append tailHard)).append
-        (((patternPending.append obligationSupport).append bodyPending).append
-          tailPending)) candidate (by
-            simpa [GeneratedArms.unificationVars, GeneratedArms.fromFirst,
-              GeneratedTail.fromArm, TypePM.unificationVars,
-              Equation.unificationVars, unificationVars_append,
-              pendingUnificationVars_append, pendingUnificationVars]
-              using member)
+      have origin : candidate ∈ generatedFallback.unificationVars ∨
+          candidate ∈ generatedArms.unificationVars := by
+        simpa [GeneratedArms.unificationVars, GeneratedArms.fromFallback,
+          Generated.unificationVars, GeneratedTail.unificationVars,
+          unificationVars_append, pendingUnificationVars_append,
+          or_assoc, or_left_comm, or_comm] using member
+      exact origin.elim (fun item => fallbackFinal candidate item)
+        (fun item => armsSupport candidate item)
 
 /-- A complete single-result match preserves generated-variable provenance. -/
 theorem ElaboratesUsing.supportProvenance
@@ -3581,8 +3497,8 @@ theorem ElaboratesUsing.supportProvenance
       expression start generated finish) :
     GeneratedSupportProvenance context start finish generated := by
   cases derivation with
-  | @matchFirst target matcher arms start generatedTarget afterTarget
-      generatedMatcher afterMatcher generatedArms finish exhaustive
+  | @matchFirst target matcher arms fallback start generatedTarget afterTarget
+      generatedMatcher afterMatcher generatedArms finish
       targetElaboration matcherElaboration armsElaboration =>
       have targetSupport := expressionSupport targetElaboration
       have startToTarget := expressionIncreases targetElaboration

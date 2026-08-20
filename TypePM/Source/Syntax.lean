@@ -33,6 +33,7 @@ mutual
     | matcher (clauses : List MatcherClause)
     | matchAll (target matcher : Expr) (pattern : Pattern) (body : Expr)
     | matchFirst (target matcher : Expr) (arms : List MatchFirstArm)
+        (fallback : Expr)
   deriving Repr
 
   /-- A source pattern.  `embed index` refers to a pattern argument by its

@@ -16,6 +16,8 @@ inductive PrimOp where
   | member
   | deleteFirst
   | map
+  | pairFirst
+  | pairSecond
 deriving Repr, DecidableEq
 
 namespace PrimOp
@@ -27,15 +29,19 @@ def name : PrimOp → String
   | .member => "member"
   | .deleteFirst => "deleteFirst"
   | .map => "map"
+  | .pairFirst => "pairFirst"
+  | .pairSecond => "pairSecond"
 
 instance : ToString PrimOp where
   toString := name
 
 /-- Enumeration used by later finite signature checks. -/
-def all : List PrimOp := [.add, .append, .member, .deleteFirst, .map]
+def all : List PrimOp :=
+  [.add, .append, .member, .deleteFirst, .map, .pairFirst, .pairSecond]
 
 theorem all_exact :
-    all = [.add, .append, .member, .deleteFirst, .map] := by
+    all = [.add, .append, .member, .deleteFirst, .map, .pairFirst,
+      .pairSecond] := by
   rfl
 
 theorem all_pairwise_distinct : List.Pairwise (· ≠ ·) all := by
@@ -54,6 +60,12 @@ theorem toString_deleteFirst : toString deleteFirst = "deleteFirst" := by
   rfl
 
 theorem toString_map : toString map = "map" := by
+  rfl
+
+theorem toString_pairFirst : toString pairFirst = "pairFirst" := by
+  rfl
+
+theorem toString_pairSecond : toString pairSecond = "pairSecond" := by
   rfl
 
 end PrimOp

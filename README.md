@@ -12,7 +12,7 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
 進まないことも証明する．
 
 このREADMEは，設計，現在地，完了条件，次の作業をまとめた唯一のロードマップである．
-旧`DESIGN.md`の設計判断と，旧`CHECKPOINT.md`の再開情報はここへ統合した．概念を
+旧`DESIGN.md`の設計判断と，旧`CHECKPOINT.md`の再開情報はここへ統合し，両ファイルは削除した．概念を
 順に説明する日本語資料は[`tex/type-pm-mech2-guide.pdf`](tex/type-pm-mech2-guide.pdf)
 にあるが，進捗についてはこのREADMEとLeanコードを正本とする．
 
@@ -22,64 +22,41 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
 
 ## 最初に読む用語
 
-### 二つのelaborationと`Typing`
+### 型推論を二つの経路で記述する理由
 
-このREADMEで**elaboration（型付け情報の生成）**とは，入力式から型変数と型制約を作る
-段階を指す．プログラムを別の実行用コードへ変換するという意味ではない．同じ型付け規則を，
-目的の異なる二つの形で定義する．
-
-| 名前 | 何であるか | 何のために使うか |
-|---|---|---|
-| 実行可能なelaboration（executable elaboration） | Leanの関数として実際に走る決定的な処理 | 公開`infer`が型と制約を計算する |
-| 関係として定義したelaboration（relational elaboration） | 正しい入力と出力の組を帰納規則で記述した仕様 | 特定の実装を呼ばずに，正しい型付け生成とは何かを定める |
-| `Typing` | 関係として定義したelaborationと，生成した制約を満たす代入から作る判断 | 「推論器がそう答えたから正しい」という循環を避ける |
-
-関係として定義するとは，たとえば「変数ならcontextから型を読む」「applicationなら関数部と
-引数部の規則を満たし，両者の型が整合する」といった規則をLeanの帰納型で列挙することである．
-`generate`，`unify`，`infer`の実行結果は，この規則の前提に入れない．
-
-### coherenceとexecutable replay
-
-関係的elaborationには，使用したfuelや`letE`で選ぶ一般化済みclosureの代表など，プログラムの
-意味に影響しない管理上の選択がある．また，開始supplyが違えばfresh変数の番号も変わる．そのため，
-正しい導出が二つあっても，中間の型変数名や制約blockが文字どおり同じとは限らない．この違いは，
-fresh変数の名前変更を扱う定理と，次の二つの証明を組み合わせて扱う．
-
-- **coherence（正しい導出同士の整合性）**は，同じ入力に対する二つの正しい関係的elaborationが，
-  fresh変数の名前や`letE`の代表の違いを除けば，受理結果と外から見える主要な型について一致する
-  ことを保証する．中間データ全体の文字列としての等しさを要求する証明ではない．
-- **executable replay（公開手続きとの対応）**は，関係的elaborationで認められた導出から，
-  公開`infer`が使う決定的なelaborationも成功し，意味の同じ代表結果へ到達することを保証する．
-  とくに`letE`では，元のclosureを一字一句再現するのではなく，公開手続きが選ぶ代表へ対応付ける．
-
-小さな例として恒等関数`fun x => x`を考える．開始番号10から型変数を作る実行では
-`α10 → α10`が得られ，別の正しい開始番号37からは`α37 → α37`が得られる．fresh変数の
-名前変更を扱う定理は，`α10`と`α37`を対応させれば両者が同じ型付けを表すことを保証する．
-`let id = (fun x => x) in ...`では，一般化済みclosureの異なる正しい代表があり得るが，
-coherenceはbodyから観測できる型付け結果が一致することを保証する．executable replayは，
-これら関係的な規則で認められた導出を，公開`infer`が実際に計算する代表結果へ結び付ける．
-`Integer → Integer`や`Bool → Bool`は`α10 → α10`への代入で得られるので，
-`α10 → α10`が主要な型である．
-
-二つを分けて証明する理由は次のとおりである．
-
-| 証明 | それだけで分かること | それだけでは分からないこと |
-|---|---|---|
-| 健全性 | `infer`が返した結果は正しい | 正しい型付けがあるとき`infer`が成功するか |
-| coherence | 関係的な正しい導出をどれに選んでも，外から見える意味は一致する | 公開の実行手続きが成功するか |
-| executable replay | 関係的導出を公開の実行手続きへ対応付けられる | 別の正しい導出が異なる主要結果を表さないか |
-| coherenceとreplayの合成 | `Typing`があれば`infer`が成功し，公開結果が主要である | ― |
-
-静的証明の流れを短く書くと，次のようになる．
+まず`fun x => x`を例に，全体の流れを示す．このREADMEで
+**elaboration（型付け情報の生成）**とは，入力式から型変数と型制約を作る処理である．
 
 ```text
-入力式
-  ├─ 実行可能なelaboration ─ 制約を解く関数 ─ 公開 infer
-  └─ 関係として定義したelaboration ─ 宣言的な制約解釈 ─ Typing
-             │
-             ├─ coherence：正しい導出同士を比較する
-             └─ replay：公開 infer の経路へ結び付ける
+入力 `fun x => x`
+  ├─ 実行可能なelaboration ── 実際に関数を走らせる ── `α10 → α10`を返す
+  └─ 関係として定義したelaboration ── 規則から導出を組み立てる ── `α37 → α37`も認める
+                                  │
+                                  ├─ coherence：α10とα37は名前が違うだけと示す
+                                  └─ executable replay：下側の導出を上側の実行で再現する
 ```
+
+- **実行可能なelaboration（executable elaboration）**は，入力を受け取り，Lean上で実際に
+  実行して型と制約を返す関数である．公開`infer`はこの関数を使う．
+- **関係として定義したelaboration（relational elaboration）**は，同じ型付け規則を
+  Leanの命題`Prop`として書いた独立仕様である．「変数ならcontextから型を読む」などの
+  規則から正しい入出力の組を記述し，`generate`，`unify`，`infer`の実行結果を前提にしない．
+- **`Typing`**は，関係として定義したelaborationと，生成した制約を満たす代入から作る判断である．
+  これにより「推論器が返したから正しい」という循環を避ける．
+- **coherence（導出同士の意味の一致）**は，同じ式について二つの関係的な導出があるとき，
+  fresh変数の番号や`letE`で選んだ代表が違っても，名前を対応させれば同じ受理結果と型を表す
+  ことを示す．中間データが文字どおり同じ，という意味ではない．
+- **executable replay（実行関数による再現）**は，関係的な導出があるなら，公開`infer`が使う
+  実行可能なelaborationも成功し，同じ意味の代表結果を返すことを示す．
+
+たとえば`α10 → α10`と`α37 → α37`は，型変数の名前だけが違う．coherenceはこの二つを
+同じ型付けとして結び付ける．executable replayは，関係的な規則で`α37 → α37`という導出を
+作れたとき，実行関数も自分のfresh変数`α10`を使って対応する結果を返すことを保証する．
+
+これらを分けるのは，役割が異なるためである．健全性は「`infer`の答えは正しい」，coherenceは
+「正しい導出をどれに選んでも意味は同じ」，replayは「独立仕様で認めた導出を実行関数でも
+再現できる」をそれぞれ示す．coherenceとreplayを合成して初めて，`Typing`があるとき公開
+`infer`も成功し，主要な型を返すという完全性・主要性へ進める．
 
 ### 証明を管理するための情報
 
@@ -113,7 +90,9 @@ coherenceはbodyから観測できる型付け結果が一致することを保�
 **adequacy（実行結果との対応）**は，実行可能な評価の成功から関係として定義した評価を得る性質，
 **progress（行き詰まらず進めること）**は，型の付いた未完了状態が一歩進むか正常な不一致になる性質，
 **no-stuck**は，評価規則が足りない状態`stuck`へ到達しない性質である．fuel切れの`timeout`は
-`stuck`と区別する．
+`stuck`と区別する．`matchFirst`は必須の`else`を持つため，すべてのarmの探索結果が空でも
+`stuck`にはならず，元の環境で`else`を評価する．sourceでは通常armを1本以上要求し，runtimeの
+空arm caseは全armを試し終えたことを表す内部状態としてだけ使う．
 
 ## 状態の読み方
 
@@ -136,8 +115,9 @@ coherenceはbodyから観測できる型付け結果が一致することを保�
 4. 実行成功が独立した関係`Eval`へ接続される．
 5. 型付きclosed programなら任意のfuelで`stuck`にならない．
 
-2026年8月20日の更新時点では，`lake build TypePM.AxiomAudit TypePM`が成功している．
-監査対象の推移的な公理依存は`propext`，`Classical.choice`，`Quot.sound`だけである．
+必須`else`付き`matchFirst`への変更後も，`lake build TypePM.AxiomAudit TypePM`が成功している．
+推移的な公理依存は許可集合`{propext, Classical.choice, Quot.sound}`だけであり，それ以外を検出すると
+監査commandがbuildを失敗させる．
 
 ## 現在地
 
@@ -149,8 +129,8 @@ coherenceはbodyから観測できる型付け結果が一致することを保�
 | M1 | lambda，application，制約block，公開推論 | **done** | 健全性，完全性，受理同値，決定可能性，主要性，主要型の有限な変数名変更による一意性まで証明済み |
 | M2 | bound-index scheme，多相`letE`，value block一般化 | **done** | 一般の入れ子`letE`についてcoherence，replay，公開推論の完全性・主要性まで証明済み |
 | M3 | data／pattern constructor，primitive，signature，`ifE` | **done** | M3固有の宣言・elaborationと，M2--M3全域の公開定理を証明済み．論文例のM4/M5部分は別に追跡する |
-| M4 | pattern，matcher literal，`matchAll`，`matchFirst`，`fixE`，pattern function | **done** | 全対象構文の健全性・完全性・受理同値・決定可能性・主要性・主要型一意性と，source-defined pattern functionの公開freeze checkerまで完了 |
-| M5 | 評価，matching探索，runtime typing，型安全性 | **in progress** | core評価とmatching基盤に加え，解決済みruntime型を前提に任意長のuser matcher arm／clause列の型保存と進行を証明済み．M4静的型付けとの接続，多相`let`，共通fuel帰納，MNode全体が残る |
+| M4 | pattern，matcher literal，`matchAll`，`matchFirst`，`fixE`，pattern function | **done** | 必須`else`付き`matchFirst`を含む全構文で健全性，完全性，受理同値，決定可能性，主要性，主要型の一意性を再検証し，Paper 1の大規模exact回帰も新仕様へ固定済み |
+| M5 | 評価，matching探索，runtime typing，型安全性 | **in progress** | core評価とmatching基盤，`matchAll`／`matchFirst`を含む共通fuel安全性まで進んだ．M4静的型付けとの一般接続，多相`let`の一般橋，user matcher branch，MNode全体が残る |
 
 M3を`done`とするのは，M3固有のconstructor／primitive／signature基盤とM2--M3の
 静的定理が閉じているためである．Paper 1全体の例が未完であることは，M4/M5と後述の
@@ -158,24 +138,22 @@ inventoryで追跡する．
 
 ### 直近の重要な到達点
 
-- `M4.infer_success_typing`により，全M4構文で公開推論の成功から独立した`M4.Typing`を
-  得られる．論文結果5.1の静的健全性は完了している．
+- `M4.infer_success_typing`により，必須`fallback`付き`matchFirst`を含む全M4構文で，
+  公開推論の成功から独立した`M4.Typing`を得られる．論文結果5.1の静的健全性は完了している．
 - fuelは上向きに単調であり，任意の導出を`expression.complexity + 1`へ正規化できる．
   公開`M4.Elaborates`と標準fuelの関係は`M4.Elaborates.iff_at_complexity`で固定した．
 - matcherの静的検査は宣言的な命題で表し，実行可能なBool検査との同値を証明した．
   `Typing`側がBool計算結果を直接仮定する形にはなっていない．
-- 全M4構文についてsupply増加，生成変数の由来，fresh-variable renamingを証明した．
-- M2--M3部分構文の再利用に加え，子にM4構文を含む通常構文，`fixE`，全pattern，
-  matcher literal，`matchAll`，`matchFirst`のcoherenceを証明した．全最外構文の局所証明が揃った．
-- 全最外構文のcoherenceとreplayを全構文帰納へ接続し，`FullM4Coherence`，
-  `FullM4ExecutableReplay`，`M4.Typing.infer_isSome`を無条件の公開定理にした．これにより
-  論文結果5.2--5.5のM4静的部分は完了した．
+- 必須`fallback`を含む全M4構文について，supply増加，生成変数の由来，fresh-variable renamingを
+  証明した．
+- 全M4構文で最外構文ごとのcoherenceとreplayを全構文帰納へ接続した．`FullM4Completion`から
+  完全性，受理同値，決定可能性，主要性，主要型の一意性を公開する．
 - `PatternFunctionFreeze.freezePatternFunctions`はsourceのinterfaceとbody列から検査済みの
   `FrozenSignature`，runtime定義表，`PatternFunctionDefinitions.Agree`を構成する．Paper 2の
   `pair`をfreeze結果からchecked MNode evaluatorへ直接渡す回帰を固定した．
-- Paper 1のsource-defined `list`とclosed `multiset`について，公開`M4.infer`の正確な型と
-  `M4.Typing`をkernel計算だけで固定した．open `multiset`は空contextで`none`になることを
-  正確に証明した．
+- Paper 1のsource-defined `list`，open `multiset`，closed `multiset`は，必須`else`と
+  全域的なpair destructuringへの変更後の構造fuel，生成block，公開推論型，open版の拒否を
+  kernel回帰として再固定した．
 - user matcherのnext matcher式をcapture値とmatcher定義環境の連結上で評価するよう，実行可能評価と
   関係的評価の環境順を静的規則へ一致させた．0／1／複数hole，constructor header，capture参照，
   arm列，clause列について，`timeout`または型付きの正常結果になることを証明した．data patternは
@@ -209,7 +187,7 @@ inventoryで追跡する．
    bodyへ流さない．周囲のcontextへの効果だけを有限なinterface等式として親blockへ戻す．
 8. **fuelを意味論上の仮定にしない．** 関係は必要なfuelの存在を隠し，単調性と構文的な標準fuel
    への正規化を証明する．
-9. **構文検査にも宣言的な意味を与える．** 直接自己参照，matcher網羅性，`matchFirst`網羅性は
+9. **構文検査にも宣言的な意味を与える．** 直接自己参照とmatcher網羅性は
    帰納的な命題で表し，Bool検査との同値を実行境界で使う．
 10. **Paper 1のmatcherを隠れたprimitiveに置き換えない．** 7節の`multiset`と4節の`list`は
     実際のsource ASTとして静的・動的回帰で共有する．最適化primitiveを追加する場合は，先に
@@ -227,8 +205,16 @@ inventoryで追跡する．
 - `fixE`は単項・単相の直接自己再帰だけを受理する．自己はapplicationの直接のcalleeとして
   使い，bareな値，argument位置，`letE`による別名，内側の`fixE`から外側の自己を参照する
   mutual-styleな形を拒否する．相互`letrec`は現行の形式体系に含めない．
-- `matchFirst`はPaper 1 Appendix Aの単一結果`match`を保持する派生surface構文であり，formal
-  coreに新しいprimitiveを追加するものではない．
+- `matchFirst`はcore構文`.matchFirst target matcher arms fallback`として保持する．target，matcherを
+  この順で先に評価し，通常armをsource順に試す．最初の非空結果の先頭だけを使い，すべて空なら
+  matcherに依存しない必須の`fallback`（表面構文では`else`）を元のcontext・元の実行環境で評価する．
+  静的に受理するsource式には通常armを1本以上要求する．runtime helperの空arm caseは，受理済みの
+  通常armをすべて空結果として消費した後に`fallback`へ進む内部終端である．最初からarmが不要なら
+  sourceでは`fallback`自体を書けばよく，target／matcherの先行評価も残す必要があれば`letE`で書ける
+  ため，表現力は落ちない．wildcardもuser matcher次第で空結果になり得るため，全域性の根拠にしない．
+  targetまたはmatcher自身が`stuck`／`timeout`なら，`fallback`より先にその結果を返す．
+- tuple pattern lambdaは`matchFirst`で表さない．pairを必ず二要素へ分解する用途は，型付きの
+  `pairFirst`／`pairSecond` primitiveを使う全域的なpair destructuringとして分離する．
 - conjunction pattern `p & q`は同じ対象へ左，右の順で照合し，右側は左側のbindingを参照できる．
 - or-pattern `p | q`は左右をsource順で試す．両枝は同じbinding interfaceを持たなければならず，
   位置の対応は生成した等式で記録する．
@@ -242,8 +228,8 @@ inventoryで追跡する．
   唯一の標準形ではない．`Source.Context`の自由変数は固定した仮定ではなく，最終代入で具体化
   され得る推論上の未知変数である．
 - M2の`letE` coherenceでは，二つの生成結果が一つの大域的な変数名変更だけで一致するという
-  強い主張は反例により偽である．閉じたcontextから観測できる対応だけを取り出すvisible closure
-  graphと，有限な別名等式を使って比較する．
+  強い主張は反例により偽である．そのため，外から観測できる型変数の対応だけを記録する
+  **visible closure graph**と，有限な別名等式を使って比較する．
 
 ## ユーザー判断が必要になる項目
 
@@ -266,6 +252,11 @@ freshnessを外部の証明関係で記録して接続する方針で進める�
 
 相互`letrec`，幅優先探索，旧実装との後方互換性などは「判断待ち」ではなく，現行仕様では
 明示的に対象外である．対象へ戻す場合は新しい機能追加として，完了条件とロードマップを先に更新する．
+
+`matchFirst`の通常armに結果があるかを型推論で判定しないことも固定済みである．user matcherは
+型の正しい空decomposition列を返せるため，wildcard armでも照合結果がない場合がある．この場合は
+必須のmatcher非依存`else`へ進む．全matcherの意味的な全域性を型検査で要求する案は採用しない．
+この設計について追加のユーザー判断は不要である．
 
 ## 詳細ロードマップ
 
@@ -299,22 +290,22 @@ freshnessを外部の証明関係で記録して接続する方針で進める�
 
 | ID | 項目 | 状態 | 証拠／残り |
 |---|---|---|---|
-| M4.1 | 相互再帰source構文 | **done** | `Expr`，`Pattern`，matcher clause／arm，`matchFirst`を直接定義 |
+| M4.1 | 相互再帰source構文 | **done** | `Expr`，`Pattern`，matcher clause／arm，必須`fallback`付き`matchFirst`を直接定義 |
 | M4.2 | pattern構文 | **done** | variable，wildcard，value，constructor，tuple，conjunction，or，argument，application |
 | M4.3 | matcher header形検査 | **done** | `PPat`／`DPat`，hole／capture順序，constructor arity，catch-all最後尾 |
-| M4.4 | 宣言的静的条件 | **done** | DirectSelf，matcher coverage，`matchFirst` exhaustivenessとBool検査の同値 |
+| M4.4 | 宣言的静的条件 | **done** | DirectSelfとmatcher coverageを帰納的命題で表し，Bool検査との同値を証明 |
 | M4.5 | pattern／`matchAll`型生成 | **done** | 左から右のbinding，value式，slotへの一方向checking，実行可能規則の関係的健全性 |
 | M4.6 | matcher literal型生成 | **done** | clause／armの環境順，hole積，浅い網羅性，埋め込み式の型生成関係を引数に取る健全性 |
 | M4.7 | `fixE`型生成 | **done** | 直接自己再帰検査とmatcher-root専用のdomain／codomain形 |
-| M4.8 | `matchFirst`型生成 | **done** | target／matcherの一回だけの生成，arm body型の一致，網羅性 |
-| M4.9 | 全構文dispatcher | **done** | `M4.elaborate`，`M4.infer`，`ElaboratesFuel`，`Elaborates`，`Typing` |
-| M4.10 | 公開推論の健全性 | **done** | `M4.infer_success_principalTyping`，`M4.infer_success_typing` |
-| M4.11 | fuel単調性と標準化 | **done** | `ElaboratesFuel.mono`，`normalize`，`Elaborates.iff_at_complexity` |
-| M4.12 | supplyとsupport | **done** | `M4.supplyAndSupport`，全M4構文の生成変数の由来 |
-| M4.13 | Paper 1 list exact | **done** | `M4Paper1ListExactRegression.infer_exact`，`typing`，shifted-supply再利用 |
-| M4.14 | Paper 1 closed multiset exact | **done** | 7節全部のkernel計算，`M4Paper1ClosedMultisetExactRegression.infer_exact`，`typing` |
-| M4.15 | Paper 1 open multiset拒否 | **done** | 空contextで`open_infer_none`．外側のlist依存が供給されていない式を誤って受理しない |
-| M4.16 | 静的負例 | **done** | Paper 1の6例で`M4.Typing`不存在と公開`infer = none` |
+| M4.8 | `matchFirst`型生成 | **done** | 1本以上の通常arm，target／matcher，同じ結果型を持つ必須`fallback`を実行可能規則と関係規則の両方で検査 |
+| M4.9 | 全構文dispatcher | **done** | `M4.elaborate`，`M4.infer`，`ElaboratesFuel`，`Elaborates`，`Typing`を必須`fallback`へ同期 |
+| M4.10 | 公開推論の健全性 | **done** | `M4.infer_success_principalTyping`と`M4.infer_success_typing`を全M4構文について証明 |
+| M4.11 | fuel単調性と標準化 | **done** | 関係版の`ElaboratesFuel.mono`／`normalize`／`Elaborates.iff_at_complexity`に加え，成功した実行結果を同じ生成blockのまま大きいfuelへ運ぶ`M4.elaborateFuelUsing_success_mono` |
+| M4.12 | supplyとsupport | **done** | `M4.supplyAndSupport`と`M4FreshRenaming.M4.ElaboratesFuel.rename`により，生成変数の由来とfresh renamingを全構文で証明 |
+| M4.13 | Paper 1 list exact | **done** | 全域的pair destructuringへ移行後の4節をkernel計算で固定し，公開`infer`結果と`M4.Typing`へ接続 |
+| M4.14 | Paper 1 closed multiset exact | **done** | list依存を供給した7節全部のkernel計算，公開`infer`結果，`M4.Typing`を固定 |
+| M4.15 | Paper 1 open multiset拒否 | **done** | list依存のない空contextで，構造的elaborationと公開`infer`がともに失敗することを固定 |
+| M4.16 | 静的負例 | **done** | Paper 1の型不一致，未束縛参照，capability不足等を新構文で再検証 |
 
 #### list，open multiset，closed multiset
 
@@ -344,25 +335,25 @@ M4完全性では，任意の`Typing`導出を受け取り，公開`infer`も成
 |---|---|---|---|
 | C1 | fuel標準化 | **done** | `CompletenessArchitecture.m4FuelNormalization` |
 | C2 | M2--M3部分構文の再利用 | **done** | `fullM4FuelPairProperty_of_m2Fragment` |
-| C3 | M4 fresh renaming | **done** | 全構文の`M4FreshRenaming.M4.ElaboratesFuel.rename`と`m4FreshRenamingTransport` |
+| C3 | M4 fresh renaming | **done** | `m4FreshRenamingTransport`が必須`fallback`を含む全構文の導出を有限な変数名変更で輸送 |
 | C4 | 通常最外構文のcoherence | **done** | lambda，application，tuple，constructor，primitive，`ifE`等を`ordinaryM4CoherenceStep`で合成 |
 | C5 | `fixE` coherence | **done** | `fixCoherenceStep` |
 | C6 | pattern／pattern-list pair coherence | **done** | 全pattern構成子のsupply／binding interfaceと意味的証明書を`PatternElaboratesUsing.supportedFuelPairCoherence`で相互帰納的に比較 |
 | C7 | `matchAll` coherence | **done** | target，pattern，matcher，bodyの4段階を比較し，pattern bindingと`Generated.fromMatchAll`の制約を`matchAllCoherenceStep`へ合成 |
 | C8 | matcher literal coherence | **done** | pattern-pattern／data-patternの決定性，固定した外側境界を保つsupport，next matcher／arm／clause列，evidence等式を`matcherCoherenceStep`へ合成 |
-| C9 | `matchFirst` coherence | **done** | 各armのpattern／body証明書を順序付きtailへ畳み込み，target／matcherと`matchFirstCoherenceStep`へ合成 |
+| C9 | `matchFirst` coherence | **done** | `matchFirstCoherenceStep`がtarget／matcher，1本以上の通常arm，matcher非依存`fallback`の二導出を比較 |
 | C10 | M4 `letE` transport／assembly | **done** | `m4LetTransportAndAssembly`はclosureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
-| C11 | `FullM4Coherence` | **done** | 全constructor-local stepを`fullM4Coherence_of_steps`へ渡し，公開`CompletenessArchitecture.fullM4Coherence`を実体化 |
-| R1 | non-let structural replay | **done** | 通常root，`fixE`，matcher literal，`matchAll`，`matchFirst`を全構文fuel帰納へ合成し，`m4StructuralReplay_of_fuelReplay`へ接続 |
+| C11 | `FullM4Coherence` | **done** | `CompletenessArchitecture.fullM4Coherence`が全constructor-local証明を合成 |
+| R1 | non-let structural replay | **done** | `m4StructuralReplay_of_fuelReplay`が必須`fallback`を含む全構文fuel帰納を公開elaboratorへ接続 |
 | R2 | let closure representative agreement | **done** | `letM4FuelReplayStep`を同じ全構文fuel帰納へ組み込み，`m4LetClosureRepresentativeAgreement_of_fuelReplay`へ接続 |
 | R3 | `FullM4ExecutableReplay` | **done** | `CompletenessArchitecture.fullM4ExecutableReplay` |
-| F1 | M4完全性 | **done** | 任意の`M4.Typing`から公開推論成功を得る`M4.Typing.infer_isSome` |
-| F2 | M4受理同値・決定可能性 | **done** | `M4.typable_iff_infer_isSome`，`M4.typableDecidable` |
+| F1 | M4完全性 | **done** | `M4.Typing.infer_isSome` |
+| F2 | M4受理同値・決定可能性 | **done** | `M4.typable_iff_infer_isSome`と`M4.typableDecidable` |
 | F3 | M4主要性 | **done** | `M4.infer_success_principalResult` |
 | F4 | M4主要型の一意性 | **done** | `M4.PrincipalTyping.finiteRenamingEq` |
 
-M4-Bの静的完全性と主要性は完了した．PF5も完了しており，残る作業はM5へ渡すruntime typingの
-橋と動的型安全性である．
+M4-Bは必須`fallback`付き`matchFirst`を含めて完了している．局所補題だけでなく，それらを合成した
+`FullM4Completion.lean`の公開定理までkernelで検査する．
 
 ### M4-C：pattern functionとDamas--Milner対応
 
@@ -412,19 +403,20 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．公開橋はsignature等式だけで使え，内部のlookup契約は無関係な追加宣言も許す |
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
-| T6 | source多相`let`の橋 | **in progress** | `ProtectedRuntimeTyping`はcontextを`List Ty`のまま保ち，`letPoly`が導入したbindingだけを証明用maskで識別する．実際の`Source.PrincipalTyping`と組み合わせた保存・no-stuckと，一つのidentityを2型で使う回帰は完了．任意のsource導出からprotected導出を自動構成する一般定理が残る |
-| T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文に加え，bodyがその断片に属する通常の`fixE`をruntime typingとno-stuckへ接続済み．matcher-rootの`fixE`とmatcher構文が残る |
+| T6 | source多相`let`の橋 | **in progress** | `ProtectedRuntimeTyping`はcontextを`List Ty`のまま保ち，多相`let`が導入したbindingの利用だけを証明用maskで追跡する．実際のlet本体が生成するsupportから後続代入に対する安定性を自動導出し，public inference成功からその局所certificateを得る．canonical fresh instanceから任意の別instanceへの代表具体化も，schemeのfree supportとの範囲分離から証明済み．generalized identityを外側lambdaが捕捉し，Int型とmatcher型で使う回帰では，残存checkのordinary性からstrict solutionを作り，source elaborationの構文帰納bridgeだけでruntime derivation・型保存・no-stuckを自動構成した．一般化の残りは，対応構文を現在のvar／literal／something／application／tuple＋1段lambdaから全対象構文へ広げ，非ordinaryな残存checkも扱うこと |
+| T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文と通常の`fixE`に加え，Paper 1の固定signatureについて，解決済みM4 matcher header／arm／clauseをruntime証明書へ移す橋を証明済み．再帰的`M4.ElaboratesFuel`をcallbackに使うmatcher literalは，runtime基本断片だけでなく，arm bodyに`matchAll`を含む最小例でもcallback-parametricなtotal clause証明書と任意fuel no-stuckへ接続した．matcher-rootの`fixE`，一般M4 `Typing`との接続，Paper 1の全7節を同じ橋へ載せる作業が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
 | T9 | matcher closureとdispatchの型付け部品 | **done** | cursor不変条件，product/list/slot canonical forms，0／1／複数holeの復号，pattern-pattern constructor，全data-pattern形，環境連結順，任意長arm／clause列の条件付き型保存と進行 |
-| T10 | 一般user matcher safety | **in progress** | 固定runtime signatureのBool/List constructorとtupleを含め，runtime側は任意長arm／clause列まで完成．宣言的な最終catch-allから正常終了時の`.miss`も排除済み．M4 signature／clause型付けとの橋と，任意source patternのatom型付けが残る |
-| T11 | 共通fuelの強帰納 | **not started** | 式評価とmatcher探索を同じbudgetで帰納し，embedded evaluatorの条件付き仮定を放電する |
-| T12 | `matchFirst` no-stuck | **not started** | 宣言的`Exhaustive`から実行時の空arm到達を排除する |
-| T13 | MNode／pattern function safety | **not started** | MNode固有application／parameter／nodeDone規則と一般評価を型付けする |
-| T14 | Source全体の5.8 | **not started** | M4 bridge，T10--T13を合成し，型付きclosed programの任意fuel no-stuckを得る |
+| T10 | 一般user matcher safety | **in progress** | 固定runtime signatureのBool/List constructorとtupleを含め，runtime側は任意長arm／clause列まで完成．宣言的な最終catch-allから正常終了時の`.miss`も排除済み．M4 patternのvar／wild／value／tuple／and／orは元のsource patternを保持してbuilt-in `TotalMatchingAtomTyping`へ自動接続でき，constructorは実dispatchに結び付いたcertificateだけを許す．next matcherとarm bodyを`TotalCoreTyping`で保持するarm／clause／closure証明書に加え，実際の評価関数を添字にした`RecursiveTotalMatchingAtomTyping`を導入した．これにより，body内に`matchAll`を含むM4 matcher literalを，実際のuser atom，dispatchが返した枝，深さ優先探索，任意fuel no-stuckまで接続済み．残りはこの再帰証明書を任意のM4導出から自動構成し，とくにconstructor branchとPaper 1の7節全部へ広げること |
+| T11 | 共通fuelの強帰納 | **in progress** | `CommonFuelSafety.lean`の`TotalCoreTyping`について，式評価と探索を同じ小さいfuelで帰納し，`matchAll`と必須`fallback`付き`matchFirst`を含む`TotalCoreTyping.commonFuelSafety`／`neverStuck`まで証明済み．solved M4 conjunction patternに加え，arm bodyが`matchAll`であるM4 user matcher literalについて，closure値からuser atom，実dispatch由来の枝，再帰的な深さ優先探索まで同じ評価関数へ結び付けた．一般のM4導出からこの証明書を自動構成するT10接続が残る |
+| T12 | explicit-else `matchFirst` no-stuck | **in progress** | runtime armループと`TotalCoreTyping.matchFirst`では，空探索が通常armを飛ばし，全armが空なら元の環境で`fallback`を評価する型保存・no-stuckを証明済み．wildcardに対してuser matcherが空decompositionを返し`else`へ進む回帰に加え，公開M4推論が受理した1-arm例もexact評価と任意fuel no-stuckへ接続した．一般のM4 `Typing`からこの証明書を自動構成する橋が残る |
+| T13 | MNode／pattern function safety | **in progress** | MNode（pattern function本体のprivate bindingを外側から隔離する探索node）について，application／parameter export／nodeDoneを局所型付けし，外側とprivateの環境・bindingを分ける具体的な状態不変条件を`CheckedScopedWorkTyping`／`CheckedMNodeWorkTyping`として構成した．public freezeが受理したidentityとcallerの2定義を使い，callerからprivate identityを呼び，二段のparameter exportを経て通常atomへ戻る入れ子applicationも，有限DFSのexact結果・型保存・no-stuckまで接続済み．残りはcallee本体が単一parameter exportを越える一般の複合bodyの場合と，user matcherが返すbranchに元のsource patternを保持したまま一般のchecked evaluatorへ渡すこと |
+| T14 | 全域的Source断片の5.8 | **in progress** | `TotalCoreTyping`では`matchAll`／`matchFirst`込みの任意fuel no-stuckまで到達．M4 bridge，T6，T10，T13を合成して任意の対象source導出から証明書を作る作業が残る |
 
 `MatcherSafety`のembedded evaluator契約は「必ず収束する」仮定ではない．型付き式の評価が
-`timeout`になるか，型の付いた値を返すことを要求する．user matcher bodyが再び`matchAll`を呼ぶ場合に
-この契約を無条件で得るには，T11の共通fuel強帰納が必要である．
+`timeout`になるか，型の付いた値を返すことを要求する．T11はこの契約を`TotalCoreTyping`について
+内部の共通fuel帰納で放電した．残る問題は，同じ帰納をuser matcherが生成するsource pattern付き
+branchへ広げるT10の接続である．
 
 ## 論文の結果5.1--5.8との対応
 
@@ -433,14 +425,14 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 
 | 番号 | 新体系での意味 | 状態 | 現在の公開入口／残り |
 |---|---|---|---|
-| 5.1 | 公開`infer`成功なら独立した`Typing`がある | **done** | M1 `Inference.infer_success_typing`，M2--M3 `Source.Inference.infer_success_typing`，M4 `M4.infer_success_typing` |
-| 5.2 | `Typing`があれば公開`infer`が成功する | **done** | M1，M2--M3，M4の全対象構文で完了．M4入口は`M4.Typing.infer_isSome` |
-| 5.3 | `Typing`の存在と推論成功が同値で，受理を決定できる | **done** | M4入口は`M4.typable_iff_infer_isSome`，`M4.typableDecidable` |
-| 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **done** | M4入口は`M4.PrincipalTyping.finiteRenamingEq` |
-| 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **done** | M4入口は`M4.infer_success_principalResult` |
-| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`は完了．source多相`let`，matcher-rootの`fixE`，M4 matcher構文が残る |
-| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，runtime証明書を持つuser matcherの全data-pattern形と任意長arm／clause列，最終catch-allによる`.miss`排除は完了．M4静的型付けとの橋，MNode，共通fuel帰納が残る |
-| 5.8 | 型付きclosed programは任意fuelで`stuck`にならない | **in progress** | core断片と条件付きmatchingは完了．M4-to-runtime橋とT10--T13の合成が残る |
+| 5.1 | 公開`infer`成功なら独立した`Typing`がある | **done** | M1，M2--M3，M4の公開健全性を証明．M4入口は`M4.infer_success_typing` |
+| 5.2 | `Typing`があれば公開`infer`が成功する | **done** | M4入口はcoherenceとreplayから得た`M4.Typing.infer_isSome` |
+| 5.3 | `Typing`の存在と推論成功が同値で，受理を決定できる | **done** | `M4.typable_iff_infer_isSome`と`M4.typableDecidable` |
+| 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **done** | `M4.PrincipalTyping.finiteRenamingEq` |
+| 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **done** | `M4.infer_success_principalResult` |
+| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`，解決済みM4 matcher clauseからruntime証明書への橋は完了．source多相`let`の一般橋，matcher literal自身，matcher-rootの`fixE`，再帰的なM4式leafが残る |
+| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，runtime証明書を持つuser matcher，`TotalCoreTyping`の共通fuel安全性に加え，M4で検査した再帰matcherの実dispatch由来branchを同じ評価関数の有限探索へ通す最小end-to-end回帰まで進んだ．任意のconstructor／capture branchをM4から自動構成する橋とMNode全DFSが残る |
+| 5.8 | 全域的断片の型付きclosed programは任意fuelで`stuck`にならない | **in progress** | `TotalCoreTyping`では`matchAll`と必須`else`付き`matchFirst`を含めて完了．任意のM4 source導出からT6／T10／T13の証明書を自動構成する一般橋が残る |
 
 5.6は旧体系の推論状態を後から消す定理ではない．新体系には初めから状態を含まない`Typing`がある
 ため，sourceの型付け導出をruntime value・環境・matching stateの型付けへ移す構造的な定理として
@@ -454,14 +446,14 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 
 | ID | 掲載内容 | source | 静的 | 主な根拠／残り |
 |---|---|---|---|---|
-| P1-L01 | listとmultisetの`$x :: $xs` | done | in progress | matcher constructorはexact型付け済み．最終`matchAll`式の静的接続が残る |
-| P1-L02 | `$x :: #(x + 1) :: _` | done | not started | 実行例と同じ最終式の統合M4型付けが残る |
+| P1-L01 | listとmultisetの`$x :: $xs` | done | done | listのjoin分解を使う掲載`matchAll`式について，任意の開始supply用に巨大な生成blockを複製せず，公開`infer`のexact結果と`M4.Typing`を固定済み |
+| P1-L02 | `$x :: #(x + 1) :: _` | done | done | 7節multisetと入れ子のlist matcherを開始supplyの変換で再利用し，掲載式の公開`infer` exact結果と`M4.Typing`を固定済み |
 | P1-L03 | List pattern宣言 | done | done | 3 schemeとPaper 1 signatureの整合性を検証済み |
-| P1-L04 | 7節`multiset`定義 | done | in progress | closed wrapperはexact，open版の空context拒否も完了．list bindingを持つcontextでopen本体を直接型付けする名前付き定理が残る |
-| P1-L05 | 直接のmultiset `matchAll` | done | not started | 実行済みの最終式を統合M4型付けへ接続する |
+| P1-L04 | 7節`multiset`定義 | done | done | closed wrapperと空contextでのopen版拒否に加え，source-defined list matcherを多相library bindingとして持つcontextでopen本体を直接推論し，exact結果と`M4.Typing`を固定済み |
+| P1-L05 | 直接のmultiset `matchAll` | done | done | 7節matcher，入れ子のlist matcher，closed wrapperを開始supplyの変換で再利用し，掲載式の公開`infer` exact結果と`M4.Typing`を固定済み |
 | P1-L06 | `unconsWith m target` | done | done | slot要求を持つ主要型と`M4.Typing`を固定済み |
 | P1-L07 | `unconsWith`の正負呼出し | done | done | bare `something`拒否に加え，多相library bindingからの`multiset something`と，正しい`List Int` slotを使う`unconsWith`呼出しのexact推論／`M4.Typing`を固定済み |
-| P1-L08 | 共有lambda domainの二順序 | done | done | 新仕様では両順序を同じ型で受理する |
+| P1-L08 | pair destructuringと共有lambda domain | done | done | `pairFirst`／`pairSecond`の多相scheme，静的型付け，runtime型保存・no-stuckを証明し，旧`matchFirst` tuple helperを全域的なpair分解へ置換 |
 | P1-L09 | 明示的`let` | done | done | M2公開推論と`Source.Typing`を固定済み |
 | P1-L10 | value pattern内の`x ++ [1]` | done | done | Integer/List不一致による宣言的拒否 |
 | P1-L11 | `$x :: #x` | done | done | occurs checkによる宣言的拒否 |
@@ -479,8 +471,8 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | P1-L02 | done | done | not started | `[1,2,5,6] → [1,5]`を確認済み |
 | P1-L04 | done | done | not started | 7節それぞれのsource bodyを終端まで評価済み |
 | P1-L05 | done | done | not started | 三要素consの3結果をsource順で確認済み |
-| P1-L13 | done | done | not started | exact評価を一般の`evalFuel_sound`で関係へ接続済み |
-| P1-L14 | done | done | not started | 正常な不一致として空Listを返し，`evalFuel_sound`で関係へ接続済み |
+| P1-L13 | done | done | done | M4のvariable-pattern導出から`TotalCoreTyping`を構成し，exact評価・型付き結果・任意fuel no-stuckを証明済み |
+| P1-L14 | done | done | done | M4のvalue-pattern導出から`TotalCoreTyping`を構成し，正常な不一致として空Listを返すexact評価と任意fuel no-stuckを証明済み |
 
 論文listingを追加・削除・変更するときは，このinventoryと対応するsource／runtime回帰を同じ変更で
 更新する．正確な結果の順序と重複も等式の一部として扱う．
@@ -505,16 +497,19 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 1. M4 `Typing`からruntime typingへの橋をmatcher-rootの`fixE`，matcher literal，
    `matchAll`，`matchFirst`へ広げる．
 2. 完成したuser matcherのruntime arm／clause安全性をM4のconstructor signatureと静的clause型付けへ
-   接続する．宣言的な最終catch-allから`.miss`を排除する独立定理は完了済み．
-3. 完成した`ProtectedRuntimeTyping`を全対象構文へ拡張し，任意のsource多相`let`導出から
-   protected導出を自動構成してT6の一般橋を閉じる．
-4. 式評価とmatcher探索を共通fuelで強帰納し，embedded evaluatorへの条件付き仮定を外す．
-5. `matchFirst`とMNode固有規則のno-stuckを証明し，公開freeze checkerが受理した
-   source-defined pattern functionの型安全性へ接続する．
-6. Paper 1 inventoryの残る統合静的例と任意fuel no-stuckを埋める．
+   接続する．とくに，branchへ元のsource patternの型情報を保つ．宣言的な最終catch-allから`.miss`を
+   排除する独立定理は完了済み．
+3. 多相`let`のcaptured-closure回帰で完成したsupport分離・代表具体化・strict solution・構文帰納
+   bridgeを，現在の対応構文とordinary残存checkから全対象source導出へ広げる．
+4. 実際のtotal matcher closure値，user atom，dispatch由来のbranch，DFSを結ぶ再帰証明書は完成したため，
+   これを任意のM4 constructor／capture branchから自動構成し，Paper 1の7節へ広げる．
+5. MNodeの具体的な型付き状態，有限DFS，単一parameterを本体とする入れ子applicationは完成したため，
+   任意の複合callee bodyと，source patternを保持するuser matcher branchへ広げ，checked evaluator全体へ接続する．
+6. Paper 1 inventoryの静的例は完了したため，L01／L02／L04／L05の任意fuel no-stuckを埋める．
 
-静的結果5.1--5.5とM4の公開freeze checkerは確定した．動的レーンの1--5で独立に進められる
-補題を並行して実装する．型安全性5.6--5.8を確定するのは1--6の完了後とする．
+M0--M4，M4の5.1--5.5，公開freeze checkerは，必須`fallback`付き`matchFirst`を含めて確定している．
+静的レーンと動的レーンで独立に進められる補題は並行して実装し，型安全性5.6--5.8を確定するのは
+上記1--6の完了後とする．
 DM3とPF6はこの作業列を止めず，「ユーザー判断が必要になる項目」に書いた論文上の判断時点まで
 将来課題として保持する．
 
@@ -525,7 +520,10 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 
 - M0--M4の全対象構文に対する独立した`Typing`と，公開`infer`の健全性，完全性，受理同値，
   主要性，主要な代表型の一意性．
-- M5の静的型付けからruntime typingへの橋，型保存，局所progress，任意fuelのno-stuck．
+- M5の静的型付けからruntime typingへの橋，型保存，局所progress，全域的断片に対する
+  任意fuelのno-stuck．静的に受理する`matchFirst`は通常armを1本以上持ち，その全armの探索結果が
+  空でも必須`fallback`へ進む．target／matcherの先行評価，元の環境でのfallback評価，型保存を
+  含めて証明する．
 - 公開freeze checkerが受理したsource-defined pattern functionについて，独立した実行関係と
   型安全性．全具体化でのinterface主要性PF6は含めない．
 - このREADMEのPaper 1 inventoryで必要とした各段階．
@@ -544,15 +542,16 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | M4実行可能／関係的elaboration | [M4RecursiveElaboration.lean](TypePM/Source/M4RecursiveElaboration.lean) |
 | M4 fuelとsupport | [M4ElaborationFuelMonotonicity.lean](TypePM/Source/M4ElaborationFuelMonotonicity.lean)，[M4SupplySupport.lean](TypePM/Source/M4SupplySupport.lean) |
 | M4完全性の境界と公開系 | [M4CompletenessArchitecture.lean](TypePM/Source/M4CompletenessArchitecture.lean)，[M4StructuralReplay.lean](TypePM/Source/M4StructuralReplay.lean)，[M4PatternReplay.lean](TypePM/Source/M4PatternReplay.lean)，[M4MatchAllReplay.lean](TypePM/Source/M4MatchAllReplay.lean)，[M4MatchFirstReplay.lean](TypePM/Source/M4MatchFirstReplay.lean)，[M4CompletionConsequences.lean](TypePM/Source/M4CompletionConsequences.lean)，[FullM4Completion.lean](TypePM/Source/FullM4Completion.lean) |
-| M4からruntimeへの橋 | [M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean) |
+| M4からruntimeへの橋 | [M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[M4UserMatcherRuntimeBridge.lean](TypePM/Source/M4UserMatcherRuntimeBridge.lean) |
 | M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4PatternCoherence.lean](TypePM/Source/M4PatternCoherence.lean)，[M4MatcherCoherence.lean](TypePM/Source/M4MatcherCoherence.lean)，[M4MatchAllCoherence.lean](TypePM/Source/M4MatchAllCoherence.lean)，[M4MatchFirstCoherence.lean](TypePM/Source/M4MatchFirstCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean)，[M4LetCoherence.lean](TypePM/Source/M4LetCoherence.lean) |
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
-| runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
+| runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
 | source多相`let`のruntime由来証明 | [PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean) |
 | user matcherの型付けと条件付き安全性 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean)，[UserMatcherGeneralSafety.lean](TypePM/UserMatcherGeneralSafety.lean) |
-| pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean) |
+| pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean)，[PatternFunctionSafety.lean](TypePM/PatternFunctionSafety.lean) |
+| 再帰user matcherの探索安全性 | [TotalUserMatcherSafety.lean](TypePM/TotalUserMatcherSafety.lean)，[RecursiveTotalMatchingSafety.lean](TypePM/RecursiveTotalMatchingSafety.lean) |
 | 公理監査 | [AxiomAuditCommand.lean](TypePM/AxiomAuditCommand.lean)，[AxiomAudit.lean](TypePM/AxiomAudit.lean) |
 
 ## Buildと監査

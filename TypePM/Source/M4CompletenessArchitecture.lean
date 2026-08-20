@@ -369,7 +369,7 @@ theorem fullM4ExecutableReplay_of_components
       exact structural (by simp) normalized signatureWellFormed wellFormed
   | matchAll target matcher pattern body =>
       exact structural (by simp) normalized signatureWellFormed wellFormed
-  | matchFirst target matcher arms =>
+  | matchFirst target matcher arms fallback =>
       exact structural (by simp) normalized signatureWellFormed wellFormed
 
 /-- Per-derivation target correspondence needed for M4 principality.  Two
@@ -486,11 +486,11 @@ def MatchAllCoherenceStep : Prop :=
 /-- Coherence step for ordered single-result matching, including every arm
 body and every expression stored in an arm pattern. -/
 def MatchFirstCoherenceStep : Prop :=
-  ∀ (target matcher : Expr) (arms : List MatchFirstArm),
+  ∀ (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr),
     (∀ smaller : Expr,
-      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
+      smaller.complexity < (Expr.matchFirst target matcher arms fallback).complexity →
         FullM4FuelPairProperty smaller) →
-    FullM4FuelPairProperty (.matchFirst target matcher arms)
+    FullM4FuelPairProperty (.matchFirst target matcher arms fallback)
 
 /-- Every M4 derivation must retain the two structural facts used throughout
 the M2 `let` proof: supplies only increase, and every generated variable comes
@@ -608,8 +608,8 @@ theorem fullM4FuelCoherence_of_steps
   | matcher clauses => exact matcher clauses induction
   | matchAll target matcherExpression pattern body =>
       exact matchAll target matcherExpression pattern body induction
-  | matchFirst target matcherExpression arms =>
-      exact matchFirst target matcherExpression arms induction
+  | matchFirst target matcherExpression arms fallback =>
+      exact matchFirst target matcherExpression arms fallback induction
 
 /-- Fuel coherence immediately yields the public, fuel-hidden theorem. -/
 theorem fullM4Coherence_of_steps

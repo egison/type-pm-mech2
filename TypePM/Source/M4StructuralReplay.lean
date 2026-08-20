@@ -779,11 +779,11 @@ def MatchAllM4ExactReplayStep : Prop :=
 
 /-- Exact replay step for ordered single-result matching. -/
 def MatchFirstM4ExactReplayStep : Prop :=
-  ∀ (target matcher : Expr) (arms : List MatchFirstArm),
+  ∀ (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr),
     (∀ smaller : Expr,
-      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
+      smaller.complexity < (Expr.matchFirst target matcher arms fallback).complexity →
       ExactM4FuelReplayProperty smaller) →
-    ExactM4FuelReplayProperty (.matchFirst target matcher arms)
+    ExactM4FuelReplayProperty (.matchFirst target matcher arms fallback)
 
 /-! Non-exact pattern-root steps are the interfaces needed by the full replay
 induction.  Their coherence premise aligns supplies when a recursively
@@ -815,14 +815,14 @@ def MatchAllM4FuelReplayStep : Prop :=
 
 /-- Fuel-local replay step for ordered single-result matching. -/
 def MatchFirstM4FuelReplayStep : Prop :=
-  ∀ (target matcher : Expr) (arms : List MatchFirstArm),
+  ∀ (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr),
     (∀ smaller : Expr,
-      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
+      smaller.complexity < (Expr.matchFirst target matcher arms fallback).complexity →
       FullM4FuelPairProperty smaller) →
     (∀ smaller : Expr,
-      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
+      smaller.complexity < (Expr.matchFirst target matcher arms fallback).complexity →
       M4FuelReplayProperty smaller) →
-    M4FuelReplayProperty (.matchFirst target matcher arms)
+    M4FuelReplayProperty (.matchFirst target matcher arms fallback)
 
 /-- Public coherence also compares arbitrary fuel-indexed derivations after
 their witnesses are hidden. -/
@@ -902,9 +902,9 @@ theorem fullM4FuelReplay_of_patternSteps
       exact (matchAll target matcherExpression pattern body fuelCoherent
         induction : M4FuelReplayProperty
           (.matchAll target matcherExpression pattern body))
-  | matchFirst target matcherExpression arms =>
-      exact (matchFirst target matcherExpression arms fuelCoherent induction :
-        M4FuelReplayProperty (.matchFirst target matcherExpression arms))
+  | matchFirst target matcherExpression arms fallback =>
+      exact (matchFirst target matcherExpression arms fallback fuelCoherent induction :
+        M4FuelReplayProperty (.matchFirst target matcherExpression arms fallback))
 
 /-- Full fuel replay yields the architecture's representative-changing
 `letE` agreement. -/

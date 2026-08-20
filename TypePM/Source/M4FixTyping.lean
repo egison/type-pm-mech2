@@ -62,9 +62,9 @@ def mentions (tracked : Nat) : Expr → Bool
       mentions tracked target || mentions tracked matcher ||
         mentionsPattern tracked 0 pattern ||
         mentions (tracked + patternBindingCount pattern) body
-  | .matchFirst target matcher arms =>
+  | .matchFirst target matcher arms fallback =>
       mentions tracked target || mentions tracked matcher ||
-        mentionsMatchFirstArms tracked arms
+        mentionsMatchFirstArms tracked arms || mentions tracked fallback
 
 def mentionsList (tracked : Nat) : List Expr → Bool
   | [] => false
@@ -148,9 +148,10 @@ def checkFuel : Nat → Nat → Expr → Bool
       checkFuel fuel tracked target && checkFuel fuel tracked matcher &&
         checkPatternFuel fuel tracked 0 pattern &&
         checkFuel fuel (tracked + patternBindingCount pattern) body
-  | fuel + 1, tracked, .matchFirst target matcher arms =>
+  | fuel + 1, tracked, .matchFirst target matcher arms fallback =>
       checkFuel fuel tracked target && checkFuel fuel tracked matcher &&
-        checkMatchFirstArmsFuel fuel tracked arms
+        checkMatchFirstArmsFuel fuel tracked arms &&
+        checkFuel fuel tracked fallback
 
 /-- Check the function spine of an application. -/
 def checkHeadFuel : Nat → Nat → Expr → Bool
@@ -290,9 +291,10 @@ def ChecksFuel : Nat → Nat → Expr → Prop
       ChecksFuel fuel tracked target ∧ ChecksFuel fuel tracked matcher ∧
         ChecksPatternFuel fuel tracked 0 pattern ∧
         ChecksFuel fuel (tracked + patternBindingCount pattern) body
-  | fuel + 1, tracked, .matchFirst target matcher arms =>
+  | fuel + 1, tracked, .matchFirst target matcher arms fallback =>
       ChecksFuel fuel tracked target ∧ ChecksFuel fuel tracked matcher ∧
-        ChecksMatchFirstArmsFuel fuel tracked arms
+        ChecksMatchFirstArmsFuel fuel tracked arms ∧
+        ChecksFuel fuel tracked fallback
 
 def ChecksHeadFuel : Nat → Nat → Expr → Prop
   | 0, _, _ => False

@@ -201,7 +201,15 @@ def primitives : List PrimitiveDeclaration :=
     ⟨PrimOp.append, PrimitiveSchemes.append⟩,
     ⟨PrimOp.member, PrimitiveSchemes.member⟩,
     ⟨PrimOp.deleteFirst, PrimitiveSchemes.deleteFirst⟩,
-    ⟨PrimOp.map, PrimitiveSchemes.map⟩ ]
+    ⟨PrimOp.map, PrimitiveSchemes.map⟩,
+    ⟨PrimOp.pairFirst, PrimitiveSchemes.pairFirst⟩,
+    ⟨PrimOp.pairSecond, PrimitiveSchemes.pairSecond⟩ ]
+
+/-- The standard declaration list covers every primitive exactly once and in
+the stable enumeration order. -/
+theorem primitive_operations_exact :
+    primitives.map PrimitiveDeclaration.operation = PrimOp.all := by
+  rfl
 
 def signature : Signature :=
   { dataFormers := dataFormers
@@ -232,7 +240,7 @@ private theorem primitiveSchemes_closed :
   intro declaration member
   simp only [primitives, List.mem_cons, List.not_mem_nil,
     or_false] at member
-  rcases member with rfl | rfl | rfl | rfl | rfl <;>
+  rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
     constructor <;> rfl
 
 private theorem constructor_results_valid :
@@ -281,7 +289,7 @@ private theorem primitives_canonical :
   intro declaration member
   simp only [primitives, List.mem_cons, List.not_mem_nil,
     or_false] at member
-  rcases member with rfl | rfl | rfl | rfl | rfl <;> rfl
+  rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> rfl
 
 theorem wellFormed : signature.WellFormed := by
   exact

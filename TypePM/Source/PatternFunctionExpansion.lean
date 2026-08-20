@@ -45,10 +45,11 @@ def expandExpr (definitions : PatternFunctionDefinitions) :
         (← expandExpr definitions matcher)
         (← expandPattern definitions pattern)
         (← expandExpr definitions body)
-  | .matchFirst target matcher arms =>
+  | .matchFirst target matcher arms fallback =>
       return .matchFirst (← expandExpr definitions target)
         (← expandExpr definitions matcher)
         (← expandMatchFirstArms definitions arms)
+        (← expandExpr definitions fallback)
 termination_by expression => expression.complexity * 3 + 1
 decreasing_by all_goals simp_wf <;> omega
 

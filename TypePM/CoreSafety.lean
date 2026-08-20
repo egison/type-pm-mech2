@@ -995,6 +995,50 @@ private theorem RuntimeTyping.coreSafetyBound
                           simp [evalPrimitive, closure, mappedSuccess,
                             FuelResult.map],
                           .list outputsTyping⟩
+  case pairFirst =>
+      intro pairExpression firstTarget secondTarget context pair pairIH fuel
+        fuelBound environment environmentTyping
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ primitiveFuel =>
+          have pairResult :=
+            pairIH primitiveFuel (by omega) environment environmentTyping
+          rcases pairResult with pairTimeout |
+            ⟨pairValue, pairSuccess, pairTyping⟩
+          · exact .inl (by
+              simp [evalFuel, pairTimeout, FuelResult.bind,
+                FuelResult.traverse])
+          · obtain ⟨values, rfl, valuesTyping⟩ := pairTyping.product_canonical
+            cases valuesTyping with
+            | cons firstTyping tailTyping =>
+                cases tailTyping with
+                | cons secondTyping nilTyping =>
+                    cases nilTyping
+                    exact .inr ⟨_, by
+                      simp [evalFuel, pairSuccess, evalPrimitive,
+                        FuelResult.bind, FuelResult.traverse], firstTyping⟩
+  case pairSecond =>
+      intro pairExpression firstTarget secondTarget context pair pairIH fuel
+        fuelBound environment environmentTyping
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ primitiveFuel =>
+          have pairResult :=
+            pairIH primitiveFuel (by omega) environment environmentTyping
+          rcases pairResult with pairTimeout |
+            ⟨pairValue, pairSuccess, pairTyping⟩
+          · exact .inl (by
+              simp [evalFuel, pairTimeout, FuelResult.bind,
+                FuelResult.traverse])
+          · obtain ⟨values, rfl, valuesTyping⟩ := pairTyping.product_canonical
+            cases valuesTyping with
+            | cons firstTyping tailTyping =>
+                cases tailTyping with
+                | cons secondTyping nilTyping =>
+                    cases nilTyping
+                    exact .inr ⟨_, by
+                      simp [evalFuel, pairSuccess, evalPrimitive,
+                        FuelResult.bind, FuelResult.traverse], secondTyping⟩
   case ifE =>
           intro conditionExpression context thenExpression branchTarget elseExpression
             condition thenBranch elseBranch conditionIH thenIH elseIH fuel fuelBound
@@ -1085,7 +1129,8 @@ theorem RuntimeTypings.coreSafety
         TypedResults targets
         (FuelResult.traverse (evalFuel fuel environment) expressions))
   case var | lit | something | boolTrue | boolFalse | listNil | listCons | tuple | lam |
-      app | letE | fixE | add | append | member | deleteFirst | map | ifE |
+      app | letE | fixE | add | append | member | deleteFirst | map | pairFirst |
+      pairSecond | ifE |
       checked =>
     simp
   case nil =>

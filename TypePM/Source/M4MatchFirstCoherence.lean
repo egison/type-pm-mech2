@@ -917,6 +917,29 @@ private def seedItems (target matcher : Generated) : GeneratedItems :=
 private def seedGenerated (target matcher : Generated) : Generated :=
   GeneratedItems.asTuple (seedItems target matcher)
 
+private theorem seedGenerated_supportMF
+    {context : Context} {start finish : Supply}
+    {target matcher : Generated}
+    (targetSupport : GeneratedSupportProvenance context start finish target)
+    (matcherSupport : GeneratedSupportProvenance context start finish matcher) :
+    GeneratedSupportProvenance context start finish
+      (seedGenerated target matcher) := by
+  intro candidate member
+  have itemsMember : candidate ∈ (seedItems target matcher).unificationVars := by
+    simpa [seedGenerated, seedItems, GeneratedItems.asTuple,
+      Generated.unificationVars, GeneratedItems.unificationVars,
+      Ty.unificationVars] using member
+  have origin : candidate ∈ target.unificationVars ∨
+      candidate ∈ matcher.unificationVars := by
+    have split := (GeneratedItems.mem_unificationVars_append candidate
+      (GeneratedItems.singleton target)
+      (GeneratedItems.singleton matcher)).mp (by
+        simpa [seedItems, GeneratedItems.append, GeneratedItems.singleton,
+          GeneratedItems.cons, GeneratedItems.nil, List.append_assoc] using
+          itemsMember)
+    simpa using split
+  exact Or.elim origin (targetSupport candidate) (matcherSupport candidate)
+
 private def armStateGenerated (interface expected : Ty)
     (hard : List Equation) (pending : List CheckObligation) : Generated :=
   { target := .prod [expected, interface], hard := hard, pending := pending }
@@ -1784,6 +1807,16 @@ private def completedArmState (target matcher : Generated)
   armStateGenerated (.prod [target.target, matcher.target]) body.target
     (initial.hard ++ tail.hard) (initial.pending ++ tail.pending)
 
+private def packagedFirstArm (targetType matcherType : Ty)
+    (pattern : GeneratedPattern) (body : Generated)
+    (tail : GeneratedTail) : GeneratedArms :=
+  { target := body.target
+    hard := [.ty pattern.dual.target targetType] ++ pattern.hard ++
+      body.hard ++ tail.hard
+    pending := pattern.pending ++
+      [⟨matcherType, .slot pattern.dual.capability targetType⟩] ++
+        body.pending ++ tail.pending }
+
 private theorem completedState_vars_iff
     (target matcher : Generated) (pattern : GeneratedPattern)
     (body : Generated) (tail : GeneratedTail) :
@@ -1792,12 +1825,12 @@ private theorem completedState_vars_iff
           (completedArmState target matcher pattern body tail).unificationVars ↔
         candidate ∈
           (Generated.fromMatchFirst target matcher
-            (GeneratedArms.fromFirst target.target matcher.target pattern body
+            (packagedFirstArm target.target matcher.target pattern body
               tail)).unificationVars := by
   intro candidate
   cases candidate <;>
     simp [completedArmState, seedGenerated, seedItems, initialArmState,
-      armStateGenerated, Generated.fromMatchFirst, GeneratedArms.fromFirst,
+      armStateGenerated, Generated.fromMatchFirst, packagedFirstArm,
       GeneratedItems.asTuple, GeneratedItems.cons,
       GeneratedItems.singleton, GeneratedItems.nil, Generated.unificationVars,
       Ty.unificationVars, TypePM.unificationVars, Equation.unificationVars,
@@ -1814,7 +1847,7 @@ private theorem scopedBy_completedState
       aliases) :
     ScopedBy
       (Generated.fromMatchFirst target matcher
-        (GeneratedArms.fromFirst target.target matcher.target pattern body
+        (packagedFirstArm target.target matcher.target pattern body
           tail)).unificationVars aliases := by
   refine ⟨scope.1, ?_⟩
   intro alias member
@@ -1838,19 +1871,19 @@ private def supportedFinishArmState
         rightTail)) :
     SupportedEntailedAlignmentCertificate start next
       (Generated.fromMatchFirst leftTarget leftMatcher
-        (GeneratedArms.fromFirst leftTarget.target leftMatcher.target
+        (packagedFirstArm leftTarget.target leftMatcher.target
           leftPattern leftBody leftTail))
       (Generated.fromMatchFirst rightTarget rightMatcher
-        (GeneratedArms.fromFirst rightTarget.target rightMatcher.target
+        (packagedFirstArm rightTarget.target rightMatcher.target
           rightPattern rightBody rightTail)) := by
   apply repackageCertificate certificate
   · exact scopedBy_completedState certificate.leftScoped
   · exact scopedBy_completedState certificate.rightScoped
   · let leftOutput := Generated.fromMatchFirst leftTarget leftMatcher
-      (GeneratedArms.fromFirst leftTarget.target leftMatcher.target
+      (packagedFirstArm leftTarget.target leftMatcher.target
         leftPattern leftBody leftTail)
     let rightOutput := Generated.fromMatchFirst rightTarget rightMatcher
-      (GeneratedArms.fromFirst rightTarget.target rightMatcher.target
+      (packagedFirstArm rightTarget.target rightMatcher.target
         rightPattern rightBody rightTail)
     have hardLeft :
         (FreshAliasSequence.addAll certificate.leftAliases leftOutput).hard =
@@ -1859,7 +1892,7 @@ private def supportedFinishArmState
               leftTail)).hard := by
       simp [leftOutput, completedArmState, seedGenerated, seedItems,
         initialArmState, armStateGenerated, Generated.fromMatchFirst,
-        GeneratedArms.fromFirst,
+        packagedFirstArm,
         GeneratedItems.asTuple, GeneratedItems.cons,
         GeneratedItems.singleton, GeneratedItems.nil,
         InterfaceAliasDecomposition.EquationLists.addAll_hard,
@@ -1872,7 +1905,7 @@ private def supportedFinishArmState
               rightTail)).hard := by
       simp [rightOutput, completedArmState, seedGenerated, seedItems,
         initialArmState, armStateGenerated, Generated.fromMatchFirst,
-        GeneratedArms.fromFirst,
+        packagedFirstArm,
         GeneratedItems.asTuple, GeneratedItems.cons,
         GeneratedItems.singleton, GeneratedItems.nil,
         InterfaceAliasDecomposition.EquationLists.addAll_hard,
@@ -1898,11 +1931,11 @@ private def supportedFinishArmState
           armStateGenerated, Ty.apply] using equality
       have bodyEquality := (List.cons.inj listEquality).1
       simpa [FreshAliasSequence.addAll_target, leftOutput, rightOutput,
-        Generated.fromMatchFirst, GeneratedArms.fromFirst] using bodyEquality
+        Generated.fromMatchFirst, packagedFirstArm] using bodyEquality
     · rw [hardLeft]
       simpa [FreshAliasSequence.addAll_pending, leftOutput, rightOutput,
         completedArmState, seedGenerated, seedItems, initialArmState,
-        armStateGenerated, Generated.fromMatchFirst, GeneratedArms.fromFirst,
+        armStateGenerated, Generated.fromMatchFirst, packagedFirstArm,
         GeneratedTail.fromArm, GeneratedItems.asTuple, GeneratedItems.cons,
         GeneratedItems.singleton, GeneratedItems.nil, List.append_assoc] using
         certificate.aligned.pendingAligned
@@ -1944,43 +1977,6 @@ private theorem stateItems_supportMF
     rcases secondSplit with patternMember | bodyMember
     · exact patternSupport candidate (by simpa using patternMember)
     · exact bodySupport candidate (by simpa using bodyMember)
-
-private theorem seedGenerated_supportMF
-    {context : Context} {start finish : Supply}
-    {target matcher : Generated}
-    (targetSupport : GeneratedSupportProvenance context start finish target)
-    (matcherSupport : GeneratedSupportProvenance context start finish matcher) :
-    GeneratedSupportProvenance context start finish
-      (seedGenerated target matcher) := by
-  intro candidate member
-  have itemsMember : candidate ∈ (seedItems target matcher).unificationVars := by
-    simpa [seedGenerated, seedItems, GeneratedItems.asTuple,
-      Generated.unificationVars, GeneratedItems.unificationVars,
-      Ty.unificationVars] using member
-  have origin : candidate ∈ target.unificationVars ∨
-      candidate ∈ matcher.unificationVars := by
-    have split := (GeneratedItems.mem_unificationVars_append candidate
-      (GeneratedItems.singleton target)
-      (GeneratedItems.singleton matcher)).mp (by
-        simpa [seedItems, GeneratedItems.append, GeneratedItems.singleton,
-          GeneratedItems.cons, GeneratedItems.nil, List.append_assoc] using
-          itemsMember)
-    simpa using split
-  exact Or.elim origin (targetSupport candidate) (matcherSupport candidate)
-
-private theorem initialArmState_supportMF
-    {context : Context} {start finish : Supply}
-    {targetType matcherType : Ty} {seed : Generated}
-    {pattern : GeneratedPattern} {body : Generated}
-    (seedTarget : seed.target = .prod [targetType, matcherType])
-    (itemsSupport : GeneratedItemsSupportProvenance context start finish
-      (stateItems seed pattern body)) :
-    GeneratedSupportProvenance context start finish
-      (initialArmState targetType matcherType seed pattern body) := by
-  intro candidate member
-  exact itemsSupport candidate
-    ((initialState_vars_iff targetType matcherType seed pattern body seedTarget
-      candidate).mpr member)
 
 private theorem extendArmState_supportMF
     {context : Context} {start finish : Supply}
@@ -2273,13 +2269,284 @@ private theorem foldTailSupported
                   restResult.certificate }⟩
 termination_by arms.length
 
-/-- Supported coherence for the ordered single-result match constructor. -/
+
+/-! The explicit-fallback rule starts with target, matcher, and fallback
+blocks before folding any ordinary arm.  The helpers below only regroup the
+certificate target: hard equations and pending checks stay in execution
+order. -/
+
+private def initialFallbackState
+    (target matcher fallback : Generated) : Generated :=
+  armStateGenerated (.prod [target.target, matcher.target]) fallback.target
+    (target.hard ++ matcher.hard ++ fallback.hard)
+    (target.pending ++ matcher.pending ++ fallback.pending)
+
+private def flatFallbackSeed
+    (target matcher fallback : Generated) : Generated :=
+  GeneratedItems.asTuple <|
+    GeneratedItems.cons (seedGenerated target matcher) <|
+      GeneratedItems.singleton fallback
+
+private theorem initialFallbackState_vars_iff
+    (target matcher fallback : Generated) :
+    ∀ candidate,
+      candidate ∈ (initialFallbackState target matcher fallback).unificationVars ↔
+        candidate ∈ (flatFallbackSeed target matcher fallback).unificationVars := by
+  intro candidate
+  cases candidate <;>
+    simp [initialFallbackState, flatFallbackSeed, armStateGenerated,
+      seedGenerated, seedItems,
+      GeneratedItems.asTuple, GeneratedItems.cons, GeneratedItems.singleton,
+      GeneratedItems.nil, Generated.unificationVars, Ty.unificationVars,
+      Ty.occursTyList, Ty.occursCapList, Ty.occursCap, Ty.occursTy,
+      or_assoc, or_left_comm, or_comm]
+
+private def supportedInitialFallbackState
+    {start next : Supply}
+    {leftTarget rightTarget leftMatcher rightMatcher leftFallback rightFallback :
+      Generated}
+    (certificate : SupportedEntailedAlignmentCertificate start next
+      (flatFallbackSeed leftTarget leftMatcher leftFallback)
+      (flatFallbackSeed rightTarget rightMatcher rightFallback)) :
+    SupportedEntailedAlignmentCertificate start next
+      (initialFallbackState leftTarget leftMatcher leftFallback)
+      (initialFallbackState rightTarget rightMatcher rightFallback) :=
+  { hidden := certificate.hidden
+    hiddenFresh := certificate.hiddenFresh
+    leftAliases := certificate.leftAliases
+    rightAliases := certificate.rightAliases
+    leftAliasFresh := certificate.leftAliasFresh
+    rightAliasFresh := certificate.rightAliasFresh
+    leftScoped := by
+      refine ⟨certificate.leftScoped.1, ?_⟩
+      intro alias member
+      have endpoints := certificate.leftScoped.2 alias member
+      constructor
+      · intro observed
+        exact endpoints.1
+          ((initialFallbackState_vars_iff leftTarget leftMatcher leftFallback
+            (freshVariable alias)).mp observed)
+      · exact (initialFallbackState_vars_iff leftTarget leftMatcher
+          leftFallback (existingVariable alias)).mpr endpoints.2
+    rightScoped := by
+      refine ⟨certificate.rightScoped.1, ?_⟩
+      intro alias member
+      have endpoints := certificate.rightScoped.2 alias member
+      constructor
+      · intro observed
+        exact endpoints.1
+          ((initialFallbackState_vars_iff rightTarget rightMatcher rightFallback
+            (freshVariable alias)).mp observed)
+      · exact (initialFallbackState_vars_iff rightTarget rightMatcher
+          rightFallback (existingVariable alias)).mpr endpoints.2
+    aligned := by
+      refine ⟨?_, ?_, ?_⟩
+      · simpa [initialFallbackState, flatFallbackSeed, armStateGenerated,
+          seedGenerated, seedItems,
+          GeneratedItems.asTuple, GeneratedItems.cons,
+          GeneratedItems.singleton, GeneratedItems.nil,
+          InterfaceAliasDecomposition.EquationLists.addAll_hard,
+          InterfaceAliasDecomposition.EquationLists.addAliases_eq_reverse_map_append,
+          List.append_assoc] using certificate.aligned.hardEquivalent
+      · intro substitution solved
+        have flatSolved : Solves substitution
+            (FreshAliasSequence.addAll certificate.leftAliases
+              (flatFallbackSeed leftTarget leftMatcher leftFallback)).hard := by
+          simpa [initialFallbackState, flatFallbackSeed, armStateGenerated,
+            seedGenerated, seedItems,
+            GeneratedItems.asTuple, GeneratedItems.cons,
+            GeneratedItems.singleton, GeneratedItems.nil,
+            InterfaceAliasDecomposition.EquationLists.addAll_hard,
+            InterfaceAliasDecomposition.EquationLists.addAliases_eq_reverse_map_append,
+            List.append_assoc] using solved
+        have flatEquality := certificate.aligned.targetEntailed substitution
+          flatSolved
+        have listEquality : Ty.applyList substitution
+            [.prod [leftTarget.target, leftMatcher.target], leftFallback.target] =
+            Ty.applyList substitution
+              [.prod [rightTarget.target, rightMatcher.target],
+                rightFallback.target] := by
+          simpa [FreshAliasSequence.addAll_target, flatFallbackSeed,
+            seedGenerated, seedItems, GeneratedItems.asTuple,
+            GeneratedItems.cons, GeneratedItems.singleton,
+            GeneratedItems.nil, Ty.apply] using
+            flatEquality
+        have interfaceEquality := (List.cons.inj listEquality).1
+        have fallbackEquality :=
+          (List.cons.inj (List.cons.inj listEquality).2).1
+        simp only [FreshAliasSequence.addAll_target, initialFallbackState,
+          armStateGenerated, Ty.apply]
+        exact congrArg Ty.prod <| calc
+          Ty.applyList substitution
+              [leftFallback.target,
+                .prod [leftTarget.target, leftMatcher.target]] =
+              Ty.apply substitution leftFallback.target ::
+                Ty.apply substitution
+                  (.prod [leftTarget.target, leftMatcher.target]) :: [] := rfl
+          _ = Ty.apply substitution rightFallback.target ::
+                Ty.apply substitution
+                  (.prod [rightTarget.target, rightMatcher.target]) :: [] := by
+              rw [fallbackEquality, interfaceEquality]
+          _ = Ty.applyList substitution
+              [rightFallback.target,
+                .prod [rightTarget.target, rightMatcher.target]] := rfl
+      · simpa [initialFallbackState, flatFallbackSeed, armStateGenerated,
+          seedGenerated, seedItems,
+          GeneratedItems.asTuple, GeneratedItems.cons,
+          GeneratedItems.singleton, GeneratedItems.nil,
+          FreshAliasSequence.addAll_pending,
+          InterfaceAliasDecomposition.EquationLists.addAll_hard,
+          InterfaceAliasDecomposition.EquationLists.addAliases_eq_reverse_map_append,
+          List.append_assoc] using
+          certificate.aligned.pendingAligned }
+
+/-! Once at least one ordinary arm has been elaborated, its pattern slot and
+result equation keep the target, matcher, and fallback interface types
+observable.  This is the nonempty counterpart of `completedArmState`. -/
+
+private def completedFallbackArmState
+    (target matcher fallback : Generated) (pattern : GeneratedPattern)
+    (body : Generated) (tail : GeneratedTail) : Generated :=
+  armStateGenerated (.prod [target.target, matcher.target]) fallback.target
+    (target.hard ++ matcher.hard ++ fallback.hard ++
+      (GeneratedTail.fromArm target.target matcher.target fallback.target
+        pattern body).hard ++ tail.hard)
+    (target.pending ++ matcher.pending ++ fallback.pending ++
+      (GeneratedTail.fromArm target.target matcher.target fallback.target
+        pattern body).pending ++ tail.pending)
+
+private def packagedFallbackArm
+    (target matcher fallback : Generated) (pattern : GeneratedPattern)
+    (body : Generated) (tail : GeneratedTail) : GeneratedArms :=
+  GeneratedArms.fromFallback fallback
+    { hard :=
+        (GeneratedTail.fromArm target.target matcher.target fallback.target
+          pattern body).hard ++ tail.hard
+      pending :=
+        (GeneratedTail.fromArm target.target matcher.target fallback.target
+          pattern body).pending ++ tail.pending }
+
+private theorem completedFallbackArmState_vars_iff
+    (target matcher fallback : Generated) (pattern : GeneratedPattern)
+    (body : Generated) (tail : GeneratedTail) :
+    ∀ candidate,
+      candidate ∈
+          (completedFallbackArmState target matcher fallback pattern body
+            tail).unificationVars ↔
+        candidate ∈
+          (Generated.fromMatchFirst target matcher
+            (packagedFallbackArm target matcher fallback pattern body
+              tail)).unificationVars := by
+  intro candidate
+  cases candidate <;>
+    simp [completedFallbackArmState, packagedFallbackArm,
+      armStateGenerated, Generated.fromMatchFirst,
+      GeneratedArms.fromFallback, GeneratedTail.fromArm,
+      Generated.unificationVars, Ty.unificationVars,
+      TypePM.unificationVars, Equation.unificationVars,
+      CheckObligation.unificationVars, pendingUnificationVars,
+      Ty.occursTyList, Ty.occursCapList, Ty.occursCap, Ty.occursTy,
+      or_assoc, or_left_comm, or_comm]
+
+private def supportedFinishFallbackArmState
+    {start next : Supply}
+    {leftTarget rightTarget leftMatcher rightMatcher leftFallback rightFallback :
+      Generated}
+    {leftPattern rightPattern : GeneratedPattern}
+    {leftBody rightBody : Generated} {leftTail rightTail : GeneratedTail}
+    (certificate : SupportedEntailedAlignmentCertificate start next
+      (completedFallbackArmState leftTarget leftMatcher leftFallback
+        leftPattern leftBody leftTail)
+      (completedFallbackArmState rightTarget rightMatcher rightFallback
+        rightPattern rightBody rightTail)) :
+    SupportedEntailedAlignmentCertificate start next
+      (Generated.fromMatchFirst leftTarget leftMatcher
+        (packagedFallbackArm leftTarget leftMatcher leftFallback leftPattern
+          leftBody leftTail))
+      (Generated.fromMatchFirst rightTarget rightMatcher
+        (packagedFallbackArm rightTarget rightMatcher rightFallback rightPattern
+          rightBody rightTail)) := by
+  apply repackageCertificate certificate
+  · refine ⟨certificate.leftScoped.1, ?_⟩
+    intro alias member
+    have endpoints := certificate.leftScoped.2 alias member
+    exact ⟨fun observed => endpoints.1
+      ((completedFallbackArmState_vars_iff _ _ _ _ _ _ _).mpr observed),
+      (completedFallbackArmState_vars_iff _ _ _ _ _ _ _).mp endpoints.2⟩
+  · refine ⟨certificate.rightScoped.1, ?_⟩
+    intro alias member
+    have endpoints := certificate.rightScoped.2 alias member
+    exact ⟨fun observed => endpoints.1
+      ((completedFallbackArmState_vars_iff _ _ _ _ _ _ _).mpr observed),
+      (completedFallbackArmState_vars_iff _ _ _ _ _ _ _).mp endpoints.2⟩
+  · let leftOutput := Generated.fromMatchFirst leftTarget leftMatcher
+      (packagedFallbackArm leftTarget leftMatcher leftFallback leftPattern
+        leftBody leftTail)
+    let rightOutput := Generated.fromMatchFirst rightTarget rightMatcher
+      (packagedFallbackArm rightTarget rightMatcher rightFallback rightPattern
+        rightBody rightTail)
+    have hardLeft :
+        (FreshAliasSequence.addAll certificate.leftAliases leftOutput).hard =
+          (FreshAliasSequence.addAll certificate.leftAliases
+            (completedFallbackArmState leftTarget leftMatcher leftFallback
+              leftPattern leftBody leftTail)).hard := by
+      simp [leftOutput, completedFallbackArmState, packagedFallbackArm,
+        armStateGenerated, Generated.fromMatchFirst,
+        GeneratedArms.fromFallback, GeneratedTail.fromArm,
+        InterfaceAliasDecomposition.EquationLists.addAll_hard,
+        InterfaceAliasDecomposition.EquationLists.addAliases_eq_reverse_map_append,
+        List.append_assoc]
+    have hardRight :
+        (FreshAliasSequence.addAll certificate.rightAliases rightOutput).hard =
+          (FreshAliasSequence.addAll certificate.rightAliases
+            (completedFallbackArmState rightTarget rightMatcher rightFallback
+              rightPattern rightBody rightTail)).hard := by
+      simp [rightOutput, completedFallbackArmState, packagedFallbackArm,
+        armStateGenerated, Generated.fromMatchFirst,
+        GeneratedArms.fromFallback, GeneratedTail.fromArm,
+        InterfaceAliasDecomposition.EquationLists.addAll_hard,
+        InterfaceAliasDecomposition.EquationLists.addAliases_eq_reverse_map_append,
+        List.append_assoc]
+    refine ⟨?_, ?_, ?_⟩
+    · rw [hardLeft, hardRight]
+      exact certificate.aligned.hardEquivalent
+    · intro substitution solved
+      have stateSolved : Solves substitution
+          (FreshAliasSequence.addAll certificate.leftAliases
+            (completedFallbackArmState leftTarget leftMatcher leftFallback
+              leftPattern leftBody leftTail)).hard := by
+        rwa [← hardLeft]
+      have equality := certificate.aligned.targetEntailed substitution
+        stateSolved
+      have listEquality : Ty.applyList substitution
+          [leftFallback.target,
+            .prod [leftTarget.target, leftMatcher.target]] =
+          Ty.applyList substitution
+          [rightFallback.target,
+            .prod [rightTarget.target, rightMatcher.target]] := by
+        simpa [FreshAliasSequence.addAll_target,
+          completedFallbackArmState, armStateGenerated, Ty.apply] using equality
+      have fallbackEquality := (List.cons.inj listEquality).1
+      simpa [FreshAliasSequence.addAll_target, leftOutput, rightOutput,
+        Generated.fromMatchFirst, packagedFallbackArm,
+        GeneratedArms.fromFallback] using fallbackEquality
+    · rw [hardLeft]
+      simpa [FreshAliasSequence.addAll_pending, leftOutput, rightOutput,
+        completedFallbackArmState, packagedFallbackArm,
+        armStateGenerated, Generated.fromMatchFirst,
+        GeneratedArms.fromFallback, GeneratedTail.fromArm,
+        List.append_assoc] using certificate.aligned.pendingAligned
+
+/-- Supported coherence for ordered single-result matching with a mandatory
+matcher-independent fallback. -/
 theorem matchFirstSupportedFuelPair
-    (target matcher : Expr) (arms : List MatchFirstArm)
+    (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr)
     (induction : ∀ smaller : Expr,
-      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
+      smaller.complexity <
+          (Expr.matchFirst target matcher arms fallback).complexity →
         FullM4FuelPairProperty smaller) :
-    SupportedM4FuelPairProperty (.matchFirst target matcher arms) := by
+    SupportedM4FuelPairProperty
+      (.matchFirst target matcher arms fallback) := by
   intro signature context start leftGenerated rightGenerated leftNext rightNext
     leftFuel rightFuel signatureWellFormed wellFormed leftDerivation
     rightDerivation
@@ -2291,18 +2558,18 @@ theorem matchFirstSupportedFuelPair
       | succ rightFuel =>
           simp only [ElaboratesFuel] at leftDerivation rightDerivation
           cases leftDerivation with
-          | @matchFirst _ _ _ _ leftTarget afterTarget leftMatcher
-              afterMatcher leftArms finish leftExhaustive
-              leftTargetDerivation leftMatcherDerivation leftArmsDerivation =>
+          | @matchFirst _ _ _ _ _ leftTarget afterTarget leftMatcher
+              afterMatcher leftArms finish leftTargetDerivation
+              leftMatcherDerivation leftArmsDerivation =>
               cases rightDerivation with
-              | @matchFirst _ _ _ _ rightTarget rightAfterTarget rightMatcher
-                  rightAfterMatcher rightArms rightFinish rightExhaustive
+              | @matchFirst _ _ _ _ _ rightTarget rightAfterTarget
+                  rightMatcher rightAfterMatcher rightArms rightFinish
                   rightTargetDerivation rightMatcherDerivation
                   rightArmsDerivation =>
                   have expressionPairBelow :
                       SupportedM4ExpressionPairPropertyBelow signature
                         leftFuel rightFuel
-                        (Expr.matchFirst target matcher arms).complexity := by
+                        (Expr.matchFirst target matcher arms fallback).complexity := by
                     intro childContext expression childStart left right
                       childLeftNext childRightNext complexity childWellFormed
                       childLeft childRight
@@ -2325,82 +2592,29 @@ theorem matchFirstSupportedFuelPair
                       (wellFormed.mono startToTarget)
                       leftMatcherDerivation rightMatcherDerivation
                   cases matcherResult.next_eq
-                  have targetToMatcher := leftMatcherDerivation.supply_le_next
-                  have startToMatcher := Supply.le_trans startToTarget
-                    targetToMatcher
+                  have targetToMatcher :=
+                    leftMatcherDerivation.supply_le_next
+                  have startToMatcher :=
+                    Supply.le_trans startToTarget targetToMatcher
                   cases leftArmsDerivation with
-                  | @cons pattern body tail _ leftPattern afterPattern leftBody
-                      afterBody leftTail finish leftPatternDerivation
-                      leftBodyDerivation leftTailDerivation =>
+                  | @fromFallback _ _ _ leftFallback afterFallback leftTail
+                      finish leftFallbackDerivation leftTailDerivation =>
                       cases rightArmsDerivation with
-                      | @cons _ _ _ _ rightPattern rightAfterPattern rightBody
-                          rightAfterBody rightTail rightFinish
-                          rightPatternDerivation rightBodyDerivation
+                      | @fromFallback _ _ _ rightFallback rightAfterFallback
+                          rightTail rightFinish rightFallbackDerivation
                           rightTailDerivation =>
-                          have emptyArguments : VariablesSupportProvenance
-                              context start afterMatcher
-                              (dualUnificationVars []) := by
-                            intro candidate member
-                            simp [dualUnificationVars] at member
-                          have emptyBindings : VariablesSupportProvenance
-                              context start afterMatcher
-                              (Ty.unificationVarsList []) := by
-                            intro candidate member
-                            simp [Ty.unificationVarsList] at member
-                          obtain ⟨patternResult⟩ :=
-                            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
-                              signatureWellFormed expressionPairBelow (by
-                                simp only [Expr.complexity_matchFirst,
-                                  MatchFirstArm.listComplexity_cons,
-                                  MatchFirstArm.complexity_mk]
-                                omega) wellFormed emptyArguments emptyBindings
-                              startToMatcher leftPatternDerivation
-                              rightPatternDerivation
-                          cases patternResult.next_eq
-                          rw [← patternResult.bindings_eq] at rightBodyDerivation
-                          have matcherToPattern :=
-                            leftPatternDerivation.supply_le_next
-                              (fun child => child.supply_le_next)
-                          have startToPattern := Supply.le_trans startToMatcher
-                            matcherToPattern
-                          have leftPatternSupport :=
-                            leftPatternDerivation.supportProvenance
-                              signatureWellFormed
-                              (fun child => child.supply_le_next)
-                              (fun child =>
-                                child.supportProvenance signatureWellFormed)
-                              emptyArguments emptyBindings startToMatcher
-                          have rightPatternSupport :=
-                            rightPatternDerivation.supportProvenance
-                              signatureWellFormed
-                              (fun child => child.supply_le_next)
-                              (fun child =>
-                                child.supportProvenance signatureWellFormed)
-                              emptyArguments emptyBindings startToMatcher
-                          have bindingsSupport : VariablesSupportProvenance
-                              context start afterPattern
-                              (Ty.unificationVarsList leftPattern.bindings) := by
-                            intro candidate member
-                            exact leftPatternSupport candidate (by
-                              simp [GeneratedPattern.unificationVars, member])
-                          have bodyContextSupport :=
-                            Pattern.extendContext_support bindingsSupport
-                          have bodyWellFormed :=
-                            M4FreshRenaming.Supply.WellFormedFor.of_contextSupport
-                              wellFormed startToPattern bodyContextSupport
-                          obtain ⟨bodyResult⟩ := expressionPairBelow (by
-                              simp only [Expr.complexity_matchFirst,
-                                MatchFirstArm.listComplexity_cons,
-                                MatchFirstArm.complexity_mk]
-                              omega) bodyWellFormed leftBodyDerivation
-                            rightBodyDerivation
-                          cases bodyResult.next_eq
-                          have patternToBody :=
-                            leftBodyDerivation.supply_le_next
-                          have matcherToBody := Supply.le_trans
-                            matcherToPattern patternToBody
-                          have startToBody := Supply.le_trans startToMatcher
-                            matcherToBody
+                          obtain ⟨fallbackResult⟩ :=
+                            FullM4FuelPairProperty.toSupported
+                              (induction fallback (by
+                                simp only [Expr.complexity_matchFirst]
+                                omega)) signatureWellFormed
+                              (wellFormed.mono startToMatcher)
+                              leftFallbackDerivation rightFallbackDerivation
+                          cases fallbackResult.next_eq
+                          have matcherToFallback :=
+                            leftFallbackDerivation.supply_le_next
+                          have startToFallback := Supply.le_trans
+                            startToMatcher matcherToFallback
 
                           have targetSupportLeft :=
                             leftTargetDerivation.supportProvenance
@@ -2414,6 +2628,13 @@ theorem matchFirstSupportedFuelPair
                           have matcherSupportRight :=
                             rightMatcherDerivation.supportProvenance
                               signatureWellFormed
+                          have fallbackSupportLeftLocal :=
+                            leftFallbackDerivation.supportProvenance
+                              signatureWellFormed
+                          have fallbackSupportRightLocal :=
+                            rightFallbackDerivation.supportProvenance
+                              signatureWellFormed
+
                           have targetContextAvoid :=
                             context_avoids_laterFreshMF wellFormed
                               (Supply.le_refl start)
@@ -2459,245 +2680,153 @@ theorem matchFirstSupportedFuelPair
                               seedCertificate.hiddenFresh
                           have seedBelow := freshIn_to_belowFinishMF
                             seedCertificate.hiddenFresh
-                          have leftPatternAvoidSeed :=
-                            PatternElaboratesUsing.avoids_of_inputs
-                              signatureWellFormed seedContextAvoid
-                              (by
-                                intro candidate member
-                                simp [dualUnificationVars] at member)
-                              (by
-                                intro candidate member
-                                simp [Ty.unificationVarsList] at member)
-                              seedBelow leftPatternDerivation
-                          have rightPatternAvoidSeed :=
-                            PatternElaboratesUsing.avoids_of_inputs
-                              signatureWellFormed seedContextAvoid
-                              (by
-                                intro candidate member
-                                simp [dualUnificationVars] at member)
-                              (by
-                                intro candidate member
-                                simp [Ty.unificationVarsList] at member)
-                              seedBelow rightPatternDerivation
-                          have leftBodySupportLocal :=
-                            leftBodyDerivation.supportProvenance
-                              signatureWellFormed
-                          have rightBodySupportLocal :=
-                            rightBodyDerivation.supportProvenance
-                              signatureWellFormed
-                          have leftBodyAvoidSeed := generatedAvoids_of_supportMF
-                            (extendedContext_avoidsMF seedContextAvoid
-                              leftPatternAvoidSeed.bindings)
-                            (seedBelow.mono matcherToPattern)
-                            leftBodySupportLocal
-                          have rightBodyAvoidSeed :=
-                            generatedAvoids_of_supportMF
-                              (extendedContext_avoidsMF seedContextAvoid
-                                leftPatternAvoidSeed.bindings)
-                              (seedBelow.mono matcherToPattern)
-                              rightBodySupportLocal
-                          have patternContextAvoid :=
-                            context_avoids_laterFreshMF wellFormed
-                              startToMatcher
-                              patternResult.certificate.hiddenFresh
-                          have patternBelow := freshIn_to_belowFinishMF
-                            patternResult.certificate.hiddenFresh
-                          have leftBodyAvoidPattern :=
-                            generatedAvoids_of_supportMF
-                              (extendedContext_avoidsMF patternContextAvoid
-                                patternResult.leftBindingsAvoid)
-                              patternBelow leftBodySupportLocal
-                          have rightBodyAvoidPattern :=
-                            generatedAvoids_of_supportMF
-                              (extendedContext_avoidsMF patternContextAvoid
-                                patternResult.leftBindingsAvoid)
-                              patternBelow rightBodySupportLocal
-                          have leftPatternBlockSupport :=
-                            patternAsGenerated_supportMF leftPatternSupport
-                          have rightPatternBlockSupport :=
-                            patternAsGenerated_supportMF rightPatternSupport
-                          have leftSeedAvoidPattern :=
+                          have leftFallbackAvoidSeed :=
+                            generatedAvoids_of_supportMF seedContextAvoid
+                              seedBelow fallbackSupportLeftLocal
+                          have rightFallbackAvoidSeed :=
+                            generatedAvoids_of_supportMF seedContextAvoid
+                              seedBelow fallbackSupportRightLocal
+                          have leftSeedAvoidFallback :=
                             support_avoids_laterFreshMF wellFormed
                               startToMatcher leftSeedSupport
-                              patternResult.certificate.hiddenFresh
-                          have rightSeedAvoidPattern :=
+                              fallbackResult.certificate.hiddenFresh
+                          have rightSeedAvoidFallback :=
                             support_avoids_laterFreshMF wellFormed
                               startToMatcher rightSeedSupport
-                              patternResult.certificate.hiddenFresh
-                          have leftPatternAvoidBody :=
-                            support_avoids_laterFreshMF wellFormed
-                              startToPattern leftPatternBlockSupport
-                              bodyResult.certificate.hiddenFresh
-                          have rightPatternAvoidBody :=
-                            support_avoids_laterFreshMF wellFormed
-                              startToPattern rightPatternBlockSupport
-                              bodyResult.certificate.hiddenFresh
-                          have leftSeedAvoidBody :=
-                            support_avoids_laterFreshMF wellFormed
-                              startToMatcher leftSeedSupport
-                              (bodyResult.certificate.hiddenFresh.widen
-                                matcherToPattern
-                                (Supply.le_refl afterBody))
-                          have rightSeedAvoidBody :=
-                            support_avoids_laterFreshMF wellFormed
-                              startToMatcher rightSeedSupport
-                              (bodyResult.certificate.hiddenFresh.widen
-                                matcherToPattern
-                                (Supply.le_refl afterBody))
-                          let patternBody := itemsConsSequentialMF
-                            patternResult.certificate
-                            (singletonItemsCertificate bodyResult.certificate)
-                            matcherToPattern patternToBody
+                              fallbackResult.certificate.hiddenFresh
+                          let flatItemsCertificate := itemsConsSequentialMF
+                            seedCertificate
+                            (singletonItemsCertificate
+                              fallbackResult.certificate)
+                            startToMatcher matcherToFallback
                             (GeneratedItemsAvoid.singleton
-                              leftBodyAvoidPattern)
+                              leftFallbackAvoidSeed)
                             (GeneratedItemsAvoid.singleton
-                              rightBodyAvoidPattern)
-                            leftPatternAvoidBody rightPatternAvoidBody
-                          let initialItems := itemsConsSequentialMF
-                            seedCertificate patternBody startToMatcher
-                            matcherToBody
-                            (generatedItemsAvoid_consMF
-                              leftPatternAvoidSeed.block
-                              (GeneratedItemsAvoid.singleton
-                                leftBodyAvoidSeed))
-                            (generatedItemsAvoid_consMF
-                              rightPatternAvoidSeed.block
-                              (GeneratedItemsAvoid.singleton
-                                rightBodyAvoidSeed))
-                            (by
-                              change GeneratedAvoids patternBody.hidden _
-                              rw [show patternBody.hidden =
-                                patternResult.certificate.hidden ++
-                                  bodyResult.certificate.hidden by rfl]
-                              exact generatedAvoids_appendMF
-                                leftSeedAvoidPattern leftSeedAvoidBody)
-                            (by
-                              change GeneratedAvoids patternBody.hidden _
-                              rw [show patternBody.hidden =
-                                patternResult.certificate.hidden ++
-                                  bodyResult.certificate.hidden by rfl]
-                              exact generatedAvoids_appendMF
-                                rightSeedAvoidPattern rightSeedAvoidBody)
-                          have seedPendingLength :
-                              (seedGenerated leftTarget leftMatcher).pending.length =
-                                (seedGenerated rightTarget rightMatcher).pending.length := by
-                            simpa [FreshAliasSequence.addAll_pending,
-                              seedGenerated, seedItems] using
-                              pendingLength_eq
-                                seedCertificate.aligned.pendingAligned
-                          have patternPendingLength :
-                              leftPattern.pending.length =
-                                rightPattern.pending.length := by
-                            simpa [FreshAliasSequence.addAll_pending,
-                              patternAsGenerated] using
-                              pendingLength_eq
-                                patternResult.certificate.aligned.pendingAligned
-                          let initialCertificate := supportedInitialArmState
-                            (leftTargetType := leftTarget.target)
-                            (rightTargetType := rightTarget.target)
-                            (leftMatcherType := leftMatcher.target)
-                            (rightMatcherType := rightMatcher.target)
-                            (leftSeed := seedGenerated leftTarget leftMatcher)
-                            (rightSeed := seedGenerated rightTarget rightMatcher)
-                            (leftPattern := leftPattern)
-                            (rightPattern := rightPattern)
-                            (leftBody := leftBody) (rightBody := rightBody)
-                            (leftSeedTarget := by
-                              simp [seedGenerated, seedItems,
-                                GeneratedItems.asTuple,
-                                GeneratedItems.cons, GeneratedItems.singleton,
-                                GeneratedItems.nil])
-                            (rightSeedTarget := by
-                              simp [seedGenerated, seedItems,
-                                GeneratedItems.asTuple,
-                                GeneratedItems.cons, GeneratedItems.singleton,
-                                GeneratedItems.nil])
-                            seedPendingLength patternPendingLength initialItems
+                              rightFallbackAvoidSeed)
+                            leftSeedAvoidFallback rightSeedAvoidFallback
+                          let flatCertificate :=
+                            flatItemsCertificate.itemsTuple
+                          let initialCertificate :=
+                            supportedInitialFallbackState flatCertificate
 
-                          have leftBodySupport : GeneratedSupportProvenance
-                              context start afterBody leftBody :=
-                            leftBodySupportLocal.rebase_context startToPattern
-                              patternToBody bodyContextSupport
-                          have rightBodySupport : GeneratedSupportProvenance
-                              context start afterBody rightBody :=
-                            rightBodySupportLocal.rebase_context startToPattern
-                              patternToBody bodyContextSupport
-                          have leftInitialItemsSupport := stateItems_supportMF
-                            (leftSeedSupport.extend_finish matcherToBody)
-                            (leftPatternBlockSupport.extend_finish patternToBody)
-                            leftBodySupport
-                          have rightInitialItemsSupport := stateItems_supportMF
-                            (rightSeedSupport.extend_finish matcherToBody)
-                            (rightPatternBlockSupport.extend_finish patternToBody)
-                            rightBodySupport
-                          have leftInitialSupport := initialArmState_supportMF
-                            (targetType := leftTarget.target)
-                            (matcherType := leftMatcher.target)
-                            (seed := seedGenerated leftTarget leftMatcher)
-                            (pattern := leftPattern) (body := leftBody)
-                            (seedTarget := by
-                              simp [seedGenerated, seedItems,
-                                GeneratedItems.asTuple,
-                                GeneratedItems.cons, GeneratedItems.singleton,
-                                GeneratedItems.nil])
-                            leftInitialItemsSupport
-                          have rightInitialSupport := initialArmState_supportMF
-                            (targetType := rightTarget.target)
-                            (matcherType := rightMatcher.target)
-                            (seed := seedGenerated rightTarget rightMatcher)
-                            (pattern := rightPattern) (body := rightBody)
-                            (seedTarget := by
-                              simp [seedGenerated, seedItems,
-                                GeneratedItems.asTuple,
-                                GeneratedItems.cons, GeneratedItems.singleton,
-                                GeneratedItems.nil])
-                            rightInitialItemsSupport
-                          let leftInitial := initialArmState leftTarget.target
-                            leftMatcher.target
-                            (seedGenerated leftTarget leftMatcher) leftPattern
-                            leftBody
-                          let rightInitial := initialArmState rightTarget.target
-                            rightMatcher.target
-                            (seedGenerated rightTarget rightMatcher) rightPattern
-                            rightBody
-                          obtain ⟨tailResult⟩ := foldTailSupported
-                            signatureWellFormed expressionPairBelow wellFormed
-                            startToBody
-                            (leftStateSupport := by
-                              simpa [leftInitial, initialArmState,
-                                armStateGenerated] using leftInitialSupport)
-                            (rightStateSupport := by
-                              simpa [rightInitial, initialArmState,
-                                armStateGenerated] using rightInitialSupport)
-                            (stateCertificate := by
-                              simpa [initialCertificate, leftInitial,
-                                rightInitial, initialArmState,
-                                armStateGenerated] using initialCertificate)
-                            (by
-                              simp only [Expr.complexity_matchFirst,
-                                MatchFirstArm.listComplexity_cons,
-                                MatchFirstArm.complexity_mk]
-                              omega)
-                            leftTailDerivation rightTailDerivation
-                          cases tailResult.next_eq
-                          have completedCertificate :
-                              SupportedEntailedAlignmentCertificate start leftNext
-                                (completedArmState leftTarget leftMatcher
-                                  leftPattern leftBody leftTail)
-                                (completedArmState rightTarget rightMatcher
-                                  rightPattern rightBody rightTail) := by
-                            simpa [completedArmState, leftInitial, rightInitial,
-                              initialArmState, armStateGenerated] using
-                              tailResult.certificate
-                          exact ⟨
-                            { next_eq := rfl
-                              certificate := supportedFinishArmState
-                                completedCertificate }⟩
+                          have fallbackSupportLeft :
+                              GeneratedSupportProvenance context start
+                                afterFallback leftFallback :=
+                            fallbackSupportLeftLocal.lower_start startToMatcher
+                          have fallbackSupportRight :
+                              GeneratedSupportProvenance context start
+                                afterFallback rightFallback :=
+                            fallbackSupportRightLocal.lower_start startToMatcher
+                          have leftInitialSupport :
+                              GeneratedSupportProvenance context start
+                                afterFallback
+                                (initialFallbackState leftTarget leftMatcher
+                                  leftFallback) := by
+                            intro candidate member
+                            have origin :=
+                              (initialFallbackState_vars_iff leftTarget
+                                leftMatcher leftFallback candidate).mp member
+                            have split :
+                                candidate ∈
+                                    (seedGenerated leftTarget leftMatcher).unificationVars ∨
+                                  candidate ∈ leftFallback.unificationVars := by
+                              simpa [flatFallbackSeed, GeneratedItems.asTuple,
+                                GeneratedItems.cons,
+                                GeneratedItems.singleton, GeneratedItems.nil,
+                                Generated.unificationVars,
+                                GeneratedItems.unificationVars,
+                                Ty.unificationVars, Ty.unificationVarsList,
+                                or_assoc, or_left_comm, or_comm] using origin
+                            rcases split with seedMember | fallbackMember
+                            · exact (leftSeedSupport.extend_finish
+                                matcherToFallback) candidate seedMember
+                            · exact fallbackSupportLeft candidate
+                                fallbackMember
+                          have rightInitialSupport :
+                              GeneratedSupportProvenance context start
+                                afterFallback
+                                (initialFallbackState rightTarget rightMatcher
+                                  rightFallback) := by
+                            intro candidate member
+                            have origin :=
+                              (initialFallbackState_vars_iff rightTarget
+                                rightMatcher rightFallback candidate).mp member
+                            have split :
+                                candidate ∈
+                                    (seedGenerated rightTarget rightMatcher).unificationVars ∨
+                                  candidate ∈ rightFallback.unificationVars := by
+                              simpa [flatFallbackSeed, GeneratedItems.asTuple,
+                                GeneratedItems.cons,
+                                GeneratedItems.singleton, GeneratedItems.nil,
+                                Generated.unificationVars,
+                                GeneratedItems.unificationVars,
+                                Ty.unificationVars, Ty.unificationVarsList,
+                                or_assoc, or_left_comm, or_comm] using origin
+                            rcases split with seedMember | fallbackMember
+                            · exact (rightSeedSupport.extend_finish
+                                matcherToFallback) candidate seedMember
+                            · exact fallbackSupportRight candidate
+                                fallbackMember
+
+                          cases leftTailDerivation with
+                          | @cons pattern body tail _ leftPattern afterPattern
+                              leftBody afterBody leftRest finish
+                              leftPatternDerivation leftBodyDerivation
+                              leftRestDerivation =>
+                              cases rightTailDerivation with
+                              | @cons _ _ _ _ rightPattern rightAfterPattern
+                                  rightBody rightAfterBody rightRest rightFinish
+                                  rightPatternDerivation rightBodyDerivation
+                                  rightRestDerivation =>
+                                  obtain ⟨tailResult⟩ := foldTailSupported
+                                    signatureWellFormed expressionPairBelow
+                                    wellFormed startToFallback
+                                    (leftStateSupport := by
+                                      simpa [initialFallbackState,
+                                        armStateGenerated] using
+                                        leftInitialSupport)
+                                    (rightStateSupport := by
+                                      simpa [initialFallbackState,
+                                        armStateGenerated] using
+                                        rightInitialSupport)
+                                    (stateCertificate := by
+                                      simpa [initialCertificate,
+                                        initialFallbackState,
+                                        armStateGenerated] using
+                                        initialCertificate)
+                                    (by
+                                      simp only [Expr.complexity_matchFirst]
+                                      omega)
+                                    (.cons leftPatternDerivation
+                                      leftBodyDerivation leftRestDerivation)
+                                    (.cons rightPatternDerivation
+                                      rightBodyDerivation rightRestDerivation)
+                                  cases tailResult.next_eq
+                                  have completedCertificate :
+                                      SupportedEntailedAlignmentCertificate
+                                        start leftNext
+                                        (completedFallbackArmState leftTarget
+                                          leftMatcher leftFallback leftPattern
+                                          leftBody leftRest)
+                                        (completedFallbackArmState rightTarget
+                                          rightMatcher rightFallback rightPattern
+                                          rightBody rightRest) := by
+                                    simpa [completedFallbackArmState,
+                                      initialFallbackState,
+                                      armStateGenerated,
+                                      GeneratedTail.fromArm,
+                                      List.append_assoc] using
+                                      tailResult.certificate
+                                  exact ⟨
+                                    { next_eq := rfl
+                                      certificate :=
+                                        supportedFinishFallbackArmState
+                                          completedCertificate }⟩
 
 /-- The architecture-level semantic step for ordered single-result matching. -/
 theorem matchFirstCoherenceStep : MatchFirstCoherenceStep := by
-  intro target matcher arms induction
+  intro target matcher arms fallback induction
   exact SupportedM4FuelPairProperty.toFull
-    (matchFirstSupportedFuelPair target matcher arms induction)
+    (matchFirstSupportedFuelPair target matcher arms fallback induction)
 
 end TypePM.Source.M4.CompletenessArchitecture

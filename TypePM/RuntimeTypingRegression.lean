@@ -1,5 +1,6 @@
 import TypePM.NoStuck
 import TypePM.Source.M3Regression
+import TypePM.Source.PairDestructuring
 
 /-!
 # Runtime-typing and safety regressions
@@ -86,12 +87,33 @@ theorem nestedTuple_exact_valueTyping :
   · cases success
     exact valueTyping
 
-/-- The runtime coverage invariant needed by `matchFirst` safety is visible at
-the executable boundary: an empty arm list is stuck.  The M4 static
-elaborator's exhaustiveness gate rejects this shape. -/
-theorem matchFirst_empty_arms_is_stuck :
-    evalFuel 3 [] (.matchFirst (.lit 1) .something []) = .stuck := by
+/-- An empty ordinary-arm list evaluates the mandatory fallback. -/
+theorem matchFirst_empty_arms_uses_fallback :
+    evalFuel 3 [] (.matchFirst (.lit 1) .something [] (.lit 2)) =
+      .ok (.int 2) := by
   rfl
+
+def pairDestructuringApplication : Source.Expr :=
+  .app (Source.Expr.pairDestructuringLambda (.tuple [.var 0, .var 1]))
+    (.tuple [.lit 4, .lit 5])
+
+theorem pairDestructuringApplication_runtimeTyping :
+    RuntimeTyping pairDestructuringApplication (.prod [.int, .int]) := by
+  exact .app
+    (.lam
+      (.letE (.pairSecond (.var rfl))
+        (.letE (.pairFirst (.var rfl))
+          (.tuple (.cons (.var rfl) (.cons (.var rfl) .nil))))))
+    (.tuple (.cons (.lit 4) (.cons (.lit 5) .nil)))
+
+theorem pairDestructuringApplication_executes_exact :
+    evalFuel 8 [] pairDestructuringApplication =
+      .ok (.tuple [.int 4, .int 5]) := by
+  rfl
+
+theorem pairDestructuringApplication_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] pairDestructuringApplication).NotStuck :=
+  pairDestructuringApplication_runtimeTyping.neverStuck fuel [] .nil
 
 def identityApplication : Source.Expr :=
   .app (.lam (.var 0)) (.lit 7)

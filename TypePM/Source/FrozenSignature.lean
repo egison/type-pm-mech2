@@ -186,6 +186,16 @@ theorem wellFormed : signature.WellFormed := by
       some (PrimitiveSchemes.ofPrimOp operation) := by
   cases operation <;> rfl
 
+@[simp] theorem lookup_pairFirst :
+    signature.lookupPrimitive PrimOp.pairFirst =
+      some PrimitiveSchemes.pairFirst := by
+  rfl
+
+@[simp] theorem lookup_pairSecond :
+    signature.lookupPrimitive PrimOp.pairSecond =
+      some PrimitiveSchemes.pairSecond := by
+  rfl
+
 end Paper1FrozenSignature
 
 end TypePM.Source

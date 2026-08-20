@@ -73,11 +73,11 @@ theorem pair_program_has_step_function_depth_first_derivation :
   exact ⟨targetValue, matcherValue, bindingGroups, targetSuccess,
     matcherSuccess, searchSuccess, searchDerivation⟩
 
-/-- The same MNode search is used by derived single-result matching; only the
+/-- The same MNode search is used by core single-result matching; only the
 first successful binding group is consumed. -/
 def pairFirstProgram : Source.Expr :=
   .matchFirst pairTarget multisetSomething
-    [⟨pairPattern, .tuple [.var 1, .var 0]⟩]
+    [⟨pairPattern, .tuple [.var 1, .var 0]⟩] (.lit 99)
 
 set_option maxRecDepth 100000 in
 theorem pair_first_program_executes_exact :
@@ -91,7 +91,7 @@ theorem pair_first_program_executes_exact :
 value-pattern expressions, and result bodies, even though the executable
 simulation below deliberately stops before matching search. -/
 def nestedOrdinaryMatch : Source.Expr :=
-  .matchFirst (.lit 1) .something [⟨.value (.lit 1), .lit 2⟩]
+  .matchFirst (.lit 1) .something [⟨.value (.lit 1), .lit 2⟩] (.lit 3)
 
 theorem nested_ordinary_match_is_mnode_free : nestedOrdinaryMatch.MNodeFree := by
   with_unfolding_all rfl

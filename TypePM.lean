@@ -114,6 +114,8 @@ import TypePM.Source.PatternFunctionExpansion
 import TypePM.Source.M4PatternFunctionExpansionRegression
 import TypePM.Source.PatternFunctionFreeze
 import TypePM.Source.PatternFunctionFreezeRegression
+import TypePM.Source.PairDestructuring
+import TypePM.Source.PairDestructuringRegression
 import TypePM.Source.MatcherPattern
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoice
@@ -158,6 +160,8 @@ import TypePM.Runtime.PatternFunctionMatching
 import TypePM.Runtime.PatternFunctionMatchingRegression
 import TypePM.Runtime.PatternFunctionNodeEvaluation
 import TypePM.Runtime.PatternFunctionNodeEvaluationRegression
+import TypePM.PatternFunctionSafety
+import TypePM.PatternFunctionSafetyRegression
 import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Runtime.ValueDataPattern
@@ -170,6 +174,7 @@ import TypePM.NoStuck
 import TypePM.RuntimeTypingRegression
 import TypePM.Source.PolymorphicLetRuntimeBridge
 import TypePM.Source.PolymorphicLetRuntimeBridgeRegression
+import TypePM.Source.PolymorphicLetProtectedClosureRegression
 import TypePM.MatcherSafety
 import TypePM.MatcherSafetyRegression
 import TypePM.UserMatcherSafety
@@ -178,6 +183,11 @@ import TypePM.UserMatcherGeneralSafety
 import TypePM.UserMatcherGeneralSafetyRegression
 import TypePM.UserMatcherExhaustiveness
 import TypePM.UserMatcherExhaustivenessRegression
+import TypePM.TotalUserMatcherSafety
+import TypePM.RecursiveTotalMatchingSafety
+import TypePM.TotalUserMatcherSafetyRegression
+import TypePM.CommonFuelSafety
+import TypePM.CommonFuelSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -190,6 +200,13 @@ import TypePM.Source.M4FixTyping
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Source.M4MatcherTyping
 import TypePM.Source.M4MatcherTypingRegression
+import TypePM.Source.M4UserMatcherRuntimeBridge
+import TypePM.Source.M4UserMatcherRuntimeBridgeRegression
+import TypePM.Source.M4MatchingAtomRuntimeBridge
+import TypePM.Source.M4MatchingAtomRuntimeBridgeRegression
+import TypePM.Source.M4TotalCoreRuntimeBridge
+import TypePM.Source.M4RecursiveMatcherTotalBridge
+import TypePM.Source.M4RecursiveMatcherTotalBridgeRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
@@ -202,6 +219,7 @@ import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
+import TypePM.Source.M4Paper1SafetyRegression
 import TypePM.Source.M4CompletenessArchitecture
 import TypePM.Source.M4RuntimeBridge
 import TypePM.Source.M4SupplySupport

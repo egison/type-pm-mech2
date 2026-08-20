@@ -198,10 +198,10 @@ private theorem matchFirstArms_to_eval
       evaluate environment expression = .ok value →
         Eval environment expression value)
     (success : evalMatchFirstArmsFuel evaluate fuel environment target matcher
-      arms = .ok result) :
-    EvalMatchFirstArms environment target matcher arms result := by
+      arms fallback = .ok result) :
+    EvalMatchFirstArms environment target matcher arms fallback result := by
   induction arms with
-  | nil => simp [evalMatchFirstArmsFuel] at success
+  | nil => exact .fallback (sound success)
   | cons arm rest ih =>
       simp only [evalMatchFirstArmsFuel] at success
       rw [bind_eq_ok_iff] at success
@@ -294,6 +294,38 @@ theorem evalPrimitive_sound
                   (traverses_to_appliesList
                     (fun application => applySound application)
                     ((traverse_eq_ok_iff _ _ _).mp traversal))
+      · simp [evalPrimitive] at success
+  | pairFirst =>
+      rcases arguments with _ | ⟨pair, tail⟩
+      · simp [evalPrimitive] at success
+      rcases tail with _ | ⟨extra, tail⟩
+      · cases pair <;> simp [evalPrimitive] at success
+        case tuple items =>
+          rcases items with _ | ⟨first, items⟩
+          · simp at success
+          rcases items with _ | ⟨second, items⟩
+          · simp at success
+          rcases items with _ | ⟨third, items⟩
+          · simp at success
+            subst result
+            exact .pairFirst
+          · simp at success
+      · simp [evalPrimitive] at success
+  | pairSecond =>
+      rcases arguments with _ | ⟨pair, tail⟩
+      · simp [evalPrimitive] at success
+      rcases tail with _ | ⟨extra, tail⟩
+      · cases pair <;> simp [evalPrimitive] at success
+        case tuple items =>
+          rcases items with _ | ⟨first, items⟩
+          · simp at success
+          rcases items with _ | ⟨second, items⟩
+          · simp at success
+          rcases items with _ | ⟨third, items⟩
+          · simp at success
+            subst result
+            exact .pairSecond
+          · simp at success
       · simp [evalPrimitive] at success
 
 private theorem fuel_sound : ∀ fuel,
@@ -427,7 +459,7 @@ private theorem fuel_sound : ∀ fuel,
               (traverses_to_bindingGroups
                 (fun result => evalSound result)
                 ((traverse_eq_ok_iff _ _ _).mp traversal))
-        | matchFirst target matcher arms =>
+        | matchFirst target matcher arms fallback =>
             simp only [evalFuel] at success
             rw [bind_eq_ok_iff] at success
             rcases success with ⟨targetValue, targetResult, continued⟩

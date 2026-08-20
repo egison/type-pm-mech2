@@ -1,4 +1,5 @@
 import TypePM.Source.M4MatchFirstTyping
+import TypePM.Source.PairDestructuring
 
 /-!
 # Paper 1 source programs
@@ -78,16 +79,17 @@ def splitTailResults : Expr :=
 
 /-- `\(heads,tails) -> (heads, current :: tails)`.
 
-Inside the desugared `matchFirst`, indices zero and one are the tuple fields;
-the current list head is index four. -/
+Inside the projection-based pair destructuring, indices zero and one are the
+tuple fields; the original pair argument is index two and the current list
+head remains index four. -/
 def putCurrentRight : Expr :=
-  Expr.tuplePatternLambda
+  Expr.pairDestructuringLambda
     (.tuple [.var 0,
       .ctor DataCtor.cons [.var 4, .var 1]])
 
 /-- `\(heads,tails) -> (current :: heads, tails)`. -/
 def putCurrentLeft : Expr :=
-  Expr.tuplePatternLambda
+  Expr.pairDestructuringLambda
     (.tuple [.ctor DataCtor.cons [.var 4, .var 0],
       .var 1])
 
@@ -125,8 +127,8 @@ def wholeValuePattern : Pattern :=
 def wholeValueBody : Expr :=
   .matchFirst wholeValueTarget wholeValueMatcher
     [.mk (.tuple [nilPattern, nilPattern]) wholeValueSuccess,
-      .mk wholeValuePattern wholeValueSuccess,
-      .mk (.tuple [.wild, .wild]) (sourceList [])]
+      .mk wholeValuePattern wholeValueSuccess]
+    (sourceList [])
 
 def wholeValueClause : MatcherClause :=
   .mk .capture (.tuple []) [.mk .var wholeValueBody]
@@ -170,7 +172,7 @@ def listSplitTailResults : Expr :=
     (joinPattern .var .var) (.tuple [.var 0, .var 1])
 
 def putCurrentAtPrefixEnd : Expr :=
-  Expr.tuplePatternLambda
+  Expr.pairDestructuringLambda
     (.tuple [.ctor DataCtor.cons [.var 4, .var 0], .var 1])
 
 def listJoinConsBody : Expr :=

@@ -106,8 +106,8 @@ theorem wholeValueBody_public :
             [.ctor PatternCtor.cons [.var, .var],
               .ctor PatternCtor.cons
                 [.value (.var 0), .value (.var 1)]])
-            wholeValueSuccess,
-          .mk (.tuple [.wild, .wild]) (sourceList [])] := by
+            wholeValueSuccess]
+        (sourceList []) := by
   rfl
 
 theorem listSplitTailResults_complexity :
@@ -120,20 +120,20 @@ theorem splitTailResults_complexity : splitTailResults.complexity = 15 := by
   simp
 
 theorem putCurrentAtPrefixEnd_complexity :
-    putCurrentAtPrefixEnd.complexity = 24 := by
-  simp [putCurrentAtPrefixEnd, Expr.tuplePatternLambda, Expr.patternLambda]
+    putCurrentAtPrefixEnd.complexity = 18 := by
+  simp [putCurrentAtPrefixEnd, Expr.pairDestructuringLambda]
 
-theorem putCurrentRight_complexity : putCurrentRight.complexity = 24 := by
-  simp [putCurrentRight, Expr.tuplePatternLambda, Expr.patternLambda]
+theorem putCurrentRight_complexity : putCurrentRight.complexity = 18 := by
+  simp [putCurrentRight, Expr.pairDestructuringLambda]
 
-theorem putCurrentLeft_complexity : putCurrentLeft.complexity = 24 := by
-  simp [putCurrentLeft, Expr.tuplePatternLambda, Expr.patternLambda]
+theorem putCurrentLeft_complexity : putCurrentLeft.complexity = 18 := by
+  simp [putCurrentLeft, Expr.pairDestructuringLambda]
 
-theorem listJoinConsBody_complexity : listJoinConsBody.complexity = 60 := by
+theorem listJoinConsBody_complexity : listJoinConsBody.complexity = 54 := by
   simp [listJoinConsBody, listSplitTailResults_complexity,
     putCurrentAtPrefixEnd_complexity, sourceList]
 
-theorem joinConsBody_complexity : joinConsBody.complexity = 75 := by
+theorem joinConsBody_complexity : joinConsBody.complexity = 63 := by
   simp [joinConsBody, splitTailResults_complexity,
     putCurrentRight_complexity, putCurrentLeft_complexity]
 
@@ -141,7 +141,7 @@ theorem generalConsBody_complexity : generalConsBody.complexity = 23 := by
   rw [generalConsBody_public]
   simp
 
-theorem wholeValueBody_complexity : wholeValueBody.complexity = 57 := by
+theorem wholeValueBody_complexity : wholeValueBody.complexity = 50 := by
   rw [wholeValueBody_public]
   simp [wholeValueTarget, wholeValueMatcher, wholeValueSuccess, sourceList,
     unit]
@@ -154,7 +154,7 @@ theorem listMatcherConsClause_complexity :
   simp [listMatcherConsClause, sourceList]
 
 theorem listMatcherJoinClause_complexity :
-    listMatcherJoinClause.complexity = 83 := by
+    listMatcherJoinClause.complexity = 77 := by
   simp [listMatcherJoinClause, listJoinConsBody_complexity, sourceList]
 
 theorem listMatcherCatchAllClause_complexity :
@@ -162,7 +162,7 @@ theorem listMatcherCatchAllClause_complexity :
   simp [listMatcherCatchAllClause, catchAllClause, sourceList]
 
 theorem listMatcherDefinition_complexity :
-    listMatcherDefinition.complexity = 129 := by
+    listMatcherDefinition.complexity = 123 := by
   simp [listMatcherDefinition, listMatcherClauses,
     listMatcherNilClause_complexity, listMatcherConsClause_complexity,
     listMatcherJoinClause_complexity,
@@ -180,27 +180,27 @@ theorem valueConsClause_complexity : valueConsClause.complexity = 25 := by
 theorem generalConsClause_complexity : generalConsClause.complexity = 33 := by
   simp [generalConsClause, generalConsBody_complexity]
 
-theorem joinClause_complexity : joinClause.complexity = 98 := by
+theorem joinClause_complexity : joinClause.complexity = 86 := by
   simp [joinClause, joinConsBody_complexity, sourceList]
 
-theorem wholeValueClause_complexity : wholeValueClause.complexity = 61 := by
+theorem wholeValueClause_complexity : wholeValueClause.complexity = 54 := by
   simp [wholeValueClause, wholeValueBody_complexity]
 
 theorem catchAllClause_complexity : catchAllClause.complexity = 9 := by
   simp [catchAllClause, sourceList]
 
-theorem multisetDefinition_complexity : multisetDefinition.complexity = 252 := by
+theorem multisetDefinition_complexity : multisetDefinition.complexity = 233 := by
   simp [multisetDefinition, multisetClauses, nilClause_complexity,
     headOnlyClause_complexity, valueConsClause_complexity,
     generalConsClause_complexity, joinClause_complexity,
     wholeValueClause_complexity, catchAllClause_complexity]
 
 theorem closedMultisetDefinition_complexity :
-    closedMultisetDefinition.complexity = 383 := by
+    closedMultisetDefinition.complexity = 358 := by
   simp [closedMultisetDefinition, multisetWithListArgument,
     multisetDefinition_complexity, listMatcherDefinition_complexity]
 
-theorem multisetSomething_complexity : multisetSomething.complexity = 385 := by
+theorem multisetSomething_complexity : multisetSomething.complexity = 360 := by
   simp [multisetSomething, closedMultisetDefinition_complexity]
 
 private theorem directSelf_compute
@@ -215,7 +215,7 @@ private theorem directSelf_compute
 
 theorem list_direct_self_check :
     DirectSelf.check 1 (.matcher listMatcherClauses) = true := by
-  apply directSelf_compute listMatcherClauses 128
+  apply directSelf_compute listMatcherClauses 122
   · simpa [listMatcherDefinition] using listMatcherDefinition_complexity
   · simp [DirectSelf.checkFuel, DirectSelf.checkHeadFuel,
       DirectSelf.checkListFuel, DirectSelf.checkPatternFuel,
@@ -232,12 +232,12 @@ theorem list_direct_self_check :
       listMatcherNilClause, listMatcherConsClause, listMatcherJoinClause,
       listMatcherCatchAllClause, nilClause, catchAllClause, listJoinConsBody,
       listSplitTailResults_public, putCurrentAtPrefixEnd, sourceList,
-      Expr.tuplePatternLambda, Expr.patternLambda, PPat.captureCount,
+      Expr.pairDestructuringLambda, PPat.captureCount,
       DPat.bindingCount, unit]
 
 theorem multiset_direct_self_check :
     DirectSelf.check 1 (.matcher multisetClauses) = true := by
-  apply directSelf_compute multisetClauses 251
+  apply directSelf_compute multisetClauses 232
   · simpa [multisetDefinition] using multisetDefinition_complexity
   · simp [DirectSelf.checkFuel, DirectSelf.checkHeadFuel,
       DirectSelf.checkListFuel, DirectSelf.checkPatternFuel,
@@ -256,7 +256,7 @@ theorem multiset_direct_self_check :
       splitTailResults_public, putCurrentRight,
       putCurrentLeft, wholeValueClause, wholeValueBody_public,
       wholeValueTarget, wholeValueMatcher, wholeValueSuccess,
-      catchAllClause, sourceList, Expr.tuplePatternLambda,
-      Expr.patternLambda, PPat.captureCount, DPat.bindingCount, unit]
+      catchAllClause, sourceList, Expr.pairDestructuringLambda,
+      PPat.captureCount, DPat.bindingCount, unit]
 
 end TypePM.Source.M4Paper1ComputabilityRegression

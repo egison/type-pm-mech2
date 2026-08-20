@@ -594,26 +594,17 @@ theorem ArmsElaborateUsing.normalizeFuel
       expression.complexity + 1 ≤ targetFuel →
       M4.ElaboratesFuel signature sourceFuel context expression start generated finish →
       M4.ElaboratesFuel signature targetFuel context expression start generated finish)
-    {context targetType matcherType arms start generated finish}
+    {context targetType matcherType fallback arms start generated finish}
+    (fallbackBound : fallback.complexity + 1 ≤ targetFuel)
     (bound : MatchFirstArm.listComplexity arms ≤ targetFuel)
     (derivation : ArmsElaborateUsing (M4.ElaboratesFuel signature sourceFuel)
-      signature context targetType matcherType arms start generated finish) :
+      signature context targetType matcherType fallback arms start generated finish) :
     ArmsElaborateUsing (M4.ElaboratesFuel signature targetFuel) signature context
-      targetType matcherType arms start generated finish := by
+      targetType matcherType fallback arms start generated finish := by
   cases derivation with
-  | @cons pattern body arms start generatedPattern afterPattern generatedBody
-      afterBody generatedTail finish patternElaboration bodyElaboration tail =>
-      have armBound : pattern.complexity + body.complexity + 1 ≤ targetFuel := by
-        simp only [MatchFirstArm.listComplexity_cons,
-          MatchFirstArm.complexity_mk] at bound
-        omega
-      exact .cons
-        (PatternElaboratesUsing.normalizeFuel normalize (by omega)
-          patternElaboration)
-        (normalize (by omega) bodyElaboration)
-        (tail.normalizeFuel normalize (by
-          simp only [MatchFirstArm.listComplexity_cons] at bound
-          omega))
+  | fromFallback fallbackElaboration armsElaboration =>
+      exact .fromFallback (normalize fallbackBound fallbackElaboration)
+        (armsElaboration.normalizeFuel normalize bound)
 
 theorem ElaboratesUsing.normalizeFuel
     {signature : FrozenSignature} {sourceFuel targetFuel : Nat}
@@ -621,19 +612,20 @@ theorem ElaboratesUsing.normalizeFuel
       expression.complexity + 1 ≤ targetFuel →
       M4.ElaboratesFuel signature sourceFuel context expression start generated finish →
       M4.ElaboratesFuel signature targetFuel context expression start generated finish)
-    {context target matcher arms start generated finish}
+    {context target matcher arms fallback start generated finish}
     (targetBound : target.complexity + 1 ≤ targetFuel)
     (matcherBound : matcher.complexity + 1 ≤ targetFuel)
+    (fallbackBound : fallback.complexity + 1 ≤ targetFuel)
     (armsBound : MatchFirstArm.listComplexity arms ≤ targetFuel)
     (derivation : ElaboratesUsing (M4.ElaboratesFuel signature sourceFuel)
-      signature context (.matchFirst target matcher arms) start generated finish) :
+      signature context (.matchFirst target matcher arms fallback) start generated finish) :
     ElaboratesUsing (M4.ElaboratesFuel signature targetFuel) signature context
-      (.matchFirst target matcher arms) start generated finish := by
+      (.matchFirst target matcher arms fallback) start generated finish := by
   cases derivation with
-  | matchFirst exhaustive targetElaboration matcherElaboration armsElaboration =>
-      exact .matchFirst exhaustive (normalize targetBound targetElaboration)
+  | matchFirst targetElaboration matcherElaboration armsElaboration =>
+      exact .matchFirst (normalize targetBound targetElaboration)
         (normalize matcherBound matcherElaboration)
-        (armsElaboration.normalizeFuel normalize armsBound)
+        (armsElaboration.normalizeFuel normalize fallbackBound armsBound)
 
 theorem TailElaboratesUsing.map
     {left right : Context → Expr → Supply → Generated → Supply → Prop}
@@ -657,15 +649,14 @@ theorem ArmsElaborateUsing.map
     (transport : ∀ {context expression start generated finish},
       left context expression start generated finish →
         right context expression start generated finish)
-    {signature context targetType matcherType arms start generated finish}
+    {signature context targetType matcherType fallback arms start generated finish}
     (derivation : ArmsElaborateUsing left signature context targetType matcherType
-      arms start generated finish) :
-    ArmsElaborateUsing right signature context targetType matcherType arms start
+      fallback arms start generated finish) :
+    ArmsElaborateUsing right signature context targetType matcherType fallback arms start
       generated finish := by
   cases derivation with
-  | cons pattern body tail =>
-      exact .cons (PatternElaboratesUsing.map transport pattern)
-        (transport body) (tail.map transport)
+  | fromFallback fallback arms =>
+      exact .fromFallback (transport fallback) (arms.map transport)
 
 theorem ElaboratesUsing.map
     {left right : Context → Expr → Supply → Generated → Supply → Prop}
@@ -677,8 +668,8 @@ theorem ElaboratesUsing.map
       generated finish) :
     ElaboratesUsing right signature context expression start generated finish := by
   cases derivation with
-  | matchFirst exhaustive target matcher arms =>
-      exact .matchFirst exhaustive (transport target) (transport matcher)
+  | matchFirst target matcher arms =>
+      exact .matchFirst (transport target) (transport matcher)
         (arms.map transport)
 
 end MatchFirstTyping
@@ -812,6 +803,7 @@ theorem ElaboratesFuel.normalize
           (by simp only [Expr.complexity_matchAll]; omega)
       · exact derivation.normalizeFuel
           (fun bound child => (induction child).mono bound)
+          (by simp only [Expr.complexity_matchFirst]; omega)
           (by simp only [Expr.complexity_matchFirst]; omega)
           (by simp only [Expr.complexity_matchFirst]; omega)
           (by simp only [Expr.complexity_matchFirst]; omega)

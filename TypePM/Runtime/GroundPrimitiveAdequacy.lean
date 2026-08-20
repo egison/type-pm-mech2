@@ -115,6 +115,16 @@ def Maps (apply : GroundValue → FuelResult GroundValue)
     Traverses apply inputs outputs ∧
     result = buildList outputs
 
+/-- Independent successful specification of first pair projection. -/
+def ProjectsFirst (arguments : List GroundValue) (result : GroundValue) : Prop :=
+  ∃ first second,
+    arguments = [tupleValue [first, second]] ∧ result = first
+
+/-- Independent successful specification of second pair projection. -/
+def ProjectsSecond (arguments : List GroundValue) (result : GroundValue) : Prop :=
+  ∃ first second,
+    arguments = [tupleValue [first, second]] ∧ result = second
+
 theorem evalAdd_adequate {arguments result} :
     evalAdd arguments = .ok result → Adds arguments result := by
   intro success
@@ -241,6 +251,54 @@ theorem evalMap_complete {apply} {arguments result} :
   simp [evalMap, encoding.view,
     (FuelResult.traverse_eq_ok_iff apply inputs outputs).mpr traversal]
 
+theorem evalPairFirst_adequate {arguments result} :
+    evalPairFirst arguments = .ok result → ProjectsFirst arguments result := by
+  intro success
+  rcases arguments with _ | ⟨pair, tail⟩
+  · simp [evalPairFirst] at success
+  rcases tail with _ | ⟨extra, tail⟩
+  · cases pair <;> simp [evalPairFirst] at success
+    case tuple items =>
+      rcases items with _ | ⟨first, items⟩
+      · simp at success
+      rcases items with _ | ⟨second, items⟩
+      · simp at success
+      rcases items with _ | ⟨third, items⟩
+      · simp at success
+        subst result
+        exact ⟨first, second, rfl, rfl⟩
+      · simp at success
+  · simp [evalPairFirst] at success
+
+theorem evalPairFirst_complete {arguments result} :
+    ProjectsFirst arguments result → evalPairFirst arguments = .ok result := by
+  rintro ⟨first, second, rfl, rfl⟩
+  rfl
+
+theorem evalPairSecond_adequate {arguments result} :
+    evalPairSecond arguments = .ok result → ProjectsSecond arguments result := by
+  intro success
+  rcases arguments with _ | ⟨pair, tail⟩
+  · simp [evalPairSecond] at success
+  rcases tail with _ | ⟨extra, tail⟩
+  · cases pair <;> simp [evalPairSecond] at success
+    case tuple items =>
+      rcases items with _ | ⟨first, items⟩
+      · simp at success
+      rcases items with _ | ⟨second, items⟩
+      · simp at success
+      rcases items with _ | ⟨third, items⟩
+      · simp at success
+        subst result
+        exact ⟨first, second, rfl, rfl⟩
+      · simp at success
+  · simp [evalPairSecond] at success
+
+theorem evalPairSecond_complete {arguments result} :
+    ProjectsSecond arguments result → evalPairSecond arguments = .ok result := by
+  rintro ⟨first, second, rfl, rfl⟩
+  rfl
+
 /-- The operation-indexed relational graph of the ground fragment. -/
 def Evaluates (apply : GroundValue → FuelResult GroundValue)
     (operation : PrimOp) (arguments : List GroundValue)
@@ -251,6 +309,8 @@ def Evaluates (apply : GroundValue → FuelResult GroundValue)
   | .member => TestsMember arguments result
   | .deleteFirst => DeletesFirstValue arguments result
   | .map => Maps apply arguments result
+  | .pairFirst => ProjectsFirst arguments result
+  | .pairSecond => ProjectsSecond arguments result
 
 theorem eval_adequate {apply operation arguments result} :
     eval apply operation arguments = .ok result →
@@ -261,6 +321,8 @@ theorem eval_adequate {apply operation arguments result} :
   | member => exact evalMember_adequate
   | deleteFirst => exact evalDeleteFirst_adequate
   | map => exact evalMap_adequate
+  | pairFirst => exact evalPairFirst_adequate
+  | pairSecond => exact evalPairSecond_adequate
 
 theorem eval_complete {apply operation arguments result} :
     Evaluates apply operation arguments result →
@@ -271,6 +333,8 @@ theorem eval_complete {apply operation arguments result} :
   | member => exact evalMember_complete
   | deleteFirst => exact evalDeleteFirst_complete
   | map => exact evalMap_complete
+  | pairFirst => exact evalPairFirst_complete
+  | pairSecond => exact evalPairSecond_complete
 
 theorem eval_eq_ok_iff {apply operation arguments result} :
     eval apply operation arguments = .ok result ↔

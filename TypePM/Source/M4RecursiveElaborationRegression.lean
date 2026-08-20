@@ -28,7 +28,7 @@ def valuePatternMatch : Expr :=
   .matchAll (.lit 1) .something (.value (.lit 1)) (.lit 2)
 
 def firstMatch : Expr :=
-  .matchFirst (.lit 1) .something [.mk .wild (.lit 2)]
+  .matchFirst (.lit 1) .something [.mk .wild (.lit 2)] (.lit 3)
 
 def valuePatternGenerated : Generated :=
   { target := DataTypes.list .int
@@ -37,7 +37,7 @@ def valuePatternGenerated : Generated :=
 
 def firstMatchGenerated : Generated :=
   { target := .int
-    hard := [.ty (.var ⟨1⟩) .int]
+    hard := [.ty (.var ⟨1⟩) .int, .ty .int .int]
     pending := [⟨.matcher .any (.var ⟨0⟩), .slot (.var ⟨0⟩) .int⟩] }
 
 theorem elaborate_value_pattern_exact :
@@ -122,12 +122,10 @@ theorem match_first_typing :
   M4.infer_success_typing Paper1FrozenSignature.wellFormed
     infer_match_first_exact
 
-def nonexhaustiveFirst : Expr :=
-  .matchFirst (.lit 1) .something [.mk (.value (.lit 1)) (.lit 2)]
-
-theorem nonexhaustive_match_first_rejected :
-    M4.infer Paper1FrozenSignature.signature [] nonexhaustiveFirst = none := by
-  with_unfolding_all rfl
+/-- A value arm is allowed because `matchFirst` has an explicit fallback;
+failure of the ordinary arm is a normal route to that fallback. -/
+def valueArmWithFallback : Expr :=
+  .matchFirst (.lit 1) .something [.mk (.value (.lit 1)) (.lit 2)] (.lit 3)
 
 def escapingSelf : Expr := .fixE (.var 1)
 

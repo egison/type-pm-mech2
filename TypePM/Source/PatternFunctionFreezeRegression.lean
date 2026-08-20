@@ -174,6 +174,7 @@ def pairPattern : Pattern :=
 def pairProgram : Expr :=
   .matchFirst (sourceList [.lit 1, .lit 2, .lit 1, .lit 3])
     multisetSomething [⟨pairPattern, .tuple [.var 1, .var 0]⟩]
+    (sourceList [])
 
 set_option maxRecDepth 100000 in
 theorem frozen_pair_runs_through_checked_mnode_evaluator :

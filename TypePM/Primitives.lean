@@ -42,12 +42,26 @@ def map : Scheme :=
         (PolyDataTypes.list (.bound 1))), by
     simp [PolyDataTypes.list, PolyTy.WellScoped]⟩
 
+/-- First projection from a heterogeneous pair. -/
+def pairFirst : Scheme :=
+  ⟨2, 0,
+    .fn (.prod [.bound 0, .bound 1]) (.bound 0), by
+    simp [PolyTy.WellScoped]⟩
+
+/-- Second projection from a heterogeneous pair. -/
+def pairSecond : Scheme :=
+  ⟨2, 0,
+    .fn (.prod [.bound 0, .bound 1]) (.bound 1), by
+    simp [PolyTy.WellScoped]⟩
+
 def ofPrimOp : PrimOp → Scheme
   | .add => add
   | .append => append
   | .member => member
   | .deleteFirst => deleteFirst
   | .map => map
+  | .pairFirst => pairFirst
+  | .pairSecond => pairSecond
 
 theorem instantiate_add (supply : Supply) :
     add.instantiate supply =
@@ -91,12 +105,30 @@ theorem instantiate_map (supply : Supply) :
   cases supply
   rfl
 
+theorem instantiate_pairFirst (supply : Supply) :
+    pairFirst.instantiate supply =
+      (.fn (.prod [.var ⟨supply.ty⟩, .var ⟨supply.ty + 1⟩])
+        (.var ⟨supply.ty⟩),
+        ⟨supply.ty + 2, supply.cap⟩) := by
+  cases supply
+  rfl
+
+theorem instantiate_pairSecond (supply : Supply) :
+    pairSecond.instantiate supply =
+      (.fn (.prod [.var ⟨supply.ty⟩, .var ⟨supply.ty + 1⟩])
+        (.var ⟨supply.ty + 1⟩),
+        ⟨supply.ty + 2, supply.cap⟩) := by
+  cases supply
+  rfl
+
 @[simp] theorem ofPrimOp_add : ofPrimOp .add = add := rfl
 @[simp] theorem ofPrimOp_append : ofPrimOp .append = append := rfl
 @[simp] theorem ofPrimOp_member : ofPrimOp .member = member := rfl
 @[simp] theorem ofPrimOp_deleteFirst :
     ofPrimOp .deleteFirst = deleteFirst := rfl
 @[simp] theorem ofPrimOp_map : ofPrimOp .map = map := rfl
+@[simp] theorem ofPrimOp_pairFirst : ofPrimOp .pairFirst = pairFirst := rfl
+@[simp] theorem ofPrimOp_pairSecond : ofPrimOp .pairSecond = pairSecond := rfl
 
 end PrimitiveSchemes
 

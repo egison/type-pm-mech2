@@ -20,7 +20,7 @@ set_option maxHeartbeats 20000000
 
 private def callback : ExpressionElaborator :=
   M4.elaborateFuelUsing (unifyWithFuel 200)
-    Paper1FrozenSignature.signature 128
+    Paper1FrozenSignature.signature 122
 
 private def fixContext : Context :=
   [.mono (.slot (.var ⟨0⟩) (.var ⟨0⟩)),
@@ -617,7 +617,7 @@ private theorem join_cons_dpat_exact :
     Scheme.boundCapInstance, PolyDataTypes.list, DataTypes.list]
 
 private def joinConsBody : Generated :=
-  { target := .var ⟨74⟩
+  { target := .var ⟨78⟩
     hard :=
       [.ty (.var ⟨36⟩) (.var ⟨36⟩),
        .ty (.var ⟨0⟩) (.var ⟨0⟩),
@@ -641,20 +641,30 @@ private def joinConsBody : Generated :=
            (.fn (DataTypes.list (.var ⟨42⟩))
              (DataTypes.list (.var ⟨42⟩))))
          (.fn (.var ⟨55⟩) (.var ⟨56⟩)),
-       .ty (.prod [.var ⟨62⟩, .var ⟨63⟩]) (.var ⟨59⟩),
+       .ty (.var ⟨59⟩) (.prod [.var ⟨60⟩, .var ⟨63⟩]),
+       .ty (.var ⟨36⟩) (.var ⟨36⟩),
+       .ty (.var ⟨0⟩) (.var ⟨0⟩),
+       .cap (.var ⟨0⟩) (.var ⟨0⟩),
+       .cap (.var ⟨10⟩) (.var ⟨10⟩),
+       .ty (.var ⟨63⟩) (.var ⟨65⟩),
+       .ty (.var ⟨60⟩) (.var ⟨67⟩),
+       .ty (.var ⟨36⟩) (.var ⟨36⟩),
+       .ty (.var ⟨0⟩) (.var ⟨0⟩),
+       .cap (.var ⟨0⟩) (.var ⟨0⟩),
+       .cap (.var ⟨10⟩) (.var ⟨10⟩),
        .ty
-         (.fn (.var ⟨64⟩)
-           (.fn (DataTypes.list (.var ⟨64⟩))
-             (DataTypes.list (.var ⟨64⟩))))
-         (.fn (.var ⟨65⟩) (.var ⟨66⟩)),
-       .ty (.var ⟨66⟩) (.fn (.var ⟨67⟩) (.var ⟨68⟩)),
+         (.fn (.var ⟨68⟩)
+           (.fn (DataTypes.list (.var ⟨68⟩))
+             (DataTypes.list (.var ⟨68⟩))))
+         (.fn (.var ⟨69⟩) (.var ⟨70⟩)),
+       .ty (.var ⟨70⟩) (.fn (.var ⟨71⟩) (.var ⟨72⟩)),
        .ty
          (.fn (.fn (.var ⟨57⟩) (.var ⟨58⟩))
            (.fn (DataTypes.list (.var ⟨57⟩))
              (DataTypes.list (.var ⟨58⟩))))
-         (.fn (.var ⟨69⟩) (.var ⟨70⟩)),
-       .ty (.var ⟨70⟩) (.fn (.var ⟨71⟩) (.var ⟨72⟩)),
-       .ty (.var ⟨56⟩) (.fn (.var ⟨73⟩) (.var ⟨74⟩))]
+         (.fn (.var ⟨73⟩) (.var ⟨74⟩)),
+       .ty (.var ⟨74⟩) (.fn (.var ⟨75⟩) (.var ⟨76⟩)),
+       .ty (.var ⟨56⟩) (.fn (.var ⟨77⟩) (.var ⟨78⟩))]
     pending :=
       [⟨.var ⟨36⟩, .var ⟨46⟩⟩,
        ⟨DataTypes.list (.var ⟨36⟩), .var ⟨48⟩⟩,
@@ -662,24 +672,21 @@ private def joinConsBody : Generated :=
         .var ⟨50⟩⟩,
        ⟨DataTypes.list (.var ⟨52⟩), .var ⟨53⟩⟩,
        ⟨.var ⟨54⟩, .var ⟨55⟩⟩,
-       ⟨.prod [.matcher .any (.var ⟨60⟩),
-          .matcher .any (.var ⟨61⟩)],
-        .slot (.prod [.var ⟨13⟩, .var ⟨14⟩]) (.var ⟨59⟩)⟩,
-       ⟨.var ⟨36⟩, .var ⟨65⟩⟩,
-       ⟨.var ⟨62⟩, .var ⟨67⟩⟩,
-       ⟨.fn (.var ⟨59⟩) (.prod [.var ⟨68⟩, .var ⟨63⟩]),
-        .var ⟨69⟩⟩,
+       ⟨.var ⟨36⟩, .var ⟨69⟩⟩,
+       ⟨.var ⟨67⟩, .var ⟨71⟩⟩,
+       ⟨.fn (.var ⟨59⟩) (.prod [.var ⟨72⟩, .var ⟨65⟩]),
+        .var ⟨73⟩⟩,
        ⟨DataTypes.list
           (.prod [DataTypes.list (.var ⟨36⟩),
-            DataTypes.list (.var ⟨36⟩)]), .var ⟨71⟩⟩,
-       ⟨.var ⟨72⟩, .var ⟨73⟩⟩] }
+            DataTypes.list (.var ⟨36⟩)]), .var ⟨75⟩⟩,
+       ⟨.var ⟨76⟩, .var ⟨77⟩⟩] }
 
 private theorem join_cons_body_exact :
     callback
       (.mono (.var ⟨36⟩) ::
         .mono (DataTypes.list (.var ⟨36⟩)) :: fixContext)
       Paper1Programs.listJoinConsBody ⟨37, 10⟩ =
-      some (joinConsBody, ⟨75, 15⟩) := by
+      some (joinConsBody, ⟨79, 13⟩) := by
   rfl'
 
 private def joinConsArm : GeneratedChecks :=
@@ -695,7 +702,7 @@ private theorem join_cons_arm_exact :
       fixContext [] (.var ⟨2⟩) joinHoles
       (.mk (.ctor DataCtor.cons [.var, .var])
         Paper1Programs.listJoinConsBody) ⟨36, 10⟩ =
-      some (joinConsArm, ⟨75, 15⟩) := by
+      some (joinConsArm, ⟨79, 13⟩) := by
   simp only [elaborateMatcherArmUsing, join_cons_dpat_exact,
     Option.bind_eq_bind, Option.bind_some, joinConsDPat,
     Pattern.extendContext, List.map_cons, List.map_nil,
@@ -709,7 +716,7 @@ private def joinArms : GeneratedArms :=
 private theorem join_arms_exact :
     elaborateMatcherArmsUsing callback Paper1FrozenSignature.signature
       fixContext [] (.var ⟨2⟩) joinHoles listMatcherJoinClause.arms
-      ⟨27, 10⟩ = some (joinArms, ⟨75, 15⟩) := by
+      ⟨27, 10⟩ = some (joinArms, ⟨79, 13⟩) := by
   simp only [listMatcherJoinClause, MatcherClause.arms,
     elaborateMatcherArmsUsing]
   rw [join_nil_arm_exact]
@@ -727,7 +734,7 @@ private def joinClause : GeneratedMatcherClause :=
 theorem join_clause_exact :
     elaborateMatcherClauseUsing callback Paper1FrozenSignature.signature
       fixContext (.var ⟨2⟩) listMatcherJoinClause ⟨22, 7⟩ =
-      some (joinClause, ⟨75, 15⟩) := by
+      some (joinClause, ⟨79, 13⟩) := by
   have shape : listMatcherJoinClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simp [listMatcherJoinClause, MatcherClause.toShape,
@@ -752,7 +759,7 @@ theorem join_clause_exact :
 /-! ## The final catch-all clause -/
 
 private def catchHoles : List Dual :=
-  [⟨.var ⟨15⟩, .var ⟨2⟩⟩]
+  [⟨.var ⟨13⟩, .var ⟨2⟩⟩]
 
 private def catchHeader : GeneratedPPat :=
   { holes := catchHoles
@@ -762,38 +769,38 @@ private def catchHeader : GeneratedPPat :=
 
 private theorem catch_header_exact :
     elaboratePPat Paper1FrozenSignature.signature
-      listMatcherCatchAllClause.header (.var ⟨2⟩) none ⟨75, 15⟩ =
-      some (catchHeader, ⟨75, 16⟩) := by
+      listMatcherCatchAllClause.header (.var ⟨2⟩) none ⟨79, 13⟩ =
+      some (catchHeader, ⟨79, 14⟩) := by
   rfl'
 
 private def catchNext : GeneratedChecks :=
   { hard := []
     pending :=
-      [⟨.matcher .any (.var ⟨75⟩),
-        .slot (.var ⟨15⟩) (.var ⟨2⟩)⟩] }
+      [⟨.matcher .any (.var ⟨79⟩),
+        .slot (.var ⟨13⟩) (.var ⟨2⟩)⟩] }
 
 private theorem catch_next_exact :
     elaborateNextMatchersUsing callback fixContext
-      listMatcherCatchAllClause.nextMatchers catchHoles ⟨75, 16⟩ =
-      some (catchNext, ⟨76, 16⟩) := by
+      listMatcherCatchAllClause.nextMatchers catchHoles ⟨79, 14⟩ =
+      some (catchNext, ⟨80, 14⟩) := by
   rfl'
 
 private def catchBody : Generated :=
-  { target := .var ⟨81⟩
+  { target := .var ⟨85⟩
     hard :=
       [.ty
-        (.fn (.var ⟨76⟩)
-          (.fn (DataTypes.list (.var ⟨76⟩))
-            (DataTypes.list (.var ⟨76⟩))))
-        (.fn (.var ⟨77⟩) (.var ⟨78⟩)),
-       .ty (.var ⟨78⟩) (.fn (.var ⟨80⟩) (.var ⟨81⟩))]
+        (.fn (.var ⟨80⟩)
+          (.fn (DataTypes.list (.var ⟨80⟩))
+            (DataTypes.list (.var ⟨80⟩))))
+        (.fn (.var ⟨81⟩) (.var ⟨82⟩)),
+       .ty (.var ⟨82⟩) (.fn (.var ⟨84⟩) (.var ⟨85⟩))]
     pending :=
-      [⟨.var ⟨2⟩, .var ⟨77⟩⟩,
-       ⟨DataTypes.list (.var ⟨79⟩), .var ⟨80⟩⟩] }
+      [⟨.var ⟨2⟩, .var ⟨81⟩⟩,
+       ⟨DataTypes.list (.var ⟨83⟩), .var ⟨84⟩⟩] }
 
 private theorem catch_body_exact :
-    callback (.mono (.var ⟨2⟩) :: fixContext)
-      (sourceList [.var 0]) ⟨76, 16⟩ = some (catchBody, ⟨82, 16⟩) := by
+  callback (.mono (.var ⟨2⟩) :: fixContext)
+      (sourceList [.var 0]) ⟨80, 14⟩ = some (catchBody, ⟨86, 14⟩) := by
   rfl'
 
 private def catchArm : GeneratedChecks :=
@@ -804,8 +811,8 @@ private def catchArm : GeneratedChecks :=
 private theorem catch_arm_exact :
     elaborateMatcherArmUsing callback Paper1FrozenSignature.signature
       fixContext [] (.var ⟨2⟩) catchHoles
-      (.mk .var (sourceList [.var 0])) ⟨76, 16⟩ =
-      some (catchArm, ⟨82, 16⟩) := by
+      (.mk .var (sourceList [.var 0])) ⟨80, 14⟩ =
+      some (catchArm, ⟨86, 14⟩) := by
   rfl'
 
 private def catchArms : GeneratedArms :=
@@ -814,8 +821,8 @@ private def catchArms : GeneratedArms :=
 private theorem catch_arms_exact :
     elaborateMatcherArmsUsing callback Paper1FrozenSignature.signature
       fixContext [] (.var ⟨2⟩) catchHoles
-      listMatcherCatchAllClause.arms ⟨76, 16⟩ =
-      some (catchArms, ⟨82, 16⟩) := by
+      listMatcherCatchAllClause.arms ⟨80, 14⟩ =
+      some (catchArms, ⟨86, 14⟩) := by
   rfl'
 
 private def catchClause : GeneratedMatcherClause :=
@@ -827,8 +834,8 @@ private def catchClause : GeneratedMatcherClause :=
 
 theorem catch_clause_exact :
     elaborateMatcherClauseUsing callback Paper1FrozenSignature.signature
-      fixContext (.var ⟨2⟩) listMatcherCatchAllClause ⟨75, 15⟩ =
-      some (catchClause, ⟨82, 16⟩) := by
+      fixContext (.var ⟨2⟩) listMatcherCatchAllClause ⟨79, 13⟩ =
+      some (catchClause, ⟨86, 14⟩) := by
   have shape : listMatcherCatchAllClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simp [listMatcherCatchAllClause, Paper1Programs.catchAllClause,
@@ -862,7 +869,7 @@ private def generatedClauses : GeneratedMatcherClauses :=
 theorem clauses_exact :
     elaborateMatcherClausesUsing callback Paper1FrozenSignature.signature
       fixContext (.var ⟨2⟩) listMatcherClauses ⟨3, 3⟩ =
-      some (generatedClauses, ⟨82, 16⟩) := by
+      some (generatedClauses, ⟨86, 14⟩) := by
   simp only [listMatcherClauses, elaborateMatcherClausesUsing]
   rw [nil_clause_exact]
   simp only [Option.bind_eq_bind, Option.bind_some]
@@ -882,7 +889,7 @@ private def matcherLiteralGenerated : Generated :=
 theorem matcher_literal_exact :
     elaborateMatcherLiteralUsing callback Paper1FrozenSignature.signature
       fixContext listMatcherClauses ⟨2, 2⟩ =
-      some (matcherLiteralGenerated, ⟨82, 16⟩) := by
+      some (matcherLiteralGenerated, ⟨86, 14⟩) := by
   simp only [elaborateMatcherLiteralUsing,
     M4Paper1ComputabilityRegression.list_static_checks, if_true]
   rw [clauses_exact]
@@ -896,8 +903,8 @@ private def listGenerated : Generated :=
 
 theorem structural_fuel_exact :
     M4.elaborateFuelUsing (unifyWithFuel 200)
-      Paper1FrozenSignature.signature 130 [] listMatcherDefinition ⟨0, 0⟩ =
-      some (listGenerated, ⟨82, 16⟩) := by
+      Paper1FrozenSignature.signature 124 [] listMatcherDefinition ⟨0, 0⟩ =
+      some (listGenerated, ⟨86, 14⟩) := by
   simp only [listMatcherDefinition, M4.elaborateFuelUsing.eq_def,
     elaborateFixUsing,
     M4Paper1ComputabilityRegression.list_direct_self_check, if_true,
@@ -914,7 +921,7 @@ def supplyShiftSubstitution (start : Supply) : Subst :=
     cap := fun index => .var ⟨start.cap + index.index⟩ }
 
 private def listShiftSubstitution : Subst :=
-  supplyShiftSubstitution ⟨145, 37⟩
+  supplyShiftSubstitution ⟨151, 31⟩
 
 def translateGenerated (start : Supply) (generated : Generated) : Generated :=
   let substitution := supplyShiftSubstitution start
@@ -924,18 +931,18 @@ def translateGenerated (start : Supply) (generated : Generated) : Generated :=
       (CheckObligation.apply substitution) }
 
 private def shiftGenerated (generated : Generated) : Generated :=
-  translateGenerated ⟨145, 37⟩ generated
+  translateGenerated ⟨151, 31⟩ generated
 
 /-- The standalone `list` constraints translated to an arbitrary origin. -/
 def listGeneratedAt (start : Supply) : Generated :=
   translateGenerated start listGenerated
 
 /-- The translated `list` constraints used by closed Paper 1 elaboration. -/
-def shiftedListGenerated : Generated := listGeneratedAt ⟨145, 37⟩
+def shiftedListGenerated : Generated := listGeneratedAt ⟨151, 31⟩
 
 private def shiftedCallback : ExpressionElaborator :=
   M4.elaborateFuelUsing (unifyWithFuel 500)
-    Paper1FrozenSignature.signature 381
+    Paper1FrozenSignature.signature 356
 
 private def shiftedFixContext : Context :=
   fixContext.applyFree listShiftSubstitution
@@ -958,9 +965,9 @@ private def shiftMatcherClause
 
 private theorem shifted_nil_clause_exact :
     elaborateMatcherClauseUsing shiftedCallback
-      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨147⟩)
-      listMatcherNilClause ⟨148, 40⟩ =
-      some (shiftMatcherClause nilClause, ⟨157, 41⟩) := by
+      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨153⟩)
+      listMatcherNilClause ⟨154, 34⟩ =
+      some (shiftMatcherClause nilClause, ⟨163, 35⟩) := by
   have shape : listMatcherNilClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simpa using (show listMatcherNilClause.toShape.check
@@ -980,9 +987,9 @@ private theorem shifted_nil_clause_exact :
 
 private theorem shifted_cons_clause_exact :
     elaborateMatcherClauseUsing shiftedCallback
-      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨147⟩)
-      listMatcherConsClause ⟨157, 41⟩ =
-      some (shiftMatcherClause consClause, ⟨167, 44⟩) := by
+      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨153⟩)
+      listMatcherConsClause ⟨163, 35⟩ =
+      some (shiftMatcherClause consClause, ⟨173, 38⟩) := by
   have shape : listMatcherConsClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simp [listMatcherConsClause, MatcherClause.toShape,
@@ -999,9 +1006,9 @@ private theorem shifted_cons_clause_exact :
 
 private theorem shifted_join_clause_exact :
     elaborateMatcherClauseUsing shiftedCallback
-      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨147⟩)
-      listMatcherJoinClause ⟨167, 44⟩ =
-      some (shiftMatcherClause joinClause, ⟨220, 52⟩) := by
+      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨153⟩)
+      listMatcherJoinClause ⟨173, 38⟩ =
+      some (shiftMatcherClause joinClause, ⟨230, 44⟩) := by
   have shape : listMatcherJoinClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simp [listMatcherJoinClause, MatcherClause.toShape,
@@ -1019,9 +1026,9 @@ private theorem shifted_join_clause_exact :
 
 private theorem shifted_catch_clause_exact :
     elaborateMatcherClauseUsing shiftedCallback
-      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨147⟩)
-      listMatcherCatchAllClause ⟨220, 52⟩ =
-      some (shiftMatcherClause catchClause, ⟨227, 53⟩) := by
+      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨153⟩)
+      listMatcherCatchAllClause ⟨230, 44⟩ =
+      some (shiftMatcherClause catchClause, ⟨237, 45⟩) := by
   have shape : listMatcherCatchAllClause.toShape.check
       Paper1FrozenSignature.signature = true := by
     simp [listMatcherCatchAllClause, Paper1Programs.catchAllClause,
@@ -1042,9 +1049,9 @@ private def shiftMatcherClauses
 
 private theorem shifted_clauses_exact :
     elaborateMatcherClausesUsing shiftedCallback
-      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨147⟩)
-      listMatcherClauses ⟨148, 40⟩ =
-      some (shiftMatcherClauses generatedClauses, ⟨227, 53⟩) := by
+      Paper1FrozenSignature.signature shiftedFixContext (.var ⟨153⟩)
+      listMatcherClauses ⟨154, 34⟩ =
+      some (shiftMatcherClauses generatedClauses, ⟨237, 45⟩) := by
   simp only [listMatcherClauses, elaborateMatcherClausesUsing]
   rw [shifted_nil_clause_exact]
   simp only [Option.bind_eq_bind, Option.bind_some]
@@ -1058,8 +1065,8 @@ private theorem shifted_clauses_exact :
 private theorem shifted_matcher_literal_exact :
     elaborateMatcherLiteralUsing shiftedCallback
       Paper1FrozenSignature.signature shiftedFixContext listMatcherClauses
-      ⟨147, 39⟩ =
-      some (shiftGenerated matcherLiteralGenerated, ⟨227, 53⟩) := by
+      ⟨153, 33⟩ =
+      some (shiftGenerated matcherLiteralGenerated, ⟨237, 45⟩) := by
   simp only [elaborateMatcherLiteralUsing,
     M4Paper1ComputabilityRegression.list_static_checks, if_true]
   rw [shifted_clauses_exact]
@@ -1068,17 +1075,489 @@ private theorem shifted_matcher_literal_exact :
 /-- Exact nested execution used by the closed-multiset Paper 1 regression. -/
 theorem shifted_structural_fuel_exact :
     M4.elaborateFuelUsing (unifyWithFuel 500)
-      Paper1FrozenSignature.signature 383 [] listMatcherDefinition ⟨145, 37⟩ =
-      some (shiftedListGenerated, ⟨227, 53⟩) := by
+      Paper1FrozenSignature.signature 358 [] listMatcherDefinition ⟨151, 31⟩ =
+      some (shiftedListGenerated, ⟨237, 45⟩) := by
   simp only [listMatcherDefinition, M4.elaborateFuelUsing.eq_def,
     elaborateFixUsing,
     M4Paper1ComputabilityRegression.list_direct_self_check, if_true,
     Fix.domain, Fix.codomain, Fix.bodyContext, Fix.bodySupply]
   change (elaborateMatcherLiteralUsing shiftedCallback
       Paper1FrozenSignature.signature shiftedFixContext listMatcherClauses
-      ⟨147, 39⟩).bind _ = _
+      ⟨153, 33⟩).bind _ = _
   rw [shifted_matcher_literal_exact]
   rfl'
+
+private def listJoinShiftSubstitution : Subst :=
+  supplyShiftSubstitution ⟨19, 3⟩
+
+private def listJoinShiftGenerated (generated : Generated) : Generated :=
+  translateGenerated ⟨19, 3⟩ generated
+
+/-- The translated `list` constraints at the P1-L01 match site. -/
+def listJoinShiftedListGenerated : Generated := listGeneratedAt ⟨19, 3⟩
+
+private def listJoinShiftCallback : ExpressionElaborator :=
+  M4.elaborateFuelUsing (unifyWithFuel 500)
+    Paper1FrozenSignature.signature 122
+
+private def listJoinShiftFixContext : Context :=
+  fixContext.applyFree listJoinShiftSubstitution
+
+private def listJoinShiftChecks (checks : GeneratedChecks) : GeneratedChecks :=
+  { hard := checks.hard.map (Equation.apply listJoinShiftSubstitution)
+    pending := checks.pending.map
+      (CheckObligation.apply listJoinShiftSubstitution) }
+
+private def listJoinShiftDual (dual : Dual) : Dual :=
+  ⟨dual.capability.apply listJoinShiftSubstitution.cap,
+    dual.target.apply listJoinShiftSubstitution⟩
+
+private def listJoinShiftMatcherClause
+    (clause : GeneratedMatcherClause) : GeneratedMatcherClause :=
+  { holes := clause.holes.map listJoinShiftDual
+    evidence := clause.evidence.map
+      (Cap.apply listJoinShiftSubstitution.cap)
+    checks := listJoinShiftChecks clause.checks }
+
+private theorem listJoin_nil_clause_exact :
+    elaborateMatcherClauseUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext (.var ⟨21⟩)
+      listMatcherNilClause ⟨22, 6⟩ =
+      some (listJoinShiftMatcherClause nilClause, ⟨31, 7⟩) := by
+  have shape : listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simpa using (show listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true from by
+        simp [listMatcherNilClause, Paper1Programs.nilClause,
+          MatcherClause.toShape, MatcherArm.toHeader,
+          MatcherClauseShape.check, MatcherArmHeader.check,
+          MatcherArmHeader.canonical, HoleConvention.ofCount,
+          PPat.shapeOK, PPat.shapesOK, PPat.captureBeforeFirstHole,
+          PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+          PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+          DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+          ConstructorSchemes.listNil, ListPatternSchemes.nil,
+          PolyDataTypes.list])
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem listJoin_cons_clause_exact :
+    elaborateMatcherClauseUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext (.var ⟨21⟩)
+      listMatcherConsClause ⟨31, 7⟩ =
+      some (listJoinShiftMatcherClause consClause, ⟨41, 10⟩) := by
+  have shape : listMatcherConsClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherConsClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_cons,
+      ConstructorSchemes.listCons, ListPatternSchemes.cons,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem listJoin_join_clause_exact :
+    elaborateMatcherClauseUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext (.var ⟨21⟩)
+      listMatcherJoinClause ⟨41, 10⟩ =
+      some (listJoinShiftMatcherClause joinClause, ⟨98, 16⟩) := by
+  have shape : listMatcherJoinClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherJoinClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+      Paper1FrozenSignature.lookup_data_cons, ConstructorSchemes.listNil,
+      ConstructorSchemes.listCons, ListPatternSchemes.join,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem listJoin_catch_clause_exact :
+    elaborateMatcherClauseUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext (.var ⟨21⟩)
+      listMatcherCatchAllClause ⟨98, 16⟩ =
+      some (listJoinShiftMatcherClause catchClause, ⟨105, 17⟩) := by
+  have shape : listMatcherCatchAllClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherCatchAllClause, Paper1Programs.catchAllClause,
+      MatcherClause.toShape, MatcherArm.toHeader,
+      MatcherClauseShape.check, MatcherArmHeader.check,
+      MatcherArmHeader.canonical, HoleConvention.ofCount,
+      PPat.shapeOK, PPat.captureBeforeFirstHole,
+      PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+      PPat.holeCount, DPat.shapeOK]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private def listJoinShiftMatcherClauses
+    (clauses : GeneratedMatcherClauses) : GeneratedMatcherClauses :=
+  { evidences := clauses.evidences.map
+      (Cap.apply listJoinShiftSubstitution.cap)
+    checks := listJoinShiftChecks clauses.checks }
+
+private theorem listJoin_clauses_exact :
+    elaborateMatcherClausesUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext (.var ⟨21⟩)
+      listMatcherClauses ⟨22, 6⟩ =
+      some (listJoinShiftMatcherClauses generatedClauses, ⟨105, 17⟩) := by
+  simp only [listMatcherClauses, elaborateMatcherClausesUsing]
+  rw [listJoin_nil_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [listJoin_cons_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [listJoin_join_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [listJoin_catch_clause_exact]
+  rfl'
+
+private theorem listJoin_matcher_literal_exact :
+    elaborateMatcherLiteralUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext listMatcherClauses
+      ⟨21, 5⟩ =
+      some (listJoinShiftGenerated matcherLiteralGenerated, ⟨105, 17⟩) := by
+  simp only [elaborateMatcherLiteralUsing,
+    M4Paper1ComputabilityRegression.list_static_checks, if_true]
+  rw [listJoin_clauses_exact]
+  rfl'
+
+/-- Exact list-matcher execution after the P1-L01 target and pattern. -/
+theorem listJoin_structural_fuel_exact :
+    M4.elaborateFuelUsing (unifyWithFuel 500)
+      Paper1FrozenSignature.signature 124 [] listMatcherDefinition ⟨19, 3⟩ =
+      some (listJoinShiftedListGenerated, ⟨105, 17⟩) := by
+  simp only [listMatcherDefinition, M4.elaborateFuelUsing.eq_def,
+    elaborateFixUsing,
+    M4Paper1ComputabilityRegression.list_direct_self_check, if_true,
+    Fix.domain, Fix.codomain, Fix.bodyContext, Fix.bodySupply]
+  change (elaborateMatcherLiteralUsing listJoinShiftCallback
+      Paper1FrozenSignature.signature listJoinShiftFixContext listMatcherClauses
+      ⟨21, 5⟩).bind _ = _
+  rw [listJoin_matcher_literal_exact]
+  rfl'
+
+
+private def closed170ShiftSubstitution : Subst :=
+  supplyShiftSubstitution ⟨170, 34⟩
+
+private def closed170ShiftGenerated (generated : Generated) : Generated :=
+  translateGenerated ⟨170, 34⟩ generated
+
+/-- The translated `list` constraints at the P1-L05 closed-multiset match site. -/
+def closed170ShiftedListGenerated : Generated := listGeneratedAt ⟨170, 34⟩
+
+private def closed170ShiftCallback : ExpressionElaborator :=
+  M4.elaborateFuelUsing (unifyWithFuel 500)
+    Paper1FrozenSignature.signature 122
+
+private def closed170ShiftFixContext : Context :=
+  fixContext.applyFree closed170ShiftSubstitution
+
+private def closed170ShiftChecks (checks : GeneratedChecks) : GeneratedChecks :=
+  { hard := checks.hard.map (Equation.apply closed170ShiftSubstitution)
+    pending := checks.pending.map
+      (CheckObligation.apply closed170ShiftSubstitution) }
+
+private def closed170ShiftDual (dual : Dual) : Dual :=
+  ⟨dual.capability.apply closed170ShiftSubstitution.cap,
+    dual.target.apply closed170ShiftSubstitution⟩
+
+private def closed170ShiftMatcherClause
+    (clause : GeneratedMatcherClause) : GeneratedMatcherClause :=
+  { holes := clause.holes.map closed170ShiftDual
+    evidence := clause.evidence.map
+      (Cap.apply closed170ShiftSubstitution.cap)
+    checks := closed170ShiftChecks clause.checks }
+
+private theorem closed170_nil_clause_exact :
+    elaborateMatcherClauseUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext (.var ⟨172⟩)
+      listMatcherNilClause ⟨173, 37⟩ =
+      some (closed170ShiftMatcherClause nilClause, ⟨182, 38⟩) := by
+  have shape : listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simpa using (show listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true from by
+        simp [listMatcherNilClause, Paper1Programs.nilClause,
+          MatcherClause.toShape, MatcherArm.toHeader,
+          MatcherClauseShape.check, MatcherArmHeader.check,
+          MatcherArmHeader.canonical, HoleConvention.ofCount,
+          PPat.shapeOK, PPat.shapesOK, PPat.captureBeforeFirstHole,
+          PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+          PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+          DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+          ConstructorSchemes.listNil, ListPatternSchemes.nil,
+          PolyDataTypes.list])
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed170_cons_clause_exact :
+    elaborateMatcherClauseUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext (.var ⟨172⟩)
+      listMatcherConsClause ⟨182, 38⟩ =
+      some (closed170ShiftMatcherClause consClause, ⟨192, 41⟩) := by
+  have shape : listMatcherConsClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherConsClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_cons,
+      ConstructorSchemes.listCons, ListPatternSchemes.cons,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed170_join_clause_exact :
+    elaborateMatcherClauseUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext (.var ⟨172⟩)
+      listMatcherJoinClause ⟨192, 41⟩ =
+      some (closed170ShiftMatcherClause joinClause, ⟨249, 47⟩) := by
+  have shape : listMatcherJoinClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherJoinClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+      Paper1FrozenSignature.lookup_data_cons, ConstructorSchemes.listNil,
+      ConstructorSchemes.listCons, ListPatternSchemes.join,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed170_catch_clause_exact :
+    elaborateMatcherClauseUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext (.var ⟨172⟩)
+      listMatcherCatchAllClause ⟨249, 47⟩ =
+      some (closed170ShiftMatcherClause catchClause, ⟨256, 48⟩) := by
+  have shape : listMatcherCatchAllClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherCatchAllClause, Paper1Programs.catchAllClause,
+      MatcherClause.toShape, MatcherArm.toHeader,
+      MatcherClauseShape.check, MatcherArmHeader.check,
+      MatcherArmHeader.canonical, HoleConvention.ofCount,
+      PPat.shapeOK, PPat.captureBeforeFirstHole,
+      PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+      PPat.holeCount, DPat.shapeOK]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private def closed170ShiftMatcherClauses
+    (clauses : GeneratedMatcherClauses) : GeneratedMatcherClauses :=
+  { evidences := clauses.evidences.map
+      (Cap.apply closed170ShiftSubstitution.cap)
+    checks := closed170ShiftChecks clauses.checks }
+
+private theorem closed170_clauses_exact :
+    elaborateMatcherClausesUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext (.var ⟨172⟩)
+      listMatcherClauses ⟨173, 37⟩ =
+      some (closed170ShiftMatcherClauses generatedClauses, ⟨256, 48⟩) := by
+  simp only [listMatcherClauses, elaborateMatcherClausesUsing]
+  rw [closed170_nil_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed170_cons_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed170_join_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed170_catch_clause_exact]
+  rfl'
+
+private theorem closed170_matcher_literal_exact :
+    elaborateMatcherLiteralUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext listMatcherClauses
+      ⟨172, 36⟩ =
+      some (closed170ShiftGenerated matcherLiteralGenerated, ⟨256, 48⟩) := by
+  simp only [elaborateMatcherLiteralUsing,
+    M4Paper1ComputabilityRegression.list_static_checks, if_true]
+  rw [closed170_clauses_exact]
+  rfl'
+
+/-- Exact list-matcher execution after the P1-L01 target and pattern. -/
+theorem closed170_structural_fuel_exact :
+    M4.elaborateFuelUsing (unifyWithFuel 500)
+      Paper1FrozenSignature.signature 124 [] listMatcherDefinition ⟨170, 34⟩ =
+      some (closed170ShiftedListGenerated, ⟨256, 48⟩) := by
+  simp only [listMatcherDefinition, M4.elaborateFuelUsing.eq_def,
+    elaborateFixUsing,
+    M4Paper1ComputabilityRegression.list_direct_self_check, if_true,
+    Fix.domain, Fix.codomain, Fix.bodyContext, Fix.bodySupply]
+  change (elaborateMatcherLiteralUsing closed170ShiftCallback
+      Paper1FrozenSignature.signature closed170ShiftFixContext listMatcherClauses
+      ⟨172, 36⟩).bind _ = _
+  rw [closed170_matcher_literal_exact]
+  rfl'
+
+
+private def closed180ShiftSubstitution : Subst :=
+  supplyShiftSubstitution ⟨180, 36⟩
+
+private def closed180ShiftGenerated (generated : Generated) : Generated :=
+  translateGenerated ⟨180, 36⟩ generated
+
+/-- The translated `list` constraints at the P1-L02 closed-multiset match site. -/
+def closed180ShiftedListGenerated : Generated := listGeneratedAt ⟨180, 36⟩
+
+private def closed180ShiftCallback : ExpressionElaborator :=
+  M4.elaborateFuelUsing (unifyWithFuel 500)
+    Paper1FrozenSignature.signature 122
+
+private def closed180ShiftFixContext : Context :=
+  fixContext.applyFree closed180ShiftSubstitution
+
+private def closed180ShiftChecks (checks : GeneratedChecks) : GeneratedChecks :=
+  { hard := checks.hard.map (Equation.apply closed180ShiftSubstitution)
+    pending := checks.pending.map
+      (CheckObligation.apply closed180ShiftSubstitution) }
+
+private def closed180ShiftDual (dual : Dual) : Dual :=
+  ⟨dual.capability.apply closed180ShiftSubstitution.cap,
+    dual.target.apply closed180ShiftSubstitution⟩
+
+private def closed180ShiftMatcherClause
+    (clause : GeneratedMatcherClause) : GeneratedMatcherClause :=
+  { holes := clause.holes.map closed180ShiftDual
+    evidence := clause.evidence.map
+      (Cap.apply closed180ShiftSubstitution.cap)
+    checks := closed180ShiftChecks clause.checks }
+
+private theorem closed180_nil_clause_exact :
+    elaborateMatcherClauseUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext (.var ⟨182⟩)
+      listMatcherNilClause ⟨183, 39⟩ =
+      some (closed180ShiftMatcherClause nilClause, ⟨192, 40⟩) := by
+  have shape : listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simpa using (show listMatcherNilClause.toShape.check
+      Paper1FrozenSignature.signature = true from by
+        simp [listMatcherNilClause, Paper1Programs.nilClause,
+          MatcherClause.toShape, MatcherArm.toHeader,
+          MatcherClauseShape.check, MatcherArmHeader.check,
+          MatcherArmHeader.canonical, HoleConvention.ofCount,
+          PPat.shapeOK, PPat.shapesOK, PPat.captureBeforeFirstHole,
+          PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+          PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+          DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+          ConstructorSchemes.listNil, ListPatternSchemes.nil,
+          PolyDataTypes.list])
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed180_cons_clause_exact :
+    elaborateMatcherClauseUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext (.var ⟨182⟩)
+      listMatcherConsClause ⟨192, 40⟩ =
+      some (closed180ShiftMatcherClause consClause, ⟨202, 43⟩) := by
+  have shape : listMatcherConsClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherConsClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_cons,
+      ConstructorSchemes.listCons, ListPatternSchemes.cons,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed180_join_clause_exact :
+    elaborateMatcherClauseUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext (.var ⟨182⟩)
+      listMatcherJoinClause ⟨202, 43⟩ =
+      some (closed180ShiftMatcherClause joinClause, ⟨259, 49⟩) := by
+  have shape : listMatcherJoinClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherJoinClause, MatcherClause.toShape,
+      MatcherArm.toHeader, MatcherClauseShape.check,
+      MatcherArmHeader.check, MatcherArmHeader.canonical,
+      HoleConvention.ofCount, PPat.shapeOK, PPat.shapesOK,
+      PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+      PPat.occurrences, PPat.holeCount, DPat.shapeOK, DPat.shapesOK,
+      DPat.constructorArity?, Paper1FrozenSignature.lookup_data_nil,
+      Paper1FrozenSignature.lookup_data_cons, ConstructorSchemes.listNil,
+      ConstructorSchemes.listCons, ListPatternSchemes.join,
+      PolyDataTypes.list]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private theorem closed180_catch_clause_exact :
+    elaborateMatcherClauseUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext (.var ⟨182⟩)
+      listMatcherCatchAllClause ⟨259, 49⟩ =
+      some (closed180ShiftMatcherClause catchClause, ⟨266, 50⟩) := by
+  have shape : listMatcherCatchAllClause.toShape.check
+      Paper1FrozenSignature.signature = true := by
+    simp [listMatcherCatchAllClause, Paper1Programs.catchAllClause,
+      MatcherClause.toShape, MatcherArm.toHeader,
+      MatcherClauseShape.check, MatcherArmHeader.check,
+      MatcherArmHeader.canonical, HoleConvention.ofCount,
+      PPat.shapeOK, PPat.captureBeforeFirstHole,
+      PPat.captureBeforeFirstHoleFrom, PPat.occurrences,
+      PPat.holeCount, DPat.shapeOK]
+  simp only [elaborateMatcherClauseUsing, shape, if_true]
+  rfl'
+
+private def closed180ShiftMatcherClauses
+    (clauses : GeneratedMatcherClauses) : GeneratedMatcherClauses :=
+  { evidences := clauses.evidences.map
+      (Cap.apply closed180ShiftSubstitution.cap)
+    checks := closed180ShiftChecks clauses.checks }
+
+private theorem closed180_clauses_exact :
+    elaborateMatcherClausesUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext (.var ⟨182⟩)
+      listMatcherClauses ⟨183, 39⟩ =
+      some (closed180ShiftMatcherClauses generatedClauses, ⟨266, 50⟩) := by
+  simp only [listMatcherClauses, elaborateMatcherClausesUsing]
+  rw [closed180_nil_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed180_cons_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed180_join_clause_exact]
+  simp only [Option.bind_eq_bind, Option.bind_some]
+  rw [closed180_catch_clause_exact]
+  rfl'
+
+private theorem closed180_matcher_literal_exact :
+    elaborateMatcherLiteralUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext listMatcherClauses
+      ⟨182, 38⟩ =
+      some (closed180ShiftGenerated matcherLiteralGenerated, ⟨266, 50⟩) := by
+  simp only [elaborateMatcherLiteralUsing,
+    M4Paper1ComputabilityRegression.list_static_checks, if_true]
+  rw [closed180_clauses_exact]
+  rfl'
+
+/-- Exact list-matcher execution after the P1-L01 target and pattern. -/
+theorem closed180_structural_fuel_exact :
+    M4.elaborateFuelUsing (unifyWithFuel 500)
+      Paper1FrozenSignature.signature 124 [] listMatcherDefinition ⟨180, 36⟩ =
+      some (closed180ShiftedListGenerated, ⟨266, 50⟩) := by
+  simp only [listMatcherDefinition, M4.elaborateFuelUsing.eq_def,
+    elaborateFixUsing,
+    M4Paper1ComputabilityRegression.list_direct_self_check, if_true,
+    Fix.domain, Fix.codomain, Fix.bodyContext, Fix.bodySupply]
+  change (elaborateMatcherLiteralUsing closed180ShiftCallback
+      Paper1FrozenSignature.signature closed180ShiftFixContext listMatcherClauses
+      ⟨182, 38⟩).bind _ = _
+  rw [closed180_matcher_literal_exact]
+  rfl'
+
+
 
 /-- Exact principal type computed for the source-defined unary `list`
 matcher constructor. -/

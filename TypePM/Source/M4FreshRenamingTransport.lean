@@ -804,61 +804,25 @@ theorem MatchFirstTyping.TailElaboratesUsing.trackContextSupport
         (tailInduction (contextWellFormed.mono
           (Supply.le_trans patternToBody bodyToTail)))
 
-/-- Add well-formed-context evidence to every recursive leaf of a nonempty
-single-result match arm list. -/
+/-- Add well-formed-context evidence to the fallback and every ordinary arm. -/
 theorem MatchFirstTyping.ArmsElaborateUsing.trackContextSupport
     {signature : FrozenSignature} (wellFormed : signature.WellFormed)
     {fuel : Nat} {context : Context} {targetType matcherType : Ty}
-    {arms : List MatchFirstArm} {start finish : Supply}
+    {fallback : Expr} {arms : List MatchFirstArm} {start finish : Supply}
     {generated : TypePM.Source.MatchFirstTyping.GeneratedArms}
     (contextWellFormed : start.WellFormedFor context)
     (derivation : TypePM.Source.MatchFirstTyping.ArmsElaborateUsing
       (M4.ElaboratesFuel signature fuel) signature context targetType matcherType
-      arms start generated finish) :
+      fallback arms start generated finish) :
     TypePM.Source.MatchFirstTyping.ArmsElaborateUsing
       (WellFormedFuelLeaf signature fuel) signature context targetType matcherType
-      arms start generated finish := by
+      fallback arms start generated finish := by
   cases derivation with
-  | @cons pattern body arms start generatedPattern afterPattern generatedBody
-      afterBody generatedTail finish patternElaboration bodyElaboration
-      tailElaboration =>
-      have emptyArguments : VariablesSupportProvenance context start start
-          (dualUnificationVars []) := by
-        intro candidate member
-        simp [dualUnificationVars] at member
-      have emptyBindings : VariablesSupportProvenance context start start
-          (Ty.unificationVarsList []) := by
-        intro candidate member
-        simp [Ty.unificationVarsList] at member
-      have patternToBody := PatternElaboratesUsing.supply_le_next
-        (fun {context expression start generated finish}
-          (child : M4.ElaboratesFuel signature fuel context expression start
-            generated finish) => child.supply_le_next) patternElaboration
-      have patternSupport := patternElaboration.supportProvenance wellFormed
-        (fun {context expression start generated finish}
-          (child : M4.ElaboratesFuel signature fuel context expression start
-            generated finish) => child.supply_le_next)
-        (fun {context expression start generated finish}
-          (child : M4.ElaboratesFuel signature fuel context expression start
-            generated finish) => child.supportProvenance wellFormed)
-        emptyArguments emptyBindings (Supply.le_refl start)
-      have bindingsSupport : VariablesSupportProvenance context start afterPattern
-          (Ty.unificationVarsList generatedPattern.bindings) := by
-        intro candidate member
-        exact patternSupport candidate (by
-          simp [GeneratedPattern.unificationVars, member])
-      have bodyContextWellFormed := Supply.WellFormedFor.of_contextSupport
-        contextWellFormed patternToBody
-        (Pattern.extendContext_support bindingsSupport)
-      have bodyToTail := bodyElaboration.supply_le_next
-      exact .cons
-        (PatternElaboratesUsing.trackContextSupportEarly wellFormed contextWellFormed
-          emptyArguments emptyBindings (Supply.le_refl start)
-          patternElaboration)
-        ⟨bodyContextWellFormed, bodyElaboration⟩
+  | fromFallback fallbackElaboration armsElaboration =>
+      have startToFallback := fallbackElaboration.supply_le_next
+      exact .fromFallback ⟨contextWellFormed, fallbackElaboration⟩
         (MatchFirstTyping.TailElaboratesUsing.trackContextSupport wellFormed
-          (contextWellFormed.mono
-            (Supply.le_trans patternToBody bodyToTail)) tailElaboration)
+          (contextWellFormed.mono startToFallback) armsElaboration)
 
 end
 
@@ -876,12 +840,12 @@ theorem MatchFirstTyping.ElaboratesUsing.trackContextSupport
       (WellFormedFuelLeaf signature fuel) signature context expression start
       generated finish := by
   cases derivation with
-  | @matchFirst target matcher arms start generatedTarget afterTarget
-      generatedMatcher afterMatcher generatedArms finish exhaustive
+  | @matchFirst target matcher arms fallback start generatedTarget afterTarget
+      generatedMatcher afterMatcher generatedArms finish
       targetElaboration matcherElaboration armsElaboration =>
       have startToTarget := targetElaboration.supply_le_next
       have targetToMatcher := matcherElaboration.supply_le_next
-      exact .matchFirst exhaustive ⟨contextWellFormed, targetElaboration⟩
+      exact .matchFirst ⟨contextWellFormed, targetElaboration⟩
         ⟨contextWellFormed.mono startToTarget, matcherElaboration⟩
         (MatchFirstTyping.ArmsElaborateUsing.trackContextSupport wellFormed
           (contextWellFormed.mono
@@ -2204,23 +2168,18 @@ theorem MatcherTyping.MatcherLiteralElaboratesUsing.rename
     renameObligation, Equation.apply, CheckObligation.apply, renameTy, renameCap,
     Ty.apply, List.map_append]
 
-@[simp] theorem MatchFirstTyping.GeneratedArms.fromFirst_rename
-    (rho : VariableRenaming) (targetType matcherType : Ty)
-    (pattern : GeneratedPattern) (body : Generated)
-    (tail : TypePM.Source.MatchFirstTyping.GeneratedTail) :
+@[simp] theorem MatchFirstTyping.GeneratedArms.fromFallback_rename
+    (rho : VariableRenaming) (fallback : Generated)
+    (arms : TypePM.Source.MatchFirstTyping.GeneratedTail) :
     MatchFirstTyping.renameGeneratedArms rho
-        (TypePM.Source.MatchFirstTyping.GeneratedArms.fromFirst
-          targetType matcherType pattern body tail) =
-      TypePM.Source.MatchFirstTyping.GeneratedArms.fromFirst
-        (renameTy rho targetType) (renameTy rho matcherType)
-        (renameGeneratedPattern rho pattern) (renameGenerated rho body)
-        (MatchFirstTyping.renameGeneratedTail rho tail) := by
+        (TypePM.Source.MatchFirstTyping.GeneratedArms.fromFallback fallback arms) =
+      TypePM.Source.MatchFirstTyping.GeneratedArms.fromFallback
+        (renameGenerated rho fallback)
+        (MatchFirstTyping.renameGeneratedTail rho arms) := by
   simp [MatchFirstTyping.renameGeneratedArms,
     MatchFirstTyping.renameGeneratedTail,
-    TypePM.Source.MatchFirstTyping.GeneratedArms.fromFirst,
-    renameGeneratedPattern, renameGenerated, renameDual, renameEquation,
-    renameObligation, Equation.apply, CheckObligation.apply, renameTy, renameCap,
-    Ty.apply, List.map_append]
+    TypePM.Source.MatchFirstTyping.GeneratedArms.fromFallback,
+    renameGenerated, List.map_append]
 
 @[simp] theorem Generated.fromMatchFirst_rename
     (rho : VariableRenaming) (target matcher : Generated)
@@ -2299,7 +2258,7 @@ theorem MatchFirstTyping.TailElaboratesUsing.rename
         (TypePM.Source.MatchFirstTyping.TailElaboratesUsing.cons
           patternTransport bodyTransport tailTransport)
 
-/-- Nonempty single-result match arms commute with fresh-local renaming. -/
+/-- The fallback and ordinary arms commute with fresh-local renaming. -/
 theorem MatchFirstTyping.ArmsElaborateUsing.rename
     {rho : VariableRenaming} {boundary : Supply}
     {left right : M4ExpressionElaborationRelation}
@@ -2312,34 +2271,26 @@ theorem MatchFirstTyping.ArmsElaborateUsing.rename
       left context expression supply generated next → supply.Le next)
     (fixed : rho.FixesAtOrAbove boundary)
     {signature : FrozenSignature} (wellFormed : signature.WellFormed)
-    {context targetType matcherType arms supply generated next}
+    {context targetType matcherType fallback arms supply generated next}
     (boundaryToSupply : boundary.Le supply)
     (derivation : TypePM.Source.MatchFirstTyping.ArmsElaborateUsing left
-      signature context targetType matcherType arms supply generated next) :
+      signature context targetType matcherType fallback arms supply generated next) :
     TypePM.Source.MatchFirstTyping.ArmsElaborateUsing right signature
       (renameContext rho context) (renameTy rho targetType)
-      (renameTy rho matcherType) arms supply
+      (renameTy rho matcherType) fallback arms supply
       (MatchFirstTyping.renameGeneratedArms rho generated) next := by
   cases derivation with
-  | @cons pattern body arms supply generatedPattern afterPattern generatedBody
-      afterBody generatedTail next patternElaboration bodyElaboration
-      tailElaboration =>
-      have patternTransport := PatternElaboratesUsing.rename transport increases
-        fixed wellFormed boundaryToSupply patternElaboration
-      have boundaryToPattern := Supply.le_trans boundaryToSupply
-        (PatternElaboratesUsing.supply_le_next increases patternElaboration)
-      have bodyTransport := transport boundaryToPattern bodyElaboration
-      rw [Pattern.extendContext_rename] at bodyTransport
-      have boundaryToBody := Supply.le_trans boundaryToPattern
-        (increases bodyElaboration)
-      have tailTransport := MatchFirstTyping.TailElaboratesUsing.rename
-        transport increases fixed wellFormed boundaryToBody tailElaboration
-      simpa [MatchFirstTyping.GeneratedArms.fromFirst_rename] using
-        (TypePM.Source.MatchFirstTyping.ArmsElaborateUsing.cons
-          patternTransport bodyTransport tailTransport)
+  | fromFallback fallbackElaboration armsElaboration =>
+      have fallbackTransport := transport boundaryToSupply fallbackElaboration
+      have boundaryToFallback := Supply.le_trans boundaryToSupply
+        (increases fallbackElaboration)
+      have armsTransport := MatchFirstTyping.TailElaboratesUsing.rename
+        transport increases fixed wellFormed boundaryToFallback armsElaboration
+      simpa [MatchFirstTyping.GeneratedArms.fromFallback_rename] using
+        (TypePM.Source.MatchFirstTyping.ArmsElaborateUsing.fromFallback
+          fallbackTransport armsTransport)
 
-/-- The complete single-result match relation transports.  The declarative
-`Exhaustive` premise is syntactic and is preserved verbatim. -/
+/-- The complete single-result match relation transports. -/
 theorem MatchFirstTyping.ElaboratesUsing.rename
     {rho : VariableRenaming} {boundary : Supply}
     {left right : M4ExpressionElaborationRelation}
@@ -2359,8 +2310,8 @@ theorem MatchFirstTyping.ElaboratesUsing.rename
       (renameContext rho context) expression boundary
       (renameGenerated rho generated) next := by
   cases derivation with
-  | @matchFirst target matcher arms supply generatedTarget afterTarget
-      generatedMatcher afterMatcher generatedArms next exhaustive
+  | @matchFirst target matcher arms fallback supply generatedTarget afterTarget
+      generatedMatcher afterMatcher generatedArms next
       targetElaboration matcherElaboration armsElaboration =>
       have targetTransport := transport (Supply.le_refl boundary)
         targetElaboration
@@ -2371,7 +2322,7 @@ theorem MatchFirstTyping.ElaboratesUsing.rename
       have armsTransport := MatchFirstTyping.ArmsElaborateUsing.rename
         transport increases fixed wellFormed boundaryToMatcher armsElaboration
       simpa [Generated.fromMatchFirst_rename] using
-        (TypePM.Source.MatchFirstTyping.ElaboratesUsing.matchFirst exhaustive
+        (TypePM.Source.MatchFirstTyping.ElaboratesUsing.matchFirst
           targetTransport matcherTransport armsTransport)
 
 /-! ## Exact remaining recursive boundary

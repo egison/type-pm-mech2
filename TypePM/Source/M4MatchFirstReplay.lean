@@ -28,16 +28,16 @@ def ExecutableM4MatchFirstTailFuelReplay
       TailElaboratesUsing (ElaboratesFuel signature fuel) signature context
         targetType matcherType expectedResult arms supply generated next
 
-/-- Executable replay of a nonempty match-first arm list. -/
+/-- Executable replay of the mandatory fallback and ordinary arm list. -/
 def ExecutableM4MatchFirstArmsFuelReplay
     (signature : FrozenSignature) (fuel : Nat) (context : Context)
-    (targetType matcherType : Ty) (arms : List MatchFirstArm)
+    (targetType matcherType : Ty) (fallback : Expr) (arms : List MatchFirstArm)
     (supply : Supply) : Prop :=
   ∃ generated next,
     elaborateArmsUsing (M4.elaborateFuel signature fuel) signature context
-        targetType matcherType arms supply = some (generated, next) ∧
+        targetType matcherType fallback arms supply = some (generated, next) ∧
       ArmsElaborateUsing (ElaboratesFuel signature fuel) signature context
-        targetType matcherType arms supply generated next
+        targetType matcherType fallback arms supply generated next
 
 private theorem list_length_lt_twice_complexity_add_one
     (arms : List MatchFirstArm) :
@@ -122,57 +122,48 @@ private theorem executableMatchFirstArmsFuelReplay_of_tracked
       M4FuelReplayProperty expression)
     {signature : FrozenSignature} {fuel : Nat} {context : Context}
     {originalTargetType originalMatcherType targetType matcherType : Ty}
+    {fallback : Expr}
     {arms : List MatchFirstArm} {supply next : Supply}
     {generated : GeneratedArms}
     (signatureWellFormed : signature.WellFormed)
+    (fallbackBound : fallback.complexity < limit)
     (bound : MatchFirstArm.listComplexity arms < limit)
     (derivation : ArmsElaborateUsing
       (M4FreshRenaming.WellFormedFuelLeaf signature fuel) signature context
-      originalTargetType originalMatcherType arms supply generated next) :
+      originalTargetType originalMatcherType fallback arms supply generated next) :
     ExecutableM4MatchFirstArmsFuelReplay signature fuel context targetType
-      matcherType arms supply := by
+      matcherType fallback arms supply := by
   cases derivation with
-  | @cons pattern body arms supply generatedPattern afterPattern generatedBody
-      afterBody generatedTail next patternDerivation bodyDerivation
-      tailDerivation =>
-      obtain ⟨computedPattern, computedAfterPattern, patternExecutable,
-          computedPatternDerivation, patternNextEquality,
-          patternBindingsEquality⟩ :=
-        executablePatternFuelReplay_of_tracked coherent replay
-          signatureWellFormed (by
-            simp only [MatchFirstArm.listComplexity_cons,
-              MatchFirstArm.complexity_mk] at bound
-            omega) patternDerivation
-      cases patternNextEquality
-      rw [patternBindingsEquality] at bodyDerivation
-      obtain ⟨computedBody, computedAfterBody, bodyExecutable,
-          computedBodyDerivation⟩ :=
-        replay body (by
-          simp only [MatchFirstArm.listComplexity_cons,
-            MatchFirstArm.complexity_mk] at bound
-          omega) bodyDerivation.2 signatureWellFormed bodyDerivation.1
-      obtain ⟨bodyComparison⟩ := coherent body (by
-        simp only [MatchFirstArm.listComplexity_cons,
-          MatchFirstArm.complexity_mk] at bound
-        omega) signatureWellFormed bodyDerivation.1 bodyDerivation.2
-          computedBodyDerivation
-      cases bodyComparison.next_eq
-      obtain ⟨computedTail, computedNext, tailExecutable,
-          computedTailDerivation⟩ :=
+  | @fromFallback first rest armSupply trackedFallback trackedAfter
+      trackedArms trackedNext fallbackDerivation armsDerivation =>
+      obtain ⟨computedFallback, computedAfterFallback, fallbackExecutable,
+          computedFallbackDerivation⟩ :=
+        replay fallback fallbackBound fallbackDerivation.2 signatureWellFormed
+          fallbackDerivation.1
+      obtain ⟨fallbackComparison⟩ := coherent fallback fallbackBound
+        signatureWellFormed fallbackDerivation.1 fallbackDerivation.2
+          computedFallbackDerivation
+      cases fallbackComparison.next_eq
+      obtain ⟨computedArms, computedNext, armsExecutable,
+          computedArmsDerivation⟩ :=
         executableMatchFirstTailFuelReplay_of_tracked coherent replay
-          signatureWellFormed (by
-            simp only [MatchFirstArm.listComplexity_cons] at bound
-            omega) (list_length_lt_twice_complexity_add_one arms)
-          tailDerivation
+          signatureWellFormed bound
+          (list_length_lt_twice_complexity_add_one (first :: rest))
+          armsDerivation
       exact ⟨_, computedNext,
-        by simp [elaborateArmsUsing, patternExecutable, bodyExecutable,
-          elaborateTailUsing, tailExecutable],
-        .cons computedPatternDerivation computedBodyDerivation
-          computedTailDerivation⟩
+        by
+          have tailExecutable : elaborateTailUsing
+              (elaborateFuel signature fuel) signature
+              context targetType matcherType computedFallback.target
+              (first :: rest) trackedAfter =
+                some (computedArms, computedNext) := by
+            simpa [elaborateTailUsing] using armsExecutable
+          simp [elaborateArmsUsing, fallbackExecutable, tailExecutable],
+        .fromFallback computedFallbackDerivation computedArmsDerivation⟩
 
 /-- Ordered single-result matching preserves non-exact fuel-local replay. -/
 theorem matchFirstM4FuelReplayStep : MatchFirstM4FuelReplayStep := by
-  intro target matcher arms coherent replay
+  intro target matcher arms fallback coherent replay
   intro signature fuel context supply next generated derivation
     signatureWellFormed wellFormed
   cases fuel with
@@ -183,11 +174,9 @@ theorem matchFirstM4FuelReplayStep : MatchFirstM4FuelReplayStep := by
         M4FreshRenaming.MatchFirstTyping.ElaboratesUsing.trackContextSupport
           signatureWellFormed wellFormed derivation
       cases tracked with
-      | @matchFirst _ _ _ _ generatedTarget afterTarget generatedMatcher
-          afterMatcher generatedArms finish exhaustive targetDerivation
+      | @matchFirst _ _ _ _ _ generatedTarget afterTarget generatedMatcher
+          afterMatcher generatedArms finish targetDerivation
           matcherDerivation armsDerivation =>
-          have exhaustiveCheck : armsExhaustive arms = true :=
-            (exhaustive_iff_armsExhaustive arms).1 exhaustive
           obtain ⟨computedTarget, computedAfterTarget, targetExecutable,
               computedTargetDerivation⟩ :=
             replay target (by
@@ -213,6 +202,8 @@ theorem matchFirstM4FuelReplayStep : MatchFirstM4FuelReplayStep := by
             executableMatchFirstArmsFuelReplay_of_tracked coherent replay
               signatureWellFormed (by
                 simp only [Expr.complexity_matchFirst]
+                omega) (by
+                simp only [Expr.complexity_matchFirst]
                 omega) armsDerivation
           have targetExecutableUsing :
               M4.elaborateFuelUsing unify signature fuel context target supply =
@@ -225,15 +216,15 @@ theorem matchFirstM4FuelReplayStep : MatchFirstM4FuelReplayStep := by
           have armsExecutableUsing :
               elaborateArmsUsing
                   (M4.elaborateFuelUsing unify signature fuel) signature context
-                  computedTarget.target computedMatcher.target arms afterMatcher =
+                  computedTarget.target computedMatcher.target fallback arms afterMatcher =
                 some (computedArms, computedNext) := by
             simpa [M4.elaborateFuel] using armsExecutable
           exact ⟨_, computedNext,
             by simp [M4.elaborateFuel, M4.elaborateFuelUsing,
-              MatchFirstTyping.elaborateUsing, exhaustiveCheck,
+              MatchFirstTyping.elaborateUsing,
               targetExecutableUsing, matcherExecutableUsing,
               armsExecutableUsing],
-            .matchFirst exhaustive computedTargetDerivation
+            .matchFirst computedTargetDerivation
               computedMatcherDerivation computedArmsDerivation⟩
 
 end TypePM.Source.M4.CompletenessArchitecture

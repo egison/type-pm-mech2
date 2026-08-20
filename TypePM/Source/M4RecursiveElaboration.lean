@@ -113,9 +113,9 @@ def elaborateFuelUsing (solveHard : List Equation → Option Subst)
       | .matchAll target matcher pattern body =>
           elaborateMatchAllUsing recur signature context target matcher pattern
             body supply
-      | .matchFirst target matcher arms =>
+      | .matchFirst target matcher arms fallback =>
           MatchFirstTyping.elaborateUsing recur signature context target matcher
-            arms supply
+            arms fallback supply
 
 /-- Public fuel-indexed elaborator, using the total certified unifier at
 every `let` boundary. -/
@@ -231,9 +231,9 @@ def ElaboratesFuel (signature : FrozenSignature) :
       | .matchAll target matcher pattern body =>
           MatchAllElaboratesUsing recur signature context target matcher pattern
             body supply generated next
-      | .matchFirst target matcher arms =>
+      | .matchFirst target matcher arms fallback =>
           MatchFirstTyping.ElaboratesUsing recur signature context
-            (.matchFirst target matcher arms) supply generated next
+            (.matchFirst target matcher arms fallback) supply generated next
 
 /-- Public declarative elaboration hides the structural fuel witness. -/
 def Elaborates (signature : FrozenSignature) (context : Context)
@@ -449,7 +449,7 @@ theorem elaborateFuelUsing_sound
       | matchAll target matcher pattern body =>
           exact elaborateMatchAllUsing_sound induction wellFormed (by
             simpa [elaborateFuelUsing] using success)
-      | matchFirst target matcher arms =>
+      | matchFirst target matcher arms fallback =>
           exact MatchFirstTyping.elaborateUsing_sound induction wellFormed (by
             simpa [elaborateFuelUsing] using success)
 

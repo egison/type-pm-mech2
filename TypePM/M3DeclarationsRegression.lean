@@ -65,6 +65,18 @@ theorem map_instantiation_exact :
         ⟨9, 3⟩) := by
   rfl
 
+theorem pair_projection_instantiations_exact :
+    PrimitiveSchemes.pairFirst.instantiate ⟨7, 3⟩ =
+        (.fn (.prod [.var ⟨7⟩, .var ⟨8⟩]) (.var ⟨7⟩), ⟨9, 3⟩) ∧
+      PrimitiveSchemes.pairSecond.instantiate ⟨7, 3⟩ =
+        (.fn (.prod [.var ⟨7⟩, .var ⟨8⟩]) (.var ⟨8⟩), ⟨9, 3⟩) := by
+  exact ⟨rfl, rfl⟩
+
+theorem paper1_primitive_declaration_order_exact :
+    Paper1Signature.primitives.map PrimitiveDeclaration.operation =
+      PrimOp.all :=
+  Paper1Signature.primitive_operations_exact
+
 theorem paper1_signature_wellFormed :
     Paper1Signature.signature.WellFormed :=
   Paper1Signature.wellFormed
