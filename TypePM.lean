@@ -203,6 +203,7 @@ import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
 import TypePM.Source.M4StructuralReplay
 import TypePM.Source.M4PatternReplay
+import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.AxiomAudit
 

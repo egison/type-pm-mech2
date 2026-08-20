@@ -49,6 +49,7 @@ import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
 import TypePM.Source.M4StructuralReplay
 import TypePM.Source.M4PatternReplay
+import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
@@ -876,6 +877,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_coherence_and_patternSteps
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.executablePatternFuelReplay
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.executablePatternsFuelReplay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchAllM4FuelReplayStep
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchFirstM4FuelReplayStep
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.supportProvenance
 #assert_allowed_axioms TypePM.Source.FixElaboratesUsing.supportProvenance
