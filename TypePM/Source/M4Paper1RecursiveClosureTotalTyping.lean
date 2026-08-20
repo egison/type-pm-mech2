@@ -164,6 +164,56 @@ theorem matcherFixElaboration_totalValueTyping
             (TotalRecursiveClosureBodyTyping.solvedMatcher
               bodyElaboration bodySemantic bodyContextCompatible clausesTyped)
 
+/-- The same public M4 extraction with the recursive closure body retained at
+its exact postcomposed runtime context.  This is the static certificate needed
+by the step-indexed logical relation; unlike `TotalValueTyping`, it does not
+hide the captured-context types behind the closure constructor. -/
+theorem matcherFixElaboration_totalRecursiveClosureBodyTyping
+    (elaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature fuel
+      sourceContext (.fixE (.matcher clauses)) start generated next)
+    (semantic : generated.SemanticSolution solution)
+    (contextCompatible : MonomorphicContextCompatible
+      sourceContext runtimeContext solution) :
+    TotalRecursiveClosureBodyTyping
+      ((Fix.domain (.matcher clauses) start).apply solution ::
+        (.fn
+          ((Fix.domain (.matcher clauses) start).apply solution)
+          ((Fix.codomain (.matcher clauses) start).apply solution)) ::
+        runtimeContext)
+      (.matcher clauses)
+      ((Fix.codomain (.matcher clauses) start).apply solution) := by
+  cases fuel with
+  | zero => contradiction
+  | succ fuel =>
+      simp only [M4.ElaboratesFuel] at elaboration
+      obtain ⟨generatedBody, bodyElaboration, generated_eq⟩ :=
+        fixElaboration_parts elaboration
+      cases fuel with
+      | zero => simp [M4.ElaboratesFuel] at bodyElaboration
+      | succ bodyFuel =>
+          simp only [M4.ElaboratesFuel] at bodyElaboration
+          rw [generated_eq] at semantic
+          obtain ⟨bodySemantic, bodyEquation⟩ :=
+            fromFix_body_semantic semantic
+          have bodyContextCompatible : MonomorphicContextCompatible
+              (Fix.bodyContext (Fix.domain (.matcher clauses) start)
+                (Fix.codomain (.matcher clauses) start) sourceContext)
+              ((Fix.domain (.matcher clauses) start).apply solution ::
+                ((Ty.fn (Fix.domain (.matcher clauses) start)
+                  (Fix.codomain (.matcher clauses) start)).apply solution) ::
+                runtimeContext)
+              solution := by
+            simp only [Fix.bodyContext]
+            exact .cons (.cons contextCompatible)
+          have clausesTyped :=
+            bodyElaboration.toTotalMatcherClausesTyping_of_m4Fuel
+              totalRecursiveExpressionBridge bodySemantic
+              bodyContextCompatible
+          simp only [Equation.Holds] at bodyEquation
+          simpa [Ty.apply, bodyEquation] using
+            (TotalRecursiveClosureBodyTyping.solvedMatcher
+              bodyElaboration bodySemantic bodyContextCompatible clausesTyped)
+
 /-- A matcher-root fix also exposes safety of evaluating its body literal.
 This evaluates only `.matcher clauses` to a closure; it does not run clause
 dispatch or any arm body. -/
@@ -653,6 +703,187 @@ theorem closedMultisetMatcherValue_totalTyping :
               exact ⟨_, TotalValueTyping.solvedMatcherClosure
                 definitionEnvironmentTyped matcherLiteralElaboration matcherSemantic
                 matcherContextCompatible output_eq ⟨[], by simp⟩⟩
+
+/-- Exact body certificates selected by the public closed-multiset principal
+derivation after the concrete `something : Matcher Any Int` postcomposition.
+The captured List constructor retains the particular monomorphic instance
+chosen by that same solution; no unrelated matcher or function value is
+quantified over. -/
+def ClosedMultisetConcreteBodyTyping : Prop :=
+  ∃ listDomain listCapability listTarget,
+    TotalRecursiveClosureBodyTyping
+      [listDomain, .fn listDomain (.matcher listCapability listTarget)]
+      (.matcher listMatcherClauses) (.matcher listCapability listTarget) ∧
+    TotalRecursiveClosureBodyTyping
+      [.slot .any .int,
+        .fn (.slot .any .int)
+          (.matcher (.con PatternFormer.list [.any]) (DataTypes.list .int)),
+        .fn listDomain (.matcher listCapability listTarget)]
+      (.matcher multisetClauses)
+      (.matcher (.con PatternFormer.list [.any]) (DataTypes.list .int))
+
+/-- Public, premise-free extraction of the exact recursive matcher bodies
+used by the closed Paper-1 multiset runtime value. -/
+theorem closedMultiset_concreteBodyTyping :
+    ClosedMultisetConcreteBodyTyping := by
+  have principal := M4.infer_success_principalTyping
+    Paper1FrozenSignature.wellFormed
+    M4Paper1ClosedMultisetExactRegression.infer_exact
+  rcases principal with ⟨derivation⟩
+  rcases derivation.elaboration with ⟨fuel, fuelDerivation⟩
+  cases fuel with
+  | zero => simp [M4.ElaboratesFuel] at fuelDerivation
+  | succ fuel =>
+      simp only [M4.ElaboratesFuel] at fuelDerivation
+      rcases fuelDerivation with
+        ⟨generatedFunction, afterFunction, generatedArgument, afterArgument,
+          functionElaboration, argumentElaboration, generated_eq, next_eq⟩
+      cases fuel with
+      | zero => simp [M4.ElaboratesFuel] at functionElaboration
+      | succ childFuel =>
+          have functionShape := functionElaboration
+          simp only [M4.ElaboratesFuel] at functionShape
+          rcases functionShape with
+            ⟨generatedMultiset, multisetElaboration, function_eq⟩
+          let principalSolution := derivation.closure.substitution
+          let solution :=
+            Subst.compose closedMatcherSpecialization principalSolution
+          have principalSemantic : Generated.SemanticSolution
+              (Generated.fromApp generatedFunction generatedArgument
+                (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+                principalSolution := by
+            rw [← generated_eq]
+            exact TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
+              derivation.closure
+          have outerSemantic : Generated.SemanticSolution
+              (Generated.fromApp generatedFunction generatedArgument
+                (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+                solution :=
+            principalSemantic.postcompose closedMatcherSpecialization
+          obtain ⟨functionSemantic, argumentSemantic, functionEquation,
+              argumentConversion⟩ := fromApp_semantic_parts outerSemantic
+          obtain ⟨conversionClass, argumentConversion⟩ := argumentConversion
+          have multisetSemantic : generatedMultiset.SemanticSolution solution := by
+            rw [function_eq] at functionSemantic
+            exact fromLam_body_semantic functionSemantic
+          have multisetDomainEquality :
+              (Ty.var ⟨0⟩).apply solution =
+                (Ty.var ⟨afterArgument.ty⟩).apply solution := by
+            simp only [Equation.Holds] at functionEquation
+            rw [function_eq] at functionEquation
+            simp only [Generated.fromLam, Ty.apply] at functionEquation
+            exact Ty.fn.inj functionEquation |>.1
+          have closedResultEquality :
+              generatedMultiset.target.apply solution =
+                M4Paper1ClosedMultisetExactRegression.closedMultisetType.apply
+                  closedMatcherSpecialization := by
+            simp only [Equation.Holds] at functionEquation
+            rw [function_eq] at functionEquation
+            simp only [Generated.fromLam, Ty.apply] at functionEquation
+            have codomainEquality := Ty.fn.inj functionEquation |>.2
+            have publicEquality := congrArg
+              (Ty.apply closedMatcherSpecialization) derivation.target_eq
+            simp [PrincipalBlockClosure.target, generated_eq,
+              Generated.fromApp, Ty.apply_compose] at publicEquality
+            exact codomainEquality.trans publicEquality.symm
+          have argumentShape := argumentElaboration
+          simp only [M4.ElaboratesFuel] at argumentShape
+          obtain ⟨argumentBody, argumentBodyElaboration,
+              argumentGenerated_eq⟩ := fixElaboration_parts argumentShape
+          have argumentDomainEquality :
+              generatedArgument.target.apply solution =
+                (Ty.var ⟨afterArgument.ty⟩).apply solution := by
+            have convertedFunction : CheckConversion conversionClass
+                (.fn
+                  ((Fix.domain (.matcher listMatcherClauses) afterFunction).apply
+                    solution)
+                  ((Fix.codomain (.matcher listMatcherClauses) afterFunction).apply
+                    solution))
+                ((Ty.var ⟨afterArgument.ty⟩).apply solution) := by
+              simpa [argumentGenerated_eq, Generated.fromFix, Ty.apply] using
+                argumentConversion
+            have equality := checkConversion_fromFunction_eq convertedFunction
+            rw [argumentGenerated_eq]
+            simpa [Generated.fromFix, Ty.apply] using equality.symm
+          let listDomain :=
+            (Fix.domain (.matcher listMatcherClauses) afterFunction).apply solution
+          let listCapability :=
+            (Cap.var ⟨afterFunction.cap + 1⟩).apply solution.cap
+          let listTarget :=
+            (Ty.var ⟨afterFunction.ty + 1⟩).apply solution
+          have listCodomain_eq :
+              (Fix.codomain (.matcher listMatcherClauses) afterFunction).apply
+                solution = .matcher listCapability listTarget := by
+            rfl
+          have capturedListType_eq :
+              (Ty.var ⟨0⟩).apply solution =
+                .fn listDomain (.matcher listCapability listTarget) := by
+            rw [multisetDomainEquality, ← argumentDomainEquality,
+              argumentGenerated_eq]
+            simp [Generated.fromFix, Ty.apply, listDomain, listCodomain_eq]
+          have listBody :=
+            matcherFixElaboration_totalRecursiveClosureBodyTyping
+              argumentElaboration argumentSemantic
+              (MonomorphicContextCompatible.nil)
+          have concreteListBody : TotalRecursiveClosureBodyTyping
+              [listDomain, .fn listDomain (.matcher listCapability listTarget)]
+              (.matcher listMatcherClauses)
+              (.matcher listCapability listTarget) := by
+            simpa [listDomain, listCodomain_eq] using listBody
+          have multisetBody :=
+            matcherFixElaboration_totalRecursiveClosureBodyTyping
+              multisetElaboration multisetSemantic
+              (MonomorphicContextCompatible.cons
+                (tail := MonomorphicContextCompatible.nil))
+          have multisetDomain_eq :
+              (Fix.domain (.matcher multisetClauses)
+                ((Context.initialSupply []).nextTy 1)).apply solution =
+                .slot .any .int := by
+            cases childFuel with
+            | zero => simp [M4.ElaboratesFuel] at multisetElaboration
+            | succ multisetFuel =>
+                have multisetFixShape := multisetElaboration
+                simp only [M4.ElaboratesFuel] at multisetFixShape
+                obtain ⟨generatedMatcher, matcherElaboration,
+                  multisetGenerated_eq⟩ := fixElaboration_parts multisetFixShape
+                rw [multisetGenerated_eq] at closedResultEquality
+                simp only [Generated.fromFix, Ty.apply] at closedResultEquality
+                have domainEquality := Ty.fn.inj closedResultEquality |>.1
+                simpa [M4Paper1ClosedMultisetExactRegression.closedMultisetType,
+                  closedMatcherSpecialization, Subst.compose, Subst.singleTy,
+                  Subst.singleCap, Ty.apply, Cap.apply] using domainEquality
+          have multisetCodomain_eq :
+              (Fix.codomain (.matcher multisetClauses)
+                ((Context.initialSupply []).nextTy 1)).apply solution =
+                .matcher (.con PatternFormer.list [.any])
+                  (DataTypes.list .int) := by
+            cases childFuel with
+            | zero => simp [M4.ElaboratesFuel] at multisetElaboration
+            | succ multisetFuel =>
+                have multisetFixShape := multisetElaboration
+                simp only [M4.ElaboratesFuel] at multisetFixShape
+                obtain ⟨generatedMatcher, matcherElaboration,
+                  multisetGenerated_eq⟩ := fixElaboration_parts multisetFixShape
+                rw [multisetGenerated_eq] at closedResultEquality
+                simp only [Generated.fromFix, Ty.apply] at closedResultEquality
+                have codomainEquality := Ty.fn.inj closedResultEquality |>.2
+                simpa [M4Paper1ClosedMultisetExactRegression.closedMultisetType,
+                  closedMatcherSpecialization, Subst.compose, Subst.singleTy,
+                  Subst.singleCap, Ty.apply, Ty.applyList, Cap.apply,
+                  Cap.applyList, DataTypes.list] using codomainEquality
+          refine ⟨listDomain, listCapability, listTarget, concreteListBody, ?_⟩
+          rw [multisetDomain_eq, multisetCodomain_eq] at multisetBody
+          change TotalRecursiveClosureBodyTyping
+            [.slot .any .int,
+              .fn (.slot .any .int)
+                (.matcher (.con PatternFormer.list [.any])
+                  (DataTypes.list .int)),
+              (Ty.var ⟨0⟩).apply solution]
+            (.matcher multisetClauses)
+            (.matcher (.con PatternFormer.list [.any])
+              (DataTypes.list .int)) at multisetBody
+          rw [capturedListType_eq] at multisetBody
+          exact multisetBody
 
 /-- Typing alone does not prove application safety.  Applying the recursive
 closure still requires a separate safety proof for its matcher body. -/
