@@ -149,7 +149,7 @@ coherenceはbodyから観測できる型付け結果が一致することを保�
 | M1 | lambda，application，制約block，公開推論 | **done** | 健全性，完全性，受理同値，決定可能性，主要性，主要型の有限な変数名変更による一意性まで証明済み |
 | M2 | bound-index scheme，多相`letE`，value block一般化 | **done** | 一般の入れ子`letE`についてcoherence，replay，公開推論の完全性・主要性まで証明済み |
 | M3 | data／pattern constructor，primitive，signature，`ifE` | **done** | M3固有の宣言・elaborationと，M2--M3全域の公開定理を証明済み．論文例のM4/M5部分は別に追跡する |
-| M4 | pattern，matcher literal，`matchAll`，`matchFirst`，`fixE`，pattern function | **in progress** | 全対象構文で公開推論の健全性・完全性・受理同値・決定可能性・主要性・主要型一意性を証明済み．公開freeze checker PF5だけがこの段階に残る |
+| M4 | pattern，matcher literal，`matchAll`，`matchFirst`，`fixE`，pattern function | **done** | 全対象構文の健全性・完全性・受理同値・決定可能性・主要性・主要型一意性と，source-defined pattern functionの公開freeze checkerまで完了 |
 | M5 | 評価，matching探索，runtime typing，型安全性 | **in progress** | core評価とmatching基盤に加え，解決済みruntime型を前提に任意長のuser matcher arm／clause列の型保存と進行を証明済み．M4静的型付けとの接続，多相`let`，共通fuel帰納，MNode全体が残る |
 
 M3を`done`とするのは，M3固有のconstructor／primitive／signature基盤とM2--M3の
@@ -170,6 +170,9 @@ inventoryで追跡する．
 - 全最外構文のcoherenceとreplayを全構文帰納へ接続し，`FullM4Coherence`，
   `FullM4ExecutableReplay`，`M4.Typing.infer_isSome`を無条件の公開定理にした．これにより
   論文結果5.2--5.5のM4静的部分は完了した．
+- `PatternFunctionFreeze.freezePatternFunctions`はsourceのinterfaceとbody列から検査済みの
+  `FrozenSignature`，runtime定義表，`PatternFunctionDefinitions.Agree`を構成する．Paper 2の
+  `pair`をfreeze結果からchecked MNode evaluatorへ直接渡す回帰を固定した．
 - Paper 1のsource-defined `list`とclosed `multiset`について，公開`M4.infer`の正確な型と
   `M4.Typing`をkernel計算だけで固定した．open `multiset`は空contextで`none`になることを
   正確に証明した．
@@ -358,8 +361,8 @@ M4完全性では，任意の`Typing`導出を受け取り，公開`infer`も成
 | F3 | M4主要性 | **done** | `M4.infer_success_principalResult` |
 | F4 | M4主要型の一意性 | **done** | `M4.PrincipalTyping.finiteRenamingEq` |
 
-M4-Bの静的完全性と主要性は完了した．今後のM4作業は，PF5の公開freeze checkerと，M5へ渡す
-runtime typingの橋である．
+M4-Bの静的完全性と主要性は完了した．PF5も完了しており，残る作業はM5へ渡すruntime typingの
+橋と動的型安全性である．
 
 ### M4-C：pattern functionとDamas--Milner対応
 
@@ -372,7 +375,7 @@ matcher機能を使わない式を新体系へ埋め込めるかを調べる独�
 | PF2 | 標準具体化の本体検査 | **done** | `PatternFunctionDefinitions.Agree`とPaper 2 `pair` |
 | PF3 | inline展開 | **done** | private binderを持たない断片の全source構文上の展開と評価 |
 | PF4 | MNode実行 | **done** | private bindingを隔離し，引数patternのbindingだけを外へ返す探索 |
-| PF5 | 公開freeze checker | **not started** | 検査済みsource本体から`FrozenSignature`とruntime定義表を構成する手続き |
+| PF5 | 公開freeze checker | **done** | `freezePatternFunctions`が全interfaceを先に凍結し，各bodyの標準具体化を検査してsignature，runtime定義表，`Agree`証明を返す |
 | PF6 | 全具体化のinterface一致 | **scope decision** | 現在の`Agree`より強い独立定理．本体完成には含めず，pattern functionを中心に扱う論文で主張する場合に対象へ加える |
 | DM1 | 独立したDM形式体系 | **done** | DM専用の型，scheme，式，`Typing`，sourceへの埋込み |
 | DM2 | 基本的な実Source接続 | **done** | literal，variable，polymorphic identityの公開推論／`Source.Typing` |
@@ -509,8 +512,8 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    source-defined pattern functionの型安全性へ接続する．
 6. Paper 1 inventoryの残る統合静的例と任意fuel no-stuckを埋める．
 
-静的結果5.1--5.5は確定した．動的レーンの1--5で独立に進められる補題と，PF5の公開freeze
-checkerを並行して実装する．型安全性5.6--5.8を確定するのは1--6の完了後とする．
+静的結果5.1--5.5とM4の公開freeze checkerは確定した．動的レーンの1--5で独立に進められる
+補題を並行して実装する．型安全性5.6--5.8を確定するのは1--6の完了後とする．
 DM3とPF6はこの作業列を止めず，「ユーザー判断が必要になる項目」に書いた論文上の判断時点まで
 将来課題として保持する．
 
@@ -547,7 +550,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
 | runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
 | user matcherの型付けと条件付き安全性 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean)，[UserMatcherGeneralSafety.lean](TypePM/UserMatcherGeneralSafety.lean) |
-| pattern function／MNode | [PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean) |
+| pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean) |
 | 公理監査 | [AxiomAuditCommand.lean](TypePM/AxiomAuditCommand.lean)，[AxiomAudit.lean](TypePM/AxiomAudit.lean) |
 
 ## Buildと監査

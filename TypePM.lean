@@ -112,6 +112,8 @@ import TypePM.Source.M4PatternFunctionDefinitionRegression
 import TypePM.Source.M4PatternFunctionPairRegression
 import TypePM.Source.PatternFunctionExpansion
 import TypePM.Source.M4PatternFunctionExpansionRegression
+import TypePM.Source.PatternFunctionFreeze
+import TypePM.Source.PatternFunctionFreezeRegression
 import TypePM.Source.MatcherPattern
 import TypePM.Source.M4MatcherPatternRegression
 import TypePM.Runtime.OrderedChoice
