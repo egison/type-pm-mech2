@@ -460,14 +460,14 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | P1-L04 | 7節`multiset`定義 | done | in progress | closed wrapperはexact，open版の空context拒否も完了．list bindingを持つcontextでopen本体を直接型付けする名前付き定理が残る |
 | P1-L05 | 直接のmultiset `matchAll` | done | not started | 実行済みの最終式を統合M4型付けへ接続する |
 | P1-L06 | `unconsWith m target` | done | done | slot要求を持つ主要型と`M4.Typing`を固定済み |
-| P1-L07 | `unconsWith`の正負呼出し | done | in progress | bare `something`拒否は完了．`multiset something`正例が残る |
+| P1-L07 | `unconsWith`の正負呼出し | done | done | bare `something`拒否に加え，多相library bindingからの`multiset something`と，正しい`List Int` slotを使う`unconsWith`呼出しのexact推論／`M4.Typing`を固定済み |
 | P1-L08 | 共有lambda domainの二順序 | done | done | 新仕様では両順序を同じ型で受理する |
 | P1-L09 | 明示的`let` | done | done | M2公開推論と`Source.Typing`を固定済み |
 | P1-L10 | value pattern内の`x ++ [1]` | done | done | Integer/List不一致による宣言的拒否 |
 | P1-L11 | `$x :: #x` | done | done | occurs checkによる宣言的拒否 |
 | P1-L12 | `#x :: $x :: _` | done | done | 左で未束縛の参照を宣言的に拒否 |
 | P1-L13 | `something`のvariable／cons | done | done | variable成功とcons capability不足拒否を確認済み |
-| P1-L14 | `matchAll 5 ... #1` | done | not started | 正常な不一致式の統合M4型付けが残る |
+| P1-L14 | `matchAll 5 ... #1` | done | done | 実行回帰と同一の式を`List Int`としてexact推論し，`M4.Typing`へ接続済み |
 | P1-L15 | Bool対象とinteger matcher | done | done | target型不一致による宣言的拒否 |
 
 実行を主張するlistingだけを次に分ける．「実行」はexact `evalFuel`，「関係」は`Eval`または

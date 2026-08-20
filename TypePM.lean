@@ -201,6 +201,7 @@ import TypePM.Source.M4Paper1NegativeRegression
 import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
+import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4CompletenessArchitecture
 import TypePM.Source.M4RuntimeBridge
 import TypePM.Source.M4SupplySupport
