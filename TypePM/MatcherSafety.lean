@@ -66,6 +66,13 @@ mutual
         PatternBinds expressionTyping environmentTypes bindingTypes
           (.and leftPattern rightPattern) target
           (leftBindings ++ rightBindings)
+    | or
+        (left : PatternBinds expressionTyping environmentTypes bindingTypes
+          leftPattern target newBindings)
+        (right : PatternBinds expressionTyping environmentTypes bindingTypes
+          rightPattern target newBindings) :
+        PatternBinds expressionTyping environmentTypes bindingTypes
+          (.or leftPattern rightPattern) target newBindings
 
   /-- Left-to-right pattern-list binding.  Later items see all bindings from
   earlier items before the ordinary environment. -/
@@ -122,6 +129,13 @@ mutual
         MatchingAtomTyping expressionTyping environmentTypes bindingTypes
           ⟨.and leftPattern rightPattern, matcher, target⟩
           (leftBindings ++ rightBindings)
+    | or
+        (left : MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+          ⟨leftPattern, matcher, target⟩ newBindings)
+        (right : MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+          ⟨rightPattern, matcher, target⟩ newBindings) :
+        MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+          ⟨.or leftPattern rightPattern, matcher, target⟩ newBindings
     | productVar
         (targetTyped : ValueTyping target targetType) :
         MatchingAtomTyping expressionTyping environmentTypes bindingTypes
@@ -188,6 +202,29 @@ theorem ValueTypings.appendEnvironment :
   | _, _, .nil, environmentTyped => environmentTyped
   | _, _, .cons head tail, environmentTyped =>
       .cons head (tail.appendEnvironment environmentTyped)
+
+theorem EnvironmentTyping.append :
+    ∀ {leftEnvironment leftTypes},
+      EnvironmentTyping leftEnvironment leftTypes →
+      EnvironmentTyping rightEnvironment rightTypes →
+      EnvironmentTyping (leftEnvironment ++ rightEnvironment)
+        (leftTypes ++ rightTypes)
+  | _, _, .nil, right => right
+  | _, _, .cons head tail, right => .cons head (tail.append right)
+
+/-- Clause bodies observe exactly the evaluator's concatenation order: data
+bindings, then pattern-pattern captures, then the matcher definition
+environment. -/
+theorem ValueTypings.dataCapturesDefinition
+    (dataTyped : ValueTypings dataValues dataTypes)
+    (capturesTyped : ValueTypings captureValues captureTypes)
+    (definitionTyped : EnvironmentTyping definitionEnvironment definitionTypes) :
+    EnvironmentTyping
+      (dataValues ++ captureValues ++ definitionEnvironment)
+      (dataTypes ++ captureTypes ++ definitionTypes) := by
+  rw [List.append_assoc, List.append_assoc]
+  exact dataTyped.appendEnvironment
+    (capturesTyped.appendEnvironment definitionTyped)
 
 theorem ValueTypings.append :
     ∀ {leftValues leftTypes}, ValueTypings leftValues leftTypes →
@@ -313,6 +350,20 @@ theorem reduceBuiltinAtom_typedSafe
           simp at member
           subst branch
           exact ⟨_, by simpa using leftTyped.and_atoms rightTyped, rfl⟩⟩⟩
+  | or leftTyped rightTyped =>
+      exact .inr ⟨_, rfl,
+        ⟨[], .nil, by
+          intro branch member
+          simp at member
+          rcases member with rfl | rfl
+          · exact ⟨_, by
+              simpa using MatchingAtomsTyping.cons _ [] _ [] leftTyped
+                (MatchingAtomsTyping.nil (bindingTypes :=
+                  bindingTypes ++ newBindings)), rfl⟩
+          · exact ⟨_, by
+              simpa using MatchingAtomsTyping.cons _ [] _ [] rightTyped
+                (MatchingAtomsTyping.nil (bindingTypes :=
+                  bindingTypes ++ newBindings)), rfl⟩⟩⟩
   | productVar targetTyped =>
       exact .inr ⟨_, rfl,
         ⟨[], .nil, by

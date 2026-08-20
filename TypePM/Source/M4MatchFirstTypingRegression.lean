@@ -46,6 +46,12 @@ def tupleBody : Expr := .tuple [.var 0, .var 1]
 
 def tupleArm : MatchFirstArm := .mk tuplePattern tupleBody
 
+theorem tuple_arm_declaratively_exhaustive :
+    MatchFirstTyping.Exhaustive [tupleArm] := by
+  apply MatchFirstTyping.Exhaustive.last
+  simp [tuplePattern, MatchFirstTyping.structurallyIrrefutable,
+    MatchFirstTyping.allStructurallyIrrefutable]
+
 def tupleMatch : Expr :=
   .matchFirst (.var 0) tupleMatcher [tupleArm]
 

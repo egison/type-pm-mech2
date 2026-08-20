@@ -1,3 +1,4 @@
+import TypePM.AxiomAuditCommand
 import TypePM.Names
 import TypePM.Primitive
 import TypePM.InferenceExactness
@@ -35,6 +36,7 @@ import TypePM.Source.MatcherDemandRegression
 import TypePM.Source.M4Paper1NegativeRegression
 import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4ElaborationFuelTransport
+import TypePM.Source.M4ElaborationFuelMonotonicity
 import TypePM.Source.M4CompletenessArchitecture
 import TypePM.Source.M4SupplySupport
 import TypePM.Source.M4FixTypingRegression
@@ -64,6 +66,7 @@ import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.RuntimeTypingRegression
 import TypePM.MatcherSafetyRegression
+import TypePM.UserMatcherSafetyRegression
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M3Regression
@@ -104,708 +107,769 @@ import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.FullM2Completion
 import TypePM.Source.M2Regression
+import TypePM.Source.DamasMilner
 
 /-!
 # Axiom audit for public milestones
 
-These commands make the trusted assumptions of selected public results visible in
-every full build.
+These commands enforce that selected public results depend only on `propext`,
+`Classical.choice`, and `Quot.sound`.  An unexpected assumption is a build error.
 -/
 
-#print axioms TypePM.DataCtor.canonical_pairwise_distinct
-#print axioms TypePM.PatternCtor.canonical_pairwise_distinct
-#print axioms TypePM.NamesRegression.nil_spellings_agree
-#print axioms TypePM.PrimOp.all_pairwise_distinct
-#print axioms TypePM.Cap.apply_compose
-#print axioms TypePM.Ty.apply_compose
-#print axioms TypePM.Regression.pair_principal
-#print axioms TypePM.Regression.pair_checks_as_slot
-#print axioms TypePM.Regression.structured_matcher_checks_at_any_slot
-#print axioms TypePM.unify_none_iff_unsatisfiable
-#print axioms TypePM.unify_completeMGUSolver
-#print axioms TypePM.UnificationRegression.con_same_former_and_arity_succeeds
-#print axioms TypePM.UnificationRegression.data_same_former_and_arity_succeeds
-#print axioms TypePM.UnificationRegression.con_name_mismatch_rejected
-#print axioms TypePM.UnificationRegression.data_name_mismatch_rejected
-#print axioms TypePM.UnificationRegression.con_arity_mismatch_rejected
-#print axioms TypePM.UnificationRegression.data_arity_mismatch_rejected
-#print axioms TypePM.unify_localized
-#print axioms TypePM.Subst.Localized.compose
-#print axioms TypePM.AbsorbingPrincipal.localized
-#print axioms TypePM.promoteUnder_equation_no_special_after
-#print axioms TypePM.Resolution.special_expected_head
-#print axioms TypePM.Resolution.resolve_apply_canonical_of_retract
-#print axioms TypePM.ResolutionTransport.residualEquations_transport_of_mutualFactors
-#print axioms TypePM.Inference.infer_success_typing
-#print axioms TypePM.Typing.infer_isSome
-#print axioms TypePM.Inference.typable_iff_infer_isSome
-#print axioms TypePM.Inference.typableDecidable
-#print axioms TypePM.Inference.infer_principal
-#print axioms TypePM.Inference.infer_success_principalTyping
-#print axioms TypePM.PrincipalTyping.finiteRenaming_unique
-#print axioms TypePM.GeneratedItems.siblingAlphaEq_collect_of_perm
-#print axioms TypePM.solves_rename_perm
-#print axioms TypePM.GeneratesItems.swapAdjacentPair
-#print axioms TypePM.Saturated.permuteInitial
-#print axioms TypePM.TypingDerivation.transportAlphaEq
-#print axioms TypePM.Generated.AlphaEq.blockAccepts_iff
-#print axioms TypePM.M1BoundaryRegression.infer_useFirst_exact
-#print axioms TypePM.M1BoundaryRegression.infer_applicationFirst_exact
-#print axioms TypePM.M1BoundaryRegression.infer_singletonFirst_none
-#print axioms TypePM.M1BoundaryRegression.infer_pairFirst_none
-#print axioms TypePM.M1BoundaryRegression.infer_pair_exact_raw_product
-#print axioms TypePM.M1BoundaryRegression.singletonFirst_not_typable
-#print axioms TypePM.M1BoundaryRegression.pairFirst_not_typable
-#print axioms TypePM.unify_absorbingPrincipal
-#print axioms TypePM.PrincipalBlockClosure.substitution_absorbingPrincipal
-#print axioms TypePM.Resolution.equations_support
-#print axioms TypePM.CheckObligation.mem_unificationVars_expected
-#print axioms TypePM.Generated.saturationSupport_subset
-#print axioms TypePM.Generated.exists_semanticSolution_of_blockAccepts
-#print axioms TypePM.Generated.blockAccepts_iff_exists_semanticSolution_of_pending_eq_nil
-#print axioms TypePM.GeneratedSemanticAcceptanceCounterexample.semanticSolution_not_iff_blockAccepts
-#print axioms TypePM.Generated.blockAccepts_iff_exists_stableSemanticSolution
-#print axioms TypePM.Generated.StableSemanticSolution.transportHard
-#print axioms TypePM.Generated.exists_stableSemanticSolution_iff_of_hardEquivalent
-#print axioms TypePM.PrincipalBlockClosure.localized_of_absorbing
-#print axioms TypePM.inferGeneratedUsing_unify_localizedPrincipalBlockClosure
-#print axioms TypePM.Source.Scheme.wellFormed
-#print axioms TypePM.Source.Scheme.applyFree_id
-#print axioms TypePM.Source.Scheme.instantiate_sound
-#print axioms TypePM.Source.Context.generalize_wellFormed
-#print axioms TypePM.Source.Context.generalize_instantiates
-#print axioms TypePM.Source.Context.solves_interfaceEquations_iff
-#print axioms TypePM.Source.Context.applyFree_interface_transport
-#print axioms TypePM.Source.Context.generalize_variableRenaming
-#print axioms TypePM.Source.Context.generalize_variableRenaming_exact
-#print axioms TypePM.Source.Scheme.instantiate_ty_origin
-#print axioms TypePM.Source.Scheme.instantiate_cap_origin
-#print axioms TypePM.Source.Context.applyFree_initialSupply_le_of_localized
-#print axioms TypePM.Source.Elaborates.supply_le_next
-#print axioms TypePM.Source.Elaborates.supportProvenance
-#print axioms TypePM.Source.ElaboratesItems.supportProvenance
-#print axioms TypePM.Source.Elaborates.support_below
-#print axioms TypePM.Source.Context.interfaceEquations_supportProvenance
-#print axioms TypePM.Source.GeneratedSupportProvenance.fromLet_interface
-#print axioms TypePM.Source.PrincipalBlockClosure.letBodySupply_eq
-#print axioms TypePM.Source.Elaborates.letBodySupply_eq
-#print axioms TypePM.Source.PrincipalTyping.localizedClosure
-#print axioms TypePM.Source.ContextInterfaceRegression.swapBoth_notAbsorbing
-#print axioms TypePM.Source.ContextInterfaceRegression.plainMostGeneral_can_create_spurious_interface_failure
-#print axioms TypePM.PrincipalBlockClosure.representativeTransport
-#print axioms TypePM.PrincipalBlockClosure.RepresentativeTransportUsing.context_forward
-#print axioms TypePM.Source.Inference.infer_success_principalTyping
-#print axioms TypePM.Source.Inference.infer_success_typing
-#print axioms TypePM.Source.M2Regression.infer_polymorphicIdentity_exact
-#print axioms TypePM.Source.M2Regression.polymorphicIdentityTyping
-#print axioms TypePM.Source.M2Regression.infer_explicitLet_exact
-#print axioms TypePM.Source.M2Regression.explicitLetTyping
-#print axioms TypePM.Source.M2Regression.infer_cutRejectsBackflow_none
-#print axioms TypePM.Source.M2Regression.cutRejectsBackflow_not_typable
-#print axioms TypePM.BlockAccepts.iff_of_hardEquivalent
-#print axioms TypePM.FreshAliasElimination.blockAccepts_addTyAlias_iff_of_noPending
-#print axioms TypePM.FreshAliasElimination.blockAccepts_addCapAlias_iff_of_noPending
-#print axioms TypePM.FreshAliasSaturation.blockAccepts_addTyAlias_iff
-#print axioms TypePM.FreshAliasSaturation.blockAccepts_addCapAlias_iff
-#print axioms TypePM.FreshAliasSequence.CommonCoreEquivalent.blockAccepts_iff
-#print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
-#print axioms TypePM.Source.InterfaceAliasCounterexample.no_left_addition_decomposition
-#print axioms TypePM.Source.InterfaceAliasCounterexample.commonCoreEquivalent_positive
-#print axioms TypePM.Source.InterfaceAliasDecomposition.AliasFreshness.admissible_of_scopedBy
-#print axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.targets_mutualInstances
-#print axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.fromLet_blockAccepts_iff
-#print axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.interfaceEndpointScopedBy
-#print axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.FreshClosureInterfaceDecomposition.admissible_of_avoids
-#print axioms TypePM.Source.GlobalRenamingCounterexample.executable_elaborates
-#print axioms TypePM.Source.GlobalRenamingCounterexample.alternative_elaborates
-#print axioms TypePM.Source.GlobalRenamingCounterexample.no_global_renaming
-#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.reverseUnify_absorbingMGUSolver
-#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.targets_not_mutualInstances
-#print axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.badSupply_not_wellFormed
-#print axioms TypePM.Source.Supply.wellFormedFor_initialSupply
-#print axioms TypePM.Source.Generated.ScopedContextualEquivalent.blockAccepts_iff
-#print axioms TypePM.Source.Elaborates.sequential_crossAvoidance
-#print axioms TypePM.Source.Elaborates.scopedComparison
-#print axioms TypePM.Source.ElaboratesItems.scopedComparison
-#print axioms TypePM.Source.Elaborates.scopedComparison_of_letFree
-#print axioms TypePM.Source.Elaborates.alignment_of_fixesAtOrAbove
-#print axioms TypePM.Source.Elaborates.transport_of_fixesAtOrAbove
-#print axioms TypePM.Source.GeneratedEquationCommonCore.scopedContextualEquivalent_of_frameAdmissible
-#print axioms TypePM.Source.scopedLetStep
-#print axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_blockAccepts_iff
-#print axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_targets_mutualInstances
-#print axioms TypePM.Source.CrossGeneratedClosureAlignment.renamedFromLet_pending_exact
-#print axioms TypePM.Source.IsolatedRenamingCounterexample.not_scopedContextualEquivalent
-#print axioms TypePM.Source.VariableRenaming.FixesOutside.renameGenerated_eq
-#print axioms TypePM.Source.GeneratedFrame.renameGenerated_plug_of_fixesOutside
-#print axioms TypePM.Source.Generated.scopedContextualEquivalent_rename_of_fixesOutside
-#print axioms TypePM.Source.Elaborates.generatedAvoids_earlierHidden
-#print axioms TypePM.Source.SourceSafeWholeLetAlignment.scopedContextualEquivalent
-#print axioms TypePM.Source.SourceSafeWholeLetAlignment.interfaceComparison
-#print axioms TypePM.Source.FrameAdmissibilityCounterexample.not_frameAdmissible
-#print axioms TypePM.Source.FutureFixingCounterexample.no_fresh_fixesOutside
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.ofEquationCommonCore
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.commonCore_pending_eq
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.pending_eq
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent.blockAccepts_iff
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareDirectGeneratedComparisonCertificate.scopedGeneratedComparison
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareDirectGeneratedComparisonCertificate.letComparisonHandler
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.DirectContextualGeneratedComparisonCertificate.scopedGeneratedComparison
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.directContextualLetComparisonHandler_iff
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.scopedGeneratedComparison
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.letComparisonHandler
-#print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.exists_stableSemanticSolution_iff
-#print axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent.exists_stableSemanticSolution_iff
-#print axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_exists_stableSemanticSolution_iff_of_freshAliasSequence
-#print axioms TypePM.Source.InterfaceAliasCounterexample.blocks_not_hardEquivalent
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.no_supported_target_alignment
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.value_elaborates
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.valueStart_wellFormed
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_let_elaborates
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_let_elaborates
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_direct_scopedGeneratedComparison
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_no_sourceSafeWholeLetAlignment
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_pending_let_elaborates
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_pending_let_elaborates
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_renamingAwareCommonCoreEquivalent
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_blockAccepts_iff
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_not_renamingAwareDirectCertificate
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.not_renamingAwareDirectLetNormalizationHandler
-#print axioms TypePM.Source.SourceSafeAlignmentCounterexample.not_directLetNormalizationHandler
-#print axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
-#print axioms TypePM.Source.ElaborationRenaming.Alignment.transport
-#print axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
-#print axioms TypePM.Source.PrincipalBlockClosure.postcompose_solves_other_fromLet_hard_iff
-#print axioms TypePM.Source.PrincipalBlockClosure.RepresentativeTransportUsing.closedContext_globalRenaming
-#print axioms TypePM.BlockAccepts.inferGeneratedUsing_isSome
-#print axioms TypePM.Source.Typing.infer_isSome_of_letFree
-#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_letFree
-#print axioms TypePM.Source.Inference.typableDecidable_of_letFree
-#print axioms TypePM.Source.Inference.infer_success_principalResult_of_letFree
-#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_letFree
-#print axioms TypePM.Source.WellFormedElaborationPrincipalityComplete.toAcceptance
-#print axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
-#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
-#print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationAcceptanceComplete
-#print axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.Source.Inference.infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.EntailedObligationEq
-#print axioms TypePM.PromotionClosure.transportEntailed
-#print axioms TypePM.Saturated.transportEntailed
-#print axioms TypePM.BlockAccepts.iff_of_entailedAligned
-#print axioms TypePM.Source.fullM2LetGraphAliasPresentationComplete
-#print axioms TypePM.Source.fullM2LetSupportedAssemblyBridge
-#print axioms TypePM.Source.fullM2CoherenceComplete
-#print axioms TypePM.Source.wellFormedElaborationPrincipalityComplete
-#print axioms TypePM.Source.Typing.infer_isSome
-#print axioms TypePM.Source.Inference.typable_iff_infer_isSome
-#print axioms TypePM.Source.Inference.typableDecidable
-#print axioms TypePM.Source.Inference.infer_success_principalResult
-#print axioms TypePM.Source.Inference.infer_principalResult
-#print axioms TypePM.Source.PrincipalTyping.finiteRenamingEq
-#print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_wellFormed
-#print axioms TypePM.Source.M3DeclarationsRegression.list_pattern_closed
-#print axioms TypePM.Source.M3DeclarationsRegression.list_cons_dual_instantiation_exact
-#print axioms TypePM.Source.M3DeclarationsRegression.map_instantiation_exact
-#print axioms TypePM.Source.M3DeclarationsRegression.paper1_signature_wellFormed
-#print axioms TypePM.Source.M3DeclarationsRegression.malformed_list_capability_not_wellFormed
-#print axioms TypePM.Source.Paper1FrozenSignature.wellFormed
-#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_unique
-#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_closed
-#print axioms TypePM.Source.FrozenSignature.lookupPatternFunction_wellFormed
-#print axioms TypePM.Source.M4FrozenSignatureRegression.one_pattern_function_wellFormed
-#print axioms TypePM.Source.M4FrozenSignatureRegression.lookup_emptyList_exact
-#print axioms TypePM.Source.M4FrozenSignatureRegression.duplicate_pattern_function_not_wellFormed
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.definitions_agree
-#print axioms TypePM.Source.PatternFunctionDefinitions.Agree
-#print axioms TypePM.Source.PatternFunctionDefinitions.Agree.lookup_checked
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_unit_exact
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_pass_exact
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_conjunction_exact
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.private_binder_not_inline_safe
-#print axioms TypePM.Source.M4PatternFunctionPairRegression.signature_wellFormed
-#print axioms TypePM.Source.M4PatternFunctionPairRegression.pair_elaboration_exact
-#print axioms TypePM.Source.M4PatternFunctionPairRegression.pair_semantic_solution
-#print axioms TypePM.Source.M4PatternFunctionPairRegression.pairChecked
-#print axioms TypePM.Source.M4PatternFunctionPairRegression.definitions_agree
-#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.duplicated_parameter_not_inline_safe
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unit_expands_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.pass_expands_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_children_expand_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_template_expands_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.complete_match_site_expands_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.matcher_and_matchFirst_expand_exact
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unknown_function_rejected
-#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.private_binding_definition_rejected
-#print axioms TypePM.Source.PPat.holesInSourceOrder_nodup
-#print axioms TypePM.Source.PPat.captureSlots_nodup
-#print axioms TypePM.Source.PPat.hole_capture_slots_disjoint
-#print axioms TypePM.Source.DPat.bindingsInSourceOrder_nodup
-#print axioms TypePM.Source.DPat.bindingSlots_nodup
-#print axioms TypePM.Source.capture_data_binding_slots_disjoint
-#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_shapeOK
-#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_capture_order
-#print axioms TypePM.Source.M4MatcherPatternRegression.value_cons_summary_exact
-#print axioms TypePM.Source.M4MatcherPatternRegression.capture_after_hole_rejected
-#print axioms TypePM.Source.M4MatcherPatternRegression.hole_counts_zero_one_two
-#print axioms TypePM.Source.M4MatcherPatternRegression.all_seven_capture_counts_exact
-#print axioms TypePM.Source.M4MatcherPatternRegression.data_arms_shapeOK
-#print axioms TypePM.Source.M4MatcherPatternRegression.data_arm_bindings_exact
-#print axioms TypePM.Source.M4MatcherPatternRegression.bad_constructor_arities_rejected
-#print axioms TypePM.Runtime.chooseOne_length
-#print axioms TypePM.Runtime.splitAll_length
-#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_three_exact
-#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_duplicate_positions_preserved
-#print axioms TypePM.Runtime.OrderedChoiceRegression.split_three_exact
-#print axioms TypePM.Runtime.OrderedChoiceRegression.split_duplicate_positions_preserved
-#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_present_once
-#print axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_absent
-#print axioms TypePM.Runtime.mem_chooseOne_iff
-#print axioms TypePM.Runtime.mem_splitAll_iff
-#print axioms TypePM.Runtime.deleteFirst?_eq_some_iff
-#print axioms TypePM.Runtime.deleteFirst?_eq_none_iff
-#print axioms TypePM.Runtime.mem_chooseValue_iff
-#print axioms TypePM.Runtime.RemovesOne.perm
-#print axioms TypePM.Runtime.DeletesFirst.perm
-#print axioms TypePM.Runtime.Splits.perm
-#print axioms TypePM.Runtime.FuelResult.map_eq_ok_iff
-#print axioms TypePM.Runtime.FuelResult.bind_eq_ok_iff
-#print axioms TypePM.Runtime.FuelResult.traverse_eq_ok_iff
-#print axioms TypePM.Runtime.FuelResult.traverse_notStuck
-#print axioms TypePM.Runtime.FuelResultRegression.traverse_success_exact
-#print axioms TypePM.Runtime.FuelResultRegression.traverse_timeout_stops
-#print axioms TypePM.Runtime.FuelResultRegression.traverse_stuck_distinct_from_timeout
-#print axioms TypePM.Runtime.firstHit_eq_ok_iff
-#print axioms TypePM.Runtime.firstHit_notStuck
-#print axioms TypePM.Runtime.OrderedDispatchRegression.first_success_preserves_source_order
-#print axioms TypePM.Runtime.OrderedDispatchRegression.all_misses_are_normal_failure
-#print axioms TypePM.Runtime.OrderedDispatchRegression.timeout_stops_before_later_success
-#print axioms TypePM.Runtime.OrderedDispatchRegression.stuck_stops_before_later_success
-#print axioms TypePM.Runtime.OrderedDispatchRegression.successful_dispatch_has_relational_derivation
-#print axioms TypePM.Runtime.OrderedDispatchRegression.safe_candidate_dispatch_never_stuck
-#print axioms TypePM.Runtime.getElem?_eq_some_iff_lookup
-#print axioms TypePM.Runtime.Lookup.deterministic
-#print axioms TypePM.Runtime.Lookup.of_append_left
-#print axioms TypePM.Runtime.Lookup.index_lt_length
-#print axioms TypePM.Runtime.EnvironmentRegression.older_relational
-#print axioms TypePM.Runtime.EnvironmentRegression.weakening_shifts_index
-#print axioms TypePM.Runtime.depthFirstFuel_sound
-#print axioms TypePM.Runtime.DepthFirst.complete
-#print axioms TypePM.Runtime.depthFirstFuel_ok_add
-#print axioms TypePM.Runtime.depthFirstFuel_notStuck
-#print axioms TypePM.Runtime.DepthFirstSearchRegression.depth_first_order_exact
-#print axioms TypePM.Runtime.DepthFirstSearchRegression.successful_run_has_relational_derivation
-#print axioms TypePM.Runtime.DepthFirstSearchRegression.safe_search_never_stuck
-#print axioms TypePM.Runtime.GroundValue.viewList_buildList
-#print axioms TypePM.Runtime.matchDataPattern_eq_some_iff
-#print axioms TypePM.Runtime.DataPatternMatches.bindings_length
-#print axioms TypePM.Runtime.DataPatternRegression.nil_arm_matches_empty_exact
-#print axioms TypePM.Runtime.DataPatternRegression.cons_arm_bindings_source_order
-#print axioms TypePM.Runtime.DataPatternRegression.tuple_arm_bindings_source_order
-#print axioms TypePM.Runtime.DataPatternRegression.constructor_mismatch_rejected
-#print axioms TypePM.Runtime.DataPatternRegression.constructor_arity_mismatch_rejected
-#print axioms TypePM.Runtime.inspectPatternPattern_eq_some_iff
-#print axioms TypePM.Runtime.PatternPatternMatches.counts
-#print axioms TypePM.Runtime.PatternPatternRegression.nil_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.head_only_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.head_only_header_rejects_structured_tail
-#print axioms TypePM.Runtime.PatternPatternRegression.value_cons_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.general_cons_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.join_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.whole_value_header_dispatch_exact
-#print axioms TypePM.Runtime.PatternPatternRegression.catch_all_header_dispatches_once
-#print axioms TypePM.Runtime.PatternPatternRegression.constructor_mismatch_is_failure
-#print axioms TypePM.Runtime.PatternPatternRegression.constructor_arity_mismatch_is_failure
-#print axioms TypePM.Runtime.EncodesList.view_iff
-#print axioms TypePM.Runtime.GroundPrimitive.evalAdd_adequate
-#print axioms TypePM.Runtime.GroundPrimitive.evalAdd_complete
-#print axioms TypePM.Runtime.GroundPrimitive.evalAppend_adequate
-#print axioms TypePM.Runtime.GroundPrimitive.evalAppend_complete
-#print axioms TypePM.Runtime.GroundPrimitive.evalMember_adequate
-#print axioms TypePM.Runtime.GroundPrimitive.evalMember_complete
-#print axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_adequate
-#print axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_complete
-#print axioms TypePM.Runtime.GroundPrimitive.evalMap_adequate
-#print axioms TypePM.Runtime.GroundPrimitive.evalMap_complete
-#print axioms TypePM.Runtime.GroundPrimitive.eval_eq_ok_iff
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.bool_views_exact
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.list_encoding_exact
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.append_exact
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.member_present_is_true
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.member_absent_is_false
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.deleteFirst_duplicate_exact
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_preserves_order
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.malformed_list_view_fails
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.add_wrong_arity_stuck
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.append_non_list_stuck
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_stuck_propagates
-#print axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_timeout_propagates
-#print axioms TypePM.Runtime.Value.matcherClosure_cursorValid
-#print axioms TypePM.Runtime.Value.advanceMatcher_cursorValid
-#print axioms TypePM.Runtime.Value.structuralEq_ofGround_self
-#print axioms TypePM.Runtime.Value.toGround?_ofGround
-#print axioms TypePM.Runtime.Value.valuesToGroundValues?_groundValuesToValues
-#print axioms TypePM.Runtime.Value.ofGround_injective
-#print axioms TypePM.Runtime.Value.lookup_iff_getElem?
-#print axioms TypePM.Runtime.ValuesRegression.every_runtime_constructor_is_available
-#print axioms TypePM.Runtime.ValuesRegression.matcher_advance_is_source_ordered
-#print axioms TypePM.Runtime.ValuesRegression.constructor_structural_equality_succeeds
-#print axioms TypePM.Runtime.ValuesRegression.closure_is_not_structurally_equal_to_itself
-#print axioms TypePM.Runtime.ValuesRegression.matcher_is_not_structurally_equal_to_itself
-#print axioms TypePM.Runtime.ValuesRegression.ground_roundtrip_exact
-#print axioms TypePM.Runtime.ValuesRegression.nested_matcher_projection_is_rejected
-#print axioms TypePM.Runtime.Value.viewList_buildList
-#print axioms TypePM.Runtime.decodeProduct_many_exact
-#print axioms TypePM.Runtime.ValueShapeRegression.zero_holes_require_unit_tuple
-#print axioms TypePM.Runtime.ValueShapeRegression.one_hole_uses_scalar
-#print axioms TypePM.Runtime.ValueShapeRegression.two_holes_require_exact_tuple
-#print axioms TypePM.Runtime.ValueShapeRegression.decomposition_order_exact
-#print axioms TypePM.Runtime.ValueShapeRegression.malformed_decomposition_element_rejected
-#print axioms TypePM.Runtime.zipMatchingAtoms_eq_some_iff
-#print axioms TypePM.Runtime.reduceBuiltinAtom_hit_iff
-#print axioms TypePM.Runtime.reduceBuiltinAtom_notStuck
-#print axioms TypePM.Runtime.MatchingStateRegression.something_value_mismatch_is_normal_failure
-#print axioms TypePM.Runtime.MatchingStateRegression.tuple_children_preserve_source_order
-#print axioms TypePM.Runtime.MatchingStateRegression.product_matcher_delegates_scalar_pattern_once
-#print axioms TypePM.Runtime.MatchingStateRegression.builtin_success_has_relational_rule
-#print axioms TypePM.Runtime.stepMatchingState_eq_ok_iff
-#print axioms TypePM.Runtime.stepMatchingState_notStuck
-#print axioms TypePM.Runtime.searchMatchingFuel_sound
-#print axioms TypePM.Runtime.searchMatchingFuel_notStuck
-#print axioms TypePM.Runtime.MatchingSearchRegression.variable_match_search_exact
-#print axioms TypePM.Runtime.MatchingSearchRegression.value_mismatch_returns_no_answers
-#print axioms TypePM.Runtime.MatchingSearchRegression.tuple_work_and_bindings_preserve_runtime_order
-#print axioms TypePM.Runtime.MatchingSearchRegression.two_variable_bindings_remain_in_source_order
-#print axioms TypePM.Runtime.MatchingSearchRegression.later_value_pattern_reads_earlier_binding
-#print axioms TypePM.Runtime.MatchingSearchRegression.duplicate_branches_remain_distinct
-#print axioms TypePM.Runtime.MatchingSearchRegression.unhandled_atom_is_stuck
-#print axioms TypePM.Runtime.MatchingSearchRegression.normal_failure_is_not_stuck
-#print axioms TypePM.Runtime.MatchingSearchRegression.successful_search_has_depth_first_derivation
-#print axioms TypePM.Runtime.combineAtomReducers_notStuck
-#print axioms TypePM.Runtime.combineAtomReducers_total
-#print axioms TypePM.Runtime.searchMatchingFuel_combined_notStuck
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.miss_falls_through_to_fallback
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.first_hit_suppresses_stuck_fallback
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.normal_failure_is_a_hit_and_does_not_fall_through
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.timeout_is_not_hidden_by_later_success
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.stuck_is_not_hidden_by_later_success
-#print axioms TypePM.Runtime.CombinedAtomReducerRegression.combined_total
-#print axioms TypePM.Runtime.evalFuel_sound
-#print axioms TypePM.Runtime.Eval.complete
-#print axioms TypePM.Runtime.evalFuel_ok_add
-#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_orderedMatchAll_firstResult
-#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_firstResult
-#print axioms TypePM.Runtime.evalMatchFirstArmsFuel_skip
-#print axioms TypePM.Runtime.EvaluationRegression.map_applies_closure_left_to_right_exact
-#print axioms TypePM.Runtime.EvaluationRegression.map_success_has_relational_derivation
-#print axioms TypePM.Runtime.EvaluationRegression.identity_core_never_stuck
-#print axioms TypePM.Runtime.MatchAllRegression.something_variable_evaluates_body_under_binding
-#print axioms TypePM.Runtime.MatchAllRegression.something_value_mismatch_is_empty_not_stuck
-#print axioms TypePM.Runtime.MatchAllRegression.something_conjunction_evaluates_in_source_order
-#print axioms TypePM.Runtime.MatchAllRegression.something_conjunction_mismatch_is_empty_not_stuck
-#print axioms TypePM.Runtime.MatchAllRegression.conjunction_builtin_reducer_exact
-#print axioms TypePM.Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck
-#print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_head_preserves_duplicate_branches
-#print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all
-#print axioms TypePM.Runtime.MatchAllRegression.integrated_head_execution_has_finite_fuel
-#print axioms TypePM.Runtime.MatchAllRegression.pattern_function_atom_is_stuck
-#print axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_executes_exactly
-#print axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_has_independent_derivation
-#print axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_uses_first_successful_arm
-#print axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_preserves_source_arm_order
-#print axioms TypePM.Runtime.MatchFirstRegression.matchFirst_success_has_finite_fuel
-#print axioms TypePM.Runtime.MatchFirstRegression.empty_runtime_arm_list_is_stuck
-#print axioms TypePM.Runtime.MatchFirstRegression.matching_timeout_propagates
-#print axioms TypePM.Runtime.MatchFirstRegression.selected_body_stuck_propagates
-#print axioms TypePM.Runtime.evalPatternFunctionsFuel_sound
-#print axioms TypePM.Runtime.EvalPatternFunctions.complete
-#print axioms TypePM.Runtime.evalPatternFunctionsFuel_ok_of_le
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_executes_exact
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_executes_exact
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_has_independent_derivation
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_has_independent_derivation
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unknown_definition_is_stuck
-#print axioms TypePM.Runtime.PatternFunctionEvaluationRegression.private_binding_definition_is_stuck
-#print axioms TypePM.Runtime.stepPatternFunctionHead_sound
-#print axioms TypePM.Runtime.stepPatternFunctionState_sound
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_search_exact
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_private_binding_does_not_escape
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.application_has_priority_over_matcher_dispatch
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.parameter_export_keeps_private_bindings
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.node_completion_discards_private_bindings
-#print axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_search_has_structural_depth_first_derivation
-#print axioms TypePM.Runtime.evalPatternFunctionNodesFuel
-#print axioms TypePM.Runtime.evalCheckedPatternFunctionNodesFuel
-#print axioms TypePM.Runtime.evalPatternFunctionNodesFuel_matchAll_search_sound
-#print axioms TypePM.Runtime.evalCheckedPatternFunctionNodesFuel_matchAll_search_sound
-#print axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_program_executes_exact
-#print axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_checked_program_executes_exact
-#print axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_program_has_step_function_depth_first_derivation
-#print axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_first_program_executes_exact
-#print axioms TypePM.Runtime.Value.eq_of_toGround?_eq_some
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_ground_projection_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_ground_projection_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_ground_projection_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_enumerates_all_prefixes_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_preserves_three_source_order_choices_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_exact
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_independent_derivation
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_independent_derivation
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_independent_derivation
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_finite_fuel
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_finite_fuel
-#print axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_finite_fuel
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_nonempty_is_normal_failure
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.head_only_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_absence_is_normal_failure
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.general_cons_clause_executes_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.join_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_mismatch_is_normal_failure
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.catch_all_clause_result_exact
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.head_only_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.general_cons_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.join_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_clause_has_independent_derivation
-#print axioms TypePM.Runtime.MultisetClauseExecutionRegression.catch_all_clause_has_independent_derivation
-#print axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
-#print axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
-#print axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
-#print axioms TypePM.Runtime.ValueDataPatternRegression.wildcard_ignores_matcher
-#print axioms TypePM.Runtime.ValueDataPatternRegression.constructor_does_not_destructure_closure
-#print axioms TypePM.Runtime.ValueDataPatternRegression.cons_bindings_preserve_source_order
-#print axioms TypePM.Runtime.ValueDataPatternRegression.tuple_may_bind_non_ground_values
-#print axioms TypePM.Runtime.ValueDataPatternRegression.constructor_arity_mismatch_is_failure
-#print axioms TypePM.Runtime.tryMatcherArm_eq_ok_iff
-#print axioms TypePM.Runtime.firstHit_arms_eq_ok_iff
-#print axioms TypePM.Runtime.tryMatcherClause_eq_ok_iff
-#print axioms TypePM.Runtime.ClauseDispatchRegression.all_data_arm_mismatch_is_normal_empty_result
-#print axioms TypePM.Runtime.ClauseDispatchRegression.selected_pattern_clause_does_not_fall_through_after_data_mismatch
-#print axioms TypePM.Runtime.dispatchMatcherClauses_eq_ok_iff
-#print axioms TypePM.Runtime.reduceMatcherAtom_hit_iff
-#print axioms TypePM.Runtime.ClauseDispatchRegression.nil_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_second_arm_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_first_arm_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.all_seven_concrete_clause_shapes_checked
-#print axioms TypePM.Runtime.ClauseDispatchRegression.pattern_mismatch_alone_advances_to_next_clause
-#print axioms TypePM.Runtime.ClauseDispatchRegression.data_mismatch_alone_advances_to_next_arm
-#print axioms TypePM.Runtime.ClauseDispatchRegression.empty_candidate_list_is_hit_and_stops_later_arm
-#print axioms TypePM.Runtime.ClauseDispatchRegression.empty_candidate_list_stops_later_clause
-#print axioms TypePM.Runtime.ClauseDispatchRegression.capture_data_and_matcher_environments_are_exact
-#print axioms TypePM.Runtime.ClauseDispatchRegression.captures_do_not_use_matcher_definition_environment
-#print axioms TypePM.Runtime.ClauseDispatchRegression.improper_decomposition_list_is_stuck
-#print axioms TypePM.Runtime.ClauseDispatchRegression.wrong_decomposition_product_arity_is_stuck
-#print axioms TypePM.Runtime.ClauseDispatchRegression.wrong_next_matcher_product_arity_is_stuck
-#print axioms TypePM.Runtime.ClauseDispatchRegression.arm_body_timeout_propagates_before_later_arm
-#print axioms TypePM.Runtime.ClauseDispatchRegression.next_matcher_timeout_propagates_before_later_clause
-#print axioms TypePM.Runtime.ClauseDispatchRegression.capture_stuck_propagates_before_arms
-#print axioms TypePM.Runtime.ClauseDispatchRegression.cursor_suffix_is_valid
-#print axioms TypePM.Runtime.ClauseDispatchRegression.matcher_dispatch_uses_remaining_suffix
-#print axioms TypePM.Runtime.ClauseDispatchRegression.non_matcher_dispatch_is_stuck
-#print axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_builds_shared_reduction
-#print axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_misses_non_matcher
-#print axioms TypePM.Runtime.ClauseDispatchRegression.builtin_miss_falls_through_to_concrete_matcher_handler
-#print axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_timeout_propagates
-#print axioms TypePM.Runtime.ClauseDispatchRegression.successful_dispatch_has_independent_derivation
-#print axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_hit_has_independent_derivation
-#print axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
-#print axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
-#print axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup
-#print axioms TypePM.Source.MatcherClauseShape.capture_arm_bindingSlots_disjoint
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.hole_conventions_zero_one_k_exact
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_clause_shapes_checked
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_headers_exact
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_arm_counts_exact
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.all_checked_arm_slots_linear_and_disjoint
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.catch_all_not_last_rejected
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.bad_arities_rejected
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.duplicate_binding_slots_rejected
-#print axioms TypePM.Source.M4MatcherClauseShapeRegression.wrong_hole_convention_rejected
-#print axioms TypePM.Source.MatcherArm.toHeader_bindingOrder
-#print axioms TypePM.Source.MatcherClause.toShape_holeConvention
-#print axioms TypePM.Source.M4SyntaxRegression.catchAllClause_shape_checked
-#print axioms TypePM.Source.M4SyntaxRegression.elaborate_fixE_none
-#print axioms TypePM.Source.M4SyntaxRegression.matcher_not_relationally_elaborated
-#print axioms TypePM.Source.M4SyntaxRegression.matchAll_not_relationally_elaborated
-#print axioms TypePM.Source.M4SyntaxRegression.matchFirst_not_relationally_elaborated
-#print axioms TypePM.Source.M4PatternTypingRegression.value_after_binder_elaborates
-#print axioms TypePM.Source.M4PatternTypingRegression.value_before_binder_rejected
-#print axioms TypePM.Source.M4PatternTypingRegression.elaborate_conjunction_exact
-#print axioms TypePM.Source.M4PatternTypingRegression.conjunction_value_before_binder_rejected
-#print axioms TypePM.Source.M4PatternTypingRegression.conjunction_relational
-#print axioms TypePM.Source.M4PatternTypingRegression.occurs_check_tail_rejected
-#print axioms TypePM.Source.M4PatternTypingRegression.value_expression_int_list_mismatch_rejected
-#print axioms TypePM.Source.M4PatternTypingRegression.matchAll_constraint_boundary
-#print axioms TypePM.Source.M4PatternTypingRegression.infer_variable_match_exact
-#print axioms TypePM.Source.M4PatternTypingRegression.something_cons_capability_rejected
-#print axioms TypePM.Source.M4PatternTypingRegression.stored_pattern_function_interface_only
-#print axioms TypePM.Source.M4PatternTypingRegression.variable_match_relational
-#print axioms TypePM.Source.MatchFirstTyping.elaborateUsing_sound
-#print axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.exhaustive
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_pattern_lambda_desugaring_exact
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.conjunction_irrefutable_exact
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.infer_tuple_destructuring_exact
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_destructuring_relational
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.source_order_first_arm_metadata_exact
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.absent_arms_rejected
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.inconsistent_result_types_rejected
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.bad_matcher_rejected
-#print axioms TypePM.Source.M4MatchFirstTypingRegression.uncovered_final_arm_rejected
-#print axioms TypePM.Source.Paper1Programs.multiset_clause_count
-#print axioms TypePM.Source.Paper1Programs.multiset_clause_shapes_checked
-#print axioms TypePM.Source.Paper1Programs.list_matcher_clause_count
-#print axioms TypePM.Source.Paper1Programs.list_matcher_clause_shapes_checked
-#print axioms TypePM.Source.elaborateFixUsing_sound
-#print axioms TypePM.Source.FixInference.inferFix_success_fixTyping
-#print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact
-#print axioms TypePM.Source.M4FixTypingRegression.matcher_root_fix_shape_exact
-#print axioms TypePM.Source.M4FixTypingRegression.pattern_shifts_checked_exact
-#print axioms TypePM.Source.M4FixTypingRegression.conjunction_shifts_checked_exact
-#print axioms TypePM.Source.M4FixTypingRegression.clause_shifts_checked_exact
-#print axioms TypePM.Source.M4FixTypingRegression.infer_direct_exact
-#print axioms TypePM.Source.M4FixTypingRegression.direct_fixTyping
-#print axioms TypePM.Source.M4FixTypingRegression.alias_not_fixTyping
-#print axioms TypePM.Source.M4FixTypingRegression.higher_order_not_fixTyping
-#print axioms TypePM.Source.M4FixTypingRegression.mutual_style_not_fixTyping
-#print axioms TypePM.Source.M4FixTypingRegression.matcher_root_direct_but_unelaborated
-#print axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteral_sound
-#print axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteralUsing_sound
-#print axioms TypePM.Source.M4MatcherTypingRegression.all_seven_final_shapes_exact
-#print axioms TypePM.Source.M4MatcherTypingRegression.all_seven_static_checks
-#print axioms TypePM.Source.M4MatcherTypingRegression.infer_identity_literal_exact
-#print axioms TypePM.Source.M4MatcherTypingRegression.catch_all_order_rejected
-#print axioms TypePM.Source.M4MatcherTypingRegression.next_matcher_direction_rejected_after_header_solving
-#print axioms TypePM.Source.M4MatcherTypingRegression.missing_general_constructor_coverage_rejected
-#print axioms TypePM.Source.M4MatcherTypingRegression.nonexhaustive_data_arms_rejected
-#print axioms TypePM.Source.M4.elaborateFuel_sound
-#print axioms TypePM.Source.M4.elaborate_sound
-#print axioms TypePM.Source.M4.infer_success_typing
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.infer_value_pattern_exact
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.value_pattern_typing
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.infer_match_first_exact
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.match_first_typing
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.nonexhaustive_match_first_rejected
-#print axioms TypePM.Source.M4RecursiveElaborationRegression.escaping_self_rejected
-#print axioms TypePM.Source.MatcherDemand.unconsWith_infer_principal
-#print axioms TypePM.Source.MatcherDemand.unconsWith_principalTyping
-#print axioms TypePM.Source.MatcherDemand.unconsWith_typing
-#print axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_infer_none
-#print axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_infer_none
-#print axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_infer_none
-#print axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_infer_none
-#print axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_infer_none
-#print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_not_typable
-#print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_infer_none
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.list_static_checks
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_static_checks
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.listMatcherDefinition_complexity
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetDefinition_complexity
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.closedMultisetDefinition_complexity
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetSomething_complexity
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.list_direct_self_check
-#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_direct_self_check
-#print axioms TypePM.unify_eq_of_unifyWithFuel_success
-#print axioms TypePM.inferGeneratedUsing_unify_of_fuel_success
-#print axioms TypePM.Source.M4.elaborateFuel_success_of_solverFuel_success
-#print axioms TypePM.Source.M4.CompletenessArchitecture.elaboratesFuel_toM2_of_m2Fragment
-#print axioms TypePM.Source.M4.CompletenessArchitecture.fullM4PairProperty_of_m2Fragment
-#print axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
-#print axioms TypePM.Source.M4.ElaboratesFuel.supply_le_next
-#print axioms TypePM.Source.M4.ElaboratesFuel.supportProvenance
-#print axioms TypePM.Source.M4.Elaborates.supportProvenance
-#print axioms TypePM.Source.M4.supplyAndSupport
-#print axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.supportProvenance
-#print axioms TypePM.Source.FixElaboratesUsing.supportProvenance
-#print axioms TypePM.Source.M3Regression.infer_true_exact
-#print axioms TypePM.Source.M3Regression.infer_nil_exact
-#print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds
-#print axioms TypePM.Source.M3Regression.elaborate_add_succeeds
-#print axioms TypePM.Source.M3Regression.elaborate_conditional_succeeds
-#print axioms TypePM.Source.M3Regression.primitive_type_mismatch_rejected
-#print axioms TypePM.Source.M3Regression.true_relational_soundness
-#print axioms TypePM.Source.PrimitiveSchemes.instantiate_add
-#print axioms TypePM.Source.PrimitiveSchemes.instantiate_append
-#print axioms TypePM.Source.PrimitiveSchemes.instantiate_member
-#print axioms TypePM.Source.PrimitiveSchemes.instantiate_deleteFirst
-#print axioms TypePM.Source.PrimitiveSchemes.instantiate_map
-#print axioms TypePM.Source.conditionalScheme_instantiate
-#print axioms TypePM.Runtime.paper1SignatureCompatible
-#print axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
-#print axioms TypePM.Source.Typing.toRuntimeTyping
-#print axioms TypePM.Runtime.CheckConversion.apply
-#print axioms TypePM.Runtime.EnvironmentTyping.apply
-#print axioms TypePM.Runtime.RuntimeTyping.applyContext
-#print axioms TypePM.Runtime.RuntimeTyping.coreSafety
-#print axioms TypePM.Runtime.ValueTyping.bool_canonical
-#print axioms TypePM.Runtime.ValueTyping.list_canonical
-#print axioms TypePM.Runtime.ValueTyping.function_canonical
-#print axioms TypePM.Runtime.ListValueTypings.traverseTyped
-#print axioms TypePM.Runtime.RuntimeTyping.neverStuck
-#print axioms TypePM.Source.Typing.coreSafety
-#print axioms TypePM.Source.Typing.neverStuck
-#print axioms TypePM.Source.Inference.infer_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.nestedTuple_state_erasure
-#print axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
-#print axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.true_environmentTyping
-#print axioms TypePM.RuntimeTypingRegression.true_state_erasure
-#print axioms TypePM.RuntimeTypingRegression.inferred_true_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_state_erasure
-#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_exact_valueTyping
-#print axioms TypePM.RuntimeTypingRegression.append123_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.append123_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.append123_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.member2_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.member2_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.delete1_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.delete1_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.map_not_in_source_bridge
-#print axioms TypePM.RuntimeTypingRegression.identityApplication_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.identityApplication_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.identityApplication_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.directFixApplication_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.directFixApplication_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.directFixApplication_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.incrementList_runtimeTyping
-#print axioms TypePM.RuntimeTypingRegression.incrementList_exact_evaluation
-#print axioms TypePM.RuntimeTypingRegression.incrementList_neverStuck
-#print axioms TypePM.RuntimeTypingRegression.capturedVariable_typed_result
-#print axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
-#print axioms TypePM.Runtime.ValueTypings.appendEnvironment
-#print axioms TypePM.Runtime.MatchingAtomsTyping.append
-#print axioms TypePM.Runtime.reduceBuiltinAtom_typedSafe
-#print axioms TypePM.Runtime.reduceBuiltinAtom_typed_progress
-#print axioms TypePM.Runtime.stepMatchingState_typedSafe
-#print axioms TypePM.Runtime.depthFirstMatching_typedSafe
-#print axioms TypePM.Runtime.searchMatchingFuel_typedSafe
-#print axioms TypePM.Runtime.searchMatchingFuel_typed_notStuck
-#print axioms TypePM.MatcherSafetyRegression.tuple_pattern_binding_types_preserve_source_order
-#print axioms TypePM.MatcherSafetyRegression.tuple_search_exact
-#print axioms TypePM.MatcherSafetyRegression.tuple_search_preserves_binding_type
-#print axioms TypePM.MatcherSafetyRegression.tuple_search_never_stuck
-#print axioms TypePM.MatcherSafetyRegression.conjunction_search_exact
-#print axioms TypePM.MatcherSafetyRegression.conjunction_search_preserves_binding_type
-#print axioms TypePM.MatcherSafetyRegression.typed_value_mismatch_is_empty_not_stuck
-#print axioms TypePM.MatcherSafetyRegression.paper_selected_clause_empty_is_normal_state_expansion
-#print axioms TypePM.MatcherSafetyRegression.paper_multiset_state_keeps_clause_branch_order
+#assert_allowed_axioms TypePM.DataCtor.canonical_pairwise_distinct
+#assert_allowed_axioms TypePM.PatternCtor.canonical_pairwise_distinct
+#assert_allowed_axioms TypePM.NamesRegression.nil_spellings_agree
+#assert_allowed_axioms TypePM.PrimOp.all_pairwise_distinct
+#assert_allowed_axioms TypePM.Cap.apply_compose
+#assert_allowed_axioms TypePM.Ty.apply_compose
+#assert_allowed_axioms TypePM.Regression.pair_principal
+#assert_allowed_axioms TypePM.Regression.pair_checks_as_slot
+#assert_allowed_axioms TypePM.Regression.structured_matcher_checks_at_any_slot
+#assert_allowed_axioms TypePM.unify_none_iff_unsatisfiable
+#assert_allowed_axioms TypePM.unify_completeMGUSolver
+#assert_allowed_axioms TypePM.UnificationRegression.con_same_former_and_arity_succeeds
+#assert_allowed_axioms TypePM.UnificationRegression.data_same_former_and_arity_succeeds
+#assert_allowed_axioms TypePM.UnificationRegression.con_name_mismatch_rejected
+#assert_allowed_axioms TypePM.UnificationRegression.data_name_mismatch_rejected
+#assert_allowed_axioms TypePM.UnificationRegression.con_arity_mismatch_rejected
+#assert_allowed_axioms TypePM.UnificationRegression.data_arity_mismatch_rejected
+#assert_allowed_axioms TypePM.unify_localized
+#assert_allowed_axioms TypePM.Subst.Localized.compose
+#assert_allowed_axioms TypePM.AbsorbingPrincipal.localized
+#assert_allowed_axioms TypePM.promoteUnder_equation_no_special_after
+#assert_allowed_axioms TypePM.Resolution.special_expected_head
+#assert_allowed_axioms TypePM.Resolution.resolve_apply_canonical_of_retract
+#assert_allowed_axioms TypePM.ResolutionTransport.residualEquations_transport_of_mutualFactors
+#assert_allowed_axioms TypePM.Inference.infer_success_typing
+#assert_allowed_axioms TypePM.Typing.infer_isSome
+#assert_allowed_axioms TypePM.Inference.typable_iff_infer_isSome
+#assert_allowed_axioms TypePM.Inference.typableDecidable
+#assert_allowed_axioms TypePM.Inference.infer_principal
+#assert_allowed_axioms TypePM.Inference.infer_success_principalTyping
+#assert_allowed_axioms TypePM.PrincipalTyping.finiteRenaming_unique
+#assert_allowed_axioms TypePM.GeneratedItems.siblingAlphaEq_collect_of_perm
+#assert_allowed_axioms TypePM.solves_rename_perm
+#assert_allowed_axioms TypePM.GeneratesItems.swapAdjacentPair
+#assert_allowed_axioms TypePM.Saturated.permuteInitial
+#assert_allowed_axioms TypePM.TypingDerivation.transportAlphaEq
+#assert_allowed_axioms TypePM.Generated.AlphaEq.blockAccepts_iff
+#assert_allowed_axioms TypePM.M1BoundaryRegression.infer_useFirst_exact
+#assert_allowed_axioms TypePM.M1BoundaryRegression.infer_applicationFirst_exact
+#assert_allowed_axioms TypePM.M1BoundaryRegression.infer_singletonFirst_none
+#assert_allowed_axioms TypePM.M1BoundaryRegression.infer_pairFirst_none
+#assert_allowed_axioms TypePM.M1BoundaryRegression.infer_pair_exact_raw_product
+#assert_allowed_axioms TypePM.M1BoundaryRegression.singletonFirst_not_typable
+#assert_allowed_axioms TypePM.M1BoundaryRegression.pairFirst_not_typable
+#assert_allowed_axioms TypePM.unify_absorbingPrincipal
+#assert_allowed_axioms TypePM.PrincipalBlockClosure.substitution_absorbingPrincipal
+#assert_allowed_axioms TypePM.Resolution.equations_support
+#assert_allowed_axioms TypePM.CheckObligation.mem_unificationVars_expected
+#assert_allowed_axioms TypePM.Generated.saturationSupport_subset
+#assert_allowed_axioms TypePM.Generated.exists_semanticSolution_of_blockAccepts
+#assert_allowed_axioms TypePM.Generated.blockAccepts_iff_exists_semanticSolution_of_pending_eq_nil
+#assert_allowed_axioms TypePM.GeneratedSemanticAcceptanceCounterexample.semanticSolution_not_iff_blockAccepts
+#assert_allowed_axioms TypePM.Generated.blockAccepts_iff_exists_stableSemanticSolution
+#assert_allowed_axioms TypePM.Generated.StableSemanticSolution.transportHard
+#assert_allowed_axioms TypePM.Generated.exists_stableSemanticSolution_iff_of_hardEquivalent
+#assert_allowed_axioms TypePM.PrincipalBlockClosure.localized_of_absorbing
+#assert_allowed_axioms TypePM.inferGeneratedUsing_unify_localizedPrincipalBlockClosure
+#assert_allowed_axioms TypePM.Source.Scheme.wellFormed
+#assert_allowed_axioms TypePM.Source.Scheme.applyFree_id
+#assert_allowed_axioms TypePM.Source.Scheme.instantiate_sound
+#assert_allowed_axioms TypePM.Source.Context.generalize_wellFormed
+#assert_allowed_axioms TypePM.Source.Context.generalize_instantiates
+#assert_allowed_axioms TypePM.Source.Context.solves_interfaceEquations_iff
+#assert_allowed_axioms TypePM.Source.Context.applyFree_interface_transport
+#assert_allowed_axioms TypePM.Source.Context.generalize_variableRenaming
+#assert_allowed_axioms TypePM.Source.Context.generalize_variableRenaming_exact
+#assert_allowed_axioms TypePM.Source.Scheme.instantiate_ty_origin
+#assert_allowed_axioms TypePM.Source.Scheme.instantiate_cap_origin
+#assert_allowed_axioms TypePM.Source.Context.applyFree_initialSupply_le_of_localized
+#assert_allowed_axioms TypePM.Source.Elaborates.supply_le_next
+#assert_allowed_axioms TypePM.Source.Elaborates.supportProvenance
+#assert_allowed_axioms TypePM.Source.ElaboratesItems.supportProvenance
+#assert_allowed_axioms TypePM.Source.Elaborates.support_below
+#assert_allowed_axioms TypePM.Source.Context.interfaceEquations_supportProvenance
+#assert_allowed_axioms TypePM.Source.GeneratedSupportProvenance.fromLet_interface
+#assert_allowed_axioms TypePM.Source.PrincipalBlockClosure.letBodySupply_eq
+#assert_allowed_axioms TypePM.Source.Elaborates.letBodySupply_eq
+#assert_allowed_axioms TypePM.Source.PrincipalTyping.localizedClosure
+#assert_allowed_axioms TypePM.Source.ContextInterfaceRegression.swapBoth_notAbsorbing
+#assert_allowed_axioms TypePM.Source.ContextInterfaceRegression.plainMostGeneral_can_create_spurious_interface_failure
+#assert_allowed_axioms TypePM.PrincipalBlockClosure.representativeTransport
+#assert_allowed_axioms TypePM.PrincipalBlockClosure.RepresentativeTransportUsing.context_forward
+#assert_allowed_axioms TypePM.Source.Inference.infer_success_principalTyping
+#assert_allowed_axioms TypePM.Source.Inference.infer_success_typing
+#assert_allowed_axioms TypePM.Source.M2Regression.infer_polymorphicIdentity_exact
+#assert_allowed_axioms TypePM.Source.M2Regression.polymorphicIdentityTyping
+#assert_allowed_axioms TypePM.Source.M2Regression.infer_explicitLet_exact
+#assert_allowed_axioms TypePM.Source.M2Regression.explicitLetTyping
+#assert_allowed_axioms TypePM.Source.M2Regression.infer_cutRejectsBackflow_none
+#assert_allowed_axioms TypePM.Source.M2Regression.cutRejectsBackflow_not_typable
+#assert_allowed_axioms TypePM.Source.DamasMilner.Typing.embed
+#assert_allowed_axioms TypePM.Source.DamasMilner.FixTyping.embed
+#assert_allowed_axioms TypePM.Source.DamasMilner.Typing.embed_literal
+#assert_allowed_axioms TypePM.Source.DamasMilner.Typing.variable_infer_isSome
+#assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentityAt_typing
+#assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentityAt_infer_exact_for
+#assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentityAt_sourceTyping_for
+#assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentity_dm_and_source
+#assert_allowed_axioms TypePM.Runtime.reduceMatcherAtom_singleHole_typedSafe
+#assert_allowed_axioms TypePM.UserMatcherSafetyRegression.concrete_user_clause_reduction_typed
+#assert_allowed_axioms TypePM.UserMatcherSafetyRegression.concrete_user_clause_reduction_exact
+#assert_allowed_axioms TypePM.BlockAccepts.iff_of_hardEquivalent
+#assert_allowed_axioms TypePM.FreshAliasElimination.blockAccepts_addTyAlias_iff_of_noPending
+#assert_allowed_axioms TypePM.FreshAliasElimination.blockAccepts_addCapAlias_iff_of_noPending
+#assert_allowed_axioms TypePM.FreshAliasSaturation.blockAccepts_addTyAlias_iff
+#assert_allowed_axioms TypePM.FreshAliasSaturation.blockAccepts_addCapAlias_iff
+#assert_allowed_axioms TypePM.FreshAliasSequence.CommonCoreEquivalent.blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_blockAccepts_iff_of_freshAliasSequence
+#assert_allowed_axioms TypePM.Source.InterfaceAliasCounterexample.no_left_addition_decomposition
+#assert_allowed_axioms TypePM.Source.InterfaceAliasCounterexample.commonCoreEquivalent_positive
+#assert_allowed_axioms TypePM.Source.InterfaceAliasDecomposition.AliasFreshness.admissible_of_scopedBy
+#assert_allowed_axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.targets_mutualInstances
+#assert_allowed_axioms TypePM.Source.InterfaceAliasDecomposition.ClosureInterfaceDecomposition.fromLet_blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.interfaceEndpointScopedBy
+#assert_allowed_axioms TypePM.Source.InterfaceAliasDecomposition.Automatic.FreshClosureInterfaceDecomposition.admissible_of_avoids
+#assert_allowed_axioms TypePM.Source.GlobalRenamingCounterexample.executable_elaborates
+#assert_allowed_axioms TypePM.Source.GlobalRenamingCounterexample.alternative_elaborates
+#assert_allowed_axioms TypePM.Source.GlobalRenamingCounterexample.no_global_renaming
+#assert_allowed_axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.reverseUnify_absorbingMGUSolver
+#assert_allowed_axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.targets_not_mutualInstances
+#assert_allowed_axioms TypePM.Source.UnwellFormedSupplyPrincipalityCounterexample.badSupply_not_wellFormed
+#assert_allowed_axioms TypePM.Source.Supply.wellFormedFor_initialSupply
+#assert_allowed_axioms TypePM.Source.Generated.ScopedContextualEquivalent.blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.Elaborates.sequential_crossAvoidance
+#assert_allowed_axioms TypePM.Source.Elaborates.scopedComparison
+#assert_allowed_axioms TypePM.Source.ElaboratesItems.scopedComparison
+#assert_allowed_axioms TypePM.Source.Elaborates.scopedComparison_of_letFree
+#assert_allowed_axioms TypePM.Source.Elaborates.alignment_of_fixesAtOrAbove
+#assert_allowed_axioms TypePM.Source.Elaborates.transport_of_fixesAtOrAbove
+#assert_allowed_axioms TypePM.Source.GeneratedEquationCommonCore.scopedContextualEquivalent_of_frameAdmissible
+#assert_allowed_axioms TypePM.Source.scopedLetStep
+#assert_allowed_axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.CrossGeneratedClosureAlignment.fromLet_targets_mutualInstances
+#assert_allowed_axioms TypePM.Source.CrossGeneratedClosureAlignment.renamedFromLet_pending_exact
+#assert_allowed_axioms TypePM.Source.IsolatedRenamingCounterexample.not_scopedContextualEquivalent
+#assert_allowed_axioms TypePM.Source.VariableRenaming.FixesOutside.renameGenerated_eq
+#assert_allowed_axioms TypePM.Source.GeneratedFrame.renameGenerated_plug_of_fixesOutside
+#assert_allowed_axioms TypePM.Source.Generated.scopedContextualEquivalent_rename_of_fixesOutside
+#assert_allowed_axioms TypePM.Source.Elaborates.generatedAvoids_earlierHidden
+#assert_allowed_axioms TypePM.Source.SourceSafeWholeLetAlignment.scopedContextualEquivalent
+#assert_allowed_axioms TypePM.Source.SourceSafeWholeLetAlignment.interfaceComparison
+#assert_allowed_axioms TypePM.Source.FrameAdmissibilityCounterexample.not_frameAdmissible
+#assert_allowed_axioms TypePM.Source.FutureFixingCounterexample.no_fresh_fixesOutside
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.ofEquationCommonCore
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.commonCore_pending_eq
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.pending_eq
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent.blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareDirectGeneratedComparisonCertificate.scopedGeneratedComparison
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareDirectGeneratedComparisonCertificate.letComparisonHandler
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.DirectContextualGeneratedComparisonCertificate.scopedGeneratedComparison
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.directContextualLetComparisonHandler_iff
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.scopedGeneratedComparison
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.letComparisonHandler
+#assert_allowed_axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.exists_stableSemanticSolution_iff
+#assert_allowed_axioms TypePM.Source.DirectGeneratedComparisonCertificate.RenamingAwareCommonCoreEquivalent.exists_stableSemanticSolution_iff
+#assert_allowed_axioms TypePM.Source.ElaborationRenaming.fromLet_otherClosure_exists_stableSemanticSolution_iff_of_freshAliasSequence
+#assert_allowed_axioms TypePM.Source.InterfaceAliasCounterexample.blocks_not_hardEquivalent
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.no_supported_target_alignment
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.value_elaborates
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.valueStart_wellFormed
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_let_elaborates
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_let_elaborates
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_direct_scopedGeneratedComparison
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.actual_no_sourceSafeWholeLetAlignment
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.inherited_pending_let_elaborates
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.representative_pending_let_elaborates
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_renamingAwareCommonCoreEquivalent
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.pendingBlocks_not_renamingAwareDirectCertificate
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.not_renamingAwareDirectLetNormalizationHandler
+#assert_allowed_axioms TypePM.Source.SourceSafeAlignmentCounterexample.not_directLetNormalizationHandler
+#assert_allowed_axioms TypePM.Source.Scheme.instantiate_variableRenaming_prefix
+#assert_allowed_axioms TypePM.Source.ElaborationRenaming.Alignment.transport
+#assert_allowed_axioms TypePM.Source.ElaborationRenaming.Generated.RenamedBy.blockAccepts_iff
+#assert_allowed_axioms TypePM.Source.PrincipalBlockClosure.postcompose_solves_other_fromLet_hard_iff
+#assert_allowed_axioms TypePM.Source.PrincipalBlockClosure.RepresentativeTransportUsing.closedContext_globalRenaming
+#assert_allowed_axioms TypePM.BlockAccepts.inferGeneratedUsing_isSome
+#assert_allowed_axioms TypePM.Source.Typing.infer_isSome_of_letFree
+#assert_allowed_axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_letFree
+#assert_allowed_axioms TypePM.Source.Inference.typableDecidable_of_letFree
+#assert_allowed_axioms TypePM.Source.Inference.infer_success_principalResult_of_letFree
+#assert_allowed_axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_letFree
+#assert_allowed_axioms TypePM.Source.WellFormedElaborationPrincipalityComplete.toAcceptance
+#assert_allowed_axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationAcceptanceComplete
+#assert_allowed_axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationAcceptanceComplete
+#assert_allowed_axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationAcceptanceComplete
+#assert_allowed_axioms TypePM.Source.Typing.infer_isSome_of_wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.Inference.typable_iff_infer_isSome_of_wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.Inference.typableDecidable_of_wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.Inference.infer_success_principalResult_of_wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.PrincipalTyping.finiteRenamingEq_of_wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.EntailedObligationEq
+#assert_allowed_axioms TypePM.PromotionClosure.transportEntailed
+#assert_allowed_axioms TypePM.Saturated.transportEntailed
+#assert_allowed_axioms TypePM.BlockAccepts.iff_of_entailedAligned
+#assert_allowed_axioms TypePM.Source.fullM2LetGraphAliasPresentationComplete
+#assert_allowed_axioms TypePM.Source.fullM2LetSupportedAssemblyBridge
+#assert_allowed_axioms TypePM.Source.fullM2CoherenceComplete
+#assert_allowed_axioms TypePM.Source.wellFormedElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.Typing.infer_isSome
+#assert_allowed_axioms TypePM.Source.Inference.typable_iff_infer_isSome
+#assert_allowed_axioms TypePM.Source.Inference.typableDecidable
+#assert_allowed_axioms TypePM.Source.Inference.infer_success_principalResult
+#assert_allowed_axioms TypePM.Source.Inference.infer_principalResult
+#assert_allowed_axioms TypePM.Source.PrincipalTyping.finiteRenamingEq
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.list_pattern_wellFormed
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.list_pattern_closed
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.list_cons_dual_instantiation_exact
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.map_instantiation_exact
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.paper1_signature_wellFormed
+#assert_allowed_axioms TypePM.Source.M3DeclarationsRegression.malformed_list_capability_not_wellFormed
+#assert_allowed_axioms TypePM.Source.Paper1FrozenSignature.wellFormed
+#assert_allowed_axioms TypePM.Source.FrozenSignature.lookupPatternFunction_unique
+#assert_allowed_axioms TypePM.Source.FrozenSignature.lookupPatternFunction_closed
+#assert_allowed_axioms TypePM.Source.FrozenSignature.lookupPatternFunction_wellFormed
+#assert_allowed_axioms TypePM.Source.M4FrozenSignatureRegression.one_pattern_function_wellFormed
+#assert_allowed_axioms TypePM.Source.M4FrozenSignatureRegression.lookup_emptyList_exact
+#assert_allowed_axioms TypePM.Source.M4FrozenSignatureRegression.duplicate_pattern_function_not_wellFormed
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.definitions_agree
+#assert_allowed_axioms TypePM.Source.PatternFunctionDefinitions.Agree
+#assert_allowed_axioms TypePM.Source.PatternFunctionDefinitions.Agree.lookup_checked
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_unit_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_pass_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_conjunction_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.private_binder_not_inline_safe
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionPairRegression.signature_wellFormed
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionPairRegression.pair_elaboration_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionPairRegression.pair_semantic_solution
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionPairRegression.pairChecked
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionPairRegression.definitions_agree
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionDefinitionRegression.duplicated_parameter_not_inline_safe
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.unit_expands_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.pass_expands_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_children_expand_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_template_expands_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.complete_match_site_expands_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.matcher_and_matchFirst_expand_exact
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.unknown_function_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternFunctionExpansionRegression.private_binding_definition_rejected
+#assert_allowed_axioms TypePM.Source.PPat.holesInSourceOrder_nodup
+#assert_allowed_axioms TypePM.Source.PPat.captureSlots_nodup
+#assert_allowed_axioms TypePM.Source.PPat.hole_capture_slots_disjoint
+#assert_allowed_axioms TypePM.Source.DPat.bindingsInSourceOrder_nodup
+#assert_allowed_axioms TypePM.Source.DPat.bindingSlots_nodup
+#assert_allowed_axioms TypePM.Source.capture_data_binding_slots_disjoint
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_shapeOK
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.all_seven_headers_capture_order
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.value_cons_summary_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.capture_after_hole_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.hole_counts_zero_one_two
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.all_seven_capture_counts_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.data_arms_shapeOK
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.data_arm_bindings_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherPatternRegression.bad_constructor_arities_rejected
+#assert_allowed_axioms TypePM.Runtime.chooseOne_length
+#assert_allowed_axioms TypePM.Runtime.splitAll_length
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.choose_three_exact
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.choose_duplicate_positions_preserved
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.split_three_exact
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.split_duplicate_positions_preserved
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_present_once
+#assert_allowed_axioms TypePM.Runtime.OrderedChoiceRegression.choose_value_absent
+#assert_allowed_axioms TypePM.Runtime.mem_chooseOne_iff
+#assert_allowed_axioms TypePM.Runtime.mem_splitAll_iff
+#assert_allowed_axioms TypePM.Runtime.deleteFirst?_eq_some_iff
+#assert_allowed_axioms TypePM.Runtime.deleteFirst?_eq_none_iff
+#assert_allowed_axioms TypePM.Runtime.mem_chooseValue_iff
+#assert_allowed_axioms TypePM.Runtime.RemovesOne.perm
+#assert_allowed_axioms TypePM.Runtime.DeletesFirst.perm
+#assert_allowed_axioms TypePM.Runtime.Splits.perm
+#assert_allowed_axioms TypePM.Runtime.FuelResult.map_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.FuelResult.bind_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.FuelResult.traverse_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.FuelResult.traverse_notStuck
+#assert_allowed_axioms TypePM.Runtime.FuelResultRegression.traverse_success_exact
+#assert_allowed_axioms TypePM.Runtime.FuelResultRegression.traverse_timeout_stops
+#assert_allowed_axioms TypePM.Runtime.FuelResultRegression.traverse_stuck_distinct_from_timeout
+#assert_allowed_axioms TypePM.Runtime.firstHit_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.firstHit_notStuck
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.first_success_preserves_source_order
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.all_misses_are_normal_failure
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.timeout_stops_before_later_success
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.stuck_stops_before_later_success
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.successful_dispatch_has_relational_derivation
+#assert_allowed_axioms TypePM.Runtime.OrderedDispatchRegression.safe_candidate_dispatch_never_stuck
+#assert_allowed_axioms TypePM.Runtime.getElem?_eq_some_iff_lookup
+#assert_allowed_axioms TypePM.Runtime.Lookup.deterministic
+#assert_allowed_axioms TypePM.Runtime.Lookup.of_append_left
+#assert_allowed_axioms TypePM.Runtime.Lookup.index_lt_length
+#assert_allowed_axioms TypePM.Runtime.EnvironmentRegression.older_relational
+#assert_allowed_axioms TypePM.Runtime.EnvironmentRegression.weakening_shifts_index
+#assert_allowed_axioms TypePM.Runtime.depthFirstFuel_sound
+#assert_allowed_axioms TypePM.Runtime.DepthFirst.complete
+#assert_allowed_axioms TypePM.Runtime.depthFirstFuel_ok_add
+#assert_allowed_axioms TypePM.Runtime.depthFirstFuel_notStuck
+#assert_allowed_axioms TypePM.Runtime.DepthFirstSearchRegression.depth_first_order_exact
+#assert_allowed_axioms TypePM.Runtime.DepthFirstSearchRegression.successful_run_has_relational_derivation
+#assert_allowed_axioms TypePM.Runtime.DepthFirstSearchRegression.safe_search_never_stuck
+#assert_allowed_axioms TypePM.Runtime.GroundValue.viewList_buildList
+#assert_allowed_axioms TypePM.Runtime.matchDataPattern_eq_some_iff
+#assert_allowed_axioms TypePM.Runtime.DataPatternMatches.bindings_length
+#assert_allowed_axioms TypePM.Runtime.DataPatternRegression.nil_arm_matches_empty_exact
+#assert_allowed_axioms TypePM.Runtime.DataPatternRegression.cons_arm_bindings_source_order
+#assert_allowed_axioms TypePM.Runtime.DataPatternRegression.tuple_arm_bindings_source_order
+#assert_allowed_axioms TypePM.Runtime.DataPatternRegression.constructor_mismatch_rejected
+#assert_allowed_axioms TypePM.Runtime.DataPatternRegression.constructor_arity_mismatch_rejected
+#assert_allowed_axioms TypePM.Runtime.inspectPatternPattern_eq_some_iff
+#assert_allowed_axioms TypePM.Runtime.PatternPatternMatches.counts
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.nil_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.head_only_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.head_only_header_rejects_structured_tail
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.value_cons_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.general_cons_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.join_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.whole_value_header_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.catch_all_header_dispatches_once
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.constructor_mismatch_is_failure
+#assert_allowed_axioms TypePM.Runtime.PatternPatternRegression.constructor_arity_mismatch_is_failure
+#assert_allowed_axioms TypePM.Runtime.EncodesList.view_iff
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalAdd_adequate
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalAdd_complete
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalAppend_adequate
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalAppend_complete
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalMember_adequate
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalMember_complete
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_adequate
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalDeleteFirst_complete
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalMap_adequate
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.evalMap_complete
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitive.eval_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.bool_views_exact
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.list_encoding_exact
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.append_exact
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.member_present_is_true
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.member_absent_is_false
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.deleteFirst_duplicate_exact
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.map_preserves_order
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.malformed_list_view_fails
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.add_wrong_arity_stuck
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.append_non_list_stuck
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_stuck_propagates
+#assert_allowed_axioms TypePM.Runtime.GroundPrimitiveRegression.map_callback_timeout_propagates
+#assert_allowed_axioms TypePM.Runtime.Value.matcherClosure_cursorValid
+#assert_allowed_axioms TypePM.Runtime.Value.advanceMatcher_cursorValid
+#assert_allowed_axioms TypePM.Runtime.Value.structuralEq_ofGround_self
+#assert_allowed_axioms TypePM.Runtime.Value.toGround?_ofGround
+#assert_allowed_axioms TypePM.Runtime.Value.valuesToGroundValues?_groundValuesToValues
+#assert_allowed_axioms TypePM.Runtime.Value.ofGround_injective
+#assert_allowed_axioms TypePM.Runtime.Value.lookup_iff_getElem?
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.every_runtime_constructor_is_available
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.matcher_advance_is_source_ordered
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.constructor_structural_equality_succeeds
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.closure_is_not_structurally_equal_to_itself
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.matcher_is_not_structurally_equal_to_itself
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.ground_roundtrip_exact
+#assert_allowed_axioms TypePM.Runtime.ValuesRegression.nested_matcher_projection_is_rejected
+#assert_allowed_axioms TypePM.Runtime.Value.viewList_buildList
+#assert_allowed_axioms TypePM.Runtime.decodeProduct_many_exact
+#assert_allowed_axioms TypePM.Runtime.ValueShapeRegression.zero_holes_require_unit_tuple
+#assert_allowed_axioms TypePM.Runtime.ValueShapeRegression.one_hole_uses_scalar
+#assert_allowed_axioms TypePM.Runtime.ValueShapeRegression.two_holes_require_exact_tuple
+#assert_allowed_axioms TypePM.Runtime.ValueShapeRegression.decomposition_order_exact
+#assert_allowed_axioms TypePM.Runtime.ValueShapeRegression.malformed_decomposition_element_rejected
+#assert_allowed_axioms TypePM.Runtime.zipMatchingAtoms_eq_some_iff
+#assert_allowed_axioms TypePM.Runtime.reduceBuiltinAtom_hit_iff
+#assert_allowed_axioms TypePM.Runtime.reduceBuiltinAtom_notStuck
+#assert_allowed_axioms TypePM.Runtime.MatchingStateRegression.something_value_mismatch_is_normal_failure
+#assert_allowed_axioms TypePM.Runtime.MatchingStateRegression.tuple_children_preserve_source_order
+#assert_allowed_axioms TypePM.Runtime.MatchingStateRegression.product_matcher_delegates_scalar_pattern_once
+#assert_allowed_axioms TypePM.Runtime.MatchingStateRegression.builtin_success_has_relational_rule
+#assert_allowed_axioms TypePM.Runtime.stepMatchingState_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.stepMatchingState_notStuck
+#assert_allowed_axioms TypePM.Runtime.searchMatchingFuel_sound
+#assert_allowed_axioms TypePM.Runtime.searchMatchingFuel_notStuck
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.variable_match_search_exact
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.value_mismatch_returns_no_answers
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.tuple_work_and_bindings_preserve_runtime_order
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.two_variable_bindings_remain_in_source_order
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.later_value_pattern_reads_earlier_binding
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.duplicate_branches_remain_distinct
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.unhandled_atom_is_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.normal_failure_is_not_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchRegression.successful_search_has_depth_first_derivation
+#assert_allowed_axioms TypePM.Runtime.combineAtomReducers_notStuck
+#assert_allowed_axioms TypePM.Runtime.combineAtomReducers_total
+#assert_allowed_axioms TypePM.Runtime.searchMatchingFuel_combined_notStuck
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.miss_falls_through_to_fallback
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.first_hit_suppresses_stuck_fallback
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.normal_failure_is_a_hit_and_does_not_fall_through
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.timeout_is_not_hidden_by_later_success
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.stuck_is_not_hidden_by_later_success
+#assert_allowed_axioms TypePM.Runtime.CombinedAtomReducerRegression.combined_total
+#assert_allowed_axioms TypePM.Runtime.evalFuel_sound
+#assert_allowed_axioms TypePM.Runtime.Eval.complete
+#assert_allowed_axioms TypePM.Runtime.evalFuel_ok_add
+#assert_allowed_axioms TypePM.Runtime.evalMatchFirstArmsFuel_orderedMatchAll_firstResult
+#assert_allowed_axioms TypePM.Runtime.evalMatchFirstArmsFuel_firstResult
+#assert_allowed_axioms TypePM.Runtime.evalMatchFirstArmsFuel_skip
+#assert_allowed_axioms TypePM.Runtime.EvaluationRegression.map_applies_closure_left_to_right_exact
+#assert_allowed_axioms TypePM.Runtime.EvaluationRegression.map_success_has_relational_derivation
+#assert_allowed_axioms TypePM.Runtime.EvaluationRegression.identity_core_never_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.something_variable_evaluates_body_under_binding
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.something_value_mismatch_is_empty_not_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.something_conjunction_evaluates_in_source_order
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.something_conjunction_mismatch_is_empty_not_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.conjunction_builtin_reducer_exact
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.matcher_closure_head_preserves_duplicate_branches
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.integrated_head_execution_has_finite_fuel
+#assert_allowed_axioms TypePM.Runtime.MatchAllRegression.pattern_function_atom_is_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_executes_exactly
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.tuple_pattern_lambda_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_uses_first_successful_arm
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.whole_value_style_preserves_source_arm_order
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.matchFirst_success_has_finite_fuel
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.empty_runtime_arm_list_is_stuck
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.matching_timeout_propagates
+#assert_allowed_axioms TypePM.Runtime.MatchFirstRegression.selected_body_stuck_propagates
+#assert_allowed_axioms TypePM.Runtime.evalPatternFunctionsFuel_sound
+#assert_allowed_axioms TypePM.Runtime.EvalPatternFunctions.complete
+#assert_allowed_axioms TypePM.Runtime.evalPatternFunctionsFuel_ok_of_le
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_executes_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_executes_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unit_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.pass_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.unknown_definition_is_stuck
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionEvaluationRegression.private_binding_definition_is_stuck
+#assert_allowed_axioms TypePM.Runtime.stepPatternFunctionHead_sound
+#assert_allowed_axioms TypePM.Runtime.stepPatternFunctionState_sound
+#assert_allowed_axioms TypePM.Source.Pattern.MNodeFree.not_app
+#assert_allowed_axioms TypePM.Source.Pattern.MNodeFree.not_embed
+#assert_allowed_axioms TypePM.Source.Expr.EvaluatorIndependent.mnodeFree
+#assert_allowed_axioms TypePM.Source.ExprListEvaluatorIndependent.expand_empty
+#assert_allowed_axioms TypePM.Runtime.stepPatternFunctionHead_mnodeFree_atom
+#assert_allowed_axioms TypePM.Runtime.evaluatorIndependent_nodeEvaluation_eq_evalFuel
+#assert_allowed_axioms TypePM.Runtime.evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel
+#assert_allowed_axioms TypePM.Runtime.evaluatorIndependent_nodeEvaluation_sound
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_search_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_private_binding_does_not_escape
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.application_has_priority_over_matcher_dispatch
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.parameter_export_keeps_private_bindings
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.node_completion_discards_private_bindings
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionMatchingRegression.pair_search_has_structural_depth_first_derivation
+#assert_allowed_axioms TypePM.Runtime.evalPatternFunctionNodesFuel
+#assert_allowed_axioms TypePM.Runtime.evalCheckedPatternFunctionNodesFuel
+#assert_allowed_axioms TypePM.Runtime.evalPatternFunctionNodesFuel_matchAll_search_sound
+#assert_allowed_axioms TypePM.Runtime.evalCheckedPatternFunctionNodesFuel_matchAll_search_sound
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_program_executes_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_checked_program_executes_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_program_has_step_function_depth_first_derivation
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.pair_first_program_executes_exact
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.nested_ordinary_match_is_mnode_free
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.independent_program_fragment
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.independent_program_simulates_ordinary_evaluation
+#assert_allowed_axioms TypePM.Runtime.PatternFunctionNodeEvaluationRegression.independent_program_has_big_step_derivation
+#assert_allowed_axioms TypePM.Runtime.Value.eq_of_toGround?_eq_some
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_ground_projection_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_ground_projection_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_ground_projection_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_enumerates_all_prefixes_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_preserves_three_source_order_choices_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_exact
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.list_join_has_finite_fuel
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.multiset_cons_has_finite_fuel
+#assert_allowed_axioms TypePM.Runtime.Paper1ExecutionRegression.successor_pairs_has_finite_fuel
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_nonempty_is_normal_failure
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.head_only_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_absence_is_normal_failure
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.general_cons_clause_executes_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.join_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_mismatch_is_normal_failure
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.catch_all_clause_result_exact
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.nil_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.head_only_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.value_cons_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.general_cons_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.join_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.whole_value_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.MultisetClauseExecutionRegression.catch_all_clause_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.matchValueDataPattern_eq_some_iff
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternMatches.bindings_length
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.variable_binds_closure
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.wildcard_ignores_matcher
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.constructor_does_not_destructure_closure
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.cons_bindings_preserve_source_order
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.tuple_may_bind_non_ground_values
+#assert_allowed_axioms TypePM.Runtime.ValueDataPatternRegression.constructor_arity_mismatch_is_failure
+#assert_allowed_axioms TypePM.Runtime.tryMatcherArm_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.firstHit_arms_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.tryMatcherClause_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.all_data_arm_mismatch_is_normal_empty_result
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.selected_pattern_clause_does_not_fall_through_after_data_mismatch
+#assert_allowed_axioms TypePM.Runtime.dispatchMatcherClauses_eq_ok_iff
+#assert_allowed_axioms TypePM.Runtime.reduceMatcherAtom_hit_iff
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.nil_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.head_only_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.value_cons_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.general_cons_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_second_arm_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.join_clause_first_arm_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.whole_value_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.catch_all_clause_complete_dispatch_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.all_seven_concrete_clause_shapes_checked
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.pattern_mismatch_alone_advances_to_next_clause
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.data_mismatch_alone_advances_to_next_arm
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.empty_candidate_list_is_hit_and_stops_later_arm
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.empty_candidate_list_stops_later_clause
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.capture_data_and_matcher_environments_are_exact
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.captures_do_not_use_matcher_definition_environment
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.improper_decomposition_list_is_stuck
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.wrong_decomposition_product_arity_is_stuck
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.wrong_next_matcher_product_arity_is_stuck
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.arm_body_timeout_propagates_before_later_arm
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.next_matcher_timeout_propagates_before_later_clause
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.capture_stuck_propagates_before_arms
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.cursor_suffix_is_valid
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.matcher_dispatch_uses_remaining_suffix
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.non_matcher_dispatch_is_stuck
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_builds_shared_reduction
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_misses_non_matcher
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.builtin_miss_falls_through_to_concrete_matcher_handler
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_handler_timeout_propagates
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.successful_dispatch_has_independent_derivation
+#assert_allowed_axioms TypePM.Runtime.ClauseDispatchRegression.matcher_atom_hit_has_independent_derivation
+#assert_allowed_axioms TypePM.Source.MatcherArmHeader.bindingOrder_exact_of_check
+#assert_allowed_axioms TypePM.Source.MatcherArmHeader.bindingSlots_nodup_of_check
+#assert_allowed_axioms TypePM.Source.MatcherClauseShape.arm_bindingSlots_nodup
+#assert_allowed_axioms TypePM.Source.MatcherClauseShape.capture_arm_bindingSlots_disjoint
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.hole_conventions_zero_one_k_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_clause_shapes_checked
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_headers_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.all_seven_arm_counts_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.all_checked_arm_slots_linear_and_disjoint
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.catch_all_not_last_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.bad_arities_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.duplicate_binding_slots_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherClauseShapeRegression.wrong_hole_convention_rejected
+#assert_allowed_axioms TypePM.Source.MatcherArm.toHeader_bindingOrder
+#assert_allowed_axioms TypePM.Source.MatcherClause.toShape_holeConvention
+#assert_allowed_axioms TypePM.Source.M4SyntaxRegression.catchAllClause_shape_checked
+#assert_allowed_axioms TypePM.Source.M4SyntaxRegression.elaborate_fixE_none
+#assert_allowed_axioms TypePM.Source.M4SyntaxRegression.matcher_not_relationally_elaborated
+#assert_allowed_axioms TypePM.Source.M4SyntaxRegression.matchAll_not_relationally_elaborated
+#assert_allowed_axioms TypePM.Source.M4SyntaxRegression.matchFirst_not_relationally_elaborated
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.value_after_binder_elaborates
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.value_before_binder_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.elaborate_conjunction_exact
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.conjunction_value_before_binder_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.conjunction_relational
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.occurs_check_tail_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.value_expression_int_list_mismatch_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.matchAll_constraint_boundary
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.infer_variable_match_exact
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.something_cons_capability_rejected
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.stored_pattern_function_interface_only
+#assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.variable_match_relational
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.elaborateUsing_sound
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.exhaustive
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.exhaustive_iff_armsExhaustive
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_arm_declaratively_exhaustive
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_pattern_lambda_desugaring_exact
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.conjunction_irrefutable_exact
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.infer_tuple_destructuring_exact
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_destructuring_relational
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.source_order_first_arm_metadata_exact
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.absent_arms_rejected
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.inconsistent_result_types_rejected
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.bad_matcher_rejected
+#assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.uncovered_final_arm_rejected
+#assert_allowed_axioms TypePM.Source.Paper1Programs.multiset_clause_count
+#assert_allowed_axioms TypePM.Source.Paper1Programs.multiset_clause_shapes_checked
+#assert_allowed_axioms TypePM.Source.Paper1Programs.list_matcher_clause_count
+#assert_allowed_axioms TypePM.Source.Paper1Programs.list_matcher_clause_shapes_checked
+#assert_allowed_axioms TypePM.Source.elaborateFixUsing_sound
+#assert_allowed_axioms TypePM.Source.DirectSelf.holds_iff_check
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.direct_body_declarative
+#assert_allowed_axioms TypePM.Source.FixInference.inferFix_success_fixTyping
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.matcher_root_fix_shape_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.pattern_shifts_checked_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.conjunction_shifts_checked_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.clause_shifts_checked_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.infer_direct_exact
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.direct_fixTyping
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.alias_not_fixTyping
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.higher_order_not_fixTyping
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.mutual_style_not_fixTyping
+#assert_allowed_axioms TypePM.Source.M4FixTypingRegression.matcher_root_direct_but_unelaborated
+#assert_allowed_axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteral_sound
+#assert_allowed_axioms TypePM.Source.MatcherTyping.elaborateMatcherLiteralUsing_sound
+#assert_allowed_axioms TypePM.Source.MatcherTyping.ordinaryArmCoverage_iff
+#assert_allowed_axioms TypePM.Source.MatcherTyping.structuralArmCoverage_iff
+#assert_allowed_axioms TypePM.Source.MatcherTyping.finalCatchAll_iff
+#assert_allowed_axioms TypePM.Source.MatcherTyping.rootCoverage_iff
+#assert_allowed_axioms TypePM.Source.MatcherTyping.staticChecksHold_iff
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.all_seven_declarative_static_checks
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.all_seven_final_shapes_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.all_seven_static_checks
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.infer_identity_literal_exact
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.catch_all_order_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.next_matcher_direction_rejected_after_header_solving
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.missing_general_constructor_coverage_rejected
+#assert_allowed_axioms TypePM.Source.M4MatcherTypingRegression.nonexhaustive_data_arms_rejected
+#assert_allowed_axioms TypePM.Source.M4.elaborateFuel_sound
+#assert_allowed_axioms TypePM.Source.M4.elaborate_sound
+#assert_allowed_axioms TypePM.Source.M4.infer_success_principalTyping
+#assert_allowed_axioms TypePM.Source.M4.infer_success_typing
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.infer_value_pattern_exact
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.value_pattern_typing
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.infer_match_first_exact
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.match_first_typing
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.nonexhaustive_match_first_rejected
+#assert_allowed_axioms TypePM.Source.M4RecursiveElaborationRegression.escaping_self_rejected
+#assert_allowed_axioms TypePM.Source.MatcherDemand.unconsWith_infer_principal
+#assert_allowed_axioms TypePM.Source.MatcherDemand.unconsWith_principalTyping
+#assert_allowed_axioms TypePM.Source.MatcherDemand.unconsWith_typing
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_not_typable
+#assert_allowed_axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_infer_none
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.list_static_checks
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_static_checks
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.listMatcherDefinition_complexity
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetDefinition_complexity
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.closedMultisetDefinition_complexity
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetSomething_complexity
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.list_direct_self_check
+#assert_allowed_axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_direct_self_check
+#assert_allowed_axioms TypePM.unify_eq_of_unifyWithFuel_success
+#assert_allowed_axioms TypePM.inferGeneratedUsing_unify_of_fuel_success
+#assert_allowed_axioms TypePM.Source.M4.elaborateFuel_success_of_solverFuel_success
+#assert_allowed_axioms TypePM.Source.M4.ItemsElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.M4.CallElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.FixElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.PatternElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.PatternsElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatchAllElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.CheckedExpressionElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.NextMatcherItemsElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.NextMatchersElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.MatcherArmElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.MatcherArmsElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.MatcherClauseElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.MatcherClausesElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatcherTyping.MatcherLiteralElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.TailElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.ArmsElaborateUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.normalizeFuel
+#assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.mono
+#assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.at_complexity
+#assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.normalize
+#assert_allowed_axioms TypePM.Source.M4.Elaborates.iff_at_complexity
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.m4FuelNormalization
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.elaboratesFuel_toM2_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4PairProperty_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_components
+#assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.supply_le_next
+#assert_allowed_axioms TypePM.Source.M4.ElaboratesFuel.supportProvenance
+#assert_allowed_axioms TypePM.Source.M4.Elaborates.supportProvenance
+#assert_allowed_axioms TypePM.Source.M4.supplyAndSupport
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.supportProvenance
+#assert_allowed_axioms TypePM.Source.FixElaboratesUsing.supportProvenance
+#assert_allowed_axioms TypePM.Source.M3Regression.infer_true_exact
+#assert_allowed_axioms TypePM.Source.M3Regression.infer_nil_exact
+#assert_allowed_axioms TypePM.Source.M3Regression.elaborate_cons_succeeds
+#assert_allowed_axioms TypePM.Source.M3Regression.elaborate_add_succeeds
+#assert_allowed_axioms TypePM.Source.M3Regression.elaborate_conditional_succeeds
+#assert_allowed_axioms TypePM.Source.M3Regression.primitive_type_mismatch_rejected
+#assert_allowed_axioms TypePM.Source.M3Regression.true_relational_soundness
+#assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_add
+#assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_append
+#assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_member
+#assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_deleteFirst
+#assert_allowed_axioms TypePM.Source.PrimitiveSchemes.instantiate_map
+#assert_allowed_axioms TypePM.Source.conditionalScheme_instantiate
+#assert_allowed_axioms TypePM.Runtime.paper1SignatureCompatible
+#assert_allowed_axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
+#assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping
+#assert_allowed_axioms TypePM.Runtime.CheckConversion.apply
+#assert_allowed_axioms TypePM.Runtime.EnvironmentTyping.apply
+#assert_allowed_axioms TypePM.Runtime.RuntimeTyping.applyContext
+#assert_allowed_axioms TypePM.Runtime.RuntimeTyping.coreSafety
+#assert_allowed_axioms TypePM.Runtime.ValueTyping.bool_canonical
+#assert_allowed_axioms TypePM.Runtime.ValueTyping.list_canonical
+#assert_allowed_axioms TypePM.Runtime.ValueTyping.function_canonical
+#assert_allowed_axioms TypePM.Runtime.ListValueTypings.traverseTyped
+#assert_allowed_axioms TypePM.Runtime.RuntimeTyping.neverStuck
+#assert_allowed_axioms TypePM.Source.Typing.coreSafety
+#assert_allowed_axioms TypePM.Source.Typing.neverStuck
+#assert_allowed_axioms TypePM.Source.Inference.infer_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.nestedTuple_state_erasure
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.true_environmentTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.true_state_erasure
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.inferred_true_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.canonicalConditional_state_erasure
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.canonicalConditional_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.canonicalConditional_exact_valueTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.append123_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.append123_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.append123_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.member2_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.member2_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.delete1_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.delete1_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.incrementList_supported
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.incrementList_state_erasure
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.identityApplication_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.identityApplication_state_erasure
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.identityApplication_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.identityApplication_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.naivePolymorphicLookup_not_substitutionStable
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.directFixApplication_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.directFixApplication_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.directFixApplication_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.conditionalFunctionApplication_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.incrementList_runtimeTyping
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.incrementList_exact_evaluation
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.incrementList_neverStuck
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.capturedVariable_typed_result
+#assert_allowed_axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
+#assert_allowed_axioms TypePM.Runtime.ValueTypings.appendEnvironment
+#assert_allowed_axioms TypePM.Runtime.MatchingAtomsTyping.append
+#assert_allowed_axioms TypePM.Runtime.reduceBuiltinAtom_typedSafe
+#assert_allowed_axioms TypePM.Runtime.reduceBuiltinAtom_typed_progress
+#assert_allowed_axioms TypePM.Runtime.stepMatchingState_typedSafe
+#assert_allowed_axioms TypePM.Runtime.depthFirstMatching_typedSafe
+#assert_allowed_axioms TypePM.Runtime.searchMatchingFuel_typedSafe
+#assert_allowed_axioms TypePM.Runtime.searchMatchingFuel_typed_notStuck
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.tuple_pattern_binding_types_preserve_source_order
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.tuple_search_exact
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.tuple_search_preserves_binding_type
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.tuple_search_never_stuck
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.conjunction_search_exact
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.conjunction_search_preserves_binding_type
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.typed_value_mismatch_is_empty_not_stuck
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.paper_selected_clause_empty_is_normal_state_expansion
+#assert_allowed_axioms TypePM.MatcherSafetyRegression.paper_multiset_state_keeps_clause_branch_order

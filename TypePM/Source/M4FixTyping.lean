@@ -32,6 +32,7 @@ def patternBindingCount : Pattern → Nat
   | .ctor _ fields | .tuple fields | .app _ fields =>
       patternBindingCountList fields
   | .and left right => patternBindingCount left + patternBindingCount right
+  | .or left _ => patternBindingCount left
 
 def patternBindingCountList : List Pattern → Nat
   | [] => 0
@@ -79,6 +80,8 @@ def mentionsPattern (tracked before : Nat) : Pattern → Bool
   | .and left right =>
       mentionsPattern tracked before left ||
         mentionsPattern tracked (before + patternBindingCount left) right
+  | .or left right =>
+      mentionsPattern tracked before left || mentionsPattern tracked before right
 
 def mentionsPatterns (tracked before : Nat) : List Pattern → Bool
   | [] => false
@@ -175,6 +178,9 @@ def checkPatternFuel : Nat → Nat → Nat → Pattern → Bool
   | fuel + 1, tracked, before, .and left right =>
       checkPatternFuel fuel tracked before left &&
         checkPatternFuel fuel tracked (before + patternBindingCount left) right
+  | fuel + 1, tracked, before, .or left right =>
+      checkPatternFuel fuel tracked before left &&
+        checkPatternFuel fuel tracked before right
 
 def checkPatternsFuel : Nat → Nat → Nat → List Pattern → Bool
   | 0, _, _, _ => false
@@ -258,12 +264,256 @@ def checkMatchFirstArm (tracked : Nat) (arm : MatchFirstArm) : Bool :=
 def checkMatchFirstArms (tracked : Nat) (arms : List MatchFirstArm) : Bool :=
   checkMatchFirstArmsFuel (MatchFirstArm.listComplexity arms * 3 + 1) tracked arms
 
+mutual
+
+/-- Proof-level structural characterization of a successful ordinary-position
+direct-self check.  Fuel is an index of the derivation, not a Boolean premise. -/
+def ChecksFuel : Nat → Nat → Expr → Prop
+  | 0, _, _ => False
+  | _ + 1, tracked, .var index => index ≠ tracked
+  | _ + 1, _, .lit _ | _ + 1, _, .something => True
+  | fuel + 1, tracked, .lam body => ChecksFuel fuel (tracked + 1) body
+  | fuel + 1, tracked, .app function argument =>
+      ChecksHeadFuel fuel tracked function ∧ ChecksFuel fuel tracked argument
+  | fuel + 1, tracked, .tuple items
+  | fuel + 1, tracked, .ctor _ items
+  | fuel + 1, tracked, .prim _ items => ChecksListFuel fuel tracked items
+  | fuel + 1, tracked, .letE value body =>
+      ChecksFuel fuel tracked value ∧ ChecksFuel fuel (tracked + 1) body
+  | fuel + 1, tracked, .ifE condition thenBranch elseBranch =>
+      ChecksFuel fuel tracked condition ∧ ChecksFuel fuel tracked thenBranch ∧
+        ChecksFuel fuel tracked elseBranch
+  | fuel + 1, tracked, .fixE body =>
+      mentions (tracked + 2) body = false ∧ ChecksFuel fuel 1 body
+  | fuel + 1, tracked, .matcher clauses => ChecksClausesFuel fuel tracked clauses
+  | fuel + 1, tracked, .matchAll target matcher pattern body =>
+      ChecksFuel fuel tracked target ∧ ChecksFuel fuel tracked matcher ∧
+        ChecksPatternFuel fuel tracked 0 pattern ∧
+        ChecksFuel fuel (tracked + patternBindingCount pattern) body
+  | fuel + 1, tracked, .matchFirst target matcher arms =>
+      ChecksFuel fuel tracked target ∧ ChecksFuel fuel tracked matcher ∧
+        ChecksMatchFirstArmsFuel fuel tracked arms
+
+def ChecksHeadFuel : Nat → Nat → Expr → Prop
+  | 0, _, _ => False
+  | _ + 1, _, .var _ => True
+  | fuel + 1, tracked, .app function argument =>
+      ChecksHeadFuel fuel tracked function ∧ ChecksFuel fuel tracked argument
+  | fuel + 1, tracked, expression => ChecksFuel fuel tracked expression
+
+def ChecksListFuel : Nat → Nat → List Expr → Prop
+  | 0, _, _ => False
+  | _ + 1, _, [] => True
+  | fuel + 1, tracked, expression :: expressions =>
+      ChecksFuel fuel tracked expression ∧ ChecksListFuel fuel tracked expressions
+
+def ChecksPatternFuel : Nat → Nat → Nat → Pattern → Prop
+  | 0, _, _, _ => False
+  | _ + 1, _, _, .var | _ + 1, _, _, .wild | _ + 1, _, _, .embed _ => True
+  | fuel + 1, tracked, before, .value expression =>
+      ChecksFuel fuel (tracked + before) expression
+  | fuel + 1, tracked, before, .ctor _ fields
+  | fuel + 1, tracked, before, .tuple fields
+  | fuel + 1, tracked, before, .app _ fields =>
+      ChecksPatternsFuel fuel tracked before fields
+  | fuel + 1, tracked, before, .and left right =>
+      ChecksPatternFuel fuel tracked before left ∧
+        ChecksPatternFuel fuel tracked (before + patternBindingCount left) right
+  | fuel + 1, tracked, before, .or left right =>
+      ChecksPatternFuel fuel tracked before left ∧
+        ChecksPatternFuel fuel tracked before right
+
+def ChecksPatternsFuel : Nat → Nat → Nat → List Pattern → Prop
+  | 0, _, _, _ => False
+  | _ + 1, _, _, [] => True
+  | fuel + 1, tracked, before, pattern :: patterns =>
+      ChecksPatternFuel fuel tracked before pattern ∧
+        ChecksPatternsFuel fuel tracked (before + patternBindingCount pattern) patterns
+
+def ChecksClauseFuel : Nat → Nat → MatcherClause → Prop
+  | 0, _, _ => False
+  | fuel + 1, tracked, .mk header nextMatchers arms =>
+      ChecksFuel fuel (tracked + header.captureCount) nextMatchers ∧
+        ChecksArmsFuel fuel tracked header.captureCount arms
+
+def ChecksClausesFuel : Nat → Nat → List MatcherClause → Prop
+  | 0, _, _ => False
+  | _ + 1, _, [] => True
+  | fuel + 1, tracked, clause :: clauses =>
+      ChecksClauseFuel fuel tracked clause ∧ ChecksClausesFuel fuel tracked clauses
+
+def ChecksArmFuel : Nat → Nat → Nat → MatcherArm → Prop
+  | 0, _, _, _ => False
+  | fuel + 1, tracked, captures, .mk header body =>
+      ChecksFuel fuel (tracked + header.bindingCount + captures) body
+
+def ChecksArmsFuel : Nat → Nat → Nat → List MatcherArm → Prop
+  | 0, _, _, _ => False
+  | _ + 1, _, _, [] => True
+  | fuel + 1, tracked, captures, arm :: arms =>
+      ChecksArmFuel fuel tracked captures arm ∧
+        ChecksArmsFuel fuel tracked captures arms
+
+def ChecksMatchFirstArmFuel : Nat → Nat → MatchFirstArm → Prop
+  | 0, _, _ => False
+  | fuel + 1, tracked, .mk pattern body =>
+      ChecksPatternFuel fuel tracked 0 pattern ∧
+        ChecksFuel fuel (tracked + patternBindingCount pattern) body
+
+def ChecksMatchFirstArmsFuel : Nat → Nat → List MatchFirstArm → Prop
+  | 0, _, _ => False
+  | _ + 1, _, [] => True
+  | fuel + 1, tracked, arm :: arms =>
+      ChecksMatchFirstArmFuel fuel tracked arm ∧
+        ChecksMatchFirstArmsFuel fuel tracked arms
+
+end
+
+structure FuelReflection (fuel : Nat) : Prop where
+  expression : ∀ tracked expression,
+    ChecksFuel fuel tracked expression ↔ checkFuel fuel tracked expression = true
+  head : ∀ tracked expression,
+    ChecksHeadFuel fuel tracked expression ↔ checkHeadFuel fuel tracked expression = true
+  expressions : ∀ tracked expressions,
+    ChecksListFuel fuel tracked expressions ↔ checkListFuel fuel tracked expressions = true
+  pattern : ∀ tracked before pattern,
+    ChecksPatternFuel fuel tracked before pattern ↔
+      checkPatternFuel fuel tracked before pattern = true
+  patterns : ∀ tracked before patterns,
+    ChecksPatternsFuel fuel tracked before patterns ↔
+      checkPatternsFuel fuel tracked before patterns = true
+  clause : ∀ tracked clause,
+    ChecksClauseFuel fuel tracked clause ↔ checkClauseFuel fuel tracked clause = true
+  clauses : ∀ tracked clauses,
+    ChecksClausesFuel fuel tracked clauses ↔ checkClausesFuel fuel tracked clauses = true
+  arm : ∀ tracked captures arm,
+    ChecksArmFuel fuel tracked captures arm ↔
+      checkArmFuel fuel tracked captures arm = true
+  arms : ∀ tracked captures arms,
+    ChecksArmsFuel fuel tracked captures arms ↔
+      checkArmsFuel fuel tracked captures arms = true
+  matchFirstArm : ∀ tracked arm,
+    ChecksMatchFirstArmFuel fuel tracked arm ↔
+      checkMatchFirstArmFuel fuel tracked arm = true
+  matchFirstArms : ∀ tracked arms,
+    ChecksMatchFirstArmsFuel fuel tracked arms ↔
+      checkMatchFirstArmsFuel fuel tracked arms = true
+
+theorem fuelReflection (fuel : Nat) : FuelReflection fuel := by
+  induction fuel with
+  | zero =>
+      constructor <;> intros <;>
+        simp [ChecksFuel, ChecksHeadFuel, ChecksListFuel, ChecksPatternFuel,
+          ChecksPatternsFuel, ChecksClauseFuel, ChecksClausesFuel, ChecksArmFuel,
+          ChecksArmsFuel, ChecksMatchFirstArmFuel, ChecksMatchFirstArmsFuel,
+          checkFuel, checkHeadFuel, checkListFuel, checkPatternFuel,
+          checkPatternsFuel, checkClauseFuel, checkClausesFuel, checkArmFuel,
+          checkArmsFuel, checkMatchFirstArmFuel, checkMatchFirstArmsFuel]
+  | succ fuel induction =>
+      constructor
+      · intro tracked expression
+        cases expression <;>
+          simp [ChecksFuel, checkFuel, induction.expression, induction.head,
+            induction.expressions, induction.pattern, induction.clauses,
+            induction.matchFirstArms, and_assoc]
+      · intro tracked expression
+        cases expression <;>
+          simp [ChecksHeadFuel, checkHeadFuel, induction.expression, induction.head]
+      · intro tracked expressions
+        cases expressions <;>
+          simp [ChecksListFuel, checkListFuel, induction.expression,
+            induction.expressions]
+      · intro tracked before pattern
+        cases pattern <;>
+          simp [ChecksPatternFuel, checkPatternFuel, induction.expression,
+            induction.patterns, induction.pattern]
+      · intro tracked before patterns
+        cases patterns <;>
+          simp [ChecksPatternsFuel, checkPatternsFuel, induction.pattern,
+            induction.patterns]
+      · intro tracked clause
+        cases clause
+        simp [ChecksClauseFuel, checkClauseFuel, induction.expression,
+          induction.arms]
+      · intro tracked clauses
+        cases clauses <;>
+          simp [ChecksClausesFuel, checkClausesFuel, induction.clause,
+            induction.clauses]
+      · intro tracked captures arm
+        cases arm
+        simp [ChecksArmFuel, checkArmFuel, induction.expression]
+      · intro tracked captures arms
+        cases arms <;>
+          simp [ChecksArmsFuel, checkArmsFuel, induction.arm, induction.arms]
+      · intro tracked arm
+        cases arm
+        simp [ChecksMatchFirstArmFuel, checkMatchFirstArmFuel,
+          induction.pattern, induction.expression]
+      · intro tracked arms
+        cases arms <;>
+          simp [ChecksMatchFirstArmsFuel, checkMatchFirstArmsFuel,
+            induction.matchFirstArm, induction.matchFirstArms]
+
+@[simp] theorem checksFuel_iff {fuel tracked expression} :
+    ChecksFuel fuel tracked expression ↔ checkFuel fuel tracked expression = true :=
+  (fuelReflection fuel).expression tracked expression
+
+theorem checksHeadFuel_iff {fuel tracked expression} :
+    ChecksHeadFuel fuel tracked expression ↔ checkHeadFuel fuel tracked expression = true :=
+  (fuelReflection fuel).head tracked expression
+
+theorem checksListFuel_iff {fuel tracked expressions} :
+    ChecksListFuel fuel tracked expressions ↔ checkListFuel fuel tracked expressions = true :=
+  (fuelReflection fuel).expressions tracked expressions
+
+theorem checksPatternFuel_iff {fuel tracked before pattern} :
+    ChecksPatternFuel fuel tracked before pattern ↔
+      checkPatternFuel fuel tracked before pattern = true :=
+  (fuelReflection fuel).pattern tracked before pattern
+
+theorem checksPatternsFuel_iff {fuel tracked before patterns} :
+    ChecksPatternsFuel fuel tracked before patterns ↔
+      checkPatternsFuel fuel tracked before patterns = true :=
+  (fuelReflection fuel).patterns tracked before patterns
+
+theorem checksClauseFuel_iff {fuel tracked clause} :
+    ChecksClauseFuel fuel tracked clause ↔ checkClauseFuel fuel tracked clause = true :=
+  (fuelReflection fuel).clause tracked clause
+
+theorem checksClausesFuel_iff {fuel tracked clauses} :
+    ChecksClausesFuel fuel tracked clauses ↔ checkClausesFuel fuel tracked clauses = true :=
+  (fuelReflection fuel).clauses tracked clauses
+
+theorem checksArmFuel_iff {fuel tracked captures arm} :
+    ChecksArmFuel fuel tracked captures arm ↔
+      checkArmFuel fuel tracked captures arm = true :=
+  (fuelReflection fuel).arm tracked captures arm
+
+theorem checksArmsFuel_iff {fuel tracked captures arms} :
+    ChecksArmsFuel fuel tracked captures arms ↔
+      checkArmsFuel fuel tracked captures arms = true :=
+  (fuelReflection fuel).arms tracked captures arms
+
+theorem checksMatchFirstArmFuel_iff {fuel tracked arm} :
+    ChecksMatchFirstArmFuel fuel tracked arm ↔
+      checkMatchFirstArmFuel fuel tracked arm = true :=
+  (fuelReflection fuel).matchFirstArm tracked arm
+
+theorem checksMatchFirstArmsFuel_iff {fuel tracked arms} :
+    ChecksMatchFirstArmsFuel fuel tracked arms ↔
+      checkMatchFirstArmsFuel fuel tracked arms = true :=
+  (fuelReflection fuel).matchFirstArms tracked arms
+
+
 /-- Proof-level direct-self side condition for a fix body. -/
 def Holds (body : Expr) : Prop :=
-  check 1 body = true
+  ChecksFuel (body.complexity * 3 + 1) 1 body
+
+@[simp] theorem holds_iff_check (body : Expr) : Holds body ↔ check 1 body = true := by
+  exact checksFuel_iff
 
 instance (body : Expr) : Decidable (Holds body) :=
-  inferInstanceAs (Decidable (check 1 body = true))
+  decidable_of_iff (check 1 body = true) (holds_iff_check body).symm
 
 end DirectSelf
 
@@ -407,7 +657,8 @@ theorem elaborateFixUsing_sound
         rcases output with ⟨generatedBody, afterBody⟩
         simp [elaborateFixUsing, direct, domain, codomain, bodyResult] at success
         rcases success with ⟨rfl, rfl⟩
-        exact .fixE direct (bodySound bodyResult)
+        exact .fixE ((DirectSelf.holds_iff_check body).2 direct)
+          (bodySound bodyResult)
   · simp [elaborateFixUsing, direct] at success
 
 /-- The M3-specialized fix wrapper is sound for `FixElaborates`. -/

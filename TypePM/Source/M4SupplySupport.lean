@@ -65,6 +65,10 @@ theorem PatternElaboratesUsing.supply_le_next
       exact Supply.le_trans
         (PatternElaboratesUsing.supply_le_next expressionIncreases left)
         (PatternElaboratesUsing.supply_le_next expressionIncreases right)
+  | or left right bindingsEqual =>
+      exact Supply.le_trans
+        (PatternElaboratesUsing.supply_le_next expressionIncreases left)
+        (PatternElaboratesUsing.supply_le_next expressionIncreases right)
   | embed lookup => exact Supply.le_refl _
   | app lookup arity fieldsDerivation =>
       exact Supply.le_trans (by simp [Supply.Le, DualScheme.instantiate])
@@ -2553,6 +2557,56 @@ theorem Pattern.dualEquations_support
   · exact leftSupport candidate (by simp [dualVariables, leftCapability])
   · exact rightSupport candidate (by simp [dualVariables, rightCapability])
 
+/-- Pointwise binding equalities mention only variables already present in
+the two source-ordered binding lists. -/
+theorem Pattern.bindingEquations_support
+    {context : Context} {start finish : Supply} {left right : List Ty}
+    {equations : List Equation}
+    (leftSupport : VariablesSupportProvenance context start finish
+      (Ty.unificationVarsList left))
+    (rightSupport : VariablesSupportProvenance context start finish
+      (Ty.unificationVarsList right))
+    (success : Pattern.bindingEquations left right = some equations) :
+    VariablesSupportProvenance context start finish
+      (TypePM.unificationVars equations) := by
+  induction left generalizing right equations with
+  | nil =>
+      cases right <;> simp [Pattern.bindingEquations] at success
+      subst equations
+      intro candidate member
+      simp [TypePM.unificationVars] at member
+  | cons left lefts induction =>
+      cases right with
+      | nil => simp [Pattern.bindingEquations] at success
+      | cons right rights =>
+          cases tailResult : Pattern.bindingEquations lefts rights with
+          | none => simp [Pattern.bindingEquations, tailResult] at success
+          | some tailEquations =>
+              simp [Pattern.bindingEquations, tailResult] at success
+              subst equations
+              have leftTail : VariablesSupportProvenance context start finish
+                  (Ty.unificationVarsList lefts) := by
+                intro candidate member
+                exact leftSupport candidate (by
+                  simp [Ty.unificationVarsList, member])
+              have rightTail : VariablesSupportProvenance context start finish
+                  (Ty.unificationVarsList rights) := by
+                intro candidate member
+                exact rightSupport candidate (by
+                  simp [Ty.unificationVarsList, member])
+              have tailSupport := induction leftTail rightTail tailResult
+              intro candidate member
+              have origin : candidate ∈ left.unificationVars ∨
+                  candidate ∈ right.unificationVars ∨
+                  candidate ∈ TypePM.unificationVars tailEquations := by
+                simpa [TypePM.unificationVars, Equation.unificationVars] using member
+              rcases origin with leftMember | rightMember | tailMember
+              · exact leftSupport candidate (by
+                  simp [Ty.unificationVarsList, leftMember])
+              · exact rightSupport candidate (by
+                  simp [Ty.unificationVarsList, rightMember])
+              · exact tailSupport candidate tailMember
+
 /-- A target/capability pair selected from a pattern argument list inherits
 the support of that list. -/
 theorem dualSupport_of_getElem
@@ -2871,6 +2925,69 @@ theorem PatternElaboratesUsing.supportProvenance
       intro candidate member
       exact (((leftDual.append rightBindings).append
         ((leftHard.append rightHard).append equationsSupport)).append
+        (leftPending.append rightPending)) candidate (by
+          simpa [GeneratedPattern.unificationVars, unificationVars_append,
+            pendingUnificationVars_append, List.append_assoc] using member)
+  | @or left right bindings start generatedLeft afterLeft generatedRight
+      finish bindingChecks leftElaboration rightElaboration bindingsEqual =>
+      have leftSupport := leftElaboration.supportProvenance wellFormed
+        expressionIncreases expressionSupport argumentsSupport bindingsSupport
+        outerToStart
+      have startToLeft := leftElaboration.supply_le_next expressionIncreases
+      have leftToFinish := rightElaboration.supply_le_next expressionIncreases
+      have argumentsAtLeft := argumentsSupport.extend_finish startToLeft
+      have incomingAtLeft := bindingsSupport.extend_finish startToLeft
+      have rightSupport := rightElaboration.supportProvenance wellFormed
+        expressionIncreases expressionSupport argumentsAtLeft incomingAtLeft
+        (Supply.le_trans outerToStart startToLeft)
+      have leftFinal := leftSupport.extend_finish leftToFinish
+      have leftDual : VariablesSupportProvenance context outerStart finish
+          (dualVariables generatedLeft.dual) := by
+        intro candidate member
+        exact leftFinal candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have rightDual : VariablesSupportProvenance context outerStart finish
+          (dualVariables generatedRight.dual) := by
+        intro candidate member
+        exact rightSupport candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have dualChecks := Pattern.dualEquations_support leftDual rightDual
+      have leftBindings : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedLeft.bindings) := by
+        intro candidate member
+        exact leftFinal candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have rightBindings : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedRight.bindings) := by
+        intro candidate member
+        exact rightSupport candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have bindingChecksSupport := Pattern.bindingEquations_support
+        leftBindings rightBindings bindingsEqual
+      have leftHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedLeft.hard) := by
+        intro candidate member
+        exact leftFinal candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have rightHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedRight.hard) := by
+        intro candidate member
+        exact rightSupport candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have leftPending : VariablesSupportProvenance context outerStart finish
+          (pendingUnificationVars generatedLeft.pending) := by
+        intro candidate member
+        exact leftFinal candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      have rightPending : VariablesSupportProvenance context outerStart finish
+          (pendingUnificationVars generatedRight.pending) := by
+        intro candidate member
+        exact rightSupport candidate (by
+          simp [GeneratedPattern.unificationVars, member])
+      intro candidate member
+      exact (((leftDual.append leftBindings).append
+        (((leftHard.append rightHard).append dualChecks).append
+          bindingChecksSupport)).append
         (leftPending.append rightPending)) candidate (by
           simpa [GeneratedPattern.unificationVars, unificationVars_append,
             pendingUnificationVars_append, List.append_assoc] using member)

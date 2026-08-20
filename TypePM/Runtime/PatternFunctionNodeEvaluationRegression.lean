@@ -85,4 +85,40 @@ theorem pair_first_program_executes_exact :
       .ok (.tuple [.int 1, .int 2]) := by
   with_unfolding_all rfl
 
+/-! ## Ordinary-fragment simulation -/
+
+/-- This nested ordinary pattern checks that `MNodeFree` traverses match arms,
+value-pattern expressions, and result bodies, even though the executable
+simulation below deliberately stops before matching search. -/
+def nestedOrdinaryMatch : Source.Expr :=
+  .matchFirst (.lit 1) .something [⟨.value (.lit 1), .lit 2⟩]
+
+theorem nested_ordinary_match_is_mnode_free : nestedOrdinaryMatch.MNodeFree := by
+  with_unfolding_all rfl
+
+/-- A representative evaluator-independent program with sequencing, a
+non-callback primitive, variables, and tuple construction. -/
+def independentProgram : Source.Expr :=
+  .letE (.prim .add [.lit 1, .lit 2]) (.tuple [.var 0, .lit 4])
+
+theorem independent_program_fragment :
+    independentProgram.EvaluatorIndependent := by
+  exact .letE
+    (.prim (by decide) (.cons .lit (.cons .lit .nil)))
+    (.tuple (.cons .var (.cons .lit .nil)))
+
+theorem independent_program_simulates_ordinary_evaluation :
+    evalPatternFunctionNodesFuel definitions 8 [] independentProgram =
+      evalFuel 8 [] independentProgram :=
+  evaluatorIndependent_nodeEvaluation_eq_evalFuel independent_program_fragment
+    definitions 8 []
+
+/-- The equality theorem transfers the ordinary evaluator's adequacy result,
+not merely its computed output. -/
+theorem independent_program_has_big_step_derivation :
+    Eval [] independentProgram (.tuple [.int 3, .int 4]) := by
+  apply evaluatorIndependent_nodeEvaluation_sound
+    (definitions := definitions) (fuel := 8) independent_program_fragment
+  with_unfolding_all rfl
+
 end TypePM.Runtime.PatternFunctionNodeEvaluationRegression

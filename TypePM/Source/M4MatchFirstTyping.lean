@@ -32,6 +32,8 @@ def structurallyIrrefutable : Pattern → Bool
   | .tuple fields => allStructurallyIrrefutable fields
   | .and left right =>
       structurallyIrrefutable left && structurallyIrrefutable right
+  | .or left right =>
+      structurallyIrrefutable left || structurallyIrrefutable right
   | .value _ | .ctor _ _ | .embed _ | .app _ _ => false
 
 def allStructurallyIrrefutable : List Pattern → Bool
@@ -49,6 +51,39 @@ def armsExhaustive : List MatchFirstArm → Bool
   | [] => false
   | [.mk pattern _] => structurallyIrrefutable pattern
   | _ :: arms => armsExhaustive arms
+
+/-- Proof-level source-order exhaustiveness: earlier arms may be refutable,
+but the final arm has a structurally irrefutable pattern. -/
+inductive Exhaustive : List MatchFirstArm → Prop where
+  | last {pattern body}
+      (irrefutable : structurallyIrrefutable pattern = true) :
+      Exhaustive [.mk pattern body]
+  | skip {arm arms} (tail : Exhaustive arms) : Exhaustive (arm :: arms)
+
+theorem exhaustive_iff_armsExhaustive (arms : List MatchFirstArm) :
+    Exhaustive arms ↔ armsExhaustive arms = true := by
+  constructor
+  · intro exhaustive
+    induction exhaustive with
+    | last irrefutable => exact irrefutable
+    | skip tail induction =>
+        cases tail <;> simpa [armsExhaustive] using induction
+  · induction arms with
+    | nil => simp [armsExhaustive]
+    | cons arm arms induction =>
+        cases arms with
+        | nil =>
+            cases arm with
+            | mk pattern body =>
+                intro checked
+                exact .last checked
+        | cons next rest =>
+            intro checked
+            exact .skip (induction (by simpa [armsExhaustive] using checked))
+
+instance (arms : List MatchFirstArm) : Decidable (Exhaustive arms) :=
+  decidable_of_iff (armsExhaustive arms = true)
+    (exhaustive_iff_armsExhaustive arms).symm
 
 /-- Constraints contributed by the nonempty, source-ordered arm list. -/
 structure GeneratedArms where
@@ -253,7 +288,7 @@ inductive ElaboratesUsing
     Expr → Supply → Generated → Supply → Prop where
   | matchFirst {target matcher arms supply generatedTarget afterTarget
       generatedMatcher afterMatcher generatedArms next}
-      (exhaustive : armsExhaustive arms = true)
+      (exhaustive : Exhaustive arms)
       (targetElaboration :
         ExpressionElaborates context target supply generatedTarget afterTarget)
       (matcherElaboration :
@@ -281,7 +316,7 @@ theorem exhaustive
     (elaboration :
       ElaboratesUsing ExpressionElaborates signature context
         (.matchFirst target matcher arms) supply generated next) :
-    armsExhaustive arms = true := by
+    Exhaustive arms := by
   cases elaboration
   assumption
 
@@ -449,7 +484,8 @@ theorem elaborateUsing_sound
                 simp [elaborateUsing, exhaustive, targetResult, matcherResult,
                   armsResult] at success
                 rcases success with ⟨rfl, rfl⟩
-                exact .matchFirst exhaustive
+                exact .matchFirst
+                  ((exhaustive_iff_armsExhaustive arms).2 exhaustive)
                   (expressionSound targetResult)
                   (expressionSound matcherResult)
                   (elaborateArmsUsing_sound expressionSound wellFormed armsResult)

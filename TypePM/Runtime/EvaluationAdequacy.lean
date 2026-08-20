@@ -110,6 +110,7 @@ private theorem builtinAtom_to_eval
   | somethingValueFailure evaluated unequal =>
       exact .somethingValueFailure (sound evaluated) unequal
   | and => exact .and
+  | or => exact .or
   | tuple zipped => exact .tuple zipped
   | productSomethingVar => exact .productSomethingVar
   | productSomethingWild => exact .productSomethingWild

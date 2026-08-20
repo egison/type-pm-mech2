@@ -38,6 +38,16 @@ runtime and produces no result, rather than getting stuck. -/
 def paperIntegerValueMismatch : Expr :=
   .matchAll (.lit 5) .something (.value (.lit 1)) (.lit 0)
 
+/-- Both or-pattern alternatives bind one positional variable.  On `(1, 2)`,
+the left alternative binds `2` and the right alternative binds `1`, exposing
+the source order of the two successful search branches. -/
+def orderedOrPattern : Expr :=
+  .matchAll (.tuple [.lit 1, .lit 2])
+    (.tuple [.something, .something])
+    (.or (.tuple [.value (.lit 1), .var])
+      (.tuple [.var, .value (.lit 2)]))
+    (.var 0)
+
 theorem something_variable_evaluates_body_under_binding :
     evalFuel 3 [] somethingVariable =
       .ok (Value.buildList [.int 7]) := by
@@ -68,6 +78,21 @@ theorem conjunction_builtin_reducer_exact
 
 theorem paper_integer_value_mismatch_is_empty_not_stuck :
     evalFuel 3 [] paperIntegerValueMismatch = .ok Value.nilValue := by
+  rfl
+
+theorem or_builtin_reducer_preserves_alternative_order
+    (evaluate : ValueEnvironment → Expr → FuelResult Value)
+    (environment : ValueEnvironment) (matcher target : Value)
+    (left right : Pattern) :
+    reduceBuiltinAtom evaluate environment
+      ⟨.or left right, matcher, target⟩ =
+        .ok (.hit
+          ⟨[[⟨left, matcher, target⟩], [⟨right, matcher, target⟩]], []⟩) := by
+  rfl
+
+theorem or_evaluation_preserves_alternative_order :
+    evalFuel 12 [] orderedOrPattern =
+      .ok (Value.buildList [.int 2, .int 1]) := by
   rfl
 
 /-- A head-shaped clause returns two equal-position alternatives.  The later

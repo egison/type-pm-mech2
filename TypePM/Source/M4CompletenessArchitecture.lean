@@ -1,5 +1,5 @@
 import TypePM.Source.FullM2Completion
-import TypePM.Source.M4RecursiveElaboration
+import TypePM.Source.M4ElaborationFuelMonotonicity
 
 /-!
 # M4 completeness architecture
@@ -279,9 +279,9 @@ def ExecutableElaborationReplay
     M4.elaborate signature context expression supply = some (generated, next) ∧
       M4.Elaborates signature context expression supply generated next
 
-/-- The global M4 replay obligation.  Its proof must show that the public
-fuel `sizeOf expression + 1` is sufficient for every relational derivation,
-even when that derivation initially hides a different fuel witness. -/
+/-- The final replay consequence consumed by the principality proof.  The
+component boundary below exposes fuel normalization, ordinary structural
+replay, and the representative-changing `let` case separately. -/
 def FullM4ExecutableReplay : Prop :=
   ∀ {signature : FrozenSignature} {context : Context} {expression : Expr}
       {supply : Supply} {generated : Generated} {next : Supply},
@@ -296,8 +296,67 @@ def M4FuelNormalization : Prop :=
   ∀ {signature : FrozenSignature} {context : Context} {expression : Expr}
       {supply : Supply} {generated : Generated} {next : Supply} {fuel : Nat},
     ElaboratesFuel signature fuel context expression supply generated next →
-      ElaboratesFuel signature (sizeOf expression + 1) context expression
+      ElaboratesFuel signature (expression.complexity + 1) context expression
         supply generated next
+
+/-- The structural fuel theorem discharges the architecture's normalization
+interface without any well-formedness or acceptance hypothesis. -/
+theorem m4FuelNormalization : M4FuelNormalization := by
+  intro signature context expression supply generated next fuel derivation
+  exact derivation.normalize
+
+/-- Replay at a `let` root after changing from the independently selected
+principal closure of the value derivation to the representative returned by
+the public solver.  This is where the two generalized body contexts must be
+aligned; it is deliberately separate from fuel normalization. -/
+def M4LetClosureRepresentativeAgreement : Prop :=
+  ∀ {signature : FrozenSignature} {context : Context} {value body : Expr}
+      {supply : Supply} {generated : Generated} {next : Supply},
+    ElaboratesFuel signature ((Expr.letE value body).complexity + 1) context
+        (Expr.letE value body) supply generated next →
+      supply.WellFormedFor context →
+        ExecutableElaborationReplay signature context (Expr.letE value body) supply
+
+/-- Replay for every non-`let` root once recursive derivations use the public
+complexity fuel.  The premise excludes `let` so that closure representative
+alignment cannot disappear into this structural obligation. -/
+def M4StructuralReplay : Prop :=
+  ∀ {signature : FrozenSignature} {context : Context} {expression : Expr}
+      {supply : Supply} {generated : Generated} {next : Supply},
+    (∀ value body, expression ≠ .letE value body) →
+      ElaboratesFuel signature (expression.complexity + 1) context expression
+          supply generated next →
+        supply.WellFormedFor context →
+          ExecutableElaborationReplay signature context expression supply
+
+/-- Fuel normalization, `let` representative agreement, and non-`let`
+structural replay imply the final public replay interface. -/
+theorem fullM4ExecutableReplay_of_components
+    (normalization : M4FuelNormalization)
+    (letAgreement : M4LetClosureRepresentativeAgreement)
+    (structural : M4StructuralReplay) :
+    FullM4ExecutableReplay := by
+  intro signature context expression supply generated next derivation wellFormed
+  obtain ⟨fuel, fuelDerivation⟩ := derivation
+  have normalized := normalization fuelDerivation
+  cases expression with
+  | letE value body => exact letAgreement normalized wellFormed
+  | var index => exact structural (by simp) normalized wellFormed
+  | lit value => exact structural (by simp) normalized wellFormed
+  | something => exact structural (by simp) normalized wellFormed
+  | lam body => exact structural (by simp) normalized wellFormed
+  | app function argument => exact structural (by simp) normalized wellFormed
+  | tuple items => exact structural (by simp) normalized wellFormed
+  | ctor constructor arguments => exact structural (by simp) normalized wellFormed
+  | prim operation arguments => exact structural (by simp) normalized wellFormed
+  | ifE condition thenBranch elseBranch =>
+      exact structural (by simp) normalized wellFormed
+  | fixE body => exact structural (by simp) normalized wellFormed
+  | matcher clauses => exact structural (by simp) normalized wellFormed
+  | matchAll target matcher pattern body =>
+      exact structural (by simp) normalized wellFormed
+  | matchFirst target matcher arms =>
+      exact structural (by simp) normalized wellFormed
 
 /-- Per-derivation target correspondence needed for M4 principality.  Two
 types are mutual instances when each can be obtained from the other by a
@@ -479,12 +538,13 @@ def OrdinaryM4CoherenceStep : Prop :=
     FullM4FuelPairProperty expression
 
 /-- Exact conjunction of the constructor-local obligations left after the
-checked M2--M3 reuse theorem above. -/
+checked M2--M3 reuse theorem above.  Supply and generated-support provenance
+are already established by `M4.supplyAndSupport`, so they are no longer an
+open item in this boundary. -/
 def M4CoherenceExtensionBoundary : Prop :=
-  M4SupplyAndSupport ∧ M4FreshRenamingTransport ∧
-    OrdinaryM4CoherenceStep ∧ FixCoherenceStep ∧ MatcherCoherenceStep ∧
-      MatchAllCoherenceStep ∧ MatchFirstCoherenceStep ∧
-        M4LetTransportAndAssembly
+  M4FreshRenamingTransport ∧ OrdinaryM4CoherenceStep ∧ FixCoherenceStep ∧
+    MatcherCoherenceStep ∧ MatchAllCoherenceStep ∧ MatchFirstCoherenceStep ∧
+      M4LetTransportAndAssembly
 
 /-- Final proof boundary for results 5.2--5.5 at M4.  The local coherence
 steps must first be assembled into `FullM4Coherence`; the parallel recursive
@@ -492,6 +552,7 @@ replay proof must establish `FullM4ExecutableReplay`.  The theorem
 `wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay` then
 discharges the solver-facing remainder. -/
 def M4PrincipalityCompletionBoundary : Prop :=
-  M4FuelNormalization ∧ FullM4Coherence ∧ FullM4ExecutableReplay
+  M4FuelNormalization ∧ M4LetClosureRepresentativeAgreement ∧
+    M4StructuralReplay ∧ FullM4Coherence
 
 end TypePM.Source.M4.CompletenessArchitecture

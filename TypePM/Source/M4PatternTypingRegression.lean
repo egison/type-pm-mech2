@@ -52,6 +52,22 @@ def conjunctionGenerated : GeneratedPattern :=
       .cap (.var ⟨0⟩) (.var ⟨1⟩)]
     pending := [] }
 
+def positionalOrPattern : Pattern :=
+  .or (.tuple [.var, .var]) (.tuple [.var, .var])
+
+def positionalOrGenerated : GeneratedPattern :=
+  { dual := ⟨.prod [.var ⟨0⟩, .var ⟨1⟩],
+      .prod [.var ⟨0⟩, .var ⟨1⟩]⟩
+    bindings := [.var ⟨0⟩, .var ⟨1⟩]
+    hard := [
+      .ty (.prod [.var ⟨0⟩, .var ⟨1⟩])
+        (.prod [.var ⟨2⟩, .var ⟨3⟩]),
+      .cap (.prod [.var ⟨0⟩, .var ⟨1⟩])
+        (.prod [.var ⟨2⟩, .var ⟨3⟩]),
+      .ty (.var ⟨0⟩) (.var ⟨2⟩),
+      .ty (.var ⟨1⟩) (.var ⟨3⟩)]
+    pending := [] }
+
 def occursTail : Pattern :=
   .ctor .cons [.var, .value (.var 0)]
 
@@ -108,6 +124,23 @@ theorem conjunction_relational :
       leftToRightConjunction [] ⟨0, 0⟩ conjunctionGenerated ⟨1, 2⟩ :=
   elaboratePattern_sound Paper1FrozenSignature.wellFormed
     elaborate_conjunction_exact
+
+/-- Both alternatives start from the same empty binding input.  Their fresh
+variables differ, but the result keeps the left branch's two source-order
+positions and equates them pointwise with the right branch. -/
+theorem elaborate_or_positional_bindings_exact :
+    elaboratePattern Paper1FrozenSignature.signature [] []
+      positionalOrPattern [] ⟨0, 0⟩ =
+        some (positionalOrGenerated, ⟨4, 4⟩) := by
+  simp [positionalOrPattern, positionalOrGenerated, elaboratePattern,
+    elaboratePatterns, Pattern.dualEquations, Pattern.bindingEquations,
+    Dual.capabilities, Dual.targets]
+
+/-- Alternatives with different binding counts are rejected before solving. -/
+theorem or_binding_count_mismatch_rejected :
+    elaboratePattern Paper1FrozenSignature.signature [] []
+      (.or (.tuple [.var, .var]) .var) [] ⟨0, 0⟩ = none := by
+  simp [elaboratePattern, elaboratePatterns, Pattern.bindingEquations]
 
 def occursGenerated : GeneratedPattern :=
   { dual := ⟨.con PatternFormer.list [.var ⟨0⟩],

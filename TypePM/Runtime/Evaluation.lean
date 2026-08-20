@@ -256,6 +256,9 @@ mutual
     | and : EvalAtomReduces environment
         ⟨.and left right, matcher, target⟩
         ⟨[[⟨left, matcher, target⟩, ⟨right, matcher, target⟩]], []⟩
+    | or : EvalAtomReduces environment
+        ⟨.or left right, matcher, target⟩
+        ⟨[[⟨left, matcher, target⟩], [⟨right, matcher, target⟩]], []⟩
     | tuple
         (zipped : MatchingAtomsZip patterns matchers targets atoms) :
         EvalAtomReduces environment

@@ -170,6 +170,7 @@ private theorem builtinAtom_hit_mono
   | somethingValueFailure evaluated unequal =>
       exact .somethingValueFailure (monotone evaluated) unequal
   | and => exact .and
+  | or => exact .or
   | tuple zipped => exact .tuple zipped
   | productSomethingVar => exact .productSomethingVar
   | productSomethingWild => exact .productSomethingWild
@@ -948,6 +949,10 @@ theorem Eval.complete
       intros environment left right matcher target
       exact ⟨0, combineAtomReducers_primary_hit _ _
         (BuiltinAtomReduces.complete .and)⟩
+  case or =>
+      intros environment left right matcher target
+      exact ⟨0, combineAtomReducers_primary_hit _ _
+        (BuiltinAtomReduces.complete .or)⟩
   case tuple =>
       intros patterns matchers targets atoms environment zipped
       exact ⟨0, combineAtomReducers_primary_hit _ _

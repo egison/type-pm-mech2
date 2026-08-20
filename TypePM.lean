@@ -97,6 +97,7 @@ import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.FullM2Completion
 import TypePM.Source.M2Regression
+import TypePM.Source.DamasMilner
 import TypePM.Source.M3Regression
 import TypePM.DataTypes
 import TypePM.Constructors
@@ -167,6 +168,8 @@ import TypePM.NoStuck
 import TypePM.RuntimeTypingRegression
 import TypePM.MatcherSafety
 import TypePM.MatcherSafetyRegression
+import TypePM.UserMatcherSafety
+import TypePM.UserMatcherSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -185,6 +188,7 @@ import TypePM.Source.MatcherDemandRegression
 import TypePM.UnificationFuelTransport
 import TypePM.InferenceFuelTransport
 import TypePM.Source.M4ElaborationFuelTransport
+import TypePM.Source.M4ElaborationFuelMonotonicity
 import TypePM.Source.M4Paper1NegativeRegression
 import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4CompletenessArchitecture

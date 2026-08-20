@@ -59,6 +59,15 @@ def dualEquations (left right : Dual) : List Equation :=
   [.ty left.target right.target,
     .cap left.capability right.capability]
 
+/-- Pointwise equality of two source-ordered binding lists.  A length
+mismatch rejects the or-pattern before constraint solving. -/
+def bindingEquations : List Ty → List Ty → Option (List Equation)
+  | [], [] => some []
+  | left :: lefts, right :: rights => do
+      let tail ← bindingEquations lefts rights
+      pure (.ty left right :: tail)
+  | _, _ => none
+
 end Pattern
 
 abbrev M4ExpressionElaborator :=
@@ -119,6 +128,18 @@ def elaboratePatternUsingFuel
       pure (⟨generatedLeft.dual, generatedRight.bindings,
         generatedLeft.hard ++ generatedRight.hard ++
           Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+        generatedLeft.pending ++ generatedRight.pending⟩, next)
+  | fuel + 1, .or left right, bindings, supply => do
+      let (generatedLeft, afterLeft) ← elaboratePatternUsingFuel
+        elaborateExpression signature context arguments fuel left bindings supply
+      let (generatedRight, next) ← elaboratePatternUsingFuel
+        elaborateExpression signature context arguments fuel right bindings afterLeft
+      let bindingChecks ← Pattern.bindingEquations
+        generatedLeft.bindings generatedRight.bindings
+      pure (⟨generatedLeft.dual, generatedLeft.bindings,
+        generatedLeft.hard ++ generatedRight.hard ++
+          Pattern.dualEquations generatedLeft.dual generatedRight.dual ++
+          bindingChecks,
         generatedLeft.pending ++ generatedRight.pending⟩, next)
   | _ + 1, .embed index, bindings, supply => do
       let dual ← arguments[index]?
@@ -234,6 +255,20 @@ def elaboratePattern
         (⟨generatedLeft.dual, generatedRight.bindings,
           generatedLeft.hard ++ generatedRight.hard ++
             Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+          generatedLeft.pending ++ generatedRight.pending⟩,
+          next)
+  | .or left right, bindings, supply => do
+      let (generatedLeft, afterLeft) ←
+        elaboratePattern signature context arguments left bindings supply
+      let (generatedRight, next) ←
+        elaboratePattern signature context arguments right bindings afterLeft
+      let bindingChecks ← Pattern.bindingEquations
+        generatedLeft.bindings generatedRight.bindings
+      pure
+        (⟨generatedLeft.dual, generatedLeft.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual ++
+            bindingChecks,
           generatedLeft.pending ++ generatedRight.pending⟩,
           next)
   | .embed index, bindings, supply => do
@@ -419,6 +454,21 @@ inductive PatternElaboratesUsing
           generatedLeft.hard ++ generatedRight.hard ++
             Pattern.dualEquations generatedLeft.dual generatedRight.dual,
           generatedLeft.pending ++ generatedRight.pending⟩ next
+  | or {signature context arguments left right bindings supply
+      generatedLeft afterLeft generatedRight next bindingChecks}
+      (leftElaboration : PatternElaboratesUsing ExpressionElaborates signature
+        context arguments left bindings supply generatedLeft afterLeft)
+      (rightElaboration : PatternElaboratesUsing ExpressionElaborates signature
+        context arguments right bindings afterLeft generatedRight next)
+      (bindingsEqual : Pattern.bindingEquations generatedLeft.bindings
+        generatedRight.bindings = some bindingChecks) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.or left right) bindings supply
+        ⟨generatedLeft.dual, generatedLeft.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual ++
+            bindingChecks,
+          generatedLeft.pending ++ generatedRight.pending⟩ next
   | embed {signature context arguments index bindings supply dual}
       (lookup : arguments[index]? = some dual) :
       PatternElaboratesUsing ExpressionElaborates signature context arguments
@@ -541,6 +591,21 @@ inductive PatternElaborates :
         ⟨generatedLeft.dual, generatedRight.bindings,
           generatedLeft.hard ++ generatedRight.hard ++
             Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+          generatedLeft.pending ++ generatedRight.pending⟩ next
+  | or {signature context arguments left right bindings supply
+      generatedLeft afterLeft generatedRight next bindingChecks}
+      (leftElaboration : PatternElaborates signature context arguments left
+        bindings supply generatedLeft afterLeft)
+      (rightElaboration : PatternElaborates signature context arguments right
+        bindings afterLeft generatedRight next)
+      (bindingsEqual : Pattern.bindingEquations generatedLeft.bindings
+        generatedRight.bindings = some bindingChecks) :
+      PatternElaborates signature context arguments (.or left right) bindings
+        supply
+        ⟨generatedLeft.dual, generatedLeft.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual ++
+            bindingChecks,
           generatedLeft.pending ++ generatedRight.pending⟩ next
   | embed {signature context arguments index bindings supply dual}
       (lookup : arguments[index]? = some dual) :
@@ -690,6 +755,31 @@ theorem elaboratePattern_sound
                 PatternElaborates.and
                   (elaboratePattern_sound wellFormed leftResult)
                   (elaboratePattern_sound wellFormed rightResult)
+  | or left right =>
+      cases leftResult : elaboratePattern signature context arguments left
+          bindings supply with
+      | none => simp [elaboratePattern, leftResult] at success
+      | some leftOutput =>
+          rcases leftOutput with ⟨generatedLeft, afterLeft⟩
+          cases rightResult : elaboratePattern signature context arguments right
+              bindings afterLeft with
+          | none => simp [elaboratePattern, leftResult, rightResult] at success
+          | some rightOutput =>
+              rcases rightOutput with ⟨generatedRight, afterRight⟩
+              cases bindingResult : Pattern.bindingEquations
+                  generatedLeft.bindings generatedRight.bindings with
+              | none =>
+                  simp [elaboratePattern, leftResult, rightResult,
+                    bindingResult] at success
+              | some bindingChecks =>
+                  simp [elaboratePattern, leftResult, rightResult,
+                    bindingResult] at success
+                  rcases success with ⟨rfl, rfl⟩
+                  simpa only [List.append_assoc] using
+                    PatternElaborates.or
+                      (elaboratePattern_sound wellFormed leftResult)
+                      (elaboratePattern_sound wellFormed rightResult)
+                      bindingResult
   | embed index =>
       cases lookup : arguments[index]? with
       | none => simp [elaboratePattern, lookup] at success
@@ -893,6 +983,34 @@ theorem elaboratePatternUsingFuel_sound
                       leftResult)
                     (elaboratePatternUsingFuel_sound expressionSound wellFormed
                       rightResult)
+    | or left right =>
+        cases leftResult : elaboratePatternUsingFuel elaborateExpression signature
+            context arguments fuel left bindings supply with
+        | none => simp [elaboratePatternUsingFuel, leftResult] at success
+        | some leftOutput =>
+            rcases leftOutput with ⟨generatedLeft, afterLeft⟩
+            cases rightResult : elaboratePatternUsingFuel elaborateExpression
+                signature context arguments fuel right bindings afterLeft with
+            | none =>
+                simp [elaboratePatternUsingFuel, leftResult, rightResult] at success
+            | some rightOutput =>
+                rcases rightOutput with ⟨generatedRight, afterRight⟩
+                cases bindingResult : Pattern.bindingEquations
+                    generatedLeft.bindings generatedRight.bindings with
+                | none =>
+                    simp [elaboratePatternUsingFuel, leftResult, rightResult,
+                      bindingResult] at success
+                | some bindingChecks =>
+                    simp [elaboratePatternUsingFuel, leftResult, rightResult,
+                      bindingResult] at success
+                    rcases success with ⟨rfl, rfl⟩
+                    simpa only [List.append_assoc] using
+                      PatternElaboratesUsing.or
+                        (elaboratePatternUsingFuel_sound expressionSound wellFormed
+                          leftResult)
+                        (elaboratePatternUsingFuel_sound expressionSound wellFormed
+                          rightResult)
+                        bindingResult
     | embed index =>
         cases lookup : arguments[index]? with
         | none => simp [elaboratePatternUsingFuel, lookup] at success

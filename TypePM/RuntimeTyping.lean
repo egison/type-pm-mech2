@@ -15,13 +15,12 @@ expressions, canonical Boolean and List data, recursively nested tuples,
 integer addition, `append`, `member`, `deleteFirst`, and conditionals whose
 two branches have the same certified type.  It also types variables under a
 monomorphic runtime context, closures, applications with an arbitrary typed
-function expression, and `map`.  The judgment is declarative and syntax
-directed;
-it does not mention `evalFuel`, `stuck`, or a fuel amount.  Runtime values use a
-separate judgment with the same type index.  Function application permits an
-arbitrary typed expression in function position, and `map` applies such a
-function to a canonical List.  Later modules prove preservation and progress
-for this core.
+function expression, monomorphic `letE`, and `map`.  The judgment is
+declarative and syntax directed.  It does not mention `evalFuel`, `stuck`, or a
+fuel amount.  Runtime values use a separate judgment with the same type index.
+Function application permits an arbitrary typed expression in function
+position, and `map` applies such a function to a canonical List.  Later modules
+prove preservation and progress for this core.
 -/
 
 namespace TypePM.Runtime
@@ -57,6 +56,9 @@ structure SignatureCompatible (signature : Source.Signature) : Prop where
   deleteFirst :
     signature.lookupPrimitive PrimOp.deleteFirst =
       some Source.PrimitiveSchemes.deleteFirst
+  map :
+    signature.lookupPrimitive PrimOp.map =
+      some Source.PrimitiveSchemes.map
 
 theorem paper1SignatureCompatible :
     SignatureCompatible Source.Paper1Signature.signature := by
@@ -71,6 +73,8 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
   | var (lookup : context[index]? = some target) :
       RuntimeTyping (.var index) target context
   | lit (value : Int) : RuntimeTyping (.lit value) .int context
+  | something (target : Ty) :
+      RuntimeTyping .something (.matcher .any target) context
   | boolTrue :
       RuntimeTyping (.ctor DataCtor.true []) TypePM.DataTypes.bool context
   | boolFalse :
@@ -88,6 +92,9 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
   | app (function : RuntimeTyping functionExpression (.fn domain codomain) context)
       (argument : RuntimeTyping argumentExpression domain context) :
       RuntimeTyping (.app functionExpression argumentExpression) codomain context
+  | letE (value : RuntimeTyping valueExpression valueTarget context)
+      (body : RuntimeTyping bodyExpression bodyTarget (valueTarget :: context)) :
+      RuntimeTyping (.letE valueExpression bodyExpression) bodyTarget context
   | fixE (body : RuntimeTyping bodyExpression codomain
       (domain :: .fn domain codomain :: context)) :
       RuntimeTyping (.fixE bodyExpression) (.fn domain codomain) context
@@ -120,9 +127,6 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
   | checked (source : RuntimeTyping expression sourceTarget context)
       (conversion : CheckConversion conversionClass sourceTarget target) :
       RuntimeTyping expression target context
-  | instantiated (source : RuntimeTyping expression sourceTarget [])
-      (substitution : Subst) :
-      RuntimeTyping expression (sourceTarget.apply substitution) []
 
 /-- Pointwise expression typing under one shared context. -/
 inductive RuntimeTypings : List Source.Expr → List Ty →
@@ -133,6 +137,104 @@ inductive RuntimeTypings : List Source.Expr → List Ty →
       RuntimeTypings (expression :: expressions) (target :: targets) context
 
 end
+
+/-! ## Runtime certificates for user-defined matcher clauses
+
+These judgments are deliberately evaluator-facing.  They record the solved
+monomorphic types and exact environment order needed by clause dispatch;
+they do not claim the still-missing bridge from the full M4 elaborator.  The
+currently certified pattern-pattern and data-pattern fragments are explicit
+below, so adding a source bridge later cannot silently enlarge this theorem.
+-/
+
+/-- Solved typing for the pattern-pattern fragment used by the first typed
+user-matcher slice.  A hole chooses the matcher type delegated to its pattern;
+a capture records the type of the embedded expression extracted at runtime. -/
+inductive RuntimePPatTyping :
+    Source.PPat → Ty → List Dual → List Ty → Prop where
+  | hole (capability : Cap) :
+      RuntimePPatTyping .hole target [⟨capability, target⟩] []
+  | wild : RuntimePPatTyping .wild target [] []
+  | capture : RuntimePPatTyping .capture target [] [target]
+
+/-- Solved typing for the data-pattern fragment used by the first typed
+user-matcher slice.  Its final index is the source-ordered binding prefix. -/
+inductive RuntimeDPatTyping : Source.DPat → Ty → List Ty → Prop where
+  | var : RuntimeDPatTyping .var target [target]
+  | wild : RuntimeDPatTyping .wild target []
+
+/-- Runtime type of one decomposition element under the zero/one/many hole
+convention used by `decodeProduct`. -/
+def runtimeHoleProductTarget : List Dual → Ty
+  | [] => .prod []
+  | [hole] => hole.target
+  | holes => .prod (Dual.targets holes)
+
+/-- The next-matcher expression follows the same zero/one/many convention as
+the runtime decoder.  Captures precede the matcher definition environment. -/
+inductive RuntimeNextMatchersTyping :
+    List Ty → Source.Expr → List Dual → Prop where
+  | zero : RuntimeNextMatchersTyping context (.tuple []) []
+  | one
+      (typed : RuntimeTyping expression (.slot hole.capability hole.target)
+        context) :
+      RuntimeNextMatchersTyping context expression [hole]
+  | many
+      (typed : RuntimeTypings expressions
+        ((first :: second :: rest).map
+          (fun hole => .slot hole.capability hole.target)) context) :
+      RuntimeNextMatchersTyping context (.tuple expressions)
+        (first :: second :: rest)
+
+/-- One matcher arm types its body in the exact runtime concatenation order:
+data-pattern bindings, then captures, then the definition environment. -/
+inductive RuntimeMatcherArmTyping
+    (definitionTypes captureTypes : List Ty) (matcherTarget : Ty)
+    (holes : List Dual) : Source.MatcherArm → Prop where
+  | mk
+      (header : RuntimeDPatTyping dataPattern matcherTarget bindingTypes)
+      (body : RuntimeTyping bodyExpression
+        (TypePM.DataTypes.list (runtimeHoleProductTarget holes))
+        (bindingTypes ++ captureTypes ++ definitionTypes)) :
+      RuntimeMatcherArmTyping definitionTypes captureTypes matcherTarget holes
+        (.mk dataPattern bodyExpression)
+
+/-- Pointwise typing for source-ordered matcher arms. -/
+inductive RuntimeMatcherArmsTyping
+    (definitionTypes captureTypes : List Ty) (matcherTarget : Ty)
+    (holes : List Dual) : List Source.MatcherArm → Prop where
+  | nil : RuntimeMatcherArmsTyping definitionTypes captureTypes matcherTarget holes []
+  | cons
+      (head : RuntimeMatcherArmTyping definitionTypes captureTypes matcherTarget
+        holes arm)
+      (tail : RuntimeMatcherArmsTyping definitionTypes captureTypes matcherTarget
+        holes arms) :
+      RuntimeMatcherArmsTyping definitionTypes captureTypes matcherTarget holes
+        (arm :: arms)
+
+/-- One source matcher clause, with the header-produced hole and capture types
+shared by its next-matcher expression and all data arms. -/
+inductive RuntimeMatcherClauseTyping
+    (definitionTypes : List Ty) (matcherTarget : Ty) :
+    Source.MatcherClause → Prop where
+  | mk
+      (header : RuntimePPatTyping patternPattern matcherTarget holes captureTypes)
+      (nextMatchers : RuntimeNextMatchersTyping
+        (captureTypes ++ definitionTypes) nextMatcherExpression holes)
+      (arms : RuntimeMatcherArmsTyping definitionTypes captureTypes matcherTarget
+        holes matcherArms) :
+      RuntimeMatcherClauseTyping definitionTypes matcherTarget
+        (.mk patternPattern nextMatcherExpression matcherArms)
+
+/-- Pointwise solved typing for the original source-ordered clause list. -/
+inductive RuntimeMatcherClausesTyping
+    (definitionTypes : List Ty) (matcherTarget : Ty) :
+    List Source.MatcherClause → Prop where
+  | nil : RuntimeMatcherClausesTyping definitionTypes matcherTarget []
+  | cons
+      (head : RuntimeMatcherClauseTyping definitionTypes matcherTarget clause)
+      (tail : RuntimeMatcherClausesTyping definitionTypes matcherTarget clauses) :
+      RuntimeMatcherClausesTyping definitionTypes matcherTarget (clause :: clauses)
 
 mutual
 
@@ -153,6 +255,18 @@ inductive ValueTyping : Value → Ty → Prop where
       (body : RuntimeTyping bodyExpression codomain
         (domain :: .fn domain codomain :: context)) :
       ValueTyping (Value.recursiveClosure values bodyExpression) (.fn domain codomain)
+  | something (target : Ty) : ValueTyping .something (.matcher .any target)
+  /-- Preservation certificate for an already constructed matcher cursor.
+  This general constructor intentionally does not claim dispatch progress:
+  full M4 static coverage/exhaustiveness is not imported at this layer.  The
+  first progress theorem uses the stronger concrete clause certificate in
+  `UserMatcherSafety`. -/
+  | matcherClosure
+      (environment : EnvironmentTyping values definitionTypes)
+      (clauses : RuntimeMatcherClausesTyping definitionTypes matcherTarget original)
+      (cursor : ∃ tried, original = tried ++ remaining) :
+      ValueTyping (.matcherV values original remaining)
+        (.matcher .any matcherTarget)
   | checked (source : ValueTyping value sourceTarget)
       (conversion : CheckConversion conversionClass sourceTarget target) :
       ValueTyping value target
@@ -276,6 +390,7 @@ mutual
 records only syntax coverage, leaving the source derivation to determine the
 possibly polymorphic runtime type. -/
 inductive RuntimeSupported : Source.Expr → Prop where
+  | var : RuntimeSupported (.var index)
   | lit : RuntimeSupported (.lit value)
   | boolTrue : RuntimeSupported (.ctor DataCtor.true [])
   | boolFalse : RuntimeSupported (.ctor DataCtor.false [])
@@ -285,6 +400,11 @@ inductive RuntimeSupported : Source.Expr → Prop where
       RuntimeSupported (.ctor DataCtor.cons [headExpression, tailExpression])
   | tuple (items : RuntimeSupporteds expressions) :
       RuntimeSupported (.tuple expressions)
+  | lam (body : RuntimeSupported bodyExpression) :
+      RuntimeSupported (.lam bodyExpression)
+  | app (function : RuntimeSupported functionExpression)
+      (argument : RuntimeSupported argumentExpression) :
+      RuntimeSupported (.app functionExpression argumentExpression)
   | add (left : RuntimeSupported leftExpression)
       (right : RuntimeSupported rightExpression) :
       RuntimeSupported (.prim PrimOp.add [leftExpression, rightExpression])
@@ -298,6 +418,9 @@ inductive RuntimeSupported : Source.Expr → Prop where
       (target : RuntimeSupported targetExpression) :
       RuntimeSupported
         (.prim PrimOp.deleteFirst [needleExpression, targetExpression])
+  | map (function : RuntimeSupported functionExpression)
+      (target : RuntimeSupported targetExpression) :
+      RuntimeSupported (.prim PrimOp.map [functionExpression, targetExpression])
   | ifE (condition : RuntimeSupported conditionExpression)
       (thenBranch : RuntimeSupported thenExpression)
       (elseBranch : RuntimeSupported elseExpression) :
@@ -311,6 +434,44 @@ inductive RuntimeSupporteds : List Source.Expr → Prop where
       RuntimeSupporteds (expression :: expressions)
 
 end
+
+/-- Agreement between a source context containing only monomorphic schemes
+and the evaluator-facing context of their solved runtime types.  Runtime
+contexts remain plain `List Ty`; source schemes occur only in this bridge
+certificate. -/
+inductive MonomorphicContextCompatible :
+    Source.Context → List Ty → Subst → Prop where
+  | nil : MonomorphicContextCompatible [] [] solution
+  | cons {sourceTarget : Ty}
+      (tail : MonomorphicContextCompatible sourceContext runtimeContext solution) :
+      MonomorphicContextCompatible (Source.Scheme.mono sourceTarget :: sourceContext)
+        (Ty.apply solution sourceTarget :: runtimeContext) solution
+
+namespace MonomorphicContextCompatible
+
+theorem lookup
+    {index : Nat} {scheme : Source.Scheme}
+    (compatible : MonomorphicContextCompatible sourceContext runtimeContext solution)
+    (found : sourceContext[index]? = some scheme) :
+    ∃ sourceTarget : Ty,
+      scheme = Source.Scheme.mono sourceTarget ∧
+        runtimeContext[index]? = some (Ty.apply solution sourceTarget) := by
+  induction index generalizing sourceContext runtimeContext scheme with
+  | zero =>
+      cases compatible with
+      | nil => simp at found
+      | cons tail =>
+          simp at found ⊢
+          subst scheme
+          exact ⟨_, rfl, rfl⟩
+  | succ index induction =>
+      cases compatible with
+      | nil => simp at found
+      | cons tail =>
+          simp only [List.getElem?_cons_succ] at found ⊢
+          exact induction tail found
+
+end MonomorphicContextCompatible
 
 /-- Runtime value typing is closed under substitution of its type index. -/
 theorem ValueTyping.apply
@@ -356,9 +517,8 @@ private theorem getElem?_applyList
 mutual
 
 /-- Apply one type substitution to both the result type and every entry of a
-monomorphic runtime context.  Unlike the closed `instantiated` constructor,
-this operation is structural: closure bodies and all of their variable
-assumptions are transported together. -/
+monomorphic runtime context.  The operation is structural: closure bodies and
+all of their variable assumptions are transported together. -/
 protected def RuntimeTyping.applyContext
     (substitution : Subst) :
     (typing : RuntimeTyping expression target context) →
@@ -366,6 +526,9 @@ protected def RuntimeTyping.applyContext
         (Ty.applyList substitution context)
   | .var lookup => .var (getElem?_applyList lookup)
   | .lit value => .lit value
+  | .something target => by
+      simpa [Ty.apply, Cap.apply] using
+        RuntimeTyping.something (target.apply substitution)
   | .boolTrue => by
       change RuntimeTyping (.ctor DataCtor.true []) TypePM.DataTypes.bool _
       exact RuntimeTyping.boolTrue
@@ -387,6 +550,9 @@ protected def RuntimeTyping.applyContext
   | .app function argument => by
       simpa [Ty.apply] using RuntimeTyping.app
         (function.applyContext substitution) (argument.applyContext substitution)
+  | .letE value body => by
+      simpa [Ty.applyList] using RuntimeTyping.letE
+        (value.applyContext substitution) (body.applyContext substitution)
   | .fixE body => by
       simpa [Ty.apply, Ty.applyList] using
         RuntimeTyping.fixE (body.applyContext substitution)
@@ -414,9 +580,6 @@ protected def RuntimeTyping.applyContext
   | .checked source conversion =>
       .checked (source.applyContext substitution)
         (TypePM.Runtime.CheckConversion.apply conversion substitution)
-  | .instantiated source earlier => by
-      simpa only [Ty.apply_compose, Ty.applyList] using
-        RuntimeTyping.instantiated source (Subst.compose substitution earlier)
 
 /-- List counterpart of `RuntimeTyping.applyContext`. -/
 protected def RuntimeTypings.applyContext
@@ -435,8 +598,8 @@ end
 index.  This is essential for polymorphic empty lists. -/
 theorem RuntimeTyping.apply
     (typing : RuntimeTyping expression target) (substitution : Subst) :
-    RuntimeTyping expression (target.apply substitution) :=
-  .instantiated typing substitution
+    RuntimeTyping expression (target.apply substitution) := by
+  simpa [Ty.applyList] using typing.applyContext substitution
 
 theorem RuntimeTypings.apply
     (typing : RuntimeTypings expressions targets) (substitution : Subst) :
@@ -502,9 +665,18 @@ theorem RuntimeSupported.elaboration_typing
     (supported : RuntimeSupported expression)
     (elaboration : Source.Elaborates signature context expression supply
       generated next)
-    (semantic : generated.SemanticSolution solution) :
-    RuntimeTyping expression (generated.target.apply solution) := by
+    (semantic : generated.SemanticSolution solution)
+    (contextCompatible :
+      MonomorphicContextCompatible context runtimeContext solution) :
+    RuntimeTyping expression (generated.target.apply solution) runtimeContext := by
   cases supported with
+  | var =>
+      cases elaboration with
+      | var lookup =>
+          obtain ⟨sourceTarget, rfl, runtimeLookup⟩ :=
+            contextCompatible.lookup lookup
+          simpa [Source.Scheme.instantiate_mono] using
+            RuntimeTyping.var runtimeLookup
   | lit =>
       cases elaboration
       exact .lit _
@@ -549,8 +721,10 @@ theorem RuntimeSupported.elaboration_typing
                       headCheck⟩ := fromApp_semantic_parts firstSemantic
                   have headTyping :=
                     head.elaboration_typing compatible headElaboration headSemantic
+                      contextCompatible
                   have tailTyping :=
                     tail.elaboration_typing compatible tailElaboration tailSemantic
+                      contextCompatible
                   obtain ⟨_headClass, headConversion⟩ := headCheck
                   obtain ⟨_tailClass, tailConversion⟩ := tailCheck
                   simp only [Ty.apply] at headConversion tailConversion
@@ -572,7 +746,28 @@ theorem RuntimeSupported.elaboration_typing
           have itemSemantic :
               GeneratedItems.SemanticSolution _ solution := semantic
           exact .tuple
-            (items.elaborationItems_typing compatible itemElaboration itemSemantic)
+            (items.elaborationItems_typing compatible itemElaboration itemSemantic
+              contextCompatible)
+  | lam body =>
+      cases elaboration with
+      | lam bodyElaboration =>
+          simpa [Ty.apply] using RuntimeTyping.lam
+            (body.elaboration_typing compatible bodyElaboration semantic
+              (.cons contextCompatible))
+  | app function argument =>
+      cases elaboration with
+      | app functionElaboration argumentElaboration =>
+          obtain ⟨functionSemantic, argumentSemantic, functionEquation,
+              argumentCheck⟩ := fromApp_semantic_parts semantic
+          have functionTyping := function.elaboration_typing compatible
+            functionElaboration functionSemantic contextCompatible
+          have argumentTyping := argument.elaboration_typing compatible
+            argumentElaboration argumentSemantic contextCompatible
+          obtain ⟨_argumentClass, argumentConversion⟩ := argumentCheck
+          simp only [Equation.Holds, Ty.apply] at functionEquation
+          simp only [Ty.apply] at argumentConversion
+          rw [functionEquation] at functionTyping
+          exact .app functionTyping (.checked argumentTyping argumentConversion)
   | add left right =>
       cases elaboration with
       | prim lookup _arity _closed call =>
@@ -591,8 +786,10 @@ theorem RuntimeSupported.elaboration_typing
                     fromApp_semantic_parts firstSemantic
                   have leftTyping :=
                     left.elaboration_typing compatible leftElaboration leftSemantic
+                      contextCompatible
                   have rightTyping :=
                     right.elaboration_typing compatible rightElaboration rightSemantic
+                      contextCompatible
                   obtain ⟨_leftClass, leftConversion⟩ := leftCheck
                   obtain ⟨_rightClass, rightConversion⟩ := _rightCheck
                   simp only [Ty.apply] at leftConversion rightConversion
@@ -623,8 +820,10 @@ theorem RuntimeSupported.elaboration_typing
                       leftCheck⟩ := fromApp_semantic_parts firstSemantic
                   have leftTyping :=
                     left.elaboration_typing compatible leftElaboration leftSemantic
+                      contextCompatible
                   have rightTyping :=
                     right.elaboration_typing compatible rightElaboration rightSemantic
+                      contextCompatible
                   obtain ⟨_leftClass, leftConversion⟩ := leftCheck
                   obtain ⟨_rightClass, rightConversion⟩ := rightCheck
                   simp only [Ty.apply] at leftConversion rightConversion
@@ -655,9 +854,9 @@ theorem RuntimeSupported.elaboration_typing
                   obtain ⟨_initialSemantic, needleSemantic, firstEquation,
                       needleCheck⟩ := fromApp_semantic_parts firstSemantic
                   have needleTyping := needle.elaboration_typing compatible
-                    needleElaboration needleSemantic
+                    needleElaboration needleSemantic contextCompatible
                   have listTyping := list.elaboration_typing compatible
-                    listElaboration listSemantic
+                    listElaboration listSemantic contextCompatible
                   obtain ⟨_needleClass, needleConversion⟩ := needleCheck
                   obtain ⟨_listClass, listConversion⟩ := listCheck
                   simp only [Ty.apply] at needleConversion listConversion
@@ -688,9 +887,9 @@ theorem RuntimeSupported.elaboration_typing
                   obtain ⟨_initialSemantic, needleSemantic, firstEquation,
                       needleCheck⟩ := fromApp_semantic_parts firstSemantic
                   have needleTyping := needle.elaboration_typing compatible
-                    needleElaboration needleSemantic
+                    needleElaboration needleSemantic contextCompatible
                   have listTyping := list.elaboration_typing compatible
-                    listElaboration listSemantic
+                    listElaboration listSemantic contextCompatible
                   obtain ⟨_needleClass, needleConversion⟩ := needleCheck
                   obtain ⟨_listClass, listConversion⟩ := listCheck
                   simp only [Ty.apply] at needleConversion listConversion
@@ -706,6 +905,39 @@ theorem RuntimeSupported.elaboration_typing
                   rw [← secondParts.2]
                   exact .deleteFirst (.checked needleTyping needleConversion)
                     (.checked listTyping listConversion)
+  | map function target =>
+      cases elaboration with
+      | prim lookup _arity _closed call =>
+          rw [compatible.map] at lookup
+          cases lookup
+          cases call with
+          | cons functionElaboration rest =>
+              cases rest with
+              | cons targetElaboration rest =>
+                  cases rest
+                  obtain ⟨firstSemantic, targetSemantic, secondEquation,
+                      targetCheck⟩ := fromApp_semantic_parts semantic
+                  obtain ⟨_initialSemantic, functionSemantic, firstEquation,
+                      functionCheck⟩ := fromApp_semantic_parts firstSemantic
+                  have functionTyping := function.elaboration_typing compatible
+                    functionElaboration functionSemantic contextCompatible
+                  have targetTyping := target.elaboration_typing compatible
+                    targetElaboration targetSemantic contextCompatible
+                  obtain ⟨_functionClass, functionConversion⟩ := functionCheck
+                  obtain ⟨_targetClass, targetConversion⟩ := targetCheck
+                  simp only [Ty.apply] at functionConversion targetConversion
+                  simp only [Equation.Holds, Ty.apply] at firstEquation secondEquation
+                  simp only [Source.PrimitiveSchemes.instantiate_map]
+                    at firstEquation
+                  simp only [Source.Generated.fromApp, Ty.apply] at secondEquation ⊢
+                  have firstParts := Ty.fn.inj firstEquation
+                  rw [← firstParts.2] at secondEquation
+                  have secondParts := Ty.fn.inj secondEquation
+                  rw [← firstParts.1] at functionConversion
+                  rw [← secondParts.1] at targetConversion
+                  rw [← secondParts.2]
+                  exact .map (.checked functionTyping functionConversion)
+                    (.checked targetTyping targetConversion)
   | ifE condition thenBranch elseBranch =>
       cases elaboration with
       | ifE call =>
@@ -729,10 +961,11 @@ theorem RuntimeSupported.elaboration_typing
                           firstAccumulatedSemantic
                       have conditionTyping := condition.elaboration_typing
                         compatible conditionElaboration conditionSemantic
+                          contextCompatible
                       have thenTyping := thenBranch.elaboration_typing
-                        compatible thenElaboration thenSemantic
+                        compatible thenElaboration thenSemantic contextCompatible
                       have elseTyping := elseBranch.elaboration_typing
-                        compatible elseElaboration elseSemantic
+                        compatible elseElaboration elseSemantic contextCompatible
                       obtain ⟨_conditionClass, conditionConversion⟩ :=
                         _conditionCheck
                       obtain ⟨_thenClass, thenConversion⟩ := thenCheck
@@ -765,8 +998,11 @@ theorem RuntimeSupporteds.elaborationItems_typing
     (supported : RuntimeSupporteds expressions)
     (elaboration : Source.ElaboratesItems signature context expressions supply
       generated next)
-    (semantic : GeneratedItems.SemanticSolution generated solution) :
-    RuntimeTypings expressions (Ty.applyList solution generated.targets) := by
+    (semantic : GeneratedItems.SemanticSolution generated solution)
+    (contextCompatible :
+      MonomorphicContextCompatible context runtimeContext solution) :
+    RuntimeTypings expressions (Ty.applyList solution generated.targets)
+      runtimeContext := by
   cases supported with
   | nil =>
       cases elaboration
@@ -797,8 +1033,10 @@ theorem RuntimeSupporteds.elaborationItems_typing
                 simp only [List.mem_append]
                 exact .inr membership)
           exact .cons
-            (head.elaboration_typing compatible headElaboration headSemantic)
-            (tail.elaborationItems_typing compatible tailElaboration tailSemantic)
+            (head.elaboration_typing compatible headElaboration headSemantic
+              contextCompatible)
+            (tail.elaborationItems_typing compatible tailElaboration tailSemantic
+              contextCompatible)
 termination_by Source.Expr.listComplexity expressions * 3 + 1
 decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
 
@@ -832,12 +1070,12 @@ private theorem PrincipalBlockClosure.semanticSolution
 closed source expression in the `RuntimeSupported` fragment has the
 corresponding runtime typing.  The proof reconstructs the runtime type from
 the elaboration closure, so polymorphic List declarations and their concrete
-instances are included.
+instances are included.  Variables, lambdas, applications, and `map` are
+covered when every source binding in scope is monomorphic.
 
 The `RuntimeSupported` premise is the precise current boundary.  Removing it
-requires source derivations for variables, lambda/application, `fixE`, `map`,
-polymorphic `let`, matcher states, and matching search to be transported into
-the already more general runtime judgment. -/
+still requires a runtime representation of source-polymorphic `let` bindings,
+plus `fixE`, matcher states, and matching search. -/
 theorem toRuntimeTyping
     {signature : Signature} {expression : Expr} {target : Ty}
     (typing : Typing signature [] expression target)
@@ -851,7 +1089,7 @@ theorem toRuntimeTyping
   have closureTyping :
       Runtime.RuntimeTyping expression closure.target := by
     exact supported.elaboration_typing compatible elaboration
-      (PrincipalBlockClosure.semanticSolution closure)
+      (PrincipalBlockClosure.semanticSolution closure) .nil
   have principalTypingRuntime :
       Runtime.RuntimeTyping expression principal := by
     rw [principalEq]

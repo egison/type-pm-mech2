@@ -73,6 +73,9 @@ def expandPattern (definitions : PatternFunctionDefinitions) :
   | .and left right =>
       return .and (← expandPattern definitions left)
         (← expandPattern definitions right)
+  | .or left right =>
+      return .or (← expandPattern definitions left)
+        (← expandPattern definitions right)
   | .embed _ => none
   | .app function arguments => do
       let expandedArguments ← expandPatterns definitions arguments

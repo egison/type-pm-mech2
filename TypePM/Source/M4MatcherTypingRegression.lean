@@ -152,6 +152,11 @@ theorem all_seven_static_checks :
   intro clause member
   simp [arms clause member]
 
+theorem all_seven_declarative_static_checks :
+    StaticChecksHold Paper1FrozenSignature.signature multisetClauses :=
+  (staticChecksHold_iff Paper1FrozenSignature.signature multisetClauses).2
+    all_seven_static_checks
+
 theorem hole_product_zero_one_k_exact :
     holeProductTarget [] = .prod [] ∧
       holeProductTarget [⟨elementCapability, element⟩] = element ∧

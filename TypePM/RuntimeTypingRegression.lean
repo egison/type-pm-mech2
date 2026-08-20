@@ -93,20 +93,23 @@ theorem matchFirst_empty_arms_is_stuck :
     evalFuel 3 [] (.matchFirst (.lit 1) .something []) = .stuck := by
   rfl
 
-/-- The source-to-runtime bridge remains intentionally smaller than the
-direct runtime judgment: function expressions are not yet reconstructed from
-the source elaboration witness. -/
-theorem identity_application_not_in_certified_core :
-    ¬ RuntimeSupported (.app (.lam (.var 0)) (.lit 1)) := by
-  intro supported
-  cases supported
-
 def identityApplication : Source.Expr :=
   .app (.lam (.var 0)) (.lit 7)
+
+theorem identityApplication_supported :
+    RuntimeSupported identityApplication :=
+  .app (.lam .var) .lit
 
 theorem identityApplication_runtimeTyping :
     RuntimeTyping identityApplication .int := by
   exact .app (.lam (.var rfl)) (.lit 7)
+
+theorem identityApplication_state_erasure
+    (sourceTyping : Source.Typing Paper1Signature.signature []
+      identityApplication .int) :
+    RuntimeTyping identityApplication .int :=
+  sourceTyping.toRuntimeTyping paper1SignatureCompatible
+    identityApplication_supported
 
 theorem identityApplication_exact_evaluation :
     evalFuel 3 [] identityApplication = .ok (.int 7) := by
@@ -115,6 +118,40 @@ theorem identityApplication_exact_evaluation :
 theorem identityApplication_neverStuck (fuel : Nat) :
     (evalFuel fuel [] identityApplication).NotStuck :=
   identityApplication_runtimeTyping.neverStuck fuel [] .nil
+
+def monomorphicLet : Source.Expr :=
+  .letE (.lit 8) (.prim PrimOp.add [.var 0, .lit 1])
+
+theorem monomorphicLet_runtimeTyping :
+    RuntimeTyping monomorphicLet .int := by
+  exact .letE (.lit 8) (.add (.var rfl) (.lit 1))
+
+theorem monomorphicLet_exact_evaluation :
+    evalFuel 3 [] monomorphicLet = .ok (.int 9) := by
+  with_unfolding_all rfl
+
+theorem monomorphicLet_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] monomorphicLet).NotStuck :=
+  monomorphicLet_runtimeTyping.neverStuck fuel [] .nil
+
+/-- Treating every runtime context type as an unrestricted generic type would
+not be stable under the structural context substitution used for closures.
+Here `α` has `Int` as an instance, but substituting `Bool` for `α` in the
+context cannot turn that same `Int` occurrence into an instance of `Bool`.
+This is why the remaining polymorphic-`let` bridge needs binding provenance,
+not only an `IsInstance` premise on `RuntimeTyping.var`. -/
+theorem naivePolymorphicLookup_not_substitutionStable :
+    IsInstance (.var ⟨0⟩) .int ∧
+      ¬ IsInstance
+        ((Ty.var ⟨0⟩).apply
+          (Subst.singleTy ⟨0⟩ TypePM.DataTypes.bool))
+        (Ty.int.apply
+          (Subst.singleTy ⟨0⟩ TypePM.DataTypes.bool)) := by
+  constructor
+  · refine ⟨Subst.singleTy ⟨0⟩ .int, ?_⟩
+    simp [Subst.singleTy, Ty.apply]
+  · simp [IsInstance, Subst.singleTy, Ty.apply,
+      TypePM.DataTypes.bool, Ty.applyList]
 
 def directFixApplication : Source.Expr :=
   .app (.fixE (.var 0)) (.lit 5)
@@ -271,20 +308,23 @@ theorem delete1_runtimeTyping :
     RuntimeTyping delete1 (TypePM.DataTypes.list .int) := by
   exact .deleteFirst (.lit 1) intList12_runtimeTyping
 
-/-- The source-to-runtime bridge still excludes `map`; the direct runtime
-judgment below now certifies it independently. -/
-theorem map_not_in_source_bridge :
-    ¬ RuntimeSupported (.prim PrimOp.map [.lam (.var 0), intList12]) := by
-  intro supported
-  cases supported
-
 def incrementList : Source.Expr :=
   .prim PrimOp.map
     [.lam (.prim PrimOp.add [.var 0, .lit 1]), intList12]
 
+theorem incrementList_supported : RuntimeSupported incrementList :=
+  .map (.lam (.add .var .lit))
+    (.listCons .lit (.listCons .lit .listNil))
+
 theorem incrementList_runtimeTyping :
     RuntimeTyping incrementList (TypePM.DataTypes.list .int) := by
   exact .map (.lam (.add (.var rfl) (.lit 1))) intList12_runtimeTyping
+
+theorem incrementList_state_erasure
+    (sourceTyping : Source.Typing Paper1Signature.signature []
+      incrementList (TypePM.DataTypes.list .int)) :
+    RuntimeTyping incrementList (TypePM.DataTypes.list .int) :=
+  sourceTyping.toRuntimeTyping paper1SignatureCompatible incrementList_supported
 
 theorem incrementList_exact_evaluation :
     evalFuel 5 [] incrementList =

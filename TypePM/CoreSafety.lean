@@ -163,7 +163,7 @@ private theorem canonicalProperties
     (motive_2 := fun _ _ _ => True)
     (motive_3 := fun _ _ _ => True)
     (motive_4 := fun _ _ _ => True)
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
   · intro literal
     refine ⟨?_, ?_, ?_⟩
     · intro _ _
@@ -214,6 +214,17 @@ private theorem canonicalProperties
     · simp [Ty.apply, TypePM.DataTypes.list] at *
   · intro _values _context _bodyExpression _codomain _domain
       _environment _body _environmentIH
+    refine ⟨?_, ?_, ?_⟩ <;> intros
+    · simp [Ty.apply] at *
+    · simp [Ty.apply, TypePM.DataTypes.bool] at *
+    · simp [Ty.apply, TypePM.DataTypes.list] at *
+  · intro _target
+    refine ⟨?_, ?_, ?_⟩ <;> intros
+    · simp [Ty.apply, Cap.apply] at *
+    · simp [Ty.apply, Cap.apply, TypePM.DataTypes.bool] at *
+    · simp [Ty.apply, Cap.apply, TypePM.DataTypes.list] at *
+  · intro _values _definitionTypes _matcherTarget _original _remaining
+      _environment _clauses _cursor _environmentIH
     refine ⟨?_, ?_, ?_⟩ <;> intros
     · simp [Ty.apply] at *
     · simp [Ty.apply, TypePM.DataTypes.bool] at *
@@ -295,7 +306,7 @@ private theorem functionShape
     (motive_2 := fun _ _ _ => True)
     (motive_3 := fun _ _ _ => True)
     (motive_4 := fun _ _ _ => True)
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
   · intro literal substitution domain codomain equality
     simp [Ty.apply] at equality
   · intro substitution domain codomain equality
@@ -320,6 +331,12 @@ private theorem functionShape
       environment.apply substitution, by
         simpa [Ty.apply, Ty.applyList, parts.1, parts.2] using
           body.applyContext substitution⟩
+  · intro _target substitution domain codomain equality
+    simp [Ty.apply, Cap.apply] at equality
+  · intro _values _definitionTypes _matcherTarget _original _remaining
+      _environment _clauses _cursor _environmentIH substitution
+      domain codomain equality
+    simp [Ty.apply] at equality
   · intro _value _sourceTarget _class _target source conversion sourceIH
       substitution domain codomain equality
     exact sourceIH substitution domain codomain
@@ -354,6 +371,153 @@ theorem function_canonical
         RuntimeTyping bodyExpression codomain
           (domain :: .fn domain codomain :: context)) := by
   exact functionShape typing Subst.id domain codomain (by simp)
+
+/-- Runtime shapes that can implement a matcher or matcher slot.  The middle
+case retains the complete closure certificate: definition-environment types,
+original clause typing, and validity of the remaining-clause cursor. -/
+def MatcherRuntimeShape (value : Value) : Prop :=
+  value = .something ∨
+    (∃ environment definitionTypes matcherTarget original remaining,
+      value = .matcherV environment original remaining ∧
+      EnvironmentTyping environment definitionTypes ∧
+      RuntimeMatcherClausesTyping definitionTypes matcherTarget original ∧
+      ∃ tried, original = tried ++ remaining) ∨
+    ∃ values, value = .tuple values
+
+private structure DispatchCanonicalProperties
+    (value : Value) (target : Ty) : Prop where
+  productShape : ∀ substitution targets,
+    target.apply substitution = .prod targets →
+      ∃ values, value = .tuple values ∧ ValueTypings values targets
+  matcherShape : ∀ substitution capability matcherTarget,
+    target.apply substitution = .matcher capability matcherTarget →
+      MatcherRuntimeShape value
+  slotShape : ∀ substitution capability matcherTarget,
+    target.apply substitution = .slot capability matcherTarget →
+      MatcherRuntimeShape value
+
+private theorem dispatchCanonicalProperties
+    (typing : ValueTyping value target) :
+    DispatchCanonicalProperties value target := by
+  refine @ValueTyping.rec
+    (motive_1 := fun value target _ => DispatchCanonicalProperties value target)
+    (motive_2 := fun _ _ _ => True)
+    (motive_3 := fun _ _ _ => True)
+    (motive_4 := fun _ _ _ => True)
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
+  · intro literal
+    refine ⟨?_, ?_, ?_⟩ <;> intros <;> simp [Ty.apply] at *
+  · refine ⟨?_, ?_, ?_⟩ <;> intros <;>
+      simp [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] at *
+  · refine ⟨?_, ?_, ?_⟩ <;> intros <;>
+      simp [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] at *
+  · intro values sourceTargets items _itemsIH
+    refine ⟨?_, ?_, ?_⟩
+    · intro substitution targets equality
+      have targetsEq : Ty.applyList substitution sourceTargets = targets := by
+        simpa [Ty.apply] using equality
+      subst targets
+      exact ⟨values, rfl, items.apply substitution⟩
+    · intros; simp [Ty.apply] at *
+    · intros; simp [Ty.apply] at *
+  · intro _values _element _items _itemsIH
+    refine ⟨?_, ?_, ?_⟩ <;> intros <;>
+      simp [Ty.apply, TypePM.DataTypes.list] at *
+  · intro _values _context _body _codomain _domain _environment _bodyTyping _ih
+    refine ⟨?_, ?_, ?_⟩ <;> intros <;> simp [Ty.apply] at *
+  · intro _values _context _body _codomain _domain _environment _bodyTyping _ih
+    refine ⟨?_, ?_, ?_⟩ <;> intros <;> simp [Ty.apply] at *
+  · intro target
+    refine ⟨?_, ?_, ?_⟩
+    · intros; simp [Ty.apply, Cap.apply] at *
+    · intro _ _ _ _; exact Or.inl rfl
+    · intros; simp [Ty.apply, Cap.apply] at *
+  · intro environment definitionTypes target original remaining
+      environmentTyped clauses cursor _environmentIH
+    refine ⟨?_, ?_, ?_⟩
+    · intros; simp [Ty.apply] at *
+    · intro _ _ _ _
+      exact Or.inr (Or.inl ⟨environment, definitionTypes, target, original,
+        remaining, rfl, environmentTyped, clauses, cursor⟩)
+    · intros; simp [Ty.apply] at *
+  · intro _value _sourceTarget _class _target source conversion sourceIH
+    refine ⟨?_, ?_, ?_⟩
+    · intro substitution targets equality
+      cases conversion with
+      | ordinary => exact sourceIH.productShape substitution targets equality
+      | matcherToSlot => simp [Ty.apply] at equality
+      | productMatcher => simp [Ty.apply] at equality
+      | productMatcherToSlot => simp [Ty.apply] at equality
+    · intro substitution capability matcherTarget equality
+      cases conversion with
+      | ordinary =>
+          exact sourceIH.matcherShape substitution capability matcherTarget equality
+      | matcherToSlot => simp [Ty.apply] at equality
+      | @productMatcher duals nonempty =>
+          obtain ⟨values, valueEq, _itemsTyped⟩ :=
+            sourceIH.productShape substitution
+              (Ty.applyList substitution (duals.map Dual.matcherType)) (by
+                simp [Ty.apply])
+          exact Or.inr (Or.inr ⟨values, valueEq⟩)
+      | productMatcherToSlot => simp [Ty.apply] at equality
+    · intro substitution capability matcherTarget equality
+      cases conversion with
+      | ordinary =>
+          exact sourceIH.slotShape substitution capability matcherTarget equality
+      | @matcherToSlot producer consumer sourceTarget demand =>
+          exact sourceIH.matcherShape substitution
+            (producer.apply substitution.cap) (sourceTarget.apply substitution)
+            (by simp [Ty.apply])
+      | productMatcher => simp [Ty.apply] at equality
+      | @productMatcherToSlot duals consumer nonempty demand =>
+          obtain ⟨values, valueEq, _itemsTyped⟩ :=
+            sourceIH.productShape substitution
+              (Ty.applyList substitution (duals.map Dual.matcherType)) (by
+                simp [Ty.apply])
+          exact Or.inr (Or.inr ⟨values, valueEq⟩)
+  · intro _value _sourceTarget source earlier sourceIH
+    refine ⟨?_, ?_, ?_⟩
+    · intro substitution targets equality
+      exact sourceIH.productShape (Subst.compose substitution earlier) targets (by
+        simpa only [Ty.apply_compose] using equality)
+    · intro substitution capability matcherTarget equality
+      exact sourceIH.matcherShape (Subst.compose substitution earlier)
+        capability matcherTarget (by
+          simpa only [Ty.apply_compose] using equality)
+    · intro substitution capability matcherTarget equality
+      exact sourceIH.slotShape (Subst.compose substitution earlier)
+        capability matcherTarget (by
+          simpa only [Ty.apply_compose] using equality)
+  · trivial
+  · intros; trivial
+  · intro; trivial
+  · intros; trivial
+  · trivial
+  · intros; trivial
+
+/-- A product-typed value is an exact runtime tuple with pointwise typed
+components.  Clause dispatch uses this to justify `decodeProduct` for the
+zero/many conventions. -/
+theorem product_canonical
+    (typing : ValueTyping value (.prod targets)) :
+    ∃ values, value = .tuple values ∧ ValueTypings values targets := by
+  exact (dispatchCanonicalProperties typing).productShape Subst.id targets (by simp)
+
+/-- A matcher-typed value has one of the three executable matcher shapes:
+`something`, a certified user matcher closure, or a product of matchers. -/
+theorem matcher_canonical
+    (typing : ValueTyping value (.matcher capability matcherTarget)) :
+    MatcherRuntimeShape value := by
+  exact (dispatchCanonicalProperties typing).matcherShape Subst.id capability
+    matcherTarget (by simp)
+
+/-- Slot checking does not invent a new runtime form: a slot is represented by
+the same canonical values as a matcher. -/
+theorem slot_canonical
+    (typing : ValueTyping value (.slot capability matcherTarget)) :
+    MatcherRuntimeShape value := by
+  exact (dispatchCanonicalProperties typing).slotShape Subst.id capability
+    matcherTarget (by simp)
 
 theorem boolValue (value : Bool) :
     ValueTyping (Value.boolValue value) TypePM.DataTypes.bool := by
@@ -415,8 +579,9 @@ end ListValueTypings
 runtime type, and every fuel-bounded evaluation is ready: it either times out
 or produces a typed value.  The certified constructors cover integers,
 canonical Booleans and Lists, tuples, integer addition, `append`, `member`,
-`deleteFirst`, `map`, same-result-type conditionals, typed environments,
-closures, and applications with an arbitrary typed function expression. -/
+`deleteFirst`, `map`, monomorphic `letE`, same-result-type conditionals, typed
+environments, closures, and applications with an arbitrary typed function
+expression. -/
 private theorem RuntimeTyping.coreSafetyBound
     (typing : RuntimeTyping expression target context)
     (budget fuel : Nat) (fuelBound : fuel ≤ budget)
@@ -447,6 +612,11 @@ private theorem RuntimeTyping.coreSafetyBound
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => exact .inr ⟨_, rfl, .int _⟩
+  case something =>
+          intro context target fuel _fuelBound environment environmentTyping
+          cases fuel with
+          | zero => exact .inl rfl
+          | succ fuel => exact .inr ⟨.something, rfl, .something target⟩
   case boolTrue =>
           intro context fuel _fuelBound environment environmentTyping
           cases fuel with
@@ -587,6 +757,27 @@ private theorem RuntimeTyping.coreSafetyBound
                       rw [functionSuccess, argumentSuccess]
                       exact bodySuccess,
                       valueTyping⟩
+  case letE =>
+      intro valueExpression valueTarget context bodyExpression bodyTarget value body
+        valueIH bodyIH fuel fuelBound environment environmentTyping
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ fuel =>
+          have valueResult :=
+            valueIH fuel (by omega) environment environmentTyping
+          rcases valueResult with valueTimeout |
+            ⟨valueResult, valueSuccess, valueTyping⟩
+          · exact .inl (by
+              simp [evalFuel, valueTimeout, FuelResult.bind])
+          · have bodyResult := bodyIH fuel (by omega)
+              (valueResult :: environment) (.cons valueTyping environmentTyping)
+            rcases bodyResult with bodyTimeout |
+              ⟨result, bodySuccess, resultTyping⟩
+            · exact .inl (by
+                simp [evalFuel, valueSuccess, bodyTimeout, FuelResult.bind])
+            · exact .inr ⟨result, by
+                simp [evalFuel, valueSuccess, bodySuccess, FuelResult.bind],
+                resultTyping⟩
   case add =>
           intro leftExpression context rightExpression left right leftIH rightIH
             fuel fuelBound environment environmentTyping
@@ -845,13 +1036,6 @@ private theorem RuntimeTyping.coreSafetyBound
           rcases sourceResult with timeout | ⟨value, success, valueTyping⟩
           · exact .inl timeout
           · exact .inr ⟨value, success, .checked valueTyping conversion⟩
-  case instantiated =>
-          intro expression sourceTarget source substitution sourceIH fuel fuelBound
-            environment environmentTyping
-          have sourceResult := sourceIH fuel fuelBound environment environmentTyping
-          rcases sourceResult with timeout | ⟨value, success, valueTyping⟩
-          · exact .inl timeout
-          · exact .inr ⟨value, success, valueTyping.apply substitution⟩
   case nil =>
       intro context fuel _fuelBound environment environmentTyping
       exact .inr ⟨[], rfl, .nil⟩
@@ -900,9 +1084,9 @@ theorem RuntimeTypings.coreSafety
       ∀ fuel environment, EnvironmentTyping environment context →
         TypedResults targets
         (FuelResult.traverse (evalFuel fuel environment) expressions))
-  case var | lit | boolTrue | boolFalse | listNil | listCons | tuple | lam |
-      app | fixE | add | append | member | deleteFirst | map | ifE |
-      checked | instantiated =>
+  case var | lit | something | boolTrue | boolFalse | listNil | listCons | tuple | lam |
+      app | letE | fixE | add | append | member | deleteFirst | map | ifE |
+      checked =>
     simp
   case nil =>
     intro context fuel environment environmentTyping

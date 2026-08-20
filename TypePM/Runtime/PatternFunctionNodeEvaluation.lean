@@ -1,4 +1,6 @@
 import TypePM.Runtime.PatternFunctionMatching
+import TypePM.Runtime.EvaluationAdequacy
+import TypePM.Source.PatternFunctionExpansion
 
 /-!
 # Expression evaluation with scoped pattern-function nodes
@@ -21,6 +23,191 @@ preservation theorem for this evaluator is deliberately not claimed here.
 namespace TypePM.Runtime
 
 open TypePM.Source
+
+end TypePM.Runtime
+
+namespace TypePM.Source
+
+/-- The complete source expression contains no pattern-function application
+and no embedded pattern parameter.  This is defined through the existing
+structural expander with an empty definition table: that traversal checks
+lambda and fix bodies, value-pattern expressions, matcher clause callbacks,
+and all `matchFirst` arms rather than only the outer match pattern. -/
+def Expr.MNodeFree (expression : Expr) : Prop :=
+  PatternFunctionExpansion.expandExpr [] expression = some expression
+
+/-- The complete pattern contains neither an application nor an embedded
+parameter; value-pattern expressions are checked recursively. -/
+def Pattern.MNodeFree (pattern : Pattern) : Prop :=
+  PatternFunctionExpansion.expandPattern [] pattern = some pattern
+
+/-- Matcher clauses are MNode-free exactly when their next-matcher expressions
+and every data-arm body are recursively MNode-free. -/
+def MatcherClause.MNodeFree (clause : MatcherClause) : Prop :=
+  PatternFunctionExpansion.expandClause [] clause = some clause
+
+/-- A matcher data arm is MNode-free when its body is recursively MNode-free. -/
+def MatcherArm.MNodeFree (arm : MatcherArm) : Prop :=
+  PatternFunctionExpansion.expandArm [] arm = some arm
+
+/-- A single-result match arm checks both its pattern and body recursively. -/
+def MatchFirstArm.MNodeFree (arm : MatchFirstArm) : Prop :=
+  PatternFunctionExpansion.expandMatchFirstArm [] arm = some arm
+
+theorem Pattern.MNodeFree.not_app
+    {pattern : Pattern} {name : PatternFunName} {arguments : List Pattern}
+    (free : pattern.MNodeFree) : pattern ≠ .app name arguments := by
+  intro equality
+  subst pattern
+  simp [Pattern.MNodeFree, PatternFunctionExpansion.expandPattern,
+    PatternFunctionDefinitions.lookup] at free
+
+theorem Pattern.MNodeFree.not_embed
+    {pattern : Pattern} {index : Nat}
+    (free : pattern.MNodeFree) : pattern ≠ .embed index := by
+  intro equality
+  subst pattern
+  simp [Pattern.MNodeFree, PatternFunctionExpansion.expandPattern] at free
+
+mutual
+
+  /-- The largest structurally useful subfragment whose two evaluators can be
+  compared without an invariant on runtime closure environments.  It excludes
+  precisely the four expression cases that invoke evaluator callbacks or matching
+  search (`app`, primitive `map`, and the two match forms).  Inert lambda,
+  fix, and matcher bodies still carry the full recursive `MNodeFree` check. -/
+  inductive Expr.EvaluatorIndependent : Expr → Prop where
+    | var : Expr.EvaluatorIndependent (.var index)
+    | lit : Expr.EvaluatorIndependent (.lit literal)
+    | something : Expr.EvaluatorIndependent .something
+    | lam (bodyFree : body.MNodeFree) :
+        Expr.EvaluatorIndependent (.lam body)
+    | tuple (itemsFree : ExprListEvaluatorIndependent items) :
+        Expr.EvaluatorIndependent (.tuple items)
+    | letE
+        (valueFree : valueExpression.EvaluatorIndependent)
+        (bodyFree : body.EvaluatorIndependent) :
+        Expr.EvaluatorIndependent (.letE valueExpression body)
+    | ctor (argumentsFree : ExprListEvaluatorIndependent arguments) :
+        Expr.EvaluatorIndependent (.ctor constructor arguments)
+    | prim
+        (notMap : operation ≠ .map)
+        (argumentsFree : ExprListEvaluatorIndependent arguments) :
+        Expr.EvaluatorIndependent (.prim operation arguments)
+    | ifE
+        (conditionFree : condition.EvaluatorIndependent)
+        (thenFree : thenBranch.EvaluatorIndependent)
+        (elseFree : elseBranch.EvaluatorIndependent) :
+        Expr.EvaluatorIndependent (.ifE condition thenBranch elseBranch)
+    | fixE (bodyFree : body.MNodeFree) :
+        Expr.EvaluatorIndependent (.fixE body)
+    | matcher (literalFree : (Expr.matcher clauses).MNodeFree) :
+        Expr.EvaluatorIndependent (.matcher clauses)
+
+  /-- Source-ordered expression-list companion of `EvaluatorIndependent`. -/
+  inductive ExprListEvaluatorIndependent : List Expr → Prop where
+    | nil : ExprListEvaluatorIndependent []
+    | cons
+        (headFree : head.EvaluatorIndependent)
+        (tailFree : ExprListEvaluatorIndependent tail) :
+        ExprListEvaluatorIndependent (head :: tail)
+
+end
+
+mutual
+
+  /-- The evaluator-independent predicate is a genuine subfragment of the
+  recursively checked MNode-free language. -/
+  theorem Expr.EvaluatorIndependent.mnodeFree
+      {expression : Expr}
+      (independent : expression.EvaluatorIndependent) : expression.MNodeFree := by
+    cases independent with
+    | var => simp [Expr.MNodeFree, PatternFunctionExpansion.expandExpr]
+    | lit => simp [Expr.MNodeFree, PatternFunctionExpansion.expandExpr]
+    | something => simp [Expr.MNodeFree, PatternFunctionExpansion.expandExpr]
+    | lam bodyFree =>
+        unfold Expr.MNodeFree at bodyFree ⊢
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [bodyFree]
+        rfl
+    | tuple itemsFree =>
+        unfold Expr.MNodeFree
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [itemsFree.expand_empty]
+        rfl
+    | letE valueFree bodyFree =>
+        unfold Expr.MNodeFree
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [valueFree.mnodeFree, bodyFree.mnodeFree]
+        rfl
+    | ctor argumentsFree =>
+        unfold Expr.MNodeFree
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [argumentsFree.expand_empty]
+        rfl
+    | prim _ argumentsFree =>
+        unfold Expr.MNodeFree
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [argumentsFree.expand_empty]
+        rfl
+    | ifE conditionFree thenFree elseFree =>
+        unfold Expr.MNodeFree
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [conditionFree.mnodeFree, thenFree.mnodeFree, elseFree.mnodeFree]
+        rfl
+    | fixE bodyFree =>
+        unfold Expr.MNodeFree at bodyFree ⊢
+        simp only [PatternFunctionExpansion.expandExpr]
+        rw [bodyFree]
+        rfl
+    | matcher literalFree => exact literalFree
+
+  /-- Empty-table expansion fixes every evaluator-independent expression list. -/
+  theorem ExprListEvaluatorIndependent.expand_empty
+      {expressions : List Expr}
+      (independent : ExprListEvaluatorIndependent expressions) :
+      PatternFunctionExpansion.expandExprList [] expressions = some expressions := by
+    cases independent with
+    | nil => simp [PatternFunctionExpansion.expandExprList]
+    | cons headFree tailFree =>
+        simp only [PatternFunctionExpansion.expandExprList]
+        rw [headFree.mnodeFree, tailFree.expand_empty]
+        rfl
+
+end
+
+end TypePM.Source
+
+namespace TypePM.Runtime
+
+open TypePM.Source
+
+/-- On an ordinary, recursively MNode-free pattern, the scoped head step is
+definitionally the ordinary atom-reducer step.  This is the core commuting
+lemma needed by a future full search simulation; the remaining obligation is
+to prove that matcher reductions preserve MNode-freedom of every generated
+branch and callback value. -/
+theorem stepPatternFunctionHead_mnodeFree_atom
+    (free : atom.pattern.MNodeFree) :
+    stepPatternFunctionHead definitions reduceAtom (.atom atom) remaining
+        environment bindings =
+      FuelResult.bind (reduceAtom (bindings ++ environment) atom) fun result =>
+        match result with
+        | .miss => .stuck
+        | .hit reduction =>
+            .ok (continueTreeAtom remaining environment bindings reduction) := by
+  rcases atom with ⟨pattern, matcher, target⟩
+  cases pattern <;>
+    simp only [stepPatternFunctionHead]
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · rfl
+  · exact False.elim (free.not_embed rfl)
+  · exact False.elim (free.not_app rfl)
 
 /-- Execute derived single-result matching with the scoped pattern-function
 search.  Source-arm order and first-result selection agree with
@@ -152,6 +339,173 @@ mutual
     | _ + 1, _, _ => .stuck
 
 end
+
+private theorem evalPrimitive_callback_irrelevant
+    (notMap : operation ≠ PrimOp.map)
+    (left right : Value → Value → FuelResult Value) :
+    evalPrimitive left operation arguments =
+      evalPrimitive right operation arguments := by
+  cases operation with
+  | map => exact (notMap rfl).elim
+  | add =>
+      rcases arguments with _ | ⟨first, tail⟩
+      · rfl
+      rcases tail with _ | ⟨second, tail⟩
+      · cases first <;> rfl
+      rcases tail with _ | ⟨third, tail⟩
+      · cases first <;> cases second <;> rfl
+      · cases first <;> cases second <;> rfl
+  | append =>
+      rcases arguments with _ | ⟨first, tail⟩
+      · rfl
+      rcases tail with _ | ⟨second, tail⟩
+      · rfl
+      rcases tail with _ | ⟨third, tail⟩ <;> rfl
+  | member =>
+      rcases arguments with _ | ⟨first, tail⟩
+      · rfl
+      rcases tail with _ | ⟨second, tail⟩
+      · rfl
+      rcases tail with _ | ⟨third, tail⟩ <;> rfl
+  | deleteFirst =>
+      rcases arguments with _ | ⟨first, tail⟩
+      · rfl
+      rcases tail with _ | ⟨second, tail⟩
+      · rfl
+      rcases tail with _ | ⟨third, tail⟩ <;> rfl
+
+mutual
+
+  /-- Exact evaluator simulation on the structurally evaluator-independent
+  part of the MNode-free language.  The definition table is irrelevant on
+  this fragment. -/
+  theorem evaluatorIndependent_nodeEvaluation_eq_evalFuel
+      (free : expression.EvaluatorIndependent)
+      (definitions : PatternFunctionDefinitions) (fuel : Nat)
+      (environment : ValueEnvironment) :
+      evalPatternFunctionNodesFuel definitions fuel environment expression =
+        evalFuel fuel environment expression := by
+    cases fuel with
+    | zero => rfl
+    | succ fuel =>
+        cases free with
+        | var => rfl
+        | lit => rfl
+        | something => rfl
+        | lam => rfl
+        | tuple itemsFree =>
+            change FuelResult.map Value.tuple
+                (FuelResult.traverse
+                  (evalPatternFunctionNodesFuel definitions fuel environment) _) =
+              FuelResult.map Value.tuple
+                (FuelResult.traverse (evalFuel fuel environment) _)
+            rw [evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel
+              itemsFree definitions fuel environment]
+        | letE valueFree bodyFree =>
+            change FuelResult.bind
+                (evalPatternFunctionNodesFuel definitions fuel environment _)
+                (fun value => evalPatternFunctionNodesFuel definitions fuel
+                  (value :: environment) _) =
+              FuelResult.bind (evalFuel fuel environment _)
+                (fun value => evalFuel fuel (value :: environment) _)
+            rw [evaluatorIndependent_nodeEvaluation_eq_evalFuel valueFree]
+            congr 1
+            funext value
+            exact evaluatorIndependent_nodeEvaluation_eq_evalFuel bodyFree
+              definitions fuel (value :: environment)
+        | ctor argumentsFree =>
+            change FuelResult.map (Value.data _)
+                (FuelResult.traverse
+                  (evalPatternFunctionNodesFuel definitions fuel environment) _) =
+              FuelResult.map (Value.data _)
+                (FuelResult.traverse (evalFuel fuel environment) _)
+            rw [evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel
+              argumentsFree definitions fuel environment]
+        | prim notMap argumentsFree =>
+            change FuelResult.bind
+                (FuelResult.traverse
+                  (evalPatternFunctionNodesFuel definitions fuel environment) _)
+                (evalPrimitive
+                  (applyPatternFunctionNodesFuel definitions fuel) _) =
+              FuelResult.bind
+                (FuelResult.traverse (evalFuel fuel environment) _)
+                (evalPrimitive (applyFuel fuel) _)
+            rw [evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel
+              argumentsFree definitions fuel environment]
+            congr 1
+            exact funext fun _ =>
+              evalPrimitive_callback_irrelevant notMap _ _
+        | ifE conditionFree thenFree elseFree =>
+            change FuelResult.bind
+                (evalPatternFunctionNodesFuel definitions fuel environment _)
+                (fun conditionValue => match conditionValue with
+                  | .data constructor [] =>
+                      if constructor = DataCtor.true then
+                        evalPatternFunctionNodesFuel definitions fuel environment _
+                      else if constructor = DataCtor.false then
+                        evalPatternFunctionNodesFuel definitions fuel environment _
+                      else .stuck
+                  | _ => .stuck) =
+              FuelResult.bind (evalFuel fuel environment _)
+                (fun conditionValue => match conditionValue with
+                  | .data constructor [] =>
+                      if constructor = DataCtor.true then
+                        evalFuel fuel environment _
+                      else if constructor = DataCtor.false then
+                        evalFuel fuel environment _
+                      else .stuck
+                  | _ => .stuck)
+            rw [evaluatorIndependent_nodeEvaluation_eq_evalFuel conditionFree]
+            congr 1
+            funext conditionValue
+            cases conditionValue with
+            | data constructor arguments =>
+                cases arguments with
+                | nil =>
+                    by_cases isTrue : constructor = DataCtor.true
+                    · simp only [isTrue, if_pos]
+                      exact evaluatorIndependent_nodeEvaluation_eq_evalFuel
+                        thenFree definitions fuel environment
+                    · by_cases isFalse : constructor = DataCtor.false
+                      · simp only [isFalse, if_pos]
+                        exact evaluatorIndependent_nodeEvaluation_eq_evalFuel
+                          elseFree definitions fuel environment
+                      · simp [isTrue, isFalse]
+                | cons head tail => rfl
+            | int | tuple | closure | matcherV | something => rfl
+        | fixE => rfl
+        | matcher => rfl
+
+  /-- Left-to-right traversal companion of
+  `nodeEvaluation_eq_evalFuel`. -/
+  theorem evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel
+      (free : Source.ExprListEvaluatorIndependent expressions)
+      (definitions : PatternFunctionDefinitions) (fuel : Nat)
+      (environment : ValueEnvironment) :
+      FuelResult.traverse
+          (evalPatternFunctionNodesFuel definitions fuel environment)
+          expressions =
+        FuelResult.traverse (evalFuel fuel environment) expressions := by
+    cases free with
+    | nil => rfl
+    | cons headFree tailFree =>
+        simp only [FuelResult.traverse]
+        rw [evaluatorIndependent_nodeEvaluation_eq_evalFuel headFree,
+          evaluatorIndependent_nodeEvaluation_traverse_eq_evalFuel tailFree]
+
+end
+
+
+/-- Adequacy transfers from the ordinary evaluator on the proved simulation
+fragment: every successful scoped-node evaluation has an ordinary big-step
+derivation. -/
+theorem evaluatorIndependent_nodeEvaluation_sound
+    (free : expression.EvaluatorIndependent)
+    (success : evalPatternFunctionNodesFuel definitions fuel environment
+      expression = .ok value) :
+    Eval environment expression value := by
+  rw [evaluatorIndependent_nodeEvaluation_eq_evalFuel free] at success
+  exact evalFuel_sound success
 
 /-- Public entry point for scoped pattern-function evaluation.  The
 `agreement` argument certifies that every executable definition has a

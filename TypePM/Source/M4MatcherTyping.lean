@@ -372,6 +372,343 @@ def staticChecks
     finalCatchAllVariableArm clauses &&
     rootCoverageOK signature clauses
 
+inductive CatchAllLast : List MatcherArm → Prop where
+  | var {body} : CatchAllLast [.mk .var body]
+  | wild {body} : CatchAllLast [.mk .wild body]
+  | skip {arm arms} : CatchAllLast arms → CatchAllLast (arm :: arms)
+
+theorem catchAllLast_iff (arms : List MatcherArm) :
+    CatchAllLast arms ↔ armsCatchAllLast arms = true := by
+  constructor
+  · intro coverage
+    induction coverage with
+    | var => rfl
+    | wild => rfl
+    | skip tail induction => cases tail <;> simpa [armsCatchAllLast] using induction
+  · induction arms with
+    | nil => simp [armsCatchAllLast]
+    | cons arm arms induction =>
+        cases arms with
+        | nil =>
+            cases arm with
+            | mk header body =>
+                cases header with
+                | var => intro; exact .var
+                | wild => intro; exact .wild
+                | ctor | tuple => simp [armsCatchAllLast, MatcherArm.header,
+                    DPat.isIrrefutable]
+        | cons next rest =>
+            intro checked
+            exact .skip (induction (by simpa [armsCatchAllLast] using checked))
+
+/-- A general constructor arm names the required constructor, has the declared
+arity, and uses only variable/wildcard fields. -/
+def GeneralDataConstructor
+    (constructor : DataCtor) (arity : Nat) : DPat → Prop
+  | .ctor actual fields =>
+      actual = constructor ∧ fields.length = arity ∧
+        ∀ field ∈ fields, field = .var ∨ field = .wild
+  | _ => False
+
+theorem generalDataConstructor_iff (constructor : DataCtor) (arity : Nat)
+    (pattern : DPat) :
+    GeneralDataConstructor constructor arity pattern ↔
+      DPat.isGeneralConstructor constructor arity pattern = true := by
+  cases pattern with
+  | var | wild | tuple => simp [GeneralDataConstructor, DPat.isGeneralConstructor]
+  | ctor actual fields =>
+      simp only [GeneralDataConstructor, DPat.isGeneralConstructor,
+        Bool.and_eq_true, beq_iff_eq, List.all_eq_true]
+      constructor
+      · rintro ⟨actual, length, fieldsGeneral⟩
+        exact ⟨⟨actual, length⟩, by
+          intro field member
+          rcases fieldsGeneral field member with rfl | rfl <;> rfl⟩
+      · rintro ⟨⟨actual, length⟩, fieldsGeneral⟩
+        exact ⟨actual, length, by
+          intro field member
+          specialize fieldsGeneral field member
+          cases field <;> simp [DPat.isIrrefutable] at fieldsGeneral ⊢⟩
+
+def MentionsDataFormer (signature : FrozenSignature)
+    (arms : List MatcherArm) (former : DataFormer) : Prop :=
+  ∃ arm ∈ arms, DPat.rootDataFormer? signature arm.header = some former
+
+def CoversDataConstructor (arms : List MatcherArm)
+    (constructor : DataCtor) (arity : Nat) : Prop :=
+  ∃ arm ∈ arms, GeneralDataConstructor constructor arity arm.header
+
+/-- Declarative ordinary arm coverage over the frozen constructor table. -/
+def OrdinaryArmCoverage (signature : FrozenSignature)
+    (arms : List MatcherArm) : Prop :=
+  CatchAllLast arms ∨
+    (arms ≠ [] ∧ ∀ declaration ∈ signature.base.dataConstructors,
+      match Signature.constructorResult? declaration.scheme.body with
+      | some (former, _) =>
+          ¬ MentionsDataFormer signature arms former ∨
+            CoversDataConstructor arms declaration.constructor
+              declaration.scheme.callArity
+      | none => False)
+
+/-- Declarative form of the two constructor refinements supported by Paper 1. -/
+def StructuralArmCoverage (clause : MatcherClause) : Prop :=
+  match clause with
+  | .mk (.ctor .nil _) _ arms =>
+      ∃ arm ∈ arms, ∃ fields, arm.header = .ctor .nil fields
+  | .mk (.ctor .cons _) _ arms =>
+      ∃ arm ∈ arms, ∃ fields, arm.header = .ctor .cons fields
+  | _ => False
+
+theorem ordinaryArmCoverage_iff (signature : FrozenSignature)
+    (arms : List MatcherArm) :
+    OrdinaryArmCoverage signature arms ↔ armCoverageOK signature arms = true := by
+  have nonempty : arms ≠ [] ↔ arms.isEmpty = false := by
+    cases arms <;> simp
+  have declaration_iff (declaration : DataConstructorDeclaration) :
+      (match Signature.constructorResult? declaration.scheme.body with
+        | some (former, _) =>
+            ¬ MentionsDataFormer signature arms former ∨
+              CoversDataConstructor arms declaration.constructor
+                declaration.scheme.callArity
+        | none => False) ↔
+      (match Signature.constructorResult? declaration.scheme.body with
+        | some (former, _) =>
+            !arms.any (fun arm =>
+              DPat.rootDataFormer? signature arm.header == some former) ||
+              arms.any (fun arm =>
+                DPat.isGeneralConstructor declaration.constructor
+                  declaration.scheme.callArity arm.header)
+        | none => false) = true := by
+    cases result : Signature.constructorResult? declaration.scheme.body with
+    | none => simp [result]
+    | some pair =>
+        rcases pair with ⟨former, arguments⟩
+        simp [result, MentionsDataFormer, CoversDataConstructor,
+          generalDataConstructor_iff, List.any_eq_true, beq_iff_eq]
+  rw [armCoverageOK, Bool.or_eq_true]
+  simp only [Bool.and_eq_true, beq_iff_eq]
+  constructor
+  · rintro (catchAll | ⟨notEmpty, covered⟩)
+    · exact Or.inl ((catchAllLast_iff arms).1 catchAll)
+    · right
+      exact ⟨nonempty.mp notEmpty, List.all_eq_true.mpr (fun declaration member =>
+        (declaration_iff declaration).1 (covered declaration member))⟩
+  · rintro (catchAll | ⟨notEmpty, covered⟩)
+    · exact Or.inl ((catchAllLast_iff arms).2 catchAll)
+    · right
+      exact ⟨nonempty.mpr notEmpty, fun declaration member =>
+        (declaration_iff declaration).2
+          (List.all_eq_true.mp covered declaration member)⟩
+
+@[simp] theorem matcherClause_header_mk (header next arms) :
+    (MatcherClause.mk header next arms).header = header := rfl
+
+@[simp] theorem matcherClause_arms_mk (header next arms) :
+    (MatcherClause.mk header next arms).arms = arms := rfl
+
+theorem structuralArmCoverage_iff (clause : MatcherClause) :
+    StructuralArmCoverage clause ↔ structurallyRefinedArmCoverage clause = true := by
+  cases clause with
+  | mk header next arms =>
+      have hasConstructor_iff (wanted : DataCtor) :
+          (∃ arm ∈ arms, ∃ fields, arm.header = .ctor wanted fields) ↔
+            ∃ arm ∈ arms, (match arm.header with
+              | .ctor actual _ => actual == wanted
+              | _ => false) = true := by
+        constructor
+        · rintro ⟨⟨actualHeader, body⟩, member, fields, equality⟩
+          cases equality
+          exact ⟨_, member, by simp [MatcherArm.header]⟩
+        · rintro ⟨⟨actualHeader, body⟩, member, checked⟩
+          cases actualHeader with
+          | var | wild | tuple => simp [MatcherArm.header] at checked
+          | ctor actual fields =>
+              have equality : actual = wanted := by
+                simpa [MatcherArm.header] using beq_iff_eq.mp checked
+              subst actual
+              exact ⟨_, member, fields, rfl⟩
+      cases header with
+      | hole | wild | capture =>
+          simp [StructuralArmCoverage, structurallyRefinedArmCoverage]
+      | ctor constructor fields =>
+          rcases constructor with ⟨name⟩
+          by_cases nilName : name = "nil"
+          · subst name
+            simpa [StructuralArmCoverage, structurallyRefinedArmCoverage,
+              PatternCtor.nil, List.any_eq_true, MatcherArm.header] using
+                hasConstructor_iff DataCtor.nil
+          · by_cases consName : name = "cons"
+            · subst name
+              simpa [StructuralArmCoverage, structurallyRefinedArmCoverage,
+                PatternCtor.cons, PatternCtor.nil, nilName, List.any_eq_true,
+                MatcherArm.header] using hasConstructor_iff DataCtor.cons
+            · simp [StructuralArmCoverage, structurallyRefinedArmCoverage,
+                PatternCtor.nil, PatternCtor.cons, nilName, consName]
+
+/-- Proof-level disjunction explaining why one clause's data arms pass the
+coverage gate. -/
+def ClauseCoverage (signature : FrozenSignature) (clause : MatcherClause) : Prop :=
+  OrdinaryArmCoverage signature clause.arms ∨ StructuralArmCoverage clause
+
+inductive FinalCatchAll : List MatcherClause → Prop where
+  | last {next body} : FinalCatchAll [.mk .hole next [.mk .var body]]
+  | skip {clause clauses} : FinalCatchAll clauses →
+      FinalCatchAll (clause :: clauses)
+
+theorem finalCatchAll_iff (clauses : List MatcherClause) :
+    FinalCatchAll clauses ↔ finalCatchAllVariableArm clauses = true := by
+  constructor
+  · intro final
+    induction final with
+    | last => rfl
+    | skip tail induction => cases tail <;>
+        simpa [finalCatchAllVariableArm] using induction
+  · induction clauses with
+    | nil => simp [finalCatchAllVariableArm]
+    | cons clause clauses induction =>
+        cases clauses with
+        | nil =>
+            cases clause with
+            | mk header next arms =>
+                cases header with
+                | wild | capture | ctor => simp [finalCatchAllVariableArm]
+                | hole =>
+                    cases arms with
+                    | nil => simp [finalCatchAllVariableArm]
+                    | cons arm rest =>
+                        cases rest with
+                        | cons => simp [finalCatchAllVariableArm]
+                        | nil =>
+                            cases arm with
+                            | mk data body =>
+                                cases data with
+                                | var => intro; exact .last
+                                | wild | ctor | tuple =>
+                                    simp [finalCatchAllVariableArm]
+        | cons next rest =>
+            intro checked
+            exact .skip (induction (by
+              simpa [finalCatchAllVariableArm] using checked))
+
+def GeneralPatternConstructor
+    (constructor : PatternCtor) (arity : Nat) : PPat → Prop
+  | .ctor actual fields =>
+      actual = constructor ∧ fields.length = arity ∧
+        ∀ field ∈ fields, field = .hole
+  | _ => False
+
+theorem generalPatternConstructor_iff (constructor : PatternCtor) (arity : Nat)
+    (pattern : PPat) :
+    GeneralPatternConstructor constructor arity pattern ↔
+      PPat.isGeneralConstructor constructor arity pattern = true := by
+  cases pattern with
+  | hole | wild | capture =>
+      simp [GeneralPatternConstructor, PPat.isGeneralConstructor]
+  | ctor actual fields =>
+      simp only [GeneralPatternConstructor, PPat.isGeneralConstructor,
+        Bool.and_eq_true, beq_iff_eq, List.all_eq_true]
+      constructor
+      · rintro ⟨actual, length, allHoles⟩
+        exact ⟨⟨actual, length⟩, fun field member => by
+          rw [allHoles field member]⟩
+      · rintro ⟨⟨actual, length⟩, allHoles⟩
+        exact ⟨actual, length, by
+          intro field member
+          specialize allHoles field member
+          cases field <;> simp at allHoles ⊢⟩
+
+def MentionsPatternFormer (signature : FrozenSignature)
+    (clauses : List MatcherClause) (former : PatternFormer) : Prop :=
+  ∃ clause ∈ clauses, PPat.rootFormer? signature clause.header = some former
+
+def CoversPatternConstructor (clauses : List MatcherClause)
+    (constructor : PatternCtor) (arity : Nat) : Prop :=
+  ∃ clause ∈ clauses,
+    GeneralPatternConstructor constructor arity clause.header
+
+def RootCoverage (signature : FrozenSignature)
+    (clauses : List MatcherClause) : Prop :=
+  ∀ declaration ∈ signature.base.patternConstructors,
+    match declaration.scheme.result.capability with
+    | .con former _ =>
+        ¬ MentionsPatternFormer signature clauses former ∨
+          CoversPatternConstructor clauses declaration.constructor
+            declaration.scheme.fields.length
+    | _ => False
+
+theorem rootCoverage_iff (signature : FrozenSignature)
+    (clauses : List MatcherClause) :
+    RootCoverage signature clauses ↔ rootCoverageOK signature clauses = true := by
+  have declaration_iff (declaration : PatternConstructorDeclaration) :
+      (match declaration.scheme.result.capability with
+        | .con former _ =>
+            ¬ MentionsPatternFormer signature clauses former ∨
+              CoversPatternConstructor clauses declaration.constructor
+                declaration.scheme.fields.length
+        | _ => False) ↔
+      (match declaration.scheme.result.capability with
+        | .con former _ =>
+            (!clauses.any (fun clause =>
+              PPat.rootFormer? signature clause.header == some former) ||
+              clauses.any (fun clause =>
+                PPat.isGeneralConstructor declaration.constructor
+                  declaration.scheme.fields.length clause.header))
+        | _ => false) = true := by
+    cases declaration.scheme.result.capability <;>
+      simp [MentionsPatternFormer, CoversPatternConstructor,
+        generalPatternConstructor_iff, List.any_eq_true, beq_iff_eq]
+  rw [rootCoverageOK, List.all_eq_true]
+  constructor
+  · intro covered declaration member
+    exact (declaration_iff declaration).1 (covered declaration member)
+  · intro covered declaration member
+    exact (declaration_iff declaration).2 (covered declaration member)
+
+/-- Every source clause has ordinary constructor coverage or the explicit
+constructor refinement justified by its pattern-pattern header. -/
+def ClausesCovered (signature : FrozenSignature)
+    (clauses : List MatcherClause) : Prop :=
+  ∀ clause ∈ clauses, ClauseCoverage signature clause
+
+/-- Proof-level decomposition of all four independent matcher-literal static
+conditions.  Relational elaboration depends on this record, never on the
+combined executable Boolean. -/
+structure StaticChecksHold (signature : FrozenSignature)
+    (clauses : List MatcherClause) : Prop where
+  shapes : MatcherClause.checkShapes signature clauses = true
+  coverage : ClausesCovered signature clauses
+  finalCatchAll : FinalCatchAll clauses
+  rootCoverage : RootCoverage signature clauses
+
+theorem clausesCovered_iff (signature : FrozenSignature)
+    (clauses : List MatcherClause) :
+    ClausesCovered signature clauses ↔
+      clauses.all (fun clause => armCoverageOK signature clause.arms ||
+        structurallyRefinedArmCoverage clause) = true := by
+  simp only [ClausesCovered, ClauseCoverage, List.all_eq_true, Bool.or_eq_true,
+    ordinaryArmCoverage_iff, structuralArmCoverage_iff]
+
+theorem staticChecksHold_iff (signature : FrozenSignature)
+    (clauses : List MatcherClause) :
+    StaticChecksHold signature clauses ↔ staticChecks signature clauses = true := by
+  rw [staticChecks]
+  simp only [Bool.and_eq_true, clausesCovered_iff]
+  constructor
+  · intro checked
+    exact ⟨⟨⟨checked.shapes,
+      (clausesCovered_iff signature clauses).1 checked.coverage⟩,
+      (finalCatchAll_iff clauses).1 checked.finalCatchAll⟩,
+      (rootCoverage_iff signature clauses).1 checked.rootCoverage⟩
+  · rintro ⟨⟨⟨shapes, coverage⟩, finalCatchAll⟩, rootCoverage⟩
+    exact ⟨shapes, (clausesCovered_iff signature clauses).2 coverage,
+      (finalCatchAll_iff clauses).2 finalCatchAll,
+      (rootCoverage_iff signature clauses).2 rootCoverage⟩
+
+instance (signature : FrozenSignature) (clauses : List MatcherClause) :
+    Decidable (StaticChecksHold signature clauses) :=
+  decidable_of_iff (staticChecks signature clauses = true)
+    (staticChecksHold_iff signature clauses).symm
+
 /-- Type an expression at one expected type using an explicit checking
 obligation. -/
 def elaborateCheckedExpression
@@ -833,7 +1170,7 @@ inductive MatcherLiteralElaboratesUsing
     (signature : FrozenSignature) (context : Context) :
     List MatcherClause → Supply → Generated → Supply → Prop where
   | mk {clauses supply generatedClauses next}
-      (checked : staticChecks signature clauses = true)
+      (checked : StaticChecksHold signature clauses)
       (clausesElaboration : MatcherClausesElaborateUsing expressionRelation
         ppatRelation dpatRelation signature context (.var ⟨supply.ty⟩) clauses
         ⟨supply.ty + 1, supply.cap + 1⟩ generatedClauses next) :
@@ -1067,7 +1404,7 @@ inductive MatcherLiteralElaborates
     (signature : FrozenSignature) (context : Context) :
     List MatcherClause → Supply → Generated → Supply → Prop where
   | mk {clauses supply generatedClauses next}
-      (checked : staticChecks signature clauses = true)
+      (checked : StaticChecksHold signature clauses)
       (clausesElaboration : MatcherClausesElaborate signature context
         (.var ⟨supply.ty⟩) clauses ⟨supply.ty + 1, supply.cap + 1⟩
         generatedClauses next) :
@@ -1552,7 +1889,7 @@ theorem elaborateMatcherLiteral_sound
         rcases output with ⟨generatedClauses, afterClauses⟩
         simp [elaborateMatcherLiteral, checkedValue, clausesResult] at success
         rcases success with ⟨rfl, rfl⟩
-        exact .mk checkedValue
+        exact .mk ((staticChecksHold_iff signature clauses).2 checkedValue)
           (elaborateMatcherClauses_sound wellFormed clausesResult)
 
 /-! ## Soundness of callback-parametric matcher elaboration -/
@@ -1848,7 +2185,7 @@ theorem elaborateMatcherLiteralUsing_sound
         rcases output with ⟨generatedClauses, afterClauses⟩
         simp [elaborateMatcherLiteralUsing, checkedValue, clausesResult] at success
         rcases success with ⟨rfl, rfl⟩
-        exact .mk checkedValue
+        exact .mk ((staticChecksHold_iff signature clauses).2 checkedValue)
           (elaborateMatcherClausesUsing_sound expressionSound clausesResult)
 
 end MatcherTyping

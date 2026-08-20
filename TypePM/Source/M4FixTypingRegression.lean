@@ -99,6 +99,9 @@ theorem direct_body_checked_exact :
     check 1 directBody = true := by
   simp [directBody, check, checkFuel, checkHead, checkHeadFuel]
 
+theorem direct_body_declarative : Holds directBody :=
+  (holds_iff_check directBody).2 direct_body_checked_exact
+
 theorem lambda_shift_checked_exact :
     check 1 shiftedLambdaBody = true := by
   simp [shiftedLambdaBody, check, checkFuel, checkHead, checkHeadFuel]
@@ -233,22 +236,26 @@ theorem infer_mutual_style_none :
 theorem bare_not_fixTyping (target : Ty) :
     ¬ FixTyping Paper1Signature.signature [] bareBody target :=
   not_fixTyping_of_not_direct
-    (by simp [DirectSelf.Holds, bare_self_checked_exact]) target
+    (by intro direct; simpa [bare_self_checked_exact] using
+      (DirectSelf.holds_iff_check bareBody).1 direct) target
 
 theorem alias_not_fixTyping (target : Ty) :
     ¬ FixTyping Paper1Signature.signature [] aliasBody target :=
   not_fixTyping_of_not_direct
-    (by simp [DirectSelf.Holds, alias_checked_exact]) target
+    (by intro direct; simpa [alias_checked_exact] using
+      (DirectSelf.holds_iff_check aliasBody).1 direct) target
 
 theorem higher_order_not_fixTyping (target : Ty) :
     ¬ FixTyping Paper1Signature.signature [] higherOrderBody target :=
   not_fixTyping_of_not_direct
-    (by simp [DirectSelf.Holds, higher_order_checked_exact]) target
+    (by intro direct; simpa [higher_order_checked_exact] using
+      (DirectSelf.holds_iff_check higherOrderBody).1 direct) target
 
 theorem mutual_style_not_fixTyping (target : Ty) :
     ¬ FixTyping Paper1Signature.signature [] mutualStyleBody target :=
   not_fixTyping_of_not_direct
-    (by simp [DirectSelf.Holds, mutual_style_checked_exact]) target
+    (by intro direct; simpa [mutual_style_checked_exact] using
+      (DirectSelf.holds_iff_check mutualStyleBody).1 direct) target
 
 /-- The direct-self classifier already handles the complete matcher syntax,
 but the M3 body elaborator has no matcher-literal rule.  This is the exact

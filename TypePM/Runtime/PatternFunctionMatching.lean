@@ -233,7 +233,7 @@ theorem stepPatternFunctionHead_sound
                 exact .application found arity
               · simp [lookupPatternFunctionApplication, found, arity] at success
       | embed index => simp [stepPatternFunctionHead] at success
-      | var | wild | value | ctor | tuple | and =>
+      | var | wild | value | ctor | tuple | and | or =>
           simp only [stepPatternFunctionHead] at success
           rw [FuelResult.bind_eq_ok_iff] at success
           rcases success with ⟨result, reduced, continued⟩
@@ -265,7 +265,7 @@ theorem stepPatternFunctionHead_sound
                         simp_all
                       rw [atomEq]
                       exact .parameter lookup
-              | var | wild | value | ctor | tuple | and | app =>
+              | var | wild | value | ctor | tuple | and | or | app =>
                   simp only [stepPatternFunctionHead, patternEq,
                     FuelResult.map_eq_ok_iff] at success
                   rcases success with ⟨innerSuccessors, stepped, rfl⟩
