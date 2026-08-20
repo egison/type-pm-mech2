@@ -168,6 +168,8 @@ import TypePM.RuntimeTyping
 import TypePM.CoreSafety
 import TypePM.NoStuck
 import TypePM.RuntimeTypingRegression
+import TypePM.Source.PolymorphicLetRuntimeBridge
+import TypePM.Source.PolymorphicLetRuntimeBridgeRegression
 import TypePM.MatcherSafety
 import TypePM.MatcherSafetyRegression
 import TypePM.UserMatcherSafety

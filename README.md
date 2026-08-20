@@ -412,7 +412,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．公開橋はsignature等式だけで使え，内部のlookup契約は無関係な追加宣言も許す |
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
-| T6 | source多相`let`の橋 | **in progress** | bareなgeneric `Ty` lookupは代入で保存されない．runtime contextは`List Ty`のまま，量化bindingの由来とfreshnessを外部の証明関係で保持する |
+| T6 | source多相`let`の橋 | **in progress** | `ProtectedRuntimeTyping`はcontextを`List Ty`のまま保ち，`letPoly`が導入したbindingだけを証明用maskで識別する．実際の`Source.PrincipalTyping`と組み合わせた保存・no-stuckと，一つのidentityを2型で使う回帰は完了．任意のsource導出からprotected導出を自動構成する一般定理が残る |
 | T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文に加え，bodyがその断片に属する通常の`fixE`をruntime typingとno-stuckへ接続済み．matcher-rootの`fixE`とmatcher構文が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
 | T9 | matcher closureとdispatchの型付け部品 | **done** | cursor不変条件，product/list/slot canonical forms，0／1／複数holeの復号，pattern-pattern constructor，全data-pattern形，環境連結順，任意長arm／clause列の条件付き型保存と進行 |
@@ -506,7 +506,8 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    `matchAll`，`matchFirst`へ広げる．
 2. 完成したuser matcherのruntime arm／clause安全性をM4のconstructor signatureと静的clause型付けへ
    接続する．宣言的な最終catch-allから`.miss`を排除する独立定理は完了済み．
-3. source多相`let`の量化bindingの由来を保持する証明関係を追加し，T6のruntime橋を閉じる．
+3. 完成した`ProtectedRuntimeTyping`を全対象構文へ拡張し，任意のsource多相`let`導出から
+   protected導出を自動構成してT6の一般橋を閉じる．
 4. 式評価とmatcher探索を共通fuelで強帰納し，embedded evaluatorへの条件付き仮定を外す．
 5. `matchFirst`とMNode固有規則のno-stuckを証明し，公開freeze checkerが受理した
    source-defined pattern functionの型安全性へ接続する．
@@ -549,6 +550,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
 | runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
+| source多相`let`のruntime由来証明 | [PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean) |
 | user matcherの型付けと条件付き安全性 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean)，[UserMatcherGeneralSafety.lean](TypePM/UserMatcherGeneralSafety.lean) |
 | pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean) |
 | 公理監査 | [AxiomAuditCommand.lean](TypePM/AxiomAuditCommand.lean)，[AxiomAudit.lean](TypePM/AxiomAudit.lean) |
