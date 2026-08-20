@@ -100,14 +100,17 @@ theorem catch_all_summary_exact :
 
 theorem value_cons_capture_before_hole :
     valueConsHeader.CaptureBeforeFirstHole := by
-  simp [PPat.CaptureBeforeFirstHole, PPat.captureBeforeFirstHole,
-    PPat.captureBeforeFirstHoleFrom, valueConsHeader, PPat.occurrences]
+  apply (PPat.captureBeforeFirstHole_iff valueConsHeader).2
+  simp [PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+    valueConsHeader, PPat.occurrences]
 
 theorem capture_after_hole_rejected :
     ¬ captureAfterHoleHeader.CaptureBeforeFirstHole := by
-  simp [PPat.CaptureBeforeFirstHole, PPat.captureBeforeFirstHole,
-    PPat.captureBeforeFirstHoleFrom, captureAfterHoleHeader,
-    PPat.occurrences]
+  intro ordered
+  have checked :=
+    (PPat.captureBeforeFirstHole_iff captureAfterHoleHeader).1 ordered
+  simp [PPat.captureBeforeFirstHole, PPat.captureBeforeFirstHoleFrom,
+    captureAfterHoleHeader, PPat.occurrences] at checked
 
 theorem hole_counts_zero_one_two :
     nilHeader.holeCount = 0 ∧

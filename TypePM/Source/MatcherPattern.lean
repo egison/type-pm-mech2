@@ -118,12 +118,65 @@ def captureBeforeFirstHoleFrom : Bool → List PPatOccurrence → Bool
 def captureBeforeFirstHole (pattern : PPat) : Bool :=
   captureBeforeFirstHoleFrom false pattern.occurrences
 
-/-- Propositional form of the capture-before-first-hole condition. -/
+/-- Declarative scan state for capture ordering.  The Boolean index records
+whether a hole has already occurred; there is deliberately no constructor
+for a capture in the `true` state. -/
+inductive CaptureOrderFrom : Bool → List PPatOccurrence → Prop where
+  | nil {holeSeen} : CaptureOrderFrom holeSeen []
+  | hole {holeSeen rest}
+      (tail : CaptureOrderFrom true rest) :
+      CaptureOrderFrom holeSeen (.hole :: rest)
+  | capture {rest}
+      (tail : CaptureOrderFrom false rest) :
+      CaptureOrderFrom false (.capture :: rest)
+
+/-- Declarative capture-before-first-hole condition for one header. -/
 def CaptureBeforeFirstHole (pattern : PPat) : Prop :=
-  pattern.captureBeforeFirstHole = true
+  CaptureOrderFrom false pattern.occurrences
+
+theorem CaptureOrderFrom.check_eq_true
+    {holeSeen : Bool} {summary : List PPatOccurrence}
+    (ordered : CaptureOrderFrom holeSeen summary) :
+    captureBeforeFirstHoleFrom holeSeen summary = true := by
+  induction ordered with
+  | nil => rfl
+  | hole tail induction =>
+      simpa [captureBeforeFirstHoleFrom] using induction
+  | capture tail induction =>
+      simpa [captureBeforeFirstHoleFrom] using induction
+
+theorem captureOrderFrom_of_check
+    {holeSeen : Bool} {summary : List PPatOccurrence}
+    (checked : captureBeforeFirstHoleFrom holeSeen summary = true) :
+    CaptureOrderFrom holeSeen summary := by
+  induction summary generalizing holeSeen with
+  | nil => exact .nil
+  | cons occurrence rest induction =>
+      cases occurrence with
+      | hole =>
+          exact .hole (induction (by
+            simpa [captureBeforeFirstHoleFrom] using checked))
+      | capture =>
+          cases holeSeen with
+          | false =>
+              exact .capture (induction (by
+                simpa [captureBeforeFirstHoleFrom] using checked))
+          | true => simp [captureBeforeFirstHoleFrom] at checked
+
+theorem captureOrderFrom_iff (holeSeen : Bool)
+    (summary : List PPatOccurrence) :
+    CaptureOrderFrom holeSeen summary ↔
+      captureBeforeFirstHoleFrom holeSeen summary = true :=
+  ⟨CaptureOrderFrom.check_eq_true, captureOrderFrom_of_check⟩
+
+theorem captureBeforeFirstHole_iff (pattern : PPat) :
+    pattern.CaptureBeforeFirstHole ↔
+      pattern.captureBeforeFirstHole = true :=
+  captureOrderFrom_iff false pattern.occurrences
 
 instance (pattern : PPat) : Decidable pattern.CaptureBeforeFirstHole :=
-  by unfold CaptureBeforeFirstHole; infer_instance
+  decidable_of_iff (pattern.captureBeforeFirstHole = true)
+    (captureBeforeFirstHole_iff pattern).symm
 
 mutual
 
@@ -144,6 +197,103 @@ mutual
         shapeOK signature pattern && shapesOK signature rest
 
 end
+
+mutual
+
+  /-- Declarative pattern-pattern shape judgment.  Constructor lookup and
+  arity are retained as proof premises, while nested fields are checked by
+  the companion list judgment. -/
+  inductive ShapeWellFormed (signature : FrozenSignature) : PPat → Prop where
+    | hole : ShapeWellFormed signature .hole
+    | wild : ShapeWellFormed signature .wild
+    | capture : ShapeWellFormed signature .capture
+    | ctor {constructor fields scheme}
+        (declared : signature.lookupPatternConstructor constructor = some scheme)
+        (arity : fields.length = scheme.fields.length)
+        (fieldsWellFormed : ShapesWellFormed signature fields) :
+        ShapeWellFormed signature (.ctor constructor fields)
+
+  /-- Declarative left-to-right list form of `ShapeWellFormed`. -/
+  inductive ShapesWellFormed (signature : FrozenSignature) : List PPat → Prop where
+    | nil : ShapesWellFormed signature []
+    | cons {pattern patterns}
+        (head : ShapeWellFormed signature pattern)
+        (tail : ShapesWellFormed signature patterns) :
+        ShapesWellFormed signature (pattern :: patterns)
+
+end
+
+mutual
+
+  theorem ShapeWellFormed.check_eq_true
+      {signature : FrozenSignature} {pattern : PPat}
+      (wellFormed : ShapeWellFormed signature pattern) :
+      pattern.shapeOK signature = true := by
+    cases wellFormed with
+    | hole | wild | capture => rfl
+    | ctor declared arity fieldsWellFormed =>
+        simp [shapeOK, declared, arity,
+          ShapesWellFormed.check_eq_true fieldsWellFormed]
+
+  theorem ShapesWellFormed.check_eq_true
+      {signature : FrozenSignature} {patterns : List PPat}
+      (wellFormed : ShapesWellFormed signature patterns) :
+      shapesOK signature patterns = true := by
+    cases wellFormed with
+    | nil => rfl
+    | cons head tail =>
+        simp [shapesOK, ShapeWellFormed.check_eq_true head,
+          ShapesWellFormed.check_eq_true tail]
+
+end
+
+
+mutual
+
+  theorem shapeWellFormed_of_check
+      {signature : FrozenSignature} {pattern : PPat}
+      (checked : pattern.shapeOK signature = true) :
+      ShapeWellFormed signature pattern := by
+    cases pattern with
+    | hole => exact .hole
+    | wild => exact .wild
+    | capture => exact .capture
+    | ctor constructor fields =>
+        cases declared : signature.lookupPatternConstructor constructor with
+        | none => simp [shapeOK, declared] at checked
+        | some scheme =>
+            have conditions :
+                fields.length = scheme.fields.length ∧
+                  shapesOK signature fields = true := by
+              simpa [shapeOK, declared, Bool.and_eq_true] using checked
+            exact .ctor declared conditions.1
+              (shapesWellFormed_of_check conditions.2)
+
+  theorem shapesWellFormed_of_check
+      {signature : FrozenSignature} {patterns : List PPat}
+      (checked : shapesOK signature patterns = true) :
+      ShapesWellFormed signature patterns := by
+    cases patterns with
+    | nil => exact .nil
+    | cons pattern patterns =>
+        have conditions :
+            pattern.shapeOK signature = true ∧
+              shapesOK signature patterns = true := by
+          simpa [shapesOK, Bool.and_eq_true] using checked
+        exact .cons (shapeWellFormed_of_check conditions.1)
+          (shapesWellFormed_of_check conditions.2)
+
+end
+
+
+theorem shapeWellFormed_iff (signature : FrozenSignature) (pattern : PPat) :
+    ShapeWellFormed signature pattern ↔ pattern.shapeOK signature = true :=
+  ⟨ShapeWellFormed.check_eq_true, shapeWellFormed_of_check⟩
+
+theorem shapesWellFormed_iff (signature : FrozenSignature)
+    (patterns : List PPat) :
+    ShapesWellFormed signature patterns ↔ shapesOK signature patterns = true :=
+  ⟨ShapesWellFormed.check_eq_true, shapesWellFormed_of_check⟩
 
 end PPat
 
@@ -199,6 +349,109 @@ mutual
         shapeOK signature pattern && shapesOK signature rest
 
 end
+
+mutual
+
+  /-- Declarative data-pattern shape judgment.  A constructor records its
+  frozen declaration and exact curried arity; tuples only require their
+  component judgments. -/
+  inductive ShapeWellFormed (signature : FrozenSignature) : DPat → Prop where
+    | var : ShapeWellFormed signature .var
+    | wild : ShapeWellFormed signature .wild
+    | ctor {constructor fields scheme}
+        (declared : signature.lookupDataConstructor constructor = some scheme)
+        (arity : constructorArity? scheme.body = some fields.length)
+        (fieldsWellFormed : ShapesWellFormed signature fields) :
+        ShapeWellFormed signature (.ctor constructor fields)
+    | tuple {items}
+        (itemsWellFormed : ShapesWellFormed signature items) :
+        ShapeWellFormed signature (.tuple items)
+
+  /-- Declarative left-to-right list form of data-pattern shape validity. -/
+  inductive ShapesWellFormed (signature : FrozenSignature) : List DPat → Prop where
+    | nil : ShapesWellFormed signature []
+    | cons {pattern patterns}
+        (head : ShapeWellFormed signature pattern)
+        (tail : ShapesWellFormed signature patterns) :
+        ShapesWellFormed signature (pattern :: patterns)
+
+end
+
+
+mutual
+
+  theorem ShapeWellFormed.check_eq_true
+      {signature : FrozenSignature} {pattern : DPat}
+      (wellFormed : ShapeWellFormed signature pattern) :
+      pattern.shapeOK signature = true := by
+    cases wellFormed with
+    | var | wild => rfl
+    | ctor declared arity fieldsWellFormed =>
+        simp [shapeOK, declared, arity,
+          ShapesWellFormed.check_eq_true fieldsWellFormed]
+    | tuple itemsWellFormed =>
+        exact ShapesWellFormed.check_eq_true itemsWellFormed
+
+  theorem ShapesWellFormed.check_eq_true
+      {signature : FrozenSignature} {patterns : List DPat}
+      (wellFormed : ShapesWellFormed signature patterns) :
+      shapesOK signature patterns = true := by
+    cases wellFormed with
+    | nil => rfl
+    | cons head tail =>
+        simp [shapesOK, ShapeWellFormed.check_eq_true head,
+          ShapesWellFormed.check_eq_true tail]
+
+end
+
+
+mutual
+
+  theorem shapeWellFormed_of_check
+      {signature : FrozenSignature} {pattern : DPat}
+      (checked : pattern.shapeOK signature = true) :
+      ShapeWellFormed signature pattern := by
+    cases pattern with
+    | var => exact .var
+    | wild => exact .wild
+    | tuple items =>
+        exact .tuple (shapesWellFormed_of_check checked)
+    | ctor constructor fields =>
+        cases declared : signature.lookupDataConstructor constructor with
+        | none => simp [shapeOK, declared] at checked
+        | some scheme =>
+            have conditions :
+                constructorArity? scheme.body = some fields.length ∧
+                  shapesOK signature fields = true := by
+              simpa [shapeOK, declared, Bool.and_eq_true] using checked
+            exact .ctor declared conditions.1
+              (shapesWellFormed_of_check conditions.2)
+
+  theorem shapesWellFormed_of_check
+      {signature : FrozenSignature} {patterns : List DPat}
+      (checked : shapesOK signature patterns = true) :
+      ShapesWellFormed signature patterns := by
+    cases patterns with
+    | nil => exact .nil
+    | cons pattern patterns =>
+        have conditions :
+            pattern.shapeOK signature = true ∧
+              shapesOK signature patterns = true := by
+          simpa [shapesOK, Bool.and_eq_true] using checked
+        exact .cons (shapeWellFormed_of_check conditions.1)
+          (shapesWellFormed_of_check conditions.2)
+
+end
+
+
+theorem shapeWellFormed_iff (signature : FrozenSignature) (pattern : DPat) :
+    ShapeWellFormed signature pattern ↔ pattern.shapeOK signature = true :=
+  ⟨ShapeWellFormed.check_eq_true, shapeWellFormed_of_check⟩
+
+theorem shapesWellFormed_iff (signature : FrozenSignature)
+    (patterns : List DPat) :
+    ShapesWellFormed signature patterns ↔ shapesOK signature patterns = true :=
+  ⟨ShapesWellFormed.check_eq_true, shapesWellFormed_of_check⟩
 
 end DPat
 

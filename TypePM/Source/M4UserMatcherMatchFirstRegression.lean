@@ -85,11 +85,13 @@ private theorem elaborate_matcher_exact :
     MatcherTyping.elaborateMatcherClauseUsing]
   have shape : emptyClause.toShape.check Paper1FrozenSignature.signature =
       true := by
+    have shapes := (MatcherClause.shapesWellFormed_iff
+      Paper1FrozenSignature.signature [emptyClause]).1
+      MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause_staticChecks.shapes
     simpa [MatcherClause.checkShapes, MatcherClauseShapes.check,
       MatcherClauseShapes.catchAllLast, MatcherClauseShapes.isCatchAll,
       emptyClause,
-      MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause] using
-      MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause_staticChecks.shapes
+      MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause] using shapes
   rw [shape]
   simp only [if_true, emptyClause,
     MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause,
@@ -254,7 +256,8 @@ private theorem wildcardInput_of_singleHoleClause
       cases headerElaboration
       cases tail
       exact .mk checked (.cons
-        (.mk shape .hole nextMatchersElaboration armsElaboration (by
+        (.mk shape.check_eq_true .hole nextMatchersElaboration
+          armsElaboration (by
           intro dispatch inspected
           simp [inspectPatternPattern] at inspected
           subst dispatch

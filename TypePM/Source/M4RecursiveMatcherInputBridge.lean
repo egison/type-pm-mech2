@@ -110,7 +110,8 @@ theorem MatcherClauseTotalInputElaboratesUsing.elaboration
       generated next := by
   cases input with
   | mk shape header nextMatchers arms captures =>
-      exact .mk shape header nextMatchers arms
+      exact .mk (MatcherClauseShape.wellFormed_of_check shape)
+        header nextMatchers arms
 
 theorem MatcherClausesTotalInputElaborateUsing.elaboration
     (input : MatcherClausesTotalInputElaborateUsing expressionRelation

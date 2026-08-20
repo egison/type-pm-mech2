@@ -403,7 +403,7 @@ private theorem matcherClauseFuel_replay
       afterNext generatedArms next shape headerDerivation nextDerivation
       armsDerivation =>
       have shapeCheck : (MatcherClause.mk header nextMatchers arms).toShape.check
-          signature = true := shape
+          signature = true := shape.check_eq_true
       have headerExecutable :=
         TypePM.Source.M4.CompletenessArchitecture.PPatElaborates.executable
           headerDerivation

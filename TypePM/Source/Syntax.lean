@@ -131,6 +131,19 @@ def checkShapes
     (signature : FrozenSignature) (clauses : List MatcherClause) : Bool :=
   MatcherClauseShapes.check signature (clauses.map toShape)
 
+/-- Declarative counterpart of `checkShapes`: erasure preserves source order,
+and the resulting shape list has a unique final catch-all and well-formed
+headers. -/
+def ShapesWellFormed
+    (signature : FrozenSignature) (clauses : List MatcherClause) : Prop :=
+  MatcherClauseShapes.WellFormed signature (clauses.map toShape)
+
+theorem shapesWellFormed_iff (signature : FrozenSignature)
+    (clauses : List MatcherClause) :
+    ShapesWellFormed signature clauses ↔
+      checkShapes signature clauses = true :=
+  MatcherClauseShapes.wellFormed_iff signature (clauses.map toShape)
+
 @[simp] theorem toShape_header (clause : MatcherClause) :
     clause.toShape.header = clause.header := by
   cases clause

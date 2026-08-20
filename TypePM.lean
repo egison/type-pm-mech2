@@ -230,6 +230,7 @@ import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
 import TypePM.Source.M4Elaboration
 import TypePM.Source.M4PatternTypingRegression
+import TypePM.Source.M4OrPatternRelationalRegression
 import TypePM.Source.M4MatchFirstTyping
 import TypePM.Source.M4MatchFirstTypingRegression
 import TypePM.Source.Paper1Programs
@@ -297,6 +298,7 @@ import TypePM.Source.M4MatcherReplay
 import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.FullM4Completion
+import TypePM.Source.M5CompletionArchitecture
 import TypePM.AxiomAudit
 
 /-!

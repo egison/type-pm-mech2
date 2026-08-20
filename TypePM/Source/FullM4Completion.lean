@@ -34,6 +34,26 @@ theorem fullM4ExecutableReplay : FullM4ExecutableReplay :=
   fullM4ExecutableReplay_of_coherence_and_patternSteps fullM4Coherence
     matcherM4FuelReplayStep matchAllM4FuelReplayStep matchFirstM4FuelReplayStep
 
+/-- The complete implementation inhabits the constructor-local coherence
+boundary recorded by `M4CompletenessArchitecture`.  Keeping the conjunction
+as a public theorem makes the architecture definition itself a regression
+check rather than only documenting separately named components. -/
+theorem m4CoherenceExtensionBoundary : M4CoherenceExtensionBoundary :=
+  ⟨M4FreshRenaming.m4FreshRenamingTransport, ordinaryM4CoherenceStep,
+    fixCoherenceStep, matcherCoherenceStep, matchAllCoherenceStep,
+    matchFirstCoherenceStep, m4LetTransportAndAssembly⟩
+
+/-- The complete normalization, replay, and coherence proofs also inhabit
+the final 5.2--5.5 boundary as one checked conjunction. -/
+theorem m4PrincipalityCompletionBoundary :
+    M4PrincipalityCompletionBoundary := by
+  let replay := fullM4FuelReplay_of_patternSteps fullM4Coherence
+    matcherM4FuelReplayStep matchAllM4FuelReplayStep
+      matchFirstM4FuelReplayStep
+  exact ⟨m4FuelNormalization,
+    m4LetClosureRepresentativeAgreement_of_fuelReplay replay,
+    m4StructuralReplay_of_fuelReplay replay, fullM4Coherence⟩
+
 /-- The public M4 elaborator computes a representative mutually instantiable
 with every independently selected absorbing principal closure. -/
 theorem wellFormedM4ElaborationPrincipalityComplete :
@@ -93,6 +113,28 @@ theorem infer_success_principalResult
     PrincipalResult signature context expression target :=
   infer_success_principalResult_of_fullM4
     CompletenessArchitecture.fullM4Coherence wellFormed success
+
+/-- A blockwise-principal M4 result determines a successful public inference
+result that is globally principal.  This is the premise-oriented companion
+of `infer_success_principalResult`. -/
+theorem infer_principalResult
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {context : Context} {expression : Expr} {principal : Ty}
+    (principalTyping : PrincipalTyping signature context expression principal) :
+    ∃ inferred,
+      infer signature context expression = some inferred ∧
+        PrincipalResult signature context expression inferred := by
+  have reflexiveInstance : IsInstance principal principal :=
+    ⟨Subst.id, Ty.apply_id principal⟩
+  have sourceTyping : Typing signature context expression principal :=
+    ⟨principal, principalTyping, reflexiveInstance⟩
+  have succeeds : infer signature context expression ≠ none :=
+    Typing.infer_isSome wellFormed sourceTyping
+  cases result : infer signature context expression with
+  | none => exact False.elim (succeeds result)
+  | some inferred =>
+      exact ⟨inferred, rfl,
+        infer_success_principalResult wellFormed result⟩
 
 /-- Principal M4 result types are unique up to finite renaming of ordinary
 and capability variables. -/

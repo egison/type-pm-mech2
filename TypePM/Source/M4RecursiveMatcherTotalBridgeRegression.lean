@@ -67,11 +67,12 @@ theorem matcher_m4FuelElaborates :
     (generatedNext := ⟨[], [nextObligation]⟩)
     (afterNext := ⟨2, 2⟩)
     (generatedArms := ⟨⟨[], [bodyObligation]⟩⟩)
-    (by simp [MatcherClause.toShape, MatcherClauseShape.check,
-      MatcherArm.toHeader, MatcherArmHeader.check, MatcherArmHeader.canonical,
-      PPat.shapeOK, PPat.captureBeforeFirstHole,
-      PPat.captureBeforeFirstHoleFrom, PPat.occurrences, PPat.holeCount,
-      HoleConvention.ofCount, DPat.shapeOK]) PPatElaborates.hole
+    (MatcherClauseShape.wellFormed_of_check (by
+      simp [MatcherClause.toShape, MatcherClauseShape.check,
+        MatcherArm.toHeader, MatcherArmHeader.check, MatcherArmHeader.canonical,
+        PPat.shapeOK, PPat.captureBeforeFirstHole,
+        PPat.captureBeforeFirstHoleFrom, PPat.occurrences, PPat.holeCount,
+        HoleConvention.ofCount, DPat.shapeOK])) PPatElaborates.hole
     (.one (CheckedExpressionElaboratesUsing.mk
       (generated := ⟨.matcher .any (.var ⟨1⟩), [], []⟩)
       (next := ⟨2, 2⟩) ?_)) ?_

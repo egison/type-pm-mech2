@@ -675,7 +675,7 @@ conditions.  Relational elaboration depends on this record, never on the
 combined executable Boolean. -/
 structure StaticChecksHold (signature : FrozenSignature)
     (clauses : List MatcherClause) : Prop where
-  shapes : MatcherClause.checkShapes signature clauses = true
+  shapes : MatcherClause.ShapesWellFormed signature clauses
   coverage : ClausesCovered signature clauses
   finalCatchAll : FinalCatchAll clauses
   rootCoverage : RootCoverage signature clauses
@@ -695,12 +695,14 @@ theorem staticChecksHold_iff (signature : FrozenSignature)
   simp only [Bool.and_eq_true, clausesCovered_iff]
   constructor
   · intro checked
-    exact ⟨⟨⟨checked.shapes,
+    exact ⟨⟨⟨(MatcherClause.shapesWellFormed_iff signature clauses).1
+        checked.shapes,
       (clausesCovered_iff signature clauses).1 checked.coverage⟩,
       (finalCatchAll_iff clauses).1 checked.finalCatchAll⟩,
       (rootCoverage_iff signature clauses).1 checked.rootCoverage⟩
   · rintro ⟨⟨⟨shapes, coverage⟩, finalCatchAll⟩, rootCoverage⟩
-    exact ⟨shapes, (clausesCovered_iff signature clauses).2 coverage,
+    exact ⟨(MatcherClause.shapesWellFormed_iff signature clauses).2 shapes,
+      (clausesCovered_iff signature clauses).2 coverage,
       (finalCatchAll_iff clauses).2 finalCatchAll,
       (rootCoverage_iff signature clauses).2 rootCoverage⟩
 
@@ -1123,8 +1125,8 @@ inductive MatcherClauseElaboratesUsing
     MatcherClause → Supply → GeneratedMatcherClause → Supply → Prop where
   | mk {header nextMatchers arms supply generatedHeader afterHeader generatedNext
       afterNext generatedArms next}
-      (shape : (MatcherClause.mk header nextMatchers arms).toShape.check signature =
-        true)
+      (shape : (MatcherClause.mk header nextMatchers arms).toShape.WellFormed
+        signature)
       (headerElaboration : ppatRelation signature header matcherTarget none
         supply generatedHeader afterHeader)
       (nextElaboration : NextMatchersElaborateUsing expressionRelation
@@ -1365,8 +1367,8 @@ inductive MatcherClauseElaborates
     MatcherClause → Supply → GeneratedMatcherClause → Supply → Prop where
   | mk {header nextMatchers arms supply generatedHeader afterHeader generatedNext
       afterNext generatedArms next}
-      (shape : (MatcherClause.mk header nextMatchers arms).toShape.check signature =
-        true)
+      (shape : (MatcherClause.mk header nextMatchers arms).toShape.WellFormed
+        signature)
       (headerElaboration : PPatElaborates signature header matcherTarget none
         supply generatedHeader afterHeader)
       (nextElaboration : NextMatchersElaborate signature
@@ -1836,7 +1838,8 @@ theorem elaborateMatcherClause_sound
                       headerResult, nextResult, armsResult] at success
                     rcases success with ⟨rfl, rfl⟩
                     simpa [List.append_assoc] using
-                      (MatcherClauseElaborates.mk shapeValue
+                      (MatcherClauseElaborates.mk
+                        (MatcherClauseShape.wellFormed_of_check shapeValue)
                         (elaboratePPat_sound headerResult)
                         (elaborateNextMatchers_sound wellFormed nextResult)
                         (elaborateMatcherArms_sound wellFormed armsResult))
@@ -2113,7 +2116,8 @@ theorem elaborateMatcherClauseUsing_sound
                       headerResult, nextResult, armsResult] at success
                     rcases success with ⟨rfl, rfl⟩
                     simpa [List.append_assoc] using
-                      (MatcherClauseElaboratesUsing.mk shapeValue
+                      (MatcherClauseElaboratesUsing.mk
+                        (MatcherClauseShape.wellFormed_of_check shapeValue)
                         (elaboratePPat_sound headerResult)
                         (elaborateNextMatchersUsing_sound expressionSound nextResult)
                         (elaborateMatcherArmsUsing_sound expressionSound armsResult))
