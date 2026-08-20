@@ -47,6 +47,7 @@ import TypePM.Source.M4OrdinaryCoherence
 import TypePM.Source.M4FixCoherence
 import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
+import TypePM.Source.M4StructuralReplay
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -856,6 +857,18 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTyping.finiteRenamingEq_of_fullM4
 #assert_allowed_axioms TypePM.Source.M4.typable_iff_infer_isSome_of_principalityComplete
 #assert_allowed_axioms TypePM.Source.M4.typableDecidable_of_principalityComplete
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.ExactM4FuelReplayProperty.executableReplay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.executableItemsFuelReplay_of_each
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.executableCallFuelReplay_of_each
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.ordinaryM4ExactReplayStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.ordinaryM4FuelReplayStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fixM4ExactReplayStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fixM4FuelReplayStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.letM4FuelReplayStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4FuelReplay_of_patternSteps
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.m4LetClosureRepresentativeAgreement_of_fuelReplay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.m4StructuralReplay_of_fuelReplay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_coherence_and_patternSteps
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.supportProvenance
 #assert_allowed_axioms TypePM.Source.FixElaboratesUsing.supportProvenance
 #assert_allowed_axioms TypePM.Source.M3Regression.infer_true_exact
