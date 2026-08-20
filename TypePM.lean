@@ -197,6 +197,8 @@ import TypePM.RecursiveTotalClosureSafety
 import TypePM.RecursiveTotalClosureSafetyRegression
 import TypePM.TotalPlainClosureSafety
 import TypePM.TotalPlainClosureSafetyRegression
+import TypePM.StepIndexedClosureSafety
+import TypePM.StepIndexedPaper1ListSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
