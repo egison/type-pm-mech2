@@ -998,6 +998,415 @@ user-defined matcher clause，pattern functionを一般の実行時型付けと�
 
 \appendix
 
+\chapter{現行実装の型規則一覧}
+
+\section{この一覧の読み方}
+
+現行実装の型付けは，式から最終型を一度に決めるのではなく，次の二段階に分かれる．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{制約生成}：式を左から右へ調べ，\code{target}，\code{hard}，\code{pending}を作る．
+  \item \textbf{制約を閉じる処理}：hardを単一化し，pendingのchecking規則を分類して解き，
+        最終的な主要型を得る．ここで主要型とは，ほかの解を代入によって得られる最も一般的な型である．
+\end{enumerate}
+
+したがって，本付録で中心になるのは通常の「$e$の型は$\tau$である」という判断より一段手前の
+\emph{制約生成判断}である．次の記号を使う．
+
+\[
+  \Sigma;\Gamma;s \vdash e \Longrightarrow
+  \langle t;H;P\rangle;s'
+\]
+
+これは「宣言表$\Sigma$とcontext $\Gamma$の下で，開始supply $s$から式$e$を調べると，
+target $t$，hard列$H$，pending列$P$を生成し，次の未使用番号が$s'$になる」という意味である．
+宣言表とはdata constructor，primitive，pattern constructorなどの型を登録した表である．
+$\langle t;H;P\rangle$を以下では生成blockと呼ぶ．$H_1\mathbin{+\!+}H_2$は列を順に連結する記号である．
+
+型変数とcapability変数には別々の番号がある．$s$から新しく取る型変数を$\alpha_s$，
+capability変数を$\kappa_s$と略記する．実装上の$s$はこの二種類の次番号を持つ組である．
+「freshな変数」とは，それまで使われていない新しい番号の変数を指す．
+
+\begin{pointbox}{規則の上と下}
+横線の上は，その規則を使うために先に確かめる条件である．横線の下は，条件がそろったときに
+導ける結論である．条件が複数ある場合は，source順に左から右へ調べる．本付録では読みやすさのため，
+supplyの単純な加算や列要素の再帰的な連結は一部を文章で表す．省略された検査を意味しない．
+\end{pointbox}
+
+\section{生成blockを組み立てる共通操作}
+
+以下の四つを押さえると，個々の規則を短く読める．
+
+\begin{longtable}{p{35mm}p{103mm}}
+\toprule
+操作 & 生成するblock \\
+\midrule
+\endfirsthead
+\toprule
+操作 & 生成するblock \\
+\midrule
+\endhead
+lambda & bodyが$B=\langle t_B;H_B;P_B\rangle$なら，
+$\mathsf{Lam}(d,B)=\langle d\fn t_B;H_B;P_B\rangle$．引数型$d$を結果型の前へ付ける．\\
+application & 関数$F=\langle t_F;H_F;P_F\rangle$と引数$A=\langle t_A;H_A;P_A\rangle$に対して
+\[
+\begin{aligned}
+\mathsf{App}(F,A;d,r)=\langle r;{}&
+H_F\mathbin{+\!+}H_A\mathbin{+\!+}[t_F=d\fn r];\\
+&P_F\mathbin{+\!+}P_A\mathbin{+\!+}[t_A\checks d]\rangle .
+\end{aligned}
+\]
+$d$は引数位置の型，$r$は適用結果の型で，どちらもfreshに取る．\\
+checked expression & $G=\langle t;H;P\rangle$をexpected型$u$として使う場合，
+$\mathsf{Checked}(G,u)=\langle H;P\mathbin{+\!+}[t\checks u]\rangle$．
+結果型を返さず，checking要求を一件追加する補助形である．\\
+let & bodyが$B=\langle t_B;H_B;P_B\rangle$，右辺を閉じた効果が等式列$I$なら，
+$\mathsf{Let}(I,B)=\langle t_B;I\mathbin{+\!+}H_B;P_B\rangle$．
+右辺自身のpendingは閉じる処理で解決済みなので外へ出さない．\\
+\bottomrule
+\end{longtable}
+
+\section{M2--M3の式の規則}
+
+ここでschemeは量化変数を持てる多相型であり，instantiateは量化変数をfreshな自由変数へ
+置き換える操作である．以下の規則は\path{TypePM/Source/Elaboration.lean}の
+\code{Elaborates}，\code{ElaboratesItems}，\code{ElaboratesCall}に対応する．
+
+\subsection{変数，整数，\code{something}}
+
+\[
+\frac{
+  \Gamma[i]=\sigma
+  \qquad \mathsf{instantiate}(\sigma,s)=(\tau,s')
+}{
+  \Sigma;\Gamma;s\vdash \mathsf{var}\ i
+  \Longrightarrow\langle\tau;[];[]\rangle;s'
+}\;\textsc{Var}
+\]
+
+contextの$i$番目にあるscheme $\sigma$をその使用場所でinstantiateする．したがって多相変数は
+使用するたびに別のfresh変数を得る．
+
+\[
+\frac{}{\Sigma;\Gamma;s\vdash n
+  \Longrightarrow\langle\TyInt;[];[]\rangle;s}\;\textsc{Int}
+\]
+\[
+\frac{}{\Sigma;\Gamma;s\vdash \mathsf{something}
+  \Longrightarrow\langle\Matcher\,\mathsf{Any}\,\alpha_s;[];[]\rangle;s'}
+  \;\textsc{Something}
+\]
+
+整数はhardもpendingも作らない．\code{something}は任意の対象型$\alpha_s$に対する
+matcher producerを作り，型変数を一つ消費する．
+
+\subsection{lambda，application，tuple}
+
+\[
+\frac{
+  \Sigma;(\alpha_s::\Gamma);s_1\vdash e
+  \Longrightarrow B;s'
+}{
+  \Sigma;\Gamma;s\vdash \lambda e
+  \Longrightarrow\mathsf{Lam}(\alpha_s,B);s'
+}\;\textsc{Lam}
+\]
+
+$s_1$は$\alpha_s$を一つ予約した後のsupplyである．$\alpha_s::\Gamma$は，lambdaの引数型を
+contextの先頭へ追加することを表す．
+
+\[
+\frac{
+  \Sigma;\Gamma;s\vdash f\Longrightarrow F;s_1
+  \qquad
+  \Sigma;\Gamma;s_1\vdash a\Longrightarrow A;s_2
+}{
+  \Sigma;\Gamma;s\vdash f\ a
+  \Longrightarrow\mathsf{App}(F,A;d,r);s_3
+}\;\textsc{App}
+\]
+
+$d,r$は$s_2$から取るfreshな型変数である．関数の外形$t_F=d\fn r$はhardへ入るが，
+引数の使用可能性$t_A\checks d$はpendingへ入る．第2.3節の具体例はこの規則の二通りの解決である．
+
+\[
+\frac{
+  \Sigma;\Gamma;s\vdash[e_1,\ldots,e_n]
+  \Longrightarrow[(t_1,H_1,P_1),\ldots,(t_n,H_n,P_n)];s'
+}{
+  \Sigma;\Gamma;s\vdash(e_1,\ldots,e_n)
+  \Longrightarrow
+  \langle\Prod[t_1,\ldots,t_n];H_1\mathbin{+\!+}\cdots\mathbin{+\!+}H_n;
+  P_1\mathbin{+\!+}\cdots\mathbin{+\!+}P_n\rangle;s'
+}\;\textsc{Tuple}
+\]
+
+要素列は左から右へ調べる．空tupleでは型が$\Prod[]$，hardとpendingが空になる．
+
+\subsection{多相\code{let}}
+
+\[
+\frac{
+  \begin{gathered}
+  \Sigma;\Gamma;s\vdash v\Longrightarrow V;s_v,\qquad
+  C\text{は}V\text{の吸収的な主要closure},\\
+  \Sigma;(\mathsf{gen}(C(t_V),C(\Gamma))::C(\Gamma));s_b
+    \vdash e\Longrightarrow B;s'
+  \end{gathered}
+}{
+  \Sigma;\Gamma;s\vdash \mathsf{let}\ v\ \mathsf{in}\ e
+  \Longrightarrow\mathsf{Let}(\mathsf{interface}(\Gamma,C),B);s'
+}\;\textsc{Let}
+\]
+
+$v$がletの右辺，$e$がbodyである．closure $C$は右辺blockを主要に解いた結果で，
+$C(t_V)$は右辺targetへその代入を適用した型，$C(\Gamma)$はcontextへ同じ代入を適用したものを表す．
+$\mathsf{gen}$はcontextに残っていない変数を量化してschemeを作る一般化である．
+$s_b$は右辺終了supplyと閉じたcontextが要求する開始番号の大きい方である．
+$\mathsf{interface}(\Gamma,C)$は，右辺を閉じた影響のうち外側contextから観測できる有限な等式列である．
+
+\subsection{data constructor，primitive，条件式}
+
+data constructorとprimitiveは，宣言表から閉じたschemeを引き，instantiateした関数型へ
+引数を一つずつ\textsc{App}と同じ形で適用する．
+
+\[
+\frac{
+  \Sigma(c)=\sigma\quad |\vec e|=\mathsf{arity}(\sigma)\quad
+  \sigma\text{は閉じている}\quad
+  \mathsf{Call}(\mathsf{instantiate}(\sigma,s),\vec e)=G;s'
+}{
+  \Sigma;\Gamma;s\vdash c(\vec e)\Longrightarrow G;s'
+}\;\textsc{Ctor}
+\]
+
+\[
+\frac{
+  \Sigma(op)=\sigma\quad |\vec e|=\mathsf{arity}(\sigma)\quad
+  \sigma\text{は閉じている}\quad
+  \mathsf{Call}(\mathsf{instantiate}(\sigma,s),\vec e)=G;s'
+}{
+  \Sigma;\Gamma;s\vdash op(\vec e)\Longrightarrow G;s'
+}\;\textsc{Prim}
+\]
+
+閉じたschemeとは，外から与えられていない自由変数を含まないschemeである．
+\code{if c then t else e}は，組込みscheme
+$\mathsf{Bool}\fn\alpha\fn\alpha\fn\alpha$をinstantiateし，$[c,t,e]$を同じ
+$\mathsf{Call}$で処理する\textsc{If}規則である．これにより条件はBool，二枝は同じ型になる．
+
+\section{M4のuser pattern規則}
+
+user patternは，値に照合する\code{matchAll}や\code{matchFirst}のpatternである．
+次の判断を使う．
+
+\[
+  \Sigma;\Gamma;\Phi;\Delta;s\vdash_p p
+  \Longrightarrow\langle\delta;\Delta';H;P\rangle;s'
+\]
+
+$\Phi$はpattern functionへ渡されたpattern引数の型列，$\Delta$はそのpatternの左側ですでに
+束縛された通常変数の型列である．$\delta=(\kappa\triangleright\tau)$はdualであり，
+「capability $\kappa$を使って型$\tau$の値へ照合するpattern」を表す．$\Delta'$はこのpatternまでに
+束縛された変数をsource順に並べた結果である．
+
+\begin{longtable}{p{24mm}p{48mm}p{65mm}}
+\toprule
+pattern & 結果 & 説明 \\
+\midrule
+\endfirsthead
+\toprule
+pattern & 結果 & 説明 \\
+\midrule
+\endhead
+variable & $\kappa_s\triangleright\alpha_s$，
+$\Delta'=\Delta\mathbin{+\!+}[\alpha_s]$ & freshな対象型とcapabilityを作り，対象値を新しい変数として束縛する．\\
+wildcard & $\kappa_s\triangleright\alpha_s$，$\Delta'=\Delta$ & 同じfresh dualを作るが，値を束縛しない．\\
+value pattern $\#e$ & $\kappa_s\triangleright t_e$ & $e$を$\Delta\mathbin{+\!+}\Gamma$で調べ，
+そのhardとpendingを引き継ぐ．新しいcapabilityだけを割り当てる．\\
+constructor $c(p_1,\ldots,p_n)$ & 宣言済みdual schemeのresult & constructorをlookupし，arityを確認する．
+各field patternのtargetとcapabilityを，instantiateしたfield dualへhard等式でそろえる．\\
+tuple $(p_1,\ldots,p_n)$ &
+$\Prod[\kappa_1,\ldots,\kappa_n]\triangleright
+ \Prod[\tau_1,\ldots,\tau_n]$ & field patternを左から右へ処理し，capabilityとtargetをそれぞれproductにする．\\
+embedded parameter & $\Phi[i]$ & pattern functionの$i$番目の引数dualをそのまま使う．fresh変数や束縛を作らない．\\
+pattern function $f(\vec p)$ & 宣言済みdual schemeのresult & frozen signatureから$f$のschemeだけをinstantiateする．
+本体を再検査せず，field dualをschemeの引数dualへhard等式でそろえる．\\
+\bottomrule
+\end{longtable}
+
+\section{M4で追加された式の規則}
+
+M4の公開関係\code{M4.Elaborates}は，前節までの式規則を再帰的に使いながら，次の四形式を追加する．
+内部では構文の大きさより大きい自然数をfuelとして持つ．fuelとは再帰呼出しの残り回数を表す数で，
+公開判断は「十分なfuelが一つ存在する」とだけ要求するため，programの型には現れない．
+
+\subsection{単項再帰\code{fix}}
+
+\[
+\frac{
+  \mathsf{DirectSelf}(b)\qquad
+  \Sigma;(d,\ d\fn r,\ \Gamma);s_b\vdash b
+    \Longrightarrow\langle t_b;H_b;P_b\rangle;s'
+}{
+  \Sigma;\Gamma;s\vdash\mathsf{fix}\ b
+  \Longrightarrow\langle d\fn r;H_b\mathbin{+\!+}[t_b=r];P_b\rangle;s'
+}\;\textsc{Fix}
+\]
+
+body contextの先頭は引数$d$，次が再帰関数自身$d\fn r$である．\code{DirectSelf}は，
+自己参照を別名に保存したり高階の値として逃がしたりせず，許可された直接呼出しだけを使う構文検査である．
+bodyが構文上matcher literalなら，$d$をmatcher slot，$r$をmatcher producerの形へ最初から固定する．
+これはmatcherという明示構文から決まる形であり，pendingから型の外形を推測する操作ではない．
+
+\subsection{matcher literal}
+
+\[
+\frac{
+  \mathsf{staticChecks}(\Sigma,\mathit{clauses})=\mathsf{true}
+  \qquad
+  \Sigma;\Gamma;\alpha_s;s_1\vdash_{clauses}
+    \mathit{clauses}\Longrightarrow(E;H;P);s'
+}{
+  \Sigma;\Gamma;s\vdash\mathsf{matcher}\{\mathit{clauses}\}
+  \Longrightarrow
+  \langle\Matcher\,\kappa_s\,\alpha_s;
+  \mathsf{evidenceEq}(\kappa_s,E)\mathbin{+\!+}H;P\rangle;s'
+}\;\textsc{Matcher}
+\]
+
+$\alpha_s$はmatcherが調べる対象値の型，$\kappa_s$はmatcher全体のcapabilityである．
+\code{staticChecks}は，constructorのarity，変数の重複禁止，catch-allの位置，data armの網羅性など，
+型等式を解く前に判定できる構文条件をまとめた検査である．$E$は各clauseが示した分解能力の証拠で，
+$\mathsf{evidenceEq}$がそれらを全体capabilityへhard等式として接続する．
+
+一つのclauseは次の順で調べる．
+
+\begin{enumerate}[leftmargin=2em]
+  \item pattern-pattern headerを調べ，hole dual列とcapture型列を得る．holeは次に必要なmatcherの場所，
+        captureは\code{\#\$x}のように対象値全体を式で参照する束縛である．
+  \item next-matcher式を，holeが0個ならunit product，1個ならそのslot，2個以上ならslotのtupleとして
+        checkingする．
+  \item 各data-pattern armを対象型$\alpha_s$に対して調べ，arm bodyを
+        $\mathsf{List}(\mathsf{holeProductTarget}(\mathit{holes}))$としてcheckingする．
+\end{enumerate}
+
+pattern-pattern headerのholeは，与えられた対象型とfreshなcapabilityを一組のhole dualにする．
+constructor headerは宣言済みpattern-constructor schemeをinstantiateし，fieldを再帰的に調べる．
+以下がheaderとarm patternのconstructor別一覧である．
+
+\begin{longtable}{p{30mm}p{45mm}p{63mm}}
+\toprule
+種類 & constructor & 生成内容 \\
+\midrule
+\endfirsthead
+\toprule
+種類 & constructor & 生成内容 \\
+\midrule
+\endhead
+pattern-pattern & hole & 与えられた対象型$\tau$とfreshな$\kappa_s$から
+$[\kappa_s\triangleright\tau]$というhole列を作る．expected capabilityがあれば，
+$\kappa_s$とのhard等式も追加する．\\
+pattern-pattern & wildcard & holeもcaptureもhardも作らない．\\
+pattern-pattern & capture & 与えられた対象型$\tau$をcapture列へ一つ追加する．holeは作らない．\\
+pattern-pattern & constructor & 宣言済みschemeをinstantiateし，arityを確認してfieldを再帰的に調べる．
+result targetを与えられた対象型へhard等式でそろえ，result capabilityを分解能力の証拠として返す．\\
+data-pattern & variable & 与えられた対象型$\tau$をarm body用の束縛列へ追加する．\\
+data-pattern & wildcard & 束縛もhardも作らない．\\
+data-pattern & constructor & data-constructor schemeをinstantiateして関数型をfield型列とresult型へ分ける．
+result型を与えられた対象型へhard等式でそろえ，fieldを再帰的に調べる．\\
+data-pattern & tuple & 要素数だけfreshなfield型を作り，与えられた対象型をそのproductへhard等式でそろえる．
+各要素を対応するfield型に対して再帰的に調べる．\\
+\bottomrule
+\end{longtable}
+
+\subsection{全結果を返す\code{matchAll}}
+
+target式$e_t$，matcher式$e_m$，user pattern $p$，body $e_b$の生成結果をそれぞれ
+$T,M,Q,B$とする．$Q$のdualを$\kappa_p\triangleright\tau_p$とすると，
+
+\[
+\frac{
+  \begin{gathered}
+  \Sigma;\Gamma;s\vdash e_t\Longrightarrow T;s_1,\qquad
+  \Sigma;\Gamma;[];[];s_1\vdash_p p\Longrightarrow Q;s_2,\\
+  \Sigma;\Gamma;s_2\vdash e_m\Longrightarrow M;s_3,\qquad
+  \Sigma;(\Delta_Q\mathbin{+\!+}\Gamma);s_3\vdash e_b\Longrightarrow B;s'
+  \end{gathered}
+}{
+  \Sigma;\Gamma;s\vdash
+  \mathsf{matchAll}\ e_t\ \mathsf{as}\ e_m\ \mathsf{with}\ p\to e_b
+  \Longrightarrow G;s'
+}\;\textsc{MatchAll}
+\]
+
+ここで$G$のtargetは$\mathsf{List}(t_B)$である．hardには
+$\tau_p=t_T$を追加し，pendingには
+$t_M\checks\Slot\,\kappa_p\,t_T$を追加する．つまりpatternの対象型は実際のtarget値と等しくし，
+matcher式はそのpatternが要求するslotとして使えるかを後でcheckingする．$\Delta_Q$はpatternが
+束縛した変数列で，body contextの先頭へsource順に追加する．
+
+\subsection{最初の結果を返す\code{matchFirst}}
+
+\[
+\frac{
+  \begin{gathered}
+  \mathsf{armsExhaustive}(\mathit{arms})=\mathsf{true},\\
+  \Sigma;\Gamma;s\vdash e_t\Longrightarrow T;s_1,\qquad
+  \Sigma;\Gamma;s_1\vdash e_m\Longrightarrow M;s_2,\\
+  \Sigma;\Gamma;t_T;t_M;s_2\vdash_{arms}\mathit{arms}
+    \Longrightarrow A;s'
+  \end{gathered}
+}{
+  \Sigma;\Gamma;s\vdash
+  \mathsf{matchFirst}\ e_t\ \mathsf{as}\ e_m\ \mathsf{with}\ \mathit{arms}
+  \Longrightarrow\mathsf{fromMatchFirst}(T,M,A);s'
+}\;\textsc{MatchFirst}
+\]
+
+arm列は空であってはならず，最後のpatternは必ず一致すると構文的に分かる形でなければならない．
+各armではpattern targetを$t_T$へhard等式でそろえ，matcher $t_M$をpattern capabilityのslotとして
+pending checkingする．最初のarm bodyのtargetを全体結果型とし，後続bodyのtargetはその型へhard等式で
+そろえる．\code{matchAll}と違い，結果へ\code{List}を付けない．
+
+\section{最終的な\code{Typing}規則}
+
+制約生成に成功しただけでは，hardとpendingが解けるとは限らない．現行の最終判断は次の二段階である．
+
+\[
+\frac{
+  \begin{gathered}
+  \Sigma;\Gamma;\mathsf{initialSupply}(\Gamma)\vdash e
+    \Longrightarrow G;s',\\
+  C\text{は}G\text{の吸収的な主要closure},\qquad
+  \pi=C(t_G)
+  \end{gathered}
+}{
+  \Sigma;\Gamma\vdash_{\mathrm{principal}}e:\pi
+}\;\textsc{PrincipalTyping}
+\]
+
+\[
+\frac{
+  \Sigma;\Gamma\vdash_{\mathrm{principal}}e:\pi
+  \qquad \tau=S(\pi)
+}{
+  \Sigma;\Gamma\vdash e:\tau
+}\;\textsc{Typing}
+\]
+
+$S$は型変数への任意の代入である．したがって\code{Typing}は主要型$\pi$そのものだけでなく，
+その型変数をさらに具体化して得られる型$\tau$も認める．M2--M3では\code{Source.Typing}，
+M4では\code{Source.M4.Typing}がこの同じ二段階の形を持つ．
+
+\begin{warningbox}{一覧の範囲}
+ここに載せたのは現行source ASTの型付け・制約生成規則である．hardの単一化，pendingのpromotionと
+residual checking，closureの主要性を証明する規則群は，生成されたblockを解く側の関係であり，
+source構文の型規則とは分けている．またM4の健全性は実装済みだが，M4全体について
+「宣言的に型が付けば公開推論が必ず成功する」という完全性と，すべての導出間の主要性は未完である．
+この一覧は未証明の完全性を仮定しない．
+\end{warningbox}
+
 \chapter{用語集}
 
 \begin{description}[leftmargin=10em,style=nextline]
