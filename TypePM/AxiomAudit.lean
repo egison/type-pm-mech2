@@ -823,11 +823,16 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.elaboratesFuel_toM2_of_m2Fragment
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4FuelPairProperty_of_m2Fragment
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4PairProperty_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTyping.toM2_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.M4.PrincipalTyping.fixE_toRuntimeTyping_of_m2Body
 #assert_allowed_axioms TypePM.Source.M4.Typing.toM2_of_m2Fragment
 #assert_allowed_axioms TypePM.Source.M4.Typing.toRuntimeTyping_of_m2Fragment
 #assert_allowed_axioms TypePM.Source.M4.Typing.neverStuck_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.M4.Typing.fixE_toRuntimeTyping_of_m2Body
+#assert_allowed_axioms TypePM.Source.M4.Typing.fixE_neverStuck_of_m2Body
 #assert_allowed_axioms TypePM.Source.M4.infer_neverStuck_of_m2Fragment
+#assert_allowed_axioms TypePM.Source.M4.infer_fixE_neverStuck_of_m2Body
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.Typing.infer_isSome_of_principalityComplete
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_components

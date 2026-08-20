@@ -1070,7 +1070,7 @@ namespace TypePM.Source
 
 namespace Typing
 
-private theorem PrincipalBlockClosure.semanticSolution
+theorem PrincipalBlockClosure.semanticSolution
     {generated : Generated} (closure : PrincipalBlockClosure generated) :
     generated.SemanticSolution closure.substitution := by
   constructor

@@ -314,7 +314,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
 | T6 | source多相`let`の橋 | **design decision** | bareなgeneric `Ty` lookupは代入で保存されない．量化bindingの由来またはfreshness-aware transportを追加する |
-| T7 | M4を出発点にするruntime橋 | **in progress** | `M4.Typing.toRuntimeTyping_of_m2Fragment`で共有M2--M3構文を接続済み．M2にない`fixE`／matcher構文が残る |
+| T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文に加え，bodyがその断片に属する通常の`fixE`をruntime typingとno-stuckへ接続済み．matcher-rootの`fixE`とmatcher構文が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
 | T9 | matcher closureの型付け部品 | **in progress** | cursor（未試行clauseの現在位置）の不変条件，product/list/slot canonical forms，0／1／複数holeの復号，環境連結順，単一hole clauseの保存は完了 |
 | T10 | 一般user matcher safety | **in progress** | 単一hole／variable armの保存は実証済み．全clause／armと静的網羅性を接続し，正常な`.miss`と復号成功を証明する |
@@ -339,7 +339,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | 5.3 | `Typing`の存在と推論成功が同値で，受理を決定できる | **in progress** | M1とM2--M3は完了．M4完全性の公開化待ち |
 | 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **in progress** | M1とM2--M3は完了．M4 coherence／主要性待ち |
 | 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **in progress** | M1とM2--M3は完了．M4 coherence／replay待ち |
-| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋と，M4から共有M2--M3構文への橋は完了．source多相`let`，`fixE`，M4 matcher構文が残る |
+| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`は完了．source多相`let`，matcher-rootの`fixE`，M4 matcher構文が残る |
 | 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | coreとbuilt-in matchingは完了．一般user matcherとMNode，共通fuel帰納が残る |
 | 5.8 | 型付きclosed programは任意fuelで`stuck`にならない | **in progress** | core断片と条件付きmatchingは完了．M4-to-runtime橋とT10--T13の合成が残る |
 
