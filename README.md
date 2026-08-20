@@ -416,7 +416,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T7 | M4を出発点にするruntime橋 | **in progress** | 共有M2--M3構文に加え，bodyがその断片に属する通常の`fixE`をruntime typingとno-stuckへ接続済み．matcher-rootの`fixE`とmatcher構文が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
 | T9 | matcher closureとdispatchの型付け部品 | **done** | cursor不変条件，product/list/slot canonical forms，0／1／複数holeの復号，pattern-pattern constructor，全data-pattern形，環境連結順，任意長arm／clause列の条件付き型保存と進行 |
-| T10 | 一般user matcher safety | **in progress** | 固定runtime signatureのBool/List constructorとtupleを含め，runtime側は`tryMatcherArm_typedSafe`から`dispatchMatcherClauses_typedSafe`まで完成．M4 signature／clause型付けとの橋，静的網羅性による最終`.miss`排除，任意source patternのatom型付けが残る |
+| T10 | 一般user matcher safety | **in progress** | 固定runtime signatureのBool/List constructorとtupleを含め，runtime側は任意長arm／clause列まで完成．宣言的な最終catch-allから正常終了時の`.miss`も排除済み．M4 signature／clause型付けとの橋と，任意source patternのatom型付けが残る |
 | T11 | 共通fuelの強帰納 | **not started** | 式評価とmatcher探索を同じbudgetで帰納し，embedded evaluatorの条件付き仮定を放電する |
 | T12 | `matchFirst` no-stuck | **not started** | 宣言的`Exhaustive`から実行時の空arm到達を排除する |
 | T13 | MNode／pattern function safety | **not started** | MNode固有application／parameter／nodeDone規則と一般評価を型付けする |
@@ -439,7 +439,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **done** | M4入口は`M4.PrincipalTyping.finiteRenamingEq` |
 | 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **done** | M4入口は`M4.infer_success_principalResult` |
 | 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`は完了．source多相`let`，matcher-rootの`fixE`，M4 matcher構文が残る |
-| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，runtime証明書を持つuser matcherの全data-pattern形と任意長arm／clause列は完了．M4静的規則との橋，MNode，共通fuel帰納が残る |
+| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，runtime証明書を持つuser matcherの全data-pattern形と任意長arm／clause列，最終catch-allによる`.miss`排除は完了．M4静的型付けとの橋，MNode，共通fuel帰納が残る |
 | 5.8 | 型付きclosed programは任意fuelで`stuck`にならない | **in progress** | core断片と条件付きmatchingは完了．M4-to-runtime橋とT10--T13の合成が残る |
 
 5.6は旧体系の推論状態を後から消す定理ではない．新体系には初めから状態を含まない`Typing`がある
@@ -505,7 +505,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 1. M4 `Typing`からruntime typingへの橋をmatcher-rootの`fixE`，matcher literal，
    `matchAll`，`matchFirst`へ広げる．
 2. 完成したuser matcherのruntime arm／clause安全性をM4のconstructor signatureと静的clause型付けへ
-   接続し，宣言的な網羅性から最終的な`.miss`を排除する．
+   接続する．宣言的な最終catch-allから`.miss`を排除する独立定理は完了済み．
 3. source多相`let`の量化bindingの由来を保持する証明関係を追加し，T6のruntime橋を閉じる．
 4. 式評価とmatcher探索を共通fuelで強帰納し，embedded evaluatorへの条件付き仮定を外す．
 5. `matchFirst`とMNode固有規則のno-stuckを証明し，公開freeze checkerが受理した
