@@ -36,6 +36,22 @@ def leftToRightValue : Pattern :=
 def valueBeforeBinder : Pattern :=
   .tuple [.value (.var 0), .var]
 
+/-- A conjunction runs both patterns on the same target.  Bindings made by
+the left pattern are available to value expressions in the right pattern. -/
+def leftToRightConjunction : Pattern :=
+  .and .var (.value (.var 0))
+
+def valueBeforeBinderConjunction : Pattern :=
+  .and (.value (.var 0)) .var
+
+def conjunctionGenerated : GeneratedPattern :=
+  { dual := ⟨.var ⟨0⟩, .var ⟨0⟩⟩
+    bindings := [.var ⟨0⟩]
+    hard := [
+      .ty (.var ⟨0⟩) (.var ⟨0⟩),
+      .cap (.var ⟨0⟩) (.var ⟨1⟩)]
+    pending := [] }
+
 def occursTail : Pattern :=
   .ctor .cons [.var, .value (.var 0)]
 
@@ -62,6 +78,36 @@ theorem value_before_binder_rejected :
   simp [inferPattern, valueBeforeBinder, elaboratePattern,
     elaboratePatterns, Pattern.extendContext, elaborate,
     Scheme.mono, Scheme.instantiate]
+
+/-- Conjunction preserves source order and requires both sides to describe
+the same target type and matcher capability. -/
+theorem elaborate_conjunction_exact :
+    elaboratePattern Paper1FrozenSignature.signature [] []
+      leftToRightConjunction [] ⟨0, 0⟩ =
+        some (conjunctionGenerated, ⟨1, 2⟩) := by
+  simp [leftToRightConjunction, conjunctionGenerated, elaboratePattern,
+    Pattern.dualEquations, Pattern.extendContext, elaborate, Scheme.mono,
+    Scheme.instantiate]
+
+/-- The right value pattern can read the variable bound by the left side. -/
+theorem conjunction_right_reads_left_binding :
+    elaboratePattern Paper1FrozenSignature.signature [] []
+      leftToRightConjunction [] ⟨0, 0⟩ ≠ none := by
+  rw [elaborate_conjunction_exact]
+  simp
+
+/-- Reversing the conjunction tries to read the variable before it exists. -/
+theorem conjunction_value_before_binder_rejected :
+    elaboratePattern Paper1FrozenSignature.signature [] []
+      valueBeforeBinderConjunction [] ⟨0, 0⟩ = none := by
+  simp [valueBeforeBinderConjunction, elaboratePattern, Pattern.extendContext,
+    elaborate]
+
+theorem conjunction_relational :
+    PatternElaborates Paper1FrozenSignature.signature [] []
+      leftToRightConjunction [] ⟨0, 0⟩ conjunctionGenerated ⟨1, 2⟩ :=
+  elaboratePattern_sound Paper1FrozenSignature.wellFormed
+    elaborate_conjunction_exact
 
 def occursGenerated : GeneratedPattern :=
   { dual := ⟨.con PatternFormer.list [.var ⟨0⟩],

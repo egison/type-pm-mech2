@@ -31,6 +31,7 @@ def patternBindingCount : Pattern → Nat
   | .wild | .value _ | .embed _ => 0
   | .ctor _ fields | .tuple fields | .app _ fields =>
       patternBindingCountList fields
+  | .and left right => patternBindingCount left + patternBindingCount right
 
 def patternBindingCountList : List Pattern → Nat
   | [] => 0
@@ -75,6 +76,9 @@ def mentionsPattern (tracked before : Nat) : Pattern → Bool
   | .value expression => mentions (tracked + before) expression
   | .ctor _ fields | .tuple fields | .app _ fields =>
       mentionsPatterns tracked before fields
+  | .and left right =>
+      mentionsPattern tracked before left ||
+        mentionsPattern tracked (before + patternBindingCount left) right
 
 def mentionsPatterns (tracked before : Nat) : List Pattern → Bool
   | [] => false
@@ -168,6 +172,9 @@ def checkPatternFuel : Nat → Nat → Nat → Pattern → Bool
   | fuel + 1, tracked, before, .tuple fields
   | fuel + 1, tracked, before, .app _ fields =>
       checkPatternsFuel fuel tracked before fields
+  | fuel + 1, tracked, before, .and left right =>
+      checkPatternFuel fuel tracked before left &&
+        checkPatternFuel fuel tracked (before + patternBindingCount left) right
 
 def checkPatternsFuel : Nat → Nat → Nat → List Pattern → Bool
   | 0, _, _, _ => false

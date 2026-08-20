@@ -70,6 +70,9 @@ def expandPattern (definitions : PatternFunctionDefinitions) :
   | .ctor constructor fields =>
       return .ctor constructor (← expandPatterns definitions fields)
   | .tuple items => return .tuple (← expandPatterns definitions items)
+  | .and left right =>
+      return .and (← expandPattern definitions left)
+        (← expandPattern definitions right)
   | .embed _ => none
   | .app function arguments => do
       let expandedArguments ← expandPatterns definitions arguments

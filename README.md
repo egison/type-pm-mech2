@@ -35,8 +35,8 @@ raw synthesisとは，周囲の要求型や暗黙変換を適用する前に，�
 | M1 | lambda，application，順序に依存しない制約block，宣言的受理，推論 | done | 独立した`Typing`，必ず停止する`unify`，公開`infer`の健全性・完全性・受理同値・主要性，主要型の有限な変数名の付け替え，slot構造を推測しない局所不変条件，fresh変数名とhard／pending worklistの管理的な順序変更に対するblock受理不変性，4つの境界回帰を検証済みである |
 | M2 | 多相型を表すscheme，`let`，value blockの一般化 | done | bound-index scheme（量化変数を名前でなく位置で表すscheme），`letE`，閉じたvalue blockの一般化，吸収的closureの局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性を実装した．さらに，一般の入れ子`letE`を含むM2--M3 sourceについて公開`Source.infer`の完全性と主要型の有限な変数名変更による一意性を，well-formed signatureの下で健全性・受理同値・決定可能性・公開推論結果の主要性を検証済みである |
 | M3 | data constructor，pattern constructor，primitive，signature | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，Listのpattern scheme，有限signatureの整合性検査に加え，sourceのconstructor／primitive／`ifE`，signature付きelaborationとその関係的健全性を実装済みである．論文listing全体の静的回帰はM4型付け完成後に残る |
-| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みsource本体のfrozen interface，matcher clause header，user pattern，`matchAll`，派生surface構文`match`，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む全構文dispatcherを実装済みである．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定し，matcher-rootのsolver閉包gapを解消した．M4の再帰的elaborationの主要部分は，計算回数を明示するfuel構造再帰版と公開版の成功結果を結ぶ定理を持つ．Paper 1の静的負例6件は`Typing`が存在しないことまで証明済みである．大きいPaper-1 fixtureのexact kernel推論回帰と，一般のprivate bindingを持つpattern function実行は未完了である |
-| M5 | 動的意味論，実行可能評価器，型安全性 | partial | multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．検査済みinline pattern functionはsource展開後に同じ評価器で実行する．閉じた整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐については，実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．さらにbuilt-in matcher断片では，pattern binding，matching atom/state，有限DFS探索の型保存と局所progressを，value patternの評価callbackが終了または型付き値を返すという明示的仮定の下で証明した．user-defined matcher clause，`map`に必要なclosure/application，一般pattern functionをこの契約へ接続する証明は未完了である |
+| M4 | pattern，`matchAll`，matcher literal，`fix`，pattern function | partial | pattern function名とfrozen signature，検査済みsource本体のfrozen interface，matcher clause header，user pattern，二つのpatternを同じ値へ左から右に照合するconjunction pattern（連言pattern），`matchAll`，派生surface構文`match`，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む全構文dispatcherを実装済みである．論文の7-clause `multiset`本体も省略なしのsource ASTとして固定し，matcher-rootのsolver閉包gapを解消した．M4の再帰的elaborationの主要部分は，計算回数を明示するfuel構造再帰版と公開版の成功結果を結ぶ定理を持つ．Paper 1の静的負例6件は`Typing`が存在しないことまで証明済みである．大きいPaper-1 fixtureのexact kernel推論回帰と，一般のprivate bindingを持つpattern function実行は未完了である |
+| M5 | 動的意味論，実行可能評価器，型安全性 | partial | conjunction patternを二つのmatching atomへ展開する組込み規則A-AND，multiset分解，具体的matcher clause dispatch，順序付き深さ優先探索，一般のruntime value，`Expr.matchAll`と派生surface `Expr.matchFirst`を含むcall-by-value関係`Eval`とfuel付き`evalFuel`を実装済みである．`matchFirst`はtargetとmatcherを一度ずつ評価し，各armで`matchAll`と同じ探索を行い，最初に結果を持つarmの先頭binding groupだけでbodyを評価する．source順，重複branch，`timeout`／`stuck`を保存し，実行成功の関係的健全性，有限導出の完全性，fuel単調性も両形式について検証済みである．検査済みinline pattern functionはsource展開後に同じ評価器で実行する．閉じた整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐に加え，monomorphicな環境変数，closure，関数部が直接`lam`または`fixE`であるapplicationについては，実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．さらにbuilt-in matcher断片では，pattern binding，matching atom/state，有限DFS探索の型保存と局所progressを，value patternの評価callbackが終了または型付き値を返すという明示的仮定の下で証明した．user-defined matcher clause，高階の関数位置，`let`多相性，`map`，一般pattern functionをこの契約へ接続する証明は未完了である |
 
 M1の`Typing`は，実行可能な生成器，単一化手続き，`infer`，terminal auditを定義に含まない．
 実行側では，必ず停止する`unify`について健全性，完全性，最も一般的な解を返す性質を証明し，
@@ -201,7 +201,7 @@ binding slotが重複する場合，hole数規約が違う場合を拒否する�
 
 source構文は`Expr`，`Pattern`，`MatcherClause`，`MatcherArm`を一つの相互帰納型として定義した．
 `Expr`は既存のM0--M3構文に`fixE`，matcher literal，`matchAll`と派生surface node `matchFirst`を加え，`Pattern`は変数，wildcard，
-式を持つvalue pattern，pattern constructor，tuple，namelessなpattern引数参照，pattern function適用を
+式を持つvalue pattern，pattern constructor，tuple，conjunction pattern，namelessなpattern引数参照，pattern function適用を
 持つ．matcher clauseは`PPat` header，次のmatcherを計算する式，順序付きarmからなり，各armは`DPat`
 headerとbody式を持つ．opaqueな拡張nodeは使わない．実際のclauseから`MatcherClauseShape`への消去では，
 hole数規約とdata-variableの順序を構文からcanonicalに導くため，利用者が矛盾するmetadataを与えられない．
@@ -218,6 +218,10 @@ pattern function適用時に本体を再検査せず，保存済みinterfaceだ�
 pattern targetをhard等式で結び，matcher式を`MatcherSlot`へ向けた一方向の保留checkingとして記録し，
 pattern binderを前置したcontextでbodyを型付けして，body型のListを返す．実行可能生成から関係的判断への
 健全性もkernel proofで確認した．
+
+conjunction pattern `p & q`は同じ対象へ`p`，`q`の順で照合する．静的には`p`を先に合成し，そのbindingを
+追加したcontextで`q`を合成する．両側のtarget型とcapabilityをhard等式で一致させるため，右側のvalue
+patternは左側で束縛した変数を参照できるが，順序を逆にした未束縛参照は拒否される．
 
 `M4MatchFirstTyping`はtargetとmatcherを一度ずつ型付けし，各armをsource順に検査する．arm patternは
 空のbinding列から始め，pattern targetを共通targetへhard等式で結び，matcherを各patternの
@@ -290,7 +294,7 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 | 5.4 | Target uniqueness modulo renaming | 同じprogramに対する二つの**主要な代表型**が，残った型変数の付け替えを除いて一致する | partial（M2--M3はdone）：一般の入れ子`letE`を含むM2--M3 sourceで，通常の型変数とcapability変数の有限な出現集合上の変数名変更による一意性を`Source.PrincipalTyping.finiteRenamingEq`で証明済み．M4は未完了である | `TypePM/RenamingUniqueness.lean`，`TypePM/Source/FullM2Completion.lean` |
 | 5.5 | Principality of the returned type | 公開`infer`の返す型が，すべての`Typing`結果の最も一般的な型である | partial（M2--M3はdone）：一般の入れ子`letE`を含むM2--M3 sourceで，公開推論結果の主要性を`Source.Inference.infer_success_principalResult`として証明済み．M4は未完了である | `TypePM/Principality.lean`，`TypePM/Source/FullM2Completion.lean` |
 | 5.6 | State erasure | 推論状態の消去ではなく，最初から状態を含まない`Typing`を実行時型付けへ写す | partial：閉じた整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐について，値・環境・式の構文的な実行時型付けを定義し，`Source.Typing`からの写像を証明した．`SignatureCompatible`は，この範囲で使う宣言の型が固定評価器の意味と一致することを表す．closure，`map`，matcherとその探索状態は未接続である | `TypePM/RuntimeTyping.lean`／`Source.Typing.toRuntimeTyping` |
-| 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | partial：整数・真偽値とListの標準データ・tuple・整数加算・`append`・`member`・`deleteFirst`・両枝が同じ型の条件分岐の保存に加え，built-in matcher断片のsource順binding型付け，atom還元の分岐ごとの保存，matching state一歩，有限DFSの結果型保存と局所progressを証明した．value pattern内の式にはcallbackの終了／型保存を仮定する．user-defined matcher clauseと`map`に必要なclosure/applicationは未接続である | `TypePM/CoreSafety.lean`，`TypePM/MatcherSafety.lean`／`Runtime.RuntimeTyping.coreSafety`，`Runtime.stepMatchingState_typedSafe`，`Runtime.searchMatchingFuel_typedSafe` |
+| 5.7 | Conditional core safety | 型付き評価，matching状態，有限探索が型を保存し，必要な評価が終了した状態は一歩進むか正常に不一致となる | partial：整数・真偽値とListの標準データ・tuple・整数加算・`append`・`member`・`deleteFirst`・両枝が同じ型の条件分岐に加え，monomorphicな環境変数，closure，関数部が直接`lam`または`fixE`であるapplicationの保存を証明した．built-in matcher断片ではsource順binding型付け，atom還元の分岐ごとの保存，matching state一歩，有限DFSの結果型保存と局所progressを証明した．value pattern内の式にはcallbackの終了／型保存を仮定する．高階の関数位置，`let`多相性，`map`，user-defined matcher clauseは未接続である | `TypePM/CoreSafety.lean`，`TypePM/MatcherSafety.lean`／`Runtime.RuntimeTyping.coreSafety`，`Runtime.stepMatchingState_typedSafe`，`Runtime.searchMatchingFuel_typedSafe` |
 | 5.8 | No stuck states | 型付きclosed programは，任意のfuelで規則の適用不能を表す`stuck`を返さない | partial：整数・真偽値とListの標準データ・tuple・整数加算・`append`・`member`・`deleteFirst`・両枝が同じ型の条件分岐では`Typing`と公開`infer`から任意fuelのno-stuckを証明した．built-in matcher断片でも，型付き初期stateと安全なatom reducer契約から任意の有限DFS boundでno-stuckを得た．これはSource全体の5.8ではなく，closure，`map`，matcher clause等を接続する必要がある．`matchFirst`の空arm列が`stuck`になる境界も固定済みである | `TypePM/NoStuck.lean`，`TypePM/MatcherSafety.lean`／`Source.Inference.infer_neverStuck`，`Runtime.searchMatchingFuel_typed_notStuck`，`RuntimeTypingRegression.matchFirst_empty_arms_is_stuck` |
 
 一般の`Typing`結果は，主要な型をさらに具体化した型も含むため，互いに変数名の付け替えだけで
@@ -299,16 +303,18 @@ fuelは，評価器が再帰的な計算を進められる回数を制限する�
 matching状態の型付けへ結ぶ定理として再定式化する．5.7と5.8はM5で初めて完了できる．
 
 `RuntimeTyping`は`evalFuel ≠ stuck`として定義せず，source式とruntime valueの構造を型で索引する
-独立な帰納的関係として定義した．現在の完全な証明範囲は，閉じた整数，真偽値データ，それらの再帰的tuple，
-整数加算，標準List構築子，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐である．`SignatureCompatible`は，この範囲の構築子とprimitiveのsource宣言が，
+独立な帰納的関係として定義した．現在の実行時型付けと型保存の証明範囲は，整数，真偽値データ，再帰的tuple，
+標準List構築子，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐に加え，
+型付き環境の変数，通常closure，再帰closure，`lam`，`fixE`，関数部が構文上直接`lam`または`fixE`であるapplicationである．
+`SignatureCompatible`は，この範囲の構築子とprimitiveのsource宣言が，
 固定された評価器の意味と同じ型を持つことを表す．
 `MatcherSafety.lean`は，binding列と通常環境を分けて型で索引し，value patternが
 `bindings ++ environment`で評価される順序をそのまま表す．built-inの`something`／product／tuple
 atomについて，型付き還元はtimeoutまたは型を保存した`hit`となり，正常な不一致は空branchであって
 `stuck`ではない．この局所定理からmatching stateと任意の有限DFS boundの型保存・no-stuckを得る．
 value pattern内の式評価には，timeoutまたは型付き成功を返すcallback仮定を明示する．
-一般形に必要な追加証明は，closureの定義環境と本体の型保存，`map`の型保存，
-user-defined matcher clauseとdata constructorを
+一般形に必要な追加証明は，sourceの多相型付けからclosure断片への橋，高階の関数位置，`map`の型保存，
+user-defined matcher clauseを
 `AtomReducerTypedSafe`へ接続する証明である．`matchFirst`については，実装済みの評価規則とM4の静的な網羅性検査を
 接続し，空arm列や全arm不一致による`stuck`が型付きprogramでは起きないことの証明が残っている．
 
@@ -422,7 +428,7 @@ canonicalなList constructorで表し，holeが0個なら空tuple，1個ならsc
 要素数のtupleとして復号する．候補順を保存し，不正なlist spineやtuple要素数を明示的に拒否する．
 `Runtime/MatchingState.lean`は，一のpattern，matcher value，target valueを持つmatching atomと，
 順序付き後続atom分岐を定義する．`something`のvariable／wildcard／value pattern，
-tupleの同じ要素数での子atom化，product matcherから`something`への1回の委譲を実行する．
+conjunction patternを同じmatcher・targetを持つ左右二atomへ展開するA-AND，tupleの同じ要素数での子atom化，product matcherから`something`への1回の委譲を実行する．
 実行と独立した関係仕様との双方向対応を証明し，埋め込み式評価が`stuck`しなければ
 これらの構文上の還元も`stuck`しないことを証明済みである．pattern functionのatom規則は
 後続moduleに残る．

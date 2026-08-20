@@ -169,6 +169,7 @@ private theorem builtinAtom_hit_mono
       exact .somethingValueSuccess (monotone evaluated) equal
   | somethingValueFailure evaluated unequal =>
       exact .somethingValueFailure (monotone evaluated) unequal
+  | and => exact .and
   | tuple zipped => exact .tuple zipped
   | productSomethingVar => exact .productSomethingVar
   | productSomethingWild => exact .productSomethingWild
@@ -197,11 +198,12 @@ private theorem reduceBuiltinAtom_matcherV_miss
     (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
     (environment matcherEnvironment : ValueEnvironment)
     (original remaining : List Source.MatcherClause)
-    (pattern : Source.Pattern) (target : Value) :
+    (pattern : Source.Pattern) (target : Value)
+    (dispatchable : MatcherDispatchable pattern) :
     reduceBuiltinAtom evaluate environment
       ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩ =
         .ok .miss := by
-  cases pattern <;> rfl
+  cases dispatchable <;> rfl
 
 private theorem combinedAtom_hit_mono
     {before after : ValueEnvironment → Source.Expr → FuelResult Value}
@@ -231,7 +233,8 @@ private theorem combinedAtom_hit_mono
           cases matcherRelation with
           | matcher clausesDispatch =>
               rw [combineAtomReducers_primary_miss _ _
-                (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _)]
+                (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _
+                  (matcherDispatchable_of_reduceBuiltinAtom_miss primary))]
               exact matcherAtom_hit_mono monotone fallback
 
 private theorem matchingStep_ok_mono
@@ -941,6 +944,10 @@ theorem Eval.complete
       exact ⟨fuel, combineAtomReducers_primary_hit _ _
         (BuiltinAtomReduces.complete
           (.somethingValueFailure success unequal))⟩
+  case and =>
+      intros environment left right matcher target
+      exact ⟨0, combineAtomReducers_primary_hit _ _
+        (BuiltinAtomReduces.complete .and)⟩
   case tuple =>
       intros patterns matchers targets atoms environment zipped
       exact ⟨0, combineAtomReducers_primary_hit _ _
@@ -955,8 +962,8 @@ theorem Eval.complete
       intros environment expression matchers target
       exact ⟨0, by rfl⟩
   case matcher =>
-      intros environment matcherEnvironment pattern target remaining branches
-        original clauses clausesIH
+      intros pattern environment matcherEnvironment target remaining branches
+        original dispatchable clauses clausesIH
       rcases clausesIH with ⟨fuel, clausesAtFuel⟩
       have fallback :
           reduceMatcherAtom (evalFuel fuel) environment
@@ -965,7 +972,7 @@ theorem Eval.complete
         (reduceMatcherAtom_hit_iff _ _ _ _).mpr (.matcher clausesAtFuel)
       exact ⟨fuel, by
         rw [combineAtomReducers_primary_miss _ _
-          (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _)]
+          (reduceBuiltinAtom_matcherV_miss _ _ _ _ _ _ _ dispatchable)]
         exact fallback⟩
   case nil =>
       exact ⟨0, 0, rfl⟩

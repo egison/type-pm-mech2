@@ -23,6 +23,16 @@ def somethingVariable : Expr :=
 def somethingValueMismatch : Expr :=
   .matchAll (.lit 7) .something (.value (.lit 8)) (.lit 0)
 
+/-- The left side binds the target; the right side checks the same target
+against that binding. -/
+def somethingConjunction : Expr :=
+  .matchAll (.lit 7) .something
+    (.and .var (.value (.var 0))) (.var 0)
+
+def somethingConjunctionMismatch : Expr :=
+  .matchAll (.lit 7) .something
+    (.and .var (.value (.lit 8))) (.var 0)
+
 /-- Paper 1, P1-L14: `matchAll 5 as something with #1` is well formed at
 runtime and produces no result, rather than getting stuck. -/
 def paperIntegerValueMismatch : Expr :=
@@ -35,6 +45,25 @@ theorem something_variable_evaluates_body_under_binding :
 
 theorem something_value_mismatch_is_empty_not_stuck :
     evalFuel 3 [] somethingValueMismatch = .ok Value.nilValue := by
+  rfl
+
+theorem something_conjunction_evaluates_in_source_order :
+    evalFuel 5 [] somethingConjunction =
+      .ok (Value.buildList [.int 7]) := by
+  rfl
+
+theorem something_conjunction_mismatch_is_empty_not_stuck :
+    evalFuel 5 [] somethingConjunctionMismatch = .ok Value.nilValue := by
+  rfl
+
+theorem conjunction_builtin_reducer_exact
+    (evaluate : ValueEnvironment → Expr → FuelResult Value)
+    (environment : ValueEnvironment) (matcher target : Value)
+    (left right : Pattern) :
+    reduceBuiltinAtom evaluate environment
+      ⟨.and left right, matcher, target⟩ =
+        .ok (.hit
+          ⟨[[⟨left, matcher, target⟩, ⟨right, matcher, target⟩]], []⟩) := by
   rfl
 
 theorem paper_integer_value_mismatch_is_empty_not_stuck :
@@ -77,9 +106,10 @@ private theorem head_atom_reduces :
     EvalAtomReduces []
       ⟨.ctor PatternCtor.cons [.var, .wild],
         Value.matcherClosure [] [headClause, catchAllClause], .int 99⟩
-      ⟨[[⟨.var, .something, .int 1⟩],
+  ⟨[[⟨.var, .something, .int 1⟩],
         [⟨.var, .something, .int 1⟩]], []⟩ := by
   apply EvalAtomReduces.matcher
+  · exact .ctor
   apply EvalMatcherClausesDispatch.hit
   apply EvalMatcherClauseDispatches.matched (armsResult := .hit _)
   · exact .ctor (.cons .hole (.cons .wild .nil))
@@ -105,6 +135,7 @@ private theorem catch_all_atom_reduces :
       ⟨.var, Value.matcherClosure [] [headClause, catchAllClause], .int 42⟩
       ⟨[[⟨.var, .something, .int 42⟩]], []⟩ := by
   apply EvalAtomReduces.matcher
+  · exact .var
   apply EvalMatcherClausesDispatch.skip
   · exact .miss rfl
   · apply EvalMatcherClausesDispatch.hit

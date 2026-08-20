@@ -38,6 +38,23 @@ theorem pass_expands_exact :
   simp [passArgument]
   compute_expansion
 
+theorem conjunction_children_expand_exact :
+    expandPattern definitions
+      (.and (.app unitName []) (.app passName [passArgument])) =
+        some (.and (.tuple []) passArgument) := by
+  simp [passArgument]
+  compute_expansion
+
+theorem conjunction_template_expands_exact :
+    expandPattern [conjunctionTemplate]
+      (.app conjunctionTemplate.name [.wild, .tuple []]) =
+        some (.and .wild (.tuple [])) := by
+  have range : List.range 2 = [0, 1] := by decide
+  simp [conjunctionTemplate, PatternFunctionDefinitions.lookup,
+    PatternFunctionDefinition.InlineRuntimeSafe,
+    Pattern.inlineTemplateEmbeds, Pattern.instantiateInlineTemplate,
+    expandPattern, expandPatterns, range]
+
 def nestedMatch : Expr :=
   .matchAll (.lit 1) .something (.app passName [.value (.lit 1)])
     (.tuple [])

@@ -93,12 +93,48 @@ theorem matchFirst_empty_arms_is_stuck :
     evalFuel 3 [] (.matchFirst (.lit 1) .something []) = .stuck := by
   rfl
 
-/-- The current theorem boundary is intentionally strict: even a harmless
-identity application awaits closure/application preservation. -/
+/-- The source-to-runtime bridge remains intentionally smaller than the
+direct runtime judgment: function expressions are not yet reconstructed from
+the source elaboration witness. -/
 theorem identity_application_not_in_certified_core :
     ¬ RuntimeSupported (.app (.lam (.var 0)) (.lit 1)) := by
   intro supported
   cases supported
+
+def identityApplication : Source.Expr :=
+  .app (.lam (.var 0)) (.lit 7)
+
+theorem identityApplication_runtimeTyping :
+    RuntimeTyping identityApplication .int := by
+  exact .appLam (.var rfl) (.lit 7)
+
+theorem identityApplication_exact_evaluation :
+    evalFuel 3 [] identityApplication = .ok (.int 7) := by
+  with_unfolding_all rfl
+
+theorem identityApplication_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] identityApplication).NotStuck :=
+  identityApplication_runtimeTyping.neverStuck fuel [] .nil
+
+def directFixApplication : Source.Expr :=
+  .app (.fixE (.var 0)) (.lit 5)
+
+theorem directFixApplication_runtimeTyping :
+    RuntimeTyping directFixApplication .int := by
+  exact .appFix (.var rfl) (.lit 5)
+
+theorem directFixApplication_exact_evaluation :
+    evalFuel 3 [] directFixApplication = .ok (.int 5) := by
+  with_unfolding_all rfl
+
+theorem directFixApplication_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] directFixApplication).NotStuck :=
+  directFixApplication_runtimeTyping.neverStuck fuel [] .nil
+
+theorem capturedVariable_typed_result :
+    TypedResult .int (evalFuel 1 [.int 9] (.var 0)) := by
+  exact (RuntimeTyping.var (context := [.int]) (target := .int) rfl).coreSafety
+    1 [.int 9] (.cons (.int 9) .nil)
 
 theorem true_environmentTyping :
     EnvironmentTyping [.data DataCtor.true []] [TypePM.DataTypes.bool] :=
@@ -145,14 +181,14 @@ theorem canonicalConditional_state_erasure
 not only for the concrete successful run used by the regression. -/
 theorem canonicalConditional_neverStuck (fuel : Nat) :
     (evalFuel fuel [] canonicalConditional).NotStuck :=
-  canonicalConditional_runtimeTyping.neverStuck fuel []
+  canonicalConditional_runtimeTyping.neverStuck fuel [] .nil
 
 theorem canonicalConditional_exact_valueTyping :
     ValueTyping (.int 3) .int := by
   have exactEvaluation :
       evalFuel 4 [] canonicalConditional = .ok (.int 3) := by
     rfl
-  have typed := canonicalConditional_runtimeTyping.coreSafety 4 []
+  have typed := canonicalConditional_runtimeTyping.coreSafety 4 [] .nil
   rcases typed with timeout | ⟨value, success, valueTyping⟩
   · rw [exactEvaluation] at timeout
     contradiction
@@ -197,7 +233,7 @@ theorem append123_exact_evaluation :
 
 theorem append123_neverStuck (fuel : Nat) :
     (evalFuel fuel [] append123).NotStuck :=
-  append123_runtimeTyping.neverStuck fuel []
+  append123_runtimeTyping.neverStuck fuel [] .nil
 
 theorem member2_exact_evaluation :
     evalFuel 4 [] member2 =

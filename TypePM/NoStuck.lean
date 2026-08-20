@@ -12,10 +12,11 @@ namespace TypePM.Runtime
 
 /-- Runtime-typing form of theorem 5.8 for the certified canonical core. -/
 theorem RuntimeTyping.neverStuck
-    (typing : RuntimeTyping expression target)
-    (fuel : Nat) (environment : ValueEnvironment) :
+    (typing : RuntimeTyping expression target context)
+    (fuel : Nat) (environment : ValueEnvironment)
+    (environmentTyping : EnvironmentTyping environment context) :
     (evalFuel fuel environment expression).NotStuck :=
-  (typing.coreSafety fuel environment).notStuck
+  (typing.coreSafety fuel environment environmentTyping).notStuck
 
 end TypePM.Runtime
 

@@ -141,6 +141,20 @@ theorem instantiate_pass_exact (argument : Pattern) :
       some argument := by
   rfl
 
+def conjunctionTemplate : PatternFunctionDefinition :=
+  { name := ⟨"and"⟩
+    parameterCount := 2
+    body := .and (.embed 0) (.embed 1) }
+
+theorem conjunction_template_inline_safe :
+    conjunctionTemplate.InlineRuntimeSafe := by
+  rfl
+
+theorem instantiate_conjunction_exact (left right : Pattern) :
+    conjunctionTemplate.body.instantiateInlineTemplate [left, right] =
+      some (.and left right) := by
+  rfl
+
 theorem private_binder_not_inline_safe :
     ¬ ({ name := unitName, parameterCount := 0,
           body := Pattern.var } : PatternFunctionDefinition).InlineRuntimeSafe := by

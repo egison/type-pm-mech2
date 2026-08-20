@@ -236,7 +236,7 @@ M1 & lambda，application，制約block & 完了 & 独立した型付け，停�
 M2 & 型scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3のsource式で完全性・受理同値・主要性を検証済み．\\
 M3 & data，primitive，signature & 一部 & Bool/List，値を作るconstructor，組込み演算primitive，\code{ifE}，有限signatureを実装済み．M4と結ぶ掲載例全体の回帰が残る．\\
 M4 & pattern，matcher，\code{fix} & 一部 & 値の形を表すpatternと，再帰定義を作る\code{fix}を含む最終構文，および構文を再帰的に振り分ける処理を実装済み．大きい検証例をLeanの最終検査器で確かめる回帰検証と，M4全域の完全性・主要性が残る．\\
-M5 & 評価と型安全性 & 一部 & 順序付き探索と多くの実行例を実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．関数closureやuser-defined matcherを含む一般の場合が残る．\\
+M5 & 評価と型安全性 & 一部 & 順序付き探索，型付き環境，通常・再帰closure，直接のlambda・fix適用まで実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．高階関数，多相let，map，user-defined matcherを含む一般の場合が残る．\\
 \bottomrule
 \end{longtable}
 
@@ -777,7 +777,8 @@ M3が表で「一部」なのは，M4のpattern/matcherと合わせた論文list
 \section{M4：patternとmatcher}
 
 source構文は\code{fixE}，\code{matcher}，\code{matchAll}，\code{matchFirst}，
-value pattern，pattern constructor，pattern function applicationまで持つ．
+value pattern，pattern constructor，conjunction pattern，pattern function applicationまで持つ．
+conjunction patternとは，同じ対象へ二つのpatternを左から右の順に適用するpatternである．
 M4の実行可能elaborationと関係的elaborationは同じ構文を再帰的に処理し，
 成功から\code{M4.Typing}を得る健全性を証明済みである．
 ここでelaborationはsource式から型制約を生成する処理である．実行可能版はLeanの関数として
@@ -796,10 +797,15 @@ fuelは再帰計算を進められる回数の上限である．有限な成功�
 完全性，fuel単調性を証明している．fuel単調性とは，あるfuel量で成功した計算が，より大きい
 fuel量でも同じ結果で成功することである．
 
-型安全性は閉じた整数と再帰的tuple，および明示的なcallback仮定の下のbuilt-in matcher断片までである．
+conjunction patternは組込み規則A-ANDで実行する．A-ANDは一つの照合課題を，同じmatcherと同じ対象を持つ
+左pattern，右patternの二課題へこの順で置き換える．左側で得たbindingが右側のvalue patternから見えるため，
+静的型付けと実行の変数順が一致する．
+
+型安全性は整数，真偽値，List，tuple，型付き環境，通常・再帰closure，直接のlambda・fix適用，
+および明示的なcallback仮定の下のbuilt-in matcher断片までである．
 callbackとは，処理本体を引数として受け取り，必要な時点で呼び出す関数である．built-in matcherとは，
 利用者がsourceで定義するのではなく，実行器に直接実装されたmatcherである．
-closureの定義環境，primitiveの一般値上の型保存，user-defined matcher clause，data constructor，
+sourceの多相型付けからclosure断片への橋，高階の関数位置，map，user-defined matcher clause，
 一般pattern functionを同じ契約へ接続する作業が残る．ここで保存とは，実行の一歩後も型が保たれる
 ことであり，進行とは，型の付いた実行可能状態が結果でなければ次の一歩を進められることである．
 残作業はこの保存・進行の形を持つが，
@@ -992,8 +998,8 @@ M2のill-formed開始supplyは仕様外であり，完了のために追加証�
 次の静的な主作業は，大きいPaper 1の検証例をLean kernelで計算可能な形にし，正例の正確な
 \code{M4.infer}結果と\code{M4.Typing}，負例の非型付けを固定することである．
 
-その後，M4全域の完全性・主要性を別計画として調べる．M5ではclosure，data，primitive，
-user-defined matcher clause，pattern functionを一般の実行時型付けと，型の不整合による停止が
+その後，M4全域の完全性・主要性を別計画として調べる．M5ではsourceの多相型付けからclosure断片への橋，
+高階関数，map，user-defined matcher clause，pattern functionを一般の実行時型付けと，型の不整合による停止が
 決して起きないという性質（no-stuck）へ接続する．
 
 \appendix
@@ -1229,6 +1235,8 @@ constructor $c(p_1,\ldots,p_n)$ & 宣言済みdual schemeのresult & constructor
 tuple $(p_1,\ldots,p_n)$ &
 $\Prod[\kappa_1,\ldots,\kappa_n]\triangleright
  \Prod[\tau_1,\ldots,\tau_n]$ & field patternを左から右へ処理し，capabilityとtargetをそれぞれproductにする．\\
+conjunction $p\mathbin{\&}q$ & $\delta_p$と，$q$までのbinding列 & 同じ対象へ$p$，$q$の順で照合する．$p$のbindingを追加してから$q$を調べ，
+両側のtarget型とcapabilityをhard等式で同じにする．\\
 embedded parameter & $\Phi[i]$ & pattern functionの$i$番目の引数dualをそのまま使う．fresh変数や束縛を作らない．\\
 pattern function $f(\vec p)$ & 宣言済みdual schemeのresult & frozen signatureから$f$のschemeだけをinstantiateする．
 本体を再検査せず，field dualをschemeの引数dualへhard等式でそろえる．\\

@@ -38,6 +38,18 @@ structure MatchingState where
   bindings : List Value
 deriving Repr
 
+/-- Patterns still owned by matcher-clause dispatch after syntax-directed
+reduction has run.  Conjunction is excluded because `A-AND` always handles it
+first, independently of the matcher value. -/
+inductive MatcherDispatchable : Pattern → Prop where
+  | var : MatcherDispatchable .var
+  | wild : MatcherDispatchable .wild
+  | value : MatcherDispatchable (.value expression)
+  | ctor : MatcherDispatchable (.ctor constructor fields)
+  | tuple : MatcherDispatchable (.tuple items)
+  | embed : MatcherDispatchable (.embed index)
+  | app : MatcherDispatchable (.app function arguments)
+
 /-- Exact-arity construction of tuple child atoms. -/
 def zipMatchingAtoms :
     List Pattern → List Value → List Value → Option (List MatchingAtom)
@@ -112,6 +124,8 @@ def reduceBuiltinAtom
     (environment : ValueEnvironment) (atom : MatchingAtom) :
     FuelResult (DispatchResult AtomReduction) :=
   match atom.pattern, atom.matcher, atom.target with
+  | .and left right, matcher, target =>
+      .ok (.hit ⟨[[⟨left, matcher, target⟩, ⟨right, matcher, target⟩]], []⟩)
   | .wild, .something, _ => .ok (.hit .success)
   | .var, .something, target =>
       .ok (.hit ⟨[[]], [target]⟩)
@@ -147,11 +161,15 @@ inductive BuiltinAtomReduces
       (equal : Value.structuralEq actual target = true) :
       BuiltinAtomReduces eval environment
         ⟨.value expression, .something, target⟩ .success
-  | somethingValueFailure
+    | somethingValueFailure
       (evaluated : eval environment expression = .ok actual)
       (unequal : Value.structuralEq actual target = false) :
       BuiltinAtomReduces eval environment
         ⟨.value expression, .something, target⟩ .failure
+  | and :
+      BuiltinAtomReduces eval environment
+        ⟨.and left right, matcher, target⟩
+        ⟨[[⟨left, matcher, target⟩, ⟨right, matcher, target⟩]], []⟩
   | tuple
       (zipped : MatchingAtomsZip patterns matchers targets atoms) :
       BuiltinAtomReduces eval environment
@@ -238,6 +256,9 @@ theorem reduceBuiltinAtom_hit_sound
               exact .tuple ((zipMatchingAtoms_eq_some_iff _ _ _ _).mp zipped)
         all_goals exact (ok_miss_ne_ok_hit _ success).elim
       all_goals exact (ok_miss_ne_ok_hit _ success).elim
+  | and left right =>
+      cases success
+      exact .and
   | ctor constructor arguments =>
       cases matcher <;> simp only [reduceBuiltinAtom] at success <;>
         exact (ok_miss_ne_ok_hit _ success).elim
@@ -256,7 +277,7 @@ theorem BuiltinAtomReduces.complete
     (derivation : BuiltinAtomReduces eval environment atom reduction) :
     reduceBuiltinAtom eval environment atom = .ok (.hit reduction) := by
   cases derivation with
-  | somethingWild | somethingVar | productSomethingVar |
+  | somethingWild | somethingVar | and | productSomethingVar |
       productSomethingWild | productSomethingValue => rfl
   | somethingValueSuccess evaluated equal =>
       simp [reduceBuiltinAtom, evaluated, equal]
@@ -273,6 +294,24 @@ theorem reduceBuiltinAtom_hit_iff
     reduceBuiltinAtom eval environment atom = .ok (.hit reduction) ↔
       BuiltinAtomReduces eval environment atom reduction :=
   ⟨reduceBuiltinAtom_hit_sound, BuiltinAtomReduces.complete⟩
+
+/-- A built-in miss proves that the atom is eligible for the later matcher
+clause handler; in particular it cannot be a conjunction. -/
+theorem matcherDispatchable_of_reduceBuiltinAtom_miss
+    {eval : ValueEnvironment → Expr → FuelResult Value}
+    {environment : ValueEnvironment} {atom : MatchingAtom}
+    (miss : reduceBuiltinAtom eval environment atom = .ok .miss) :
+    MatcherDispatchable atom.pattern := by
+  rcases atom with ⟨pattern, matcher, target⟩
+  cases pattern <;> simp only [reduceBuiltinAtom] at miss
+  case and => simp at miss
+  case var => exact .var
+  case wild => exact .wild
+  case value => exact .value
+  case ctor => exact .ctor
+  case tuple => exact .tuple
+  case embed => exact .embed
+  case app => exact .app
 
 /-- If embedded expression evaluation is non-stuck, built-in atom reduction
 cannot introduce a stuck result. -/

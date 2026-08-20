@@ -109,6 +109,7 @@ private theorem builtinAtom_to_eval
       exact .somethingValueSuccess (sound evaluated) equal
   | somethingValueFailure evaluated unequal =>
       exact .somethingValueFailure (sound evaluated) unequal
+  | and => exact .and
   | tuple zipped => exact .tuple zipped
   | productSomethingVar => exact .productSomethingVar
   | productSomethingWild => exact .productSomethingWild
@@ -119,11 +120,13 @@ private theorem matcherAtom_to_eval
     (sound : ∀ {environment expression value},
       evaluate environment expression = .ok value →
         Eval environment expression value)
+    (dispatchable : MatcherDispatchable atom.pattern)
     (reduced : MatcherAtomReduces evaluate environment atom reduction) :
     EvalAtomReduces environment atom reduction := by
   cases reduced with
   | matcher clausesDispatch =>
-      exact .matcher (matcherClausesDispatch_to_eval sound clausesDispatch)
+      exact .matcher dispatchable
+        (matcherClausesDispatch_to_eval sound clausesDispatch)
 
 private theorem combinedAtom_to_eval
     {evaluate : ValueEnvironment → Source.Expr → FuelResult Value}
@@ -146,11 +149,13 @@ private theorem combinedAtom_to_eval
           exact builtinAtom_to_eval sound
             ((reduceBuiltinAtom_hit_iff _ _ _ _).mp builtinResult)
       | miss =>
+          have dispatchable : MatcherDispatchable atom.pattern :=
+            matcherDispatchable_of_reduceBuiltinAtom_miss builtinResult
           have matcherSuccess :
               reduceMatcherAtom evaluate environment atom =
                 .ok (.hit reduction) := by
             simpa [combineAtomReducers, builtinResult] using success
-          exact matcherAtom_to_eval sound
+          exact matcherAtom_to_eval sound dispatchable
             ((reduceMatcherAtom_hit_iff _ _ _ _).mp matcherSuccess)
 
 private theorem depthFirst_to_evalMatching

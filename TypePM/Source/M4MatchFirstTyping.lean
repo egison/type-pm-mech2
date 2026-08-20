@@ -30,6 +30,8 @@ tuples are irrefutable exactly when all of their fields are. -/
 def structurallyIrrefutable : Pattern → Bool
   | .var | .wild => true
   | .tuple fields => allStructurallyIrrefutable fields
+  | .and left right =>
+      structurallyIrrefutable left && structurallyIrrefutable right
   | .value _ | .ctor _ _ | .embed _ | .app _ _ => false
 
 def allStructurallyIrrefutable : List Pattern → Bool

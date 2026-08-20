@@ -54,6 +54,11 @@ def fieldEquations (actual expected : List Dual) : List Equation :=
     [.ty child.target field.target,
       .cap child.capability field.capability]) actual expected).flatten
 
+/-- Equality of the target and capability components of two pattern duals. -/
+def dualEquations (left right : Dual) : List Equation :=
+  [.ty left.target right.target,
+    .cap left.capability right.capability]
+
 end Pattern
 
 abbrev M4ExpressionElaborator :=
@@ -105,6 +110,16 @@ def elaboratePatternUsingFuel
         .prod (Dual.targets generatedItems.duals)⟩ : Dual),
         generatedItems.bindings, generatedItems.hard,
         generatedItems.pending⟩, next)
+  | fuel + 1, .and left right, bindings, supply => do
+      let (generatedLeft, afterLeft) ← elaboratePatternUsingFuel
+        elaborateExpression signature context arguments fuel left bindings supply
+      let (generatedRight, next) ← elaboratePatternUsingFuel
+        elaborateExpression signature context arguments fuel right
+          generatedLeft.bindings afterLeft
+      pure (⟨generatedLeft.dual, generatedRight.bindings,
+        generatedLeft.hard ++ generatedRight.hard ++
+          Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+        generatedLeft.pending ++ generatedRight.pending⟩, next)
   | _ + 1, .embed index, bindings, supply => do
       let dual ← arguments[index]?
       pure (⟨dual, bindings, [], []⟩, supply)
@@ -208,6 +223,18 @@ def elaboratePattern
             .prod (Dual.targets generatedItems.duals)⟩ : Dual),
           generatedItems.bindings, generatedItems.hard,
           generatedItems.pending⟩,
+          next)
+  | .and left right, bindings, supply => do
+      let (generatedLeft, afterLeft) ←
+        elaboratePattern signature context arguments left bindings supply
+      let (generatedRight, next) ←
+        elaboratePattern signature context arguments right
+          generatedLeft.bindings afterLeft
+      pure
+        (⟨generatedLeft.dual, generatedRight.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+          generatedLeft.pending ++ generatedRight.pending⟩,
           next)
   | .embed index, bindings, supply => do
       let dual ← arguments[index]?
@@ -379,6 +406,19 @@ inductive PatternElaboratesUsing
           .prod (Dual.targets generatedItems.duals)⟩ : Dual),
           generatedItems.bindings, generatedItems.hard,
           generatedItems.pending⟩ next
+  | and {signature context arguments left right bindings supply
+      generatedLeft afterLeft generatedRight next}
+      (leftElaboration : PatternElaboratesUsing ExpressionElaborates signature
+        context arguments left bindings supply generatedLeft afterLeft)
+      (rightElaboration : PatternElaboratesUsing ExpressionElaborates signature
+        context arguments right generatedLeft.bindings afterLeft generatedRight
+        next) :
+      PatternElaboratesUsing ExpressionElaborates signature context arguments
+        (.and left right) bindings supply
+        ⟨generatedLeft.dual, generatedRight.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+          generatedLeft.pending ++ generatedRight.pending⟩ next
   | embed {signature context arguments index bindings supply dual}
       (lookup : arguments[index]? = some dual) :
       PatternElaboratesUsing ExpressionElaborates signature context arguments
@@ -490,6 +530,18 @@ inductive PatternElaborates :
             .prod (Dual.targets generatedItems.duals)⟩ : Dual),
           generatedItems.bindings, generatedItems.hard,
           generatedItems.pending⟩ next
+  | and {signature context arguments left right bindings supply
+      generatedLeft afterLeft generatedRight next}
+      (leftElaboration : PatternElaborates signature context arguments left
+        bindings supply generatedLeft afterLeft)
+      (rightElaboration : PatternElaborates signature context arguments right
+        generatedLeft.bindings afterLeft generatedRight next) :
+      PatternElaborates signature context arguments (.and left right) bindings
+        supply
+        ⟨generatedLeft.dual, generatedRight.bindings,
+          generatedLeft.hard ++ generatedRight.hard ++
+            Pattern.dualEquations generatedLeft.dual generatedRight.dual,
+          generatedLeft.pending ++ generatedRight.pending⟩ next
   | embed {signature context arguments index bindings supply dual}
       (lookup : arguments[index]? = some dual) :
       PatternElaborates signature context arguments (.embed index) bindings
@@ -621,6 +673,23 @@ theorem elaboratePattern_sound
               simp [elaboratePattern, itemsResult] at success
               rcases success with ⟨rfl, rfl⟩
               exact .tuple (elaboratePatterns_sound wellFormed itemsResult)
+  | and left right =>
+      cases leftResult : elaboratePattern signature context arguments left
+          bindings supply with
+      | none => simp [elaboratePattern, leftResult] at success
+      | some leftOutput =>
+          rcases leftOutput with ⟨generatedLeft, afterLeft⟩
+          cases rightResult : elaboratePattern signature context arguments right
+              generatedLeft.bindings afterLeft with
+          | none => simp [elaboratePattern, leftResult, rightResult] at success
+          | some rightOutput =>
+              rcases rightOutput with ⟨generatedRight, afterRight⟩
+              simp [elaboratePattern, leftResult, rightResult] at success
+              rcases success with ⟨rfl, rfl⟩
+              simpa only [List.append_assoc] using
+                PatternElaborates.and
+                  (elaboratePattern_sound wellFormed leftResult)
+                  (elaboratePattern_sound wellFormed rightResult)
   | embed index =>
       cases lookup : arguments[index]? with
       | none => simp [elaboratePattern, lookup] at success
@@ -803,6 +872,27 @@ theorem elaboratePatternUsingFuel_sound
             rcases success with ⟨rfl, rfl⟩
             exact .tuple (elaboratePatternsUsingFuel_sound expressionSound wellFormed
               itemsResult)
+    | and left right =>
+        cases leftResult : elaboratePatternUsingFuel elaborateExpression signature
+            context arguments fuel left bindings supply with
+        | none => simp [elaboratePatternUsingFuel, leftResult] at success
+        | some leftOutput =>
+            rcases leftOutput with ⟨generatedLeft, afterLeft⟩
+            cases rightResult : elaboratePatternUsingFuel elaborateExpression
+                signature context arguments fuel right generatedLeft.bindings
+                afterLeft with
+            | none =>
+                simp [elaboratePatternUsingFuel, leftResult, rightResult] at success
+            | some rightOutput =>
+                rcases rightOutput with ⟨generatedRight, afterRight⟩
+                simp [elaboratePatternUsingFuel, leftResult, rightResult] at success
+                rcases success with ⟨rfl, rfl⟩
+                simpa only [List.append_assoc] using
+                  PatternElaboratesUsing.and
+                    (elaboratePatternUsingFuel_sound expressionSound wellFormed
+                      leftResult)
+                    (elaboratePatternUsingFuel_sound expressionSound wellFormed
+                      rightResult)
     | embed index =>
         cases lookup : arguments[index]? with
         | none => simp [elaboratePatternUsingFuel, lookup] at success

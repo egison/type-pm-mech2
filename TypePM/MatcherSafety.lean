@@ -58,6 +58,14 @@ mutual
           patterns targets newBindings) :
         PatternBinds expressionTyping environmentTypes bindingTypes
           (.tuple patterns) (.prod targets) newBindings
+    | and
+        (left : PatternBinds expressionTyping environmentTypes bindingTypes
+          leftPattern target leftBindings)
+        (right : PatternBinds expressionTyping environmentTypes
+          (bindingTypes ++ leftBindings) rightPattern target rightBindings) :
+        PatternBinds expressionTyping environmentTypes bindingTypes
+          (.and leftPattern rightPattern) target
+          (leftBindings ++ rightBindings)
 
   /-- Left-to-right pattern-list binding.  Later items see all bindings from
   earlier items before the ordinary environment. -/
@@ -105,6 +113,15 @@ mutual
           bindingTypes atoms newBindings) :
         MatchingAtomTyping expressionTyping environmentTypes bindingTypes
           ⟨.tuple patterns, .tuple matchers, .tuple targets⟩ newBindings
+    | and
+        (left : MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+          ⟨leftPattern, matcher, target⟩ leftBindings)
+        (right : MatchingAtomTyping expressionTyping environmentTypes
+          (bindingTypes ++ leftBindings)
+          ⟨rightPattern, matcher, target⟩ rightBindings) :
+        MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+          ⟨.and leftPattern rightPattern, matcher, target⟩
+          (leftBindings ++ rightBindings)
     | productVar
         (targetTyped : ValueTyping target targetType) :
         MatchingAtomTyping expressionTyping environmentTypes bindingTypes
@@ -140,6 +157,28 @@ mutual
 end
 
 /-! ## Typed environment and work-list algebra -/
+
+theorem MatchingAtomTyping.and_atoms
+    {expressionTyping : EmbeddedExpressionTyping}
+    {environmentTypes bindingTypes : List Ty}
+    {leftPattern rightPattern : Source.Pattern} {matcher target : Value}
+    {leftBindings rightBindings : List Ty}
+    (left : MatchingAtomTyping expressionTyping environmentTypes bindingTypes
+      ⟨leftPattern, matcher, target⟩ leftBindings)
+    (right : MatchingAtomTyping expressionTyping environmentTypes
+      (bindingTypes ++ leftBindings)
+      ⟨rightPattern, matcher, target⟩ rightBindings) :
+    MatchingAtomsTyping expressionTyping environmentTypes bindingTypes
+      [⟨leftPattern, matcher, target⟩, ⟨rightPattern, matcher, target⟩]
+      (leftBindings ++ rightBindings) := by
+  have tail : MatchingAtomsTyping expressionTyping environmentTypes
+      (bindingTypes ++ leftBindings)
+      [⟨rightPattern, matcher, target⟩] rightBindings := by
+    simpa using
+      MatchingAtomsTyping.cons _ [] rightBindings [] right
+        (MatchingAtomsTyping.nil (bindingTypes :=
+          (bindingTypes ++ leftBindings) ++ rightBindings))
+  exact MatchingAtomsTyping.cons _ _ leftBindings rightBindings left tail
 
 theorem ValueTypings.appendEnvironment :
     ∀ {bindings bindingTypes}, ValueTypings bindings bindingTypes →
@@ -267,6 +306,13 @@ theorem reduceBuiltinAtom_typedSafe
           simp at member
           subst branch
           exact ⟨_, by simpa using children, rfl⟩⟩⟩
+  | and leftTyped rightTyped =>
+      exact .inr ⟨_, rfl,
+        ⟨[], .nil, by
+          intro branch member
+          simp at member
+          subst branch
+          exact ⟨_, by simpa using leftTyped.and_atoms rightTyped, rfl⟩⟩⟩
   | productVar targetTyped =>
       exact .inr ⟨_, rfl,
         ⟨[], .nil, by

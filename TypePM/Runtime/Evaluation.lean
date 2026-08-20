@@ -253,6 +253,9 @@ mutual
         (unequal : Value.structuralEq actual target = false) :
         EvalAtomReduces environment
           ⟨.value expression, .something, target⟩ .failure
+    | and : EvalAtomReduces environment
+        ⟨.and left right, matcher, target⟩
+        ⟨[[⟨left, matcher, target⟩, ⟨right, matcher, target⟩]], []⟩
     | tuple
         (zipped : MatchingAtomsZip patterns matchers targets atoms) :
         EvalAtomReduces environment
@@ -267,6 +270,7 @@ mutual
         ⟨.value expression, .tuple matchers, target⟩
         ⟨[[⟨.value expression, .something, target⟩]], []⟩
     | matcher
+        (dispatchable : MatcherDispatchable pattern)
         (clauses : EvalMatcherClausesDispatch environment matcherEnvironment
           pattern target remaining (.hit branches)) :
         EvalAtomReduces environment

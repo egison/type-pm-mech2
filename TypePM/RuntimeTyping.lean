@@ -13,7 +13,9 @@ atoms still have explicit `stuck` branches in the evaluator.
 This module establishes an honest state-erasure boundary for closed integer
 expressions, canonical Boolean and List data, recursively nested tuples,
 integer addition, `append`, `member`, `deleteFirst`, and conditionals whose
-two branches have the same certified type.  The judgment is declarative and
+two branches have the same certified type.  It also types variables under a
+monomorphic runtime context, closures, and direct applications whose function
+is syntactically `lam` or `fixE`.  The judgment is declarative and
 syntax directed;
 it does not mention `evalFuel`, `stuck`, or a fuel amount.  Runtime values use a
 separate judgment with the same type index.  Later modules prove preservation
@@ -60,7 +62,82 @@ theorem paper1SignatureCompatible :
 
 mutual
 
-/-- Declarative runtime typing for the currently certified value core. -/
+/-- Declarative runtime typing for the certified expression core under a
+newest-first monomorphic context.  The context defaults to `[]`, preserving
+the closed-program interface used by the earlier checkpoint. -/
+inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → Prop where
+  | var (lookup : context[index]? = some target) :
+      RuntimeTyping (.var index) target context
+  | lit (value : Int) : RuntimeTyping (.lit value) .int context
+  | boolTrue :
+      RuntimeTyping (.ctor DataCtor.true []) TypePM.DataTypes.bool context
+  | boolFalse :
+      RuntimeTyping (.ctor DataCtor.false []) TypePM.DataTypes.bool context
+  | listNil (element : Ty) :
+      RuntimeTyping (.ctor DataCtor.nil []) (TypePM.DataTypes.list element) context
+  | listCons (head : RuntimeTyping headExpression element context)
+      (tail : RuntimeTyping tailExpression (TypePM.DataTypes.list element) context) :
+      RuntimeTyping (.ctor DataCtor.cons [headExpression, tailExpression])
+        (TypePM.DataTypes.list element) context
+  | tuple (items : RuntimeTypings expressions targets context) :
+      RuntimeTyping (.tuple expressions) (.prod targets) context
+  | lam (body : RuntimeTyping bodyExpression codomain (domain :: context)) :
+      RuntimeTyping (.lam bodyExpression) (.fn domain codomain) context
+  | appLam (body : RuntimeTyping bodyExpression codomain (domain :: context))
+      (argument : RuntimeTyping argumentExpression domain context) :
+      RuntimeTyping (.app (.lam bodyExpression) argumentExpression)
+        codomain context
+  | appFix (body : RuntimeTyping bodyExpression codomain
+      (domain :: .fn domain codomain :: context))
+      (argument : RuntimeTyping argumentExpression domain context) :
+      RuntimeTyping (.app (.fixE bodyExpression) argumentExpression)
+        codomain context
+  | fixE (body : RuntimeTyping bodyExpression codomain
+      (domain :: .fn domain codomain :: context)) :
+      RuntimeTyping (.fixE bodyExpression) (.fn domain codomain) context
+  | add (left : RuntimeTyping leftExpression .int context)
+      (right : RuntimeTyping rightExpression .int context) :
+      RuntimeTyping (.prim PrimOp.add [leftExpression, rightExpression]) .int context
+  | append
+      (left : RuntimeTyping leftExpression (TypePM.DataTypes.list element) context)
+      (right : RuntimeTyping rightExpression (TypePM.DataTypes.list element) context) :
+      RuntimeTyping (.prim PrimOp.append [leftExpression, rightExpression])
+        (TypePM.DataTypes.list element) context
+  | member (needle : RuntimeTyping needleExpression element context)
+      (target : RuntimeTyping targetExpression (TypePM.DataTypes.list element) context) :
+      RuntimeTyping (.prim PrimOp.member [needleExpression, targetExpression])
+        TypePM.DataTypes.bool context
+  | deleteFirst (needle : RuntimeTyping needleExpression element context)
+      (target : RuntimeTyping targetExpression (TypePM.DataTypes.list element) context) :
+      RuntimeTyping
+        (.prim PrimOp.deleteFirst [needleExpression, targetExpression])
+        (TypePM.DataTypes.list element) context
+  | ifE (condition : RuntimeTyping conditionExpression TypePM.DataTypes.bool context)
+      (thenBranch : RuntimeTyping thenExpression branchTarget context)
+      (elseBranch : RuntimeTyping elseExpression branchTarget context) :
+      RuntimeTyping
+        (.ifE conditionExpression thenExpression elseExpression) branchTarget context
+  | checked (source : RuntimeTyping expression sourceTarget context)
+      (conversion : CheckConversion conversionClass sourceTarget target) :
+      RuntimeTyping expression target context
+  | instantiated (source : RuntimeTyping expression sourceTarget context)
+      (substitution : Subst) :
+      RuntimeTyping expression (sourceTarget.apply substitution) context
+
+/-- Pointwise expression typing under one shared context. -/
+inductive RuntimeTypings : List Source.Expr → List Ty →
+    (context : List Ty := []) → Prop where
+  | nil : RuntimeTypings [] [] context
+  | cons (head : RuntimeTyping expression target context)
+      (tail : RuntimeTypings expressions targets context) :
+      RuntimeTypings (expression :: expressions) (target :: targets) context
+
+end
+
+mutual
+
+/-- Declarative runtime typing for values, including closures together with
+the typed definition environment captured when they are created. -/
 inductive ValueTyping : Value → Ty → Prop where
   | int (value : Int) : ValueTyping (.int value) .int
   | boolTrue : ValueTyping (.data DataCtor.true []) TypePM.DataTypes.bool
@@ -69,6 +146,13 @@ inductive ValueTyping : Value → Ty → Prop where
       ValueTyping (.tuple values) (.prod targets)
   | list (items : ListValueTypings values element) :
       ValueTyping (Value.buildList values) (TypePM.DataTypes.list element)
+  | plainClosure (environment : EnvironmentTyping values context)
+      (body : RuntimeTyping bodyExpression codomain (domain :: context)) :
+      ValueTyping (Value.plainClosure values bodyExpression) (.fn domain codomain)
+  | recursiveClosure (environment : EnvironmentTyping values context)
+      (body : RuntimeTyping bodyExpression codomain
+        (domain :: .fn domain codomain :: context)) :
+      ValueTyping (Value.recursiveClosure values bodyExpression) (.fn domain codomain)
   | checked (source : ValueTyping value sourceTarget)
       (conversion : CheckConversion conversionClass sourceTarget target) :
       ValueTyping value target
@@ -91,71 +175,12 @@ inductive ListValueTypings : List Value → Ty → Prop where
       (tail : ListValueTypings values element) :
       ListValueTypings (value :: values) element
 
-end
-
-/-- Runtime environments are typed pointwise in newest-first order.  The
-closed core below uses the empty instance, but the definition fixes the
-environment convention needed by later closure work. -/
+/-- Runtime environments are typed pointwise in newest-first order. -/
 inductive EnvironmentTyping : ValueEnvironment → List Ty → Prop where
   | nil : EnvironmentTyping [] []
   | cons (head : ValueTyping value target)
       (tail : EnvironmentTyping environment context) :
       EnvironmentTyping (value :: environment) (target :: context)
-
-mutual
-
-/-- The source fragment for which runtime typing is currently derived from
-`Source.Typing`.  Constructor and primitive cases deliberately mention only
-the canonical operations whose evaluator branches are certified below. -/
-inductive RuntimeTyping : Source.Expr → Ty → Prop where
-  | lit (value : Int) : RuntimeTyping (.lit value) .int
-  | boolTrue :
-      RuntimeTyping (.ctor DataCtor.true []) TypePM.DataTypes.bool
-  | boolFalse :
-      RuntimeTyping (.ctor DataCtor.false []) TypePM.DataTypes.bool
-  | listNil (element : Ty) :
-      RuntimeTyping (.ctor DataCtor.nil []) (TypePM.DataTypes.list element)
-  | listCons (head : RuntimeTyping headExpression element)
-      (tail : RuntimeTyping tailExpression (TypePM.DataTypes.list element)) :
-      RuntimeTyping (.ctor DataCtor.cons [headExpression, tailExpression])
-        (TypePM.DataTypes.list element)
-  | tuple (items : RuntimeTypings expressions targets) :
-      RuntimeTyping (.tuple expressions) (.prod targets)
-  | add (left : RuntimeTyping leftExpression .int)
-      (right : RuntimeTyping rightExpression .int) :
-      RuntimeTyping (.prim PrimOp.add [leftExpression, rightExpression]) .int
-  | append
-      (left : RuntimeTyping leftExpression (TypePM.DataTypes.list element))
-      (right : RuntimeTyping rightExpression (TypePM.DataTypes.list element)) :
-      RuntimeTyping (.prim PrimOp.append [leftExpression, rightExpression])
-        (TypePM.DataTypes.list element)
-  | member (needle : RuntimeTyping needleExpression element)
-      (target : RuntimeTyping targetExpression (TypePM.DataTypes.list element)) :
-      RuntimeTyping (.prim PrimOp.member [needleExpression, targetExpression])
-        TypePM.DataTypes.bool
-  | deleteFirst (needle : RuntimeTyping needleExpression element)
-      (target : RuntimeTyping targetExpression (TypePM.DataTypes.list element)) :
-      RuntimeTyping
-        (.prim PrimOp.deleteFirst [needleExpression, targetExpression])
-        (TypePM.DataTypes.list element)
-  | ifE (condition : RuntimeTyping conditionExpression TypePM.DataTypes.bool)
-      (thenBranch : RuntimeTyping thenExpression branchTarget)
-      (elseBranch : RuntimeTyping elseExpression branchTarget) :
-      RuntimeTyping
-        (.ifE conditionExpression thenExpression elseExpression) branchTarget
-  | checked (source : RuntimeTyping expression sourceTarget)
-      (conversion : CheckConversion conversionClass sourceTarget target) :
-      RuntimeTyping expression target
-  | instantiated (source : RuntimeTyping expression sourceTarget)
-      (substitution : Subst) :
-      RuntimeTyping expression (sourceTarget.apply substitution)
-
-/-- Pointwise runtime typing for sibling source expressions. -/
-inductive RuntimeTypings : List Source.Expr → List Ty → Prop where
-  | nil : RuntimeTypings [] []
-  | cons (head : RuntimeTyping expression target)
-      (tail : RuntimeTypings expressions targets) :
-      RuntimeTypings (expression :: expressions) (target :: targets)
 
 end
 
@@ -214,6 +239,16 @@ theorem ValueTypings.apply
   | nil => exact .nil
   | cons head tail =>
       exact .cons (head.apply substitution) (tail.apply substitution)
+
+theorem EnvironmentTyping.apply
+    (typing : EnvironmentTyping environment context)
+    (substitution : Subst) :
+    EnvironmentTyping environment (Ty.applyList substitution context) := by
+  cases typing with
+  | nil => exact .nil
+  | cons head tail =>
+      exact .cons (head.apply substitution) (tail.apply substitution)
+
 
 /-- Runtime expression typing is closed under substitution of its type
 index.  This is essential for polymorphic empty lists. -/

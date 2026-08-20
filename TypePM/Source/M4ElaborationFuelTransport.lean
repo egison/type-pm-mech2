@@ -120,6 +120,27 @@ theorem elaboratePatternUsingFuel_success_transport
                 transport itemsResult
               simp [elaboratePatternUsingFuel, itemsResult] at success
               simpa [elaboratePatternUsingFuel, itemsTo] using success
+      | and left right =>
+          cases leftResult : elaboratePatternUsingFuel sourceElaborator signature
+              context arguments fuel left bindings supply with
+          | none => simp [elaboratePatternUsingFuel, leftResult] at success
+          | some leftOutput =>
+              rcases leftOutput with ⟨generatedLeft, afterLeft⟩
+              have leftTo := elaboratePatternUsingFuel_success_transport
+                transport leftResult
+              cases rightResult : elaboratePatternUsingFuel sourceElaborator
+                  signature context arguments fuel right generatedLeft.bindings
+                  afterLeft with
+              | none =>
+                  simp [elaboratePatternUsingFuel, leftResult, rightResult]
+                    at success
+              | some rightOutput =>
+                  rcases rightOutput with ⟨generatedRight, afterRight⟩
+                  have rightTo := elaboratePatternUsingFuel_success_transport
+                    transport rightResult
+                  simp [elaboratePatternUsingFuel, leftResult, rightResult]
+                    at success
+                  simpa [elaboratePatternUsingFuel, leftTo, rightTo] using success
       | embed index =>
           simpa [elaboratePatternUsingFuel] using success
       | app function fields =>

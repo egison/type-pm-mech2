@@ -117,6 +117,7 @@ def Pattern.complexity : Pattern → Nat
   | .value expression => expression.complexity + 1
   | .ctor _ fields | .tuple fields | .app _ fields =>
       Pattern.listComplexity fields + 1
+  | .and left right => left.complexity + right.complexity + 1
 
 def Pattern.listComplexity : List Pattern → Nat
   | [] => 0
@@ -204,6 +205,9 @@ end
       Pattern.listComplexity fields + 1 := rfl
 @[simp] theorem Pattern.complexity_tuple (items : List Pattern) :
     (Pattern.tuple items).complexity = Pattern.listComplexity items + 1 := rfl
+@[simp] theorem Pattern.complexity_and (left right : Pattern) :
+    (Pattern.and left right).complexity =
+      left.complexity + right.complexity + 1 := rfl
 @[simp] theorem Pattern.complexity_embed (index : Nat) :
     (Pattern.embed index).complexity = 1 := rfl
 @[simp] theorem Pattern.complexity_app

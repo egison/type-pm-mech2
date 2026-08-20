@@ -32,6 +32,7 @@ import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
 import TypePM.Source.M4Paper1NegativeRegression
+import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4ElaborationFuelTransport
 import TypePM.Source.M4CompletenessArchitecture
 import TypePM.Source.M4SupplySupport
@@ -318,10 +319,13 @@ every full build.
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.definitions_agree
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_unit_exact
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_pass_exact
+#print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.instantiate_conjunction_exact
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.private_binder_not_inline_safe
 #print axioms TypePM.Source.M4PatternFunctionDefinitionRegression.duplicated_parameter_not_inline_safe
 #print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unit_expands_exact
 #print axioms TypePM.Source.M4PatternFunctionExpansionRegression.pass_expands_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_children_expand_exact
+#print axioms TypePM.Source.M4PatternFunctionExpansionRegression.conjunction_template_expands_exact
 #print axioms TypePM.Source.M4PatternFunctionExpansionRegression.complete_match_site_expands_exact
 #print axioms TypePM.Source.M4PatternFunctionExpansionRegression.matcher_and_matchFirst_expand_exact
 #print axioms TypePM.Source.M4PatternFunctionExpansionRegression.unknown_function_rejected
@@ -490,6 +494,9 @@ every full build.
 #print axioms TypePM.Runtime.EvaluationRegression.identity_core_never_stuck
 #print axioms TypePM.Runtime.MatchAllRegression.something_variable_evaluates_body_under_binding
 #print axioms TypePM.Runtime.MatchAllRegression.something_value_mismatch_is_empty_not_stuck
+#print axioms TypePM.Runtime.MatchAllRegression.something_conjunction_evaluates_in_source_order
+#print axioms TypePM.Runtime.MatchAllRegression.something_conjunction_mismatch_is_empty_not_stuck
+#print axioms TypePM.Runtime.MatchAllRegression.conjunction_builtin_reducer_exact
 #print axioms TypePM.Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck
 #print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_head_preserves_duplicate_branches
 #print axioms TypePM.Runtime.MatchAllRegression.matcher_closure_falls_through_to_catch_all
@@ -609,6 +616,9 @@ every full build.
 #print axioms TypePM.Source.M4SyntaxRegression.matchFirst_not_relationally_elaborated
 #print axioms TypePM.Source.M4PatternTypingRegression.value_after_binder_elaborates
 #print axioms TypePM.Source.M4PatternTypingRegression.value_before_binder_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.elaborate_conjunction_exact
+#print axioms TypePM.Source.M4PatternTypingRegression.conjunction_value_before_binder_rejected
+#print axioms TypePM.Source.M4PatternTypingRegression.conjunction_relational
 #print axioms TypePM.Source.M4PatternTypingRegression.occurs_check_tail_rejected
 #print axioms TypePM.Source.M4PatternTypingRegression.value_expression_int_list_mismatch_rejected
 #print axioms TypePM.Source.M4PatternTypingRegression.matchAll_constraint_boundary
@@ -619,6 +629,7 @@ every full build.
 #print axioms TypePM.Source.MatchFirstTyping.elaborateUsing_sound
 #print axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.exhaustive
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_pattern_lambda_desugaring_exact
+#print axioms TypePM.Source.M4MatchFirstTypingRegression.conjunction_irrefutable_exact
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.infer_tuple_destructuring_exact
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_destructuring_relational
 #print axioms TypePM.Source.M4MatchFirstTypingRegression.source_order_first_arm_metadata_exact
@@ -635,6 +646,7 @@ every full build.
 #print axioms TypePM.Source.M4FixTypingRegression.unary_body_context_exact
 #print axioms TypePM.Source.M4FixTypingRegression.matcher_root_fix_shape_exact
 #print axioms TypePM.Source.M4FixTypingRegression.pattern_shifts_checked_exact
+#print axioms TypePM.Source.M4FixTypingRegression.conjunction_shifts_checked_exact
 #print axioms TypePM.Source.M4FixTypingRegression.clause_shifts_checked_exact
 #print axioms TypePM.Source.M4FixTypingRegression.infer_direct_exact
 #print axioms TypePM.Source.M4FixTypingRegression.direct_fixTyping
@@ -675,6 +687,14 @@ every full build.
 #print axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_infer_none
 #print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_not_typable
 #print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_infer_none
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.list_static_checks
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_static_checks
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.listMatcherDefinition_complexity
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetDefinition_complexity
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.closedMultisetDefinition_complexity
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multisetSomething_complexity
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.list_direct_self_check
+#print axioms TypePM.Source.M4Paper1ComputabilityRegression.multiset_direct_self_check
 #print axioms TypePM.unify_eq_of_unifyWithFuel_success
 #print axioms TypePM.inferGeneratedUsing_unify_of_fuel_success
 #print axioms TypePM.Source.M4.elaborateFuel_success_of_solverFuel_success
@@ -721,6 +741,13 @@ every full build.
 #print axioms TypePM.RuntimeTypingRegression.delete1_runtimeTyping
 #print axioms TypePM.RuntimeTypingRegression.delete1_exact_evaluation
 #print axioms TypePM.RuntimeTypingRegression.map_not_in_certified_core
+#print axioms TypePM.RuntimeTypingRegression.identityApplication_runtimeTyping
+#print axioms TypePM.RuntimeTypingRegression.identityApplication_exact_evaluation
+#print axioms TypePM.RuntimeTypingRegression.identityApplication_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.directFixApplication_runtimeTyping
+#print axioms TypePM.RuntimeTypingRegression.directFixApplication_exact_evaluation
+#print axioms TypePM.RuntimeTypingRegression.directFixApplication_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.capturedVariable_typed_result
 #print axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
 #print axioms TypePM.Runtime.ValueTypings.appendEnvironment
 #print axioms TypePM.Runtime.MatchingAtomsTyping.append
@@ -734,6 +761,8 @@ every full build.
 #print axioms TypePM.MatcherSafetyRegression.tuple_search_exact
 #print axioms TypePM.MatcherSafetyRegression.tuple_search_preserves_binding_type
 #print axioms TypePM.MatcherSafetyRegression.tuple_search_never_stuck
+#print axioms TypePM.MatcherSafetyRegression.conjunction_search_exact
+#print axioms TypePM.MatcherSafetyRegression.conjunction_search_preserves_binding_type
 #print axioms TypePM.MatcherSafetyRegression.typed_value_mismatch_is_empty_not_stuck
 #print axioms TypePM.MatcherSafetyRegression.paper_selected_clause_empty_is_normal_state_expansion
 #print axioms TypePM.MatcherSafetyRegression.paper_multiset_state_keeps_clause_branch_order

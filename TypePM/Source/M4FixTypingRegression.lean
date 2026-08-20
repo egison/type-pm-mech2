@@ -61,8 +61,15 @@ def shiftedLetBody : Expr :=
 def shiftedPattern : Pattern :=
   .tuple [.var, .value (.app (.var 2) (.var 1))]
 
+def shiftedConjunctionPattern : Pattern :=
+  .and .var (.value (.app (.var 2) (.var 1)))
+
 def shiftedPatternBody : Expr :=
   .matchAll (.var 0) .something shiftedPattern
+    (.app (.var 2) (.var 1))
+
+def shiftedConjunctionBody : Expr :=
+  .matchAll (.var 0) .something shiftedConjunctionPattern
     (.app (.var 2) (.var 1))
 
 def shiftedClause : MatcherClause :=
@@ -107,6 +114,14 @@ theorem pattern_shifts_checked_exact :
   simp [shiftedPatternBody, shiftedPattern, check, checkFuel, checkHead,
     checkHeadFuel, checkPattern, checkPatternFuel, checkPatterns,
     checkPatternsFuel, patternBindingCount, patternBindingCountList]
+
+/-- A conjunction adds the binders of its left side before checking its right
+side, and its body sees the total number of binders from both sides. -/
+theorem conjunction_shifts_checked_exact :
+    check 1 shiftedConjunctionBody = true := by
+  simp [shiftedConjunctionBody, shiftedConjunctionPattern, check, checkFuel,
+    checkHead, checkHeadFuel, checkPattern, checkPatternFuel,
+    patternBindingCount]
 
 /-- A next-matcher expression has capture at index zero, fix argument at one,
 and recursive self at two.  An arm body additionally has its data variable at

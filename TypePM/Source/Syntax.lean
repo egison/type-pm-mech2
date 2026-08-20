@@ -43,6 +43,7 @@ mutual
     | value (expression : Expr)
     | ctor (constructor : PatternCtor) (fields : List Pattern)
     | tuple (items : List Pattern)
+    | and (left right : Pattern)
     | embed (index : Nat)
     | app (function : PatternFunName) (arguments : List Pattern)
   deriving Repr

@@ -36,6 +36,12 @@ def tupleMatcher : Expr := .tuple [.something, .something]
 
 def tuplePattern : Pattern := .tuple [.var, .var]
 
+theorem conjunction_irrefutable_exact (left right : Pattern) :
+    MatchFirstTyping.structurallyIrrefutable (.and left right) =
+      (MatchFirstTyping.structurallyIrrefutable left &&
+        MatchFirstTyping.structurallyIrrefutable right) := by
+  rfl
+
 def tupleBody : Expr := .tuple [.var 0, .var 1]
 
 def tupleArm : MatchFirstArm := .mk tuplePattern tupleBody

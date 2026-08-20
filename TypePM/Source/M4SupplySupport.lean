@@ -31,7 +31,8 @@ theorem FixElaboratesUsing.supply_le_next
   cases derivation with
   | @fixE body start generatedBody finish direct bodyElaboration =>
       exact Supply.le_trans (by
-        cases body <;> simp [Fix.bodySupply, Supply.Le, Supply.nextTy])
+        simp only [Fix.bodySupply]
+        split <;> simp [Supply.Le, Supply.nextTy])
         (bodyIncreases bodyElaboration)
 
 mutual
@@ -60,6 +61,10 @@ theorem PatternElaboratesUsing.supply_le_next
   | tuple itemsDerivation =>
       exact PatternsElaborateUsing.supply_le_next expressionIncreases
         itemsDerivation
+  | and left right =>
+      exact Supply.le_trans
+        (PatternElaboratesUsing.supply_le_next expressionIncreases left)
+        (PatternElaboratesUsing.supply_le_next expressionIncreases right)
   | embed lookup => exact Supply.le_refl _
   | app lookup arity fieldsDerivation =>
       exact Supply.le_trans (by simp [Supply.Le, DualScheme.instantiate])
@@ -930,7 +935,8 @@ theorem FixElaboratesUsing.supportProvenance
   cases derivation with
   | @fixE body start generatedBody finish direct bodyDerivation =>
       have startToBody : start.Le (Fix.bodySupply body start) := by
-        cases body <;> simp [Fix.bodySupply, Supply.Le, Supply.nextTy]
+        simp only [Fix.bodySupply]
+        split <;> simp [Supply.Le, Supply.nextTy]
       have bodyToFinish := bodyIncreases bodyDerivation
       have typeSupport (target : Ty)
           (member : ∀ candidate, candidate ∈ target.unificationVars →
@@ -943,18 +949,18 @@ theorem FixElaboratesUsing.supportProvenance
           (Fix.bodySupply body start) (Fix.domain body start).unificationVars := by
         apply typeSupport
         intro candidate member
-        cases candidate <;> cases body <;>
-          simp_all [Fix.domain, Fix.bodySupply, Ty.unificationVars,
-            Cap.unificationVars, UnificationVar.FreshIn, Supply.nextTy] <;>
-          omega
+        cases candidate <;> simp only [Fix.domain] at member <;>
+          split at member <;>
+          simp_all [Fix.bodySupply, Ty.unificationVars, Cap.unificationVars,
+            UnificationVar.FreshIn, Supply.nextTy] <;> omega
       have codomainSupport : VariablesSupportProvenance context start
           (Fix.bodySupply body start) (Fix.codomain body start).unificationVars := by
         apply typeSupport
         intro candidate member
-        cases candidate <;> cases body <;>
-          simp_all [Fix.codomain, Fix.bodySupply, Ty.unificationVars,
-            Cap.unificationVars, UnificationVar.FreshIn, Supply.nextTy] <;>
-          omega
+        cases candidate <;> simp only [Fix.codomain] at member <;>
+          split at member <;>
+          simp_all [Fix.bodySupply, Ty.unificationVars, Cap.unificationVars,
+            UnificationVar.FreshIn, Supply.nextTy] <;> omega
       have bodyContextSupport : VariablesSupportProvenance context start
           (Fix.bodySupply body start)
           (Fix.bodyContext (Fix.domain body start) (Fix.codomain body start)
@@ -994,5 +1000,627 @@ theorem FixElaboratesUsing.supportProvenance
         · rcases codomainSupport candidate codomainMember with outer | fresh
           · exact Or.inl outer
           · exact Or.inr (fresh.extend_finish bodyToFinish)
+
+/-! ## Support of matcher headers
+
+The component relations below accept types synthesized by an earlier
+component.  Their support hypotheses say that those input types either came
+from the original context or were allocated before the component started.
+This explicit input condition is what lets the component lemmas compose in
+source order.
+-/
+
+/-- Lift support across a later finishing supply. -/
+theorem VariablesSupportProvenance.extend_finish
+    {context : Context} {start middle finish : Supply} {variables}
+    (increases : middle.Le finish)
+    (support : VariablesSupportProvenance context start middle variables) :
+    VariablesSupportProvenance context start finish variables := by
+  intro candidate member
+  rcases support candidate member with outer | fresh
+  · exact Or.inl outer
+  · exact Or.inr (fresh.extend_finish increases)
+
+/-- Generated support can be moved to an earlier starting supply. -/
+theorem GeneratedSupportProvenance.lower_start
+    {context : Context} {outerStart start finish : Supply} {generated}
+    (increases : outerStart.Le start)
+    (support : GeneratedSupportProvenance context start finish generated) :
+    GeneratedSupportProvenance context outerStart finish generated := by
+  intro candidate member
+  rcases support candidate member with outer | fresh
+  · exact Or.inl outer
+  · exact Or.inr (fresh.lower_start increases)
+
+/-- Generated support can be moved to a later finishing supply. -/
+theorem GeneratedSupportProvenance.extend_finish
+    {context : Context} {start middle finish : Supply} {generated}
+    (increases : middle.Le finish)
+    (support : GeneratedSupportProvenance context start middle generated) :
+    GeneratedSupportProvenance context start finish generated := by
+  intro candidate member
+  rcases support candidate member with outer | fresh
+  · exact Or.inl outer
+  · exact Or.inr (fresh.extend_finish increases)
+
+/-- One freshly allocated ordinary type variable has the expected support. -/
+theorem freshTy_support (context : Context) (start : Supply) :
+    VariablesSupportProvenance context start (start.nextTy 1)
+      (Ty.unificationVars (.var ⟨start.ty⟩)) := by
+  intro candidate member
+  have : candidate = .ty ⟨start.ty⟩ := by
+    simpa [Ty.unificationVars] using member
+  subst candidate
+  exact Or.inr (by simp [UnificationVar.FreshIn, Supply.nextTy])
+
+/-- One freshly allocated capability variable has the expected support. -/
+theorem freshCap_support (context : Context) (start : Supply) :
+    VariablesSupportProvenance context start
+      ⟨start.ty, start.cap + 1⟩ (Cap.unificationVars (.var ⟨start.cap⟩)) := by
+  intro candidate member
+  have : candidate = .cap ⟨start.cap⟩ := by
+    simpa [Cap.unificationVars] using member
+  subst candidate
+  exact Or.inr (by simp [UnificationVar.FreshIn])
+
+/-- Variables of a closed ordinary scheme instance are allocated by that
+instance. -/
+theorem Scheme.instantiate_variables_support
+    {context : Context} {start : Supply} {scheme : Scheme}
+    (closed : scheme.Closed) :
+    VariablesSupportProvenance context start (scheme.instantiate start).2
+      (scheme.instantiate start).1.unificationVars := by
+  intro candidate member
+  exact supportProvenance_closed_instantiate (context := context) closed candidate
+    (by simpa [Generated.unificationVars, TypePM.unificationVars,
+      pendingUnificationVars] using member)
+
+/-- Variable collection distributes over concatenation of type lists. -/
+theorem Ty.unificationVarsList_append (left right : List Ty) :
+    Ty.unificationVarsList (left ++ right) =
+      Ty.unificationVarsList left ++ Ty.unificationVarsList right := by
+  induction left with
+  | nil => rfl
+  | cons head tail induction =>
+      simp only [List.cons_append, Ty.unificationVarsList]
+      rw [induction, List.append_assoc]
+
+/-- Variables in a type found by peeling a curried function occur in the
+original function type. -/
+theorem MatcherTyping.peelFunctionExact_variables
+    {count : Nat} {source : Ty} {fields : List Ty} {result : Ty}
+    (peel : peelFunctionExact count source = some (fields, result)) :
+    ∀ candidate, candidate ∈
+        Ty.unificationVarsList fields ++ result.unificationVars →
+      candidate ∈ source.unificationVars := by
+  induction count generalizing source fields with
+  | zero =>
+      simp [peelFunctionExact] at peel
+      rcases peel with ⟨rfl, rfl⟩
+      intro candidate member
+      simpa [Ty.unificationVarsList] using member
+  | succ count induction =>
+      cases source with
+      | fn domain codomain =>
+          cases equation : peelFunctionExact count codomain with
+          | none => simp [peelFunctionExact, equation] at peel
+          | some output =>
+            rcases output with ⟨tailFields, finalResult⟩
+            simp [peelFunctionExact, equation] at peel
+            rcases peel with ⟨rfl, rfl⟩
+            intro candidate member
+            simp only [Ty.unificationVarsList, List.mem_append] at member
+            rcases member with (domainMember | tailMember) | resultMember
+            · simpa [Ty.unificationVars] using
+                (Or.inl domainMember : candidate ∈ domain.unificationVars ∨
+                  candidate ∈ codomain.unificationVars)
+            · have codomainMember := induction equation candidate (by
+                simpa [Ty.unificationVarsList] using
+                  (Or.inl tailMember : candidate ∈
+                    Ty.unificationVarsList tailFields ∨
+                    candidate ∈ finalResult.unificationVars))
+              simpa [Ty.unificationVars] using
+                (Or.inr codomainMember : candidate ∈ domain.unificationVars ∨
+                  candidate ∈ codomain.unificationVars)
+            · have codomainMember := induction equation candidate (by
+                simpa [Ty.unificationVarsList] using
+                  (Or.inr resultMember : candidate ∈
+                    Ty.unificationVarsList tailFields ∨
+                    candidate ∈ finalResult.unificationVars))
+              simpa [Ty.unificationVars] using
+                (Or.inr codomainMember : candidate ∈ domain.unificationVars ∨
+                  candidate ∈ codomain.unificationVars)
+      | _ => simp [peelFunctionExact] at peel
+
+namespace MatcherTyping
+
+abbrev GeneratedPPatSupportProvenance
+    (context : Context) (start finish : Supply) (generated : GeneratedPPat) :=
+  VariablesSupportProvenance context start finish generated.unificationVars
+
+abbrev GeneratedPPatsSupportProvenance
+    (context : Context) (start finish : Supply) (generated : GeneratedPPats) :=
+  VariablesSupportProvenance context start finish generated.unificationVars
+
+/-- Support of one type equality follows from support of both sides. -/
+theorem tyEquation_support
+    {left right : Ty}
+    (leftSupport : VariablesSupportProvenance context start finish
+      left.unificationVars)
+    (rightSupport : VariablesSupportProvenance context start finish
+      right.unificationVars) :
+    VariablesSupportProvenance context start finish
+      (TypePM.unificationVars [.ty left right]) := by
+  intro candidate member
+  simp only [TypePM.unificationVars, Equation.unificationVars,
+    List.mem_append, List.not_mem_nil, or_false] at member
+  rcases member with leftMember | rightMember
+  · exact leftSupport candidate leftMember
+  · exact rightSupport candidate rightMember
+
+/-- Support of one capability equality follows from support of both sides. -/
+theorem capEquation_support
+    {left right : Cap}
+    (leftSupport : VariablesSupportProvenance context start finish
+      left.unificationVars)
+    (rightSupport : VariablesSupportProvenance context start finish
+      right.unificationVars) :
+    VariablesSupportProvenance context start finish
+      (TypePM.unificationVars [.cap left right]) := by
+  intro candidate member
+  simp only [TypePM.unificationVars, Equation.unificationVars,
+    List.mem_append, List.not_mem_nil, or_false] at member
+  rcases member with leftMember | rightMember
+  · exact leftSupport candidate leftMember
+  · exact rightSupport candidate rightMember
+
+mutual
+
+/-- Support of a pattern-pattern header and its synthesized holes, captures,
+evidence, and equations. -/
+theorem PPatElaborates.supportProvenance
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {pattern expectedTarget expectedCapability start generated finish}
+    (targetSupport : VariablesSupportProvenance context outerStart start
+      expectedTarget.unificationVars)
+    (capabilitySupport : VariablesSupportProvenance context outerStart start
+      (match expectedCapability with
+       | none => []
+       | some capability => capability.unificationVars))
+    (outerToStart : outerStart.Le start)
+    (derivation : PPatElaborates signature pattern expectedTarget
+      expectedCapability start generated finish) :
+    GeneratedPPatSupportProvenance context outerStart finish generated := by
+  cases derivation with
+  | hole =>
+      intro candidate member
+      cases expectedCapability with
+      | none =>
+        simp [GeneratedPPat.unificationVars, dualUnificationVars,
+          dualVariables, Ty.unificationVarsList,
+          TypePM.unificationVars] at member
+        rcases member with freshMember | targetMember
+        · have equality : candidate = .cap ⟨start.cap⟩ := by
+            simpa [Cap.unificationVars] using freshMember
+          subst candidate
+          exact Or.inr ⟨outerToStart.2, Nat.lt_succ_self start.cap⟩
+        · exact (targetSupport.extend_finish (by simp [Supply.Le])) candidate
+            targetMember
+      | some expected =>
+        simp [GeneratedPPat.unificationVars, dualUnificationVars,
+          dualVariables, Ty.unificationVarsList, TypePM.unificationVars,
+          Equation.unificationVars] at member
+        rcases member with freshMember | targetMember | freshMember | expectedMember
+        · have equality : candidate = .cap ⟨start.cap⟩ := by
+            simpa [Cap.unificationVars] using freshMember
+          subst candidate
+          exact Or.inr ⟨outerToStart.2, Nat.lt_succ_self start.cap⟩
+        · exact (targetSupport.extend_finish (by simp [Supply.Le])) candidate
+            targetMember
+        · have equality : candidate = .cap ⟨start.cap⟩ := by
+            simpa [Cap.unificationVars] using freshMember
+          subst candidate
+          exact Or.inr ⟨outerToStart.2, Nat.lt_succ_self start.cap⟩
+        · exact (capabilitySupport.extend_finish
+            (by simp [Supply.Le])) candidate expectedMember
+  | wild =>
+      intro candidate member
+      simp [GeneratedPPat.unificationVars, dualUnificationVars,
+        Ty.unificationVarsList, TypePM.unificationVars] at member
+  | capture =>
+      intro candidate member
+      apply targetSupport candidate
+      simpa [GeneratedPPat.unificationVars, dualUnificationVars,
+        Ty.unificationVarsList, TypePM.unificationVars] using member
+  | @ctor constructor fields expectedTarget expectedCapability start scheme
+      generatedFields finish lookup arity fieldsDerivation =>
+      have closed := wellFormed.baseWellFormed.patternConstructorClosed_of_lookup
+        lookup
+      have instantiatedFresh := DualScheme.instantiate_support closed start
+      have instantiatedSupport : VariablesSupportProvenance context start
+          (scheme.instantiate start).2
+          (dualUnificationVars (scheme.instantiate start).1.fields ++
+            dualVariables (scheme.instantiate start).1.result) := by
+        intro candidate member
+        rcases instantiatedFresh candidate member with impossible | fresh
+        · exfalso
+          rcases impossible with ⟨index, indexMember, equality⟩ |
+              ⟨index, indexMember, equality⟩ <;>
+            simpa [Context.freeTyVars, Context.freeCapVars,
+              mem_dedupFirst] using indexMember
+        · exact Or.inr fresh
+      have outerInstantiatedSupport : VariablesSupportProvenance context
+          outerStart (scheme.instantiate start).2
+          (dualUnificationVars (scheme.instantiate start).1.fields ++
+            dualVariables (scheme.instantiate start).1.result) :=
+        instantiatedSupport.lower_start outerToStart
+      have fieldsSupport := PPatsElaborate.supportProvenance wellFormed
+        (fun candidate member => outerInstantiatedSupport candidate
+          (by exact List.mem_append_left _ member))
+        (Supply.le_trans outerToStart (by
+          simp [Supply.Le, DualScheme.instantiate])) fieldsDerivation
+      have instantiatedToFinish := fieldsDerivation.supply_le_next
+      have instantiatedFinal :=
+        outerInstantiatedSupport.extend_finish instantiatedToFinish
+      have fieldsFinal := fieldsSupport
+      have holesSupport : VariablesSupportProvenance context outerStart finish
+          (dualUnificationVars generatedFields.holes) := by
+        intro candidate member
+        exact fieldsFinal candidate (by
+          simp [GeneratedPPats.unificationVars, member])
+      have capturesSupport : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedFields.captures) := by
+        intro candidate member
+        exact fieldsFinal candidate (by
+          simp [GeneratedPPats.unificationVars, member])
+      have resultTargetSupport : VariablesSupportProvenance context outerStart finish
+          (scheme.instantiate start).1.result.target.unificationVars := by
+        intro candidate member
+        exact instantiatedFinal candidate (by
+          exact List.mem_append_right _ (by simp [dualVariables, member]))
+      have resultCapabilitySupport : VariablesSupportProvenance context outerStart
+          finish (scheme.instantiate start).1.result.capability.unificationVars := by
+        intro candidate member
+        exact instantiatedFinal candidate (by
+          exact List.mem_append_right _ (by simp [dualVariables, member]))
+      have targetFinal := targetSupport.extend_finish
+        (Supply.le_trans (by simp [Supply.Le, DualScheme.instantiate])
+          instantiatedToFinish)
+      have outerTargetEquation := tyEquation_support resultTargetSupport targetFinal
+      have fieldsHardSupport : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedFields.hard) := by
+        intro candidate member
+        exact fieldsFinal candidate (by
+          simp [GeneratedPPats.unificationVars, member])
+      have hardSupport : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars
+            (([.ty (scheme.instantiate start).1.result.target expectedTarget] ++
+              (match expectedCapability with
+               | some expected =>
+                   [.cap (scheme.instantiate start).1.result.capability expected]
+               | none => [])) ++ generatedFields.hard)) := by
+        intro candidate member
+        have targetDirect : VariablesSupportProvenance context outerStart finish
+            (Equation.ty (scheme.instantiate start).1.result.target
+              expectedTarget).unificationVars := by
+          intro item itemMember
+          exact outerTargetEquation item (by
+            simpa [TypePM.unificationVars] using itemMember)
+        cases expectedCapability with
+        | none =>
+            change candidate ∈
+              (Equation.ty (scheme.instantiate start).1.result.target
+                expectedTarget).unificationVars ++
+              TypePM.unificationVars generatedFields.hard at member
+            exact (targetDirect.append fieldsHardSupport) candidate member
+        | some expected =>
+            have expectedFinal :=
+              capabilitySupport.extend_finish
+                (Supply.le_trans
+                  (by simp [Supply.Le, DualScheme.instantiate])
+                  instantiatedToFinish)
+            have capabilityEquation :=
+              capEquation_support resultCapabilitySupport expectedFinal
+            have capabilityDirect : VariablesSupportProvenance context outerStart
+                finish (Equation.cap
+                  (scheme.instantiate start).1.result.capability
+                  expected).unificationVars := by
+              intro item itemMember
+              exact capabilityEquation item (by
+                simpa [TypePM.unificationVars] using itemMember)
+            change candidate ∈
+              (Equation.ty (scheme.instantiate start).1.result.target
+                expectedTarget).unificationVars ++
+              ((Equation.cap (scheme.instantiate start).1.result.capability
+                expected).unificationVars ++
+                TypePM.unificationVars generatedFields.hard) at member
+            exact (targetDirect.append
+              (capabilityDirect.append fieldsHardSupport)) candidate member
+      intro candidate member
+      exact (((holesSupport.append capturesSupport).append
+        resultCapabilitySupport).append hardSupport) candidate member
+
+/-- Support of a left-to-right list of pattern-pattern headers. -/
+theorem PPatsElaborate.supportProvenance
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {patterns expected start generated finish}
+    (expectedSupport : VariablesSupportProvenance context outerStart start
+      (dualUnificationVars expected))
+    (outerToStart : outerStart.Le start)
+    (derivation : PPatsElaborate signature patterns expected start generated
+      finish) :
+    GeneratedPPatsSupportProvenance context outerStart finish generated := by
+  cases derivation with
+  | nil =>
+      intro candidate member
+      simp [GeneratedPPats.unificationVars, dualUnificationVars,
+        Ty.unificationVarsList, TypePM.unificationVars] at member
+  | @cons pattern patterns expected expecteds start generatedPattern afterPattern
+      generatedPatterns finish head tail =>
+      have headExpected : VariablesSupportProvenance context outerStart start
+          (dualVariables expected) := by
+        intro candidate member
+        exact expectedSupport candidate (by
+          simp [dualUnificationVars, member])
+      have headSupport := PPatElaborates.supportProvenance wellFormed
+        (fun candidate member => headExpected candidate (by
+          simp [dualVariables, member]))
+        (fun candidate member => headExpected candidate (by
+          simp [dualVariables, member])) outerToStart head
+      have startToAfter := head.supply_le_next
+      have tailExpectedAtStart : VariablesSupportProvenance context outerStart start
+          (dualUnificationVars expecteds) := by
+        intro candidate member
+        exact expectedSupport candidate (by
+          simp only [dualUnificationVars, List.flatMap_cons, List.mem_append]
+          exact Or.inr member)
+      have tailExpected : VariablesSupportProvenance context outerStart afterPattern
+          (dualUnificationVars expecteds) :=
+        tailExpectedAtStart.extend_finish startToAfter
+      have tailSupport := PPatsElaborate.supportProvenance
+        (context := context) (outerStart := outerStart) wellFormed tailExpected
+        (Supply.le_trans outerToStart startToAfter) tail
+      intro candidate member
+      have headHoles : VariablesSupportProvenance context outerStart finish
+          (dualUnificationVars generatedPattern.holes) := by
+        intro item itemMember
+        exact (headSupport.extend_finish tail.supply_le_next) item (by
+          simp [GeneratedPPat.unificationVars, itemMember])
+      have tailHoles : VariablesSupportProvenance context outerStart finish
+          (dualUnificationVars generatedPatterns.holes) := by
+        intro item itemMember
+        exact tailSupport item (by
+          simp [GeneratedPPats.unificationVars, itemMember])
+      have headCaptures : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedPattern.captures) := by
+        intro item itemMember
+        exact (headSupport.extend_finish tail.supply_le_next) item (by
+          simp [GeneratedPPat.unificationVars, itemMember])
+      have tailCaptures : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedPatterns.captures) := by
+        intro item itemMember
+        exact tailSupport item (by
+          simp [GeneratedPPats.unificationVars, itemMember])
+      have headHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedPattern.hard) := by
+        intro item itemMember
+        exact (headSupport.extend_finish tail.supply_le_next) item (by
+          simp [GeneratedPPat.unificationVars, itemMember])
+      have tailHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedPatterns.hard) := by
+        intro item itemMember
+        exact tailSupport item (by
+          simp [GeneratedPPats.unificationVars, itemMember])
+      exact (headHoles.append tailHoles).append
+        ((headCaptures.append tailCaptures).append
+          (headHard.append tailHard)) candidate (by
+            simpa [GeneratedPPats.unificationVars, dualUnificationVars,
+              Ty.unificationVarsList_append, List.flatMap_append,
+              List.append_assoc,
+              unificationVars_append] using member)
+
+end
+
+abbrev GeneratedDPatSupportProvenance
+    (context : Context) (start finish : Supply) (generated : GeneratedDPat) :=
+  VariablesSupportProvenance context start finish generated.unificationVars
+
+abbrev GeneratedDPatsSupportProvenance
+    (context : Context) (start finish : Supply) (generated : GeneratedDPats) :=
+  VariablesSupportProvenance context start finish generated.unificationVars
+
+/-- Tuple fields reserved consecutively from the ordinary type-variable
+counter are supported by exactly that reservation interval. -/
+theorem freshTargets_support (context : Context) (start : Supply) (count : Nat) :
+    VariablesSupportProvenance context start (start.nextTy count)
+      (Ty.unificationVarsList (freshTargets start count)) := by
+  induction count with
+  | zero =>
+      intro candidate member
+      simp [freshTargets, Ty.unificationVarsList] at member
+  | succ count induction =>
+      have step : (start.nextTy count).Le (start.nextTy (count + 1)) := by
+        simp [Supply.Le, Supply.nextTy]
+      have previous := induction.extend_finish step
+      have last : VariablesSupportProvenance context start
+          (start.nextTy (count + 1))
+          (Ty.unificationVars (.var ⟨start.ty + count⟩)) := by
+        intro candidate member
+        have equality : candidate = .ty ⟨start.ty + count⟩ := by
+          simpa [Ty.unificationVars] using member
+        subst candidate
+        exact Or.inr (by
+          simp only [UnificationVar.FreshIn, Supply.nextTy]
+          omega)
+      intro candidate member
+      apply previous.append last candidate
+      simpa [freshTargets, List.range_succ, List.map_append,
+        Ty.unificationVarsList_append, Ty.unificationVarsList] using member
+
+mutual
+
+/-- Support of one matcher data pattern. -/
+theorem DPatElaborates.supportProvenance
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {pattern expected start generated finish}
+    (expectedSupport : VariablesSupportProvenance context outerStart start
+      expected.unificationVars)
+    (outerToStart : outerStart.Le start)
+    (derivation : DPatElaborates signature pattern expected start generated
+      finish) :
+    GeneratedDPatSupportProvenance context outerStart finish generated := by
+  cases derivation with
+  | var =>
+      intro candidate member
+      apply expectedSupport candidate
+      simpa [GeneratedDPat.unificationVars, Ty.unificationVarsList,
+        TypePM.unificationVars] using member
+  | wild =>
+      intro candidate member
+      simp [GeneratedDPat.unificationVars, Ty.unificationVarsList,
+        TypePM.unificationVars] at member
+  | @ctor constructor fields expected start scheme fieldTypes resultType
+      generatedFields finish lookup arity peel fieldsDerivation =>
+      have closed := wellFormed.baseWellFormed.dataConstructorClosed_of_lookup
+        lookup
+      have instantiated := Scheme.instantiate_variables_support
+        (context := context) (start := start) closed
+      have outerInstantiated := instantiated.lower_start outerToStart
+      have instantiatedToFields : start.Le (scheme.instantiate start).2 := by
+        simp [Supply.Le, Scheme.instantiate]
+      have peeledSupport : VariablesSupportProvenance context outerStart
+          (scheme.instantiate start).2
+          (Ty.unificationVarsList fieldTypes ++ resultType.unificationVars) := by
+        intro candidate member
+        exact outerInstantiated candidate
+          (MatcherTyping.peelFunctionExact_variables peel candidate member)
+      have fieldTypesSupport : VariablesSupportProvenance context outerStart
+          (scheme.instantiate start).2 (Ty.unificationVarsList fieldTypes) := by
+        intro candidate member
+        exact peeledSupport candidate (List.mem_append_left _ member)
+      have fieldsSupport := DPatsElaborate.supportProvenance wellFormed
+        fieldTypesSupport (Supply.le_trans outerToStart instantiatedToFields)
+        fieldsDerivation
+      have instantiatedToFinish := fieldsDerivation.supply_le_next
+      have resultSupport : VariablesSupportProvenance context outerStart finish
+          resultType.unificationVars := by
+        intro candidate member
+        exact (peeledSupport.extend_finish instantiatedToFinish) candidate
+          (List.mem_append_right _ member)
+      have expectedFinal := expectedSupport.extend_finish
+        (Supply.le_trans instantiatedToFields instantiatedToFinish)
+      have equationSupport := tyEquation_support resultSupport expectedFinal
+      have bindingsSupport : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedFields.bindings) := by
+        intro candidate member
+        exact fieldsSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      have fieldsHardSupport : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedFields.hard) := by
+        intro candidate member
+        exact fieldsSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      intro candidate member
+      exact bindingsSupport.append (equationSupport.append fieldsHardSupport)
+        candidate (by
+          simpa [GeneratedDPat.unificationVars, TypePM.unificationVars]
+            using member)
+  | @tuple items expected start fields generatedItems finish fieldsEquality
+      itemsDerivation =>
+      subst fields
+      have reserved := freshTargets_support context start items.length
+      have outerReserved := reserved.lower_start outerToStart
+      have startToItems : start.Le (start.nextTy items.length) :=
+        Supply.le_nextTy _ _
+      have itemsSupport := DPatsElaborate.supportProvenance wellFormed
+        outerReserved (Supply.le_trans outerToStart startToItems) itemsDerivation
+      have itemsToFinish := itemsDerivation.supply_le_next
+      have fieldsFinal := outerReserved.extend_finish itemsToFinish
+      have expectedFinal := expectedSupport.extend_finish
+        (Supply.le_trans startToItems itemsToFinish)
+      have productSupport : VariablesSupportProvenance context outerStart finish
+          (.prod (freshTargets start items.length) : Ty).unificationVars := by
+        simpa [Ty.unificationVars] using fieldsFinal
+      have equationSupport := tyEquation_support expectedFinal productSupport
+      have bindingsSupport : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedItems.bindings) := by
+        intro candidate member
+        exact itemsSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      have itemsHardSupport : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedItems.hard) := by
+        intro candidate member
+        exact itemsSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      intro candidate member
+      exact bindingsSupport.append (equationSupport.append itemsHardSupport)
+        candidate (by
+          simpa [GeneratedDPat.unificationVars, TypePM.unificationVars]
+            using member)
+
+/-- Support of a source-ordered list of matcher data patterns. -/
+theorem DPatsElaborate.supportProvenance
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {patterns expected start generated finish}
+    (expectedSupport : VariablesSupportProvenance context outerStart start
+      (Ty.unificationVarsList expected))
+    (outerToStart : outerStart.Le start)
+    (derivation : DPatsElaborate signature patterns expected start generated
+      finish) :
+    GeneratedDPatsSupportProvenance context outerStart finish generated := by
+  cases derivation with
+  | nil =>
+      intro candidate member
+      simp [GeneratedDPats.unificationVars, Ty.unificationVarsList,
+        TypePM.unificationVars] at member
+  | @cons pattern patterns expected expecteds start generatedPattern afterPattern
+      generatedPatterns finish head tail =>
+      have headExpected : VariablesSupportProvenance context outerStart start
+          expected.unificationVars := by
+        intro candidate member
+        exact expectedSupport candidate (by
+          simp [Ty.unificationVarsList, member])
+      have headSupport := DPatElaborates.supportProvenance wellFormed headExpected
+        outerToStart head
+      have startToAfter := head.supply_le_next
+      have tailExpectedAtStart : VariablesSupportProvenance context outerStart start
+          (Ty.unificationVarsList expecteds) := by
+        intro candidate member
+        exact expectedSupport candidate (by
+          simp [Ty.unificationVarsList, member])
+      have tailSupport := DPatsElaborate.supportProvenance wellFormed
+        (tailExpectedAtStart.extend_finish startToAfter)
+        (Supply.le_trans outerToStart startToAfter) tail
+      have afterToFinish := tail.supply_le_next
+      have headFinal := headSupport.extend_finish afterToFinish
+      have headBindings : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedPattern.bindings) := by
+        intro candidate member
+        exact headFinal candidate (by
+          simp [GeneratedDPat.unificationVars, member])
+      have tailBindings : VariablesSupportProvenance context outerStart finish
+          (Ty.unificationVarsList generatedPatterns.bindings) := by
+        intro candidate member
+        exact tailSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      have headHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedPattern.hard) := by
+        intro candidate member
+        exact headFinal candidate (by
+          simp [GeneratedDPat.unificationVars, member])
+      have tailHard : VariablesSupportProvenance context outerStart finish
+          (TypePM.unificationVars generatedPatterns.hard) := by
+        intro candidate member
+        exact tailSupport candidate (by
+          simp [GeneratedDPats.unificationVars, member])
+      intro candidate member
+      exact (headBindings.append tailBindings).append
+        (headHard.append tailHard) candidate (by
+          simpa [GeneratedDPats.unificationVars, Ty.unificationVarsList_append,
+            unificationVars_append] using member)
+
+end
+
+end MatcherTyping
 
 end TypePM.Source

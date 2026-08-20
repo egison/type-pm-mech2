@@ -16,17 +16,17 @@ namespace TypePM.MatcherSafetyRegression
 open TypePM.Source
 open TypePM.Runtime
 
-/-- Reuse the existing closed integer/tuple runtime typing for expressions
-embedded in value patterns.  The ordinary context is ignored by this closed
-fragment. -/
+/-- Reuse the certified runtime typing for expressions embedded in value
+patterns.  The context records the types of the binding prefix and ordinary
+environment in the same order used by the evaluator. -/
 def CoreEmbeddedTyping : EmbeddedExpressionTyping :=
-  fun _ expression target => RuntimeTyping expression target
+  fun context expression target => RuntimeTyping expression target context
 
 theorem coreEvaluatorSafe (fuel : Nat) :
     EmbeddedEvaluatorSafe CoreEmbeddedTyping (evalFuel fuel) := by
   intro environmentTypes environment expression target environmentTyped
     expressionTyped
-  exact expressionTyped.coreSafety fuel environment
+  exact expressionTyped.coreSafety fuel environment environmentTyped
 
 theorem tuple_pattern_binding_types_preserve_source_order :
     PatternBinds CoreEmbeddedTyping [] []
@@ -80,6 +80,35 @@ theorem tuple_search_never_stuck :
   searchMatchingFuel_typed_notStuck
     (reduceBuiltinAtom_typedSafe CoreEmbeddedTyping (evalFuel 1)
       (coreEvaluatorSafe 1)) tuple_state_typed 4
+
+def conjunctionAtom : MatchingAtom :=
+  ⟨.and .var (.value (.lit 1)), .something, .int 1⟩
+
+def conjunctionState : MatchingState := ⟨[conjunctionAtom], [], []⟩
+
+theorem conjunction_atom_typed :
+    MatchingAtomTyping CoreEmbeddedTyping [] [] conjunctionAtom [.int] := by
+  exact .and (.somethingVar (.int 1))
+    (.somethingValue (.lit 1) (.int 1))
+
+theorem conjunction_state_typed :
+    MatchingStateTyping CoreEmbeddedTyping conjunctionState [.int] := by
+  exact .mk .nil .nil
+    (MatchingAtomsTyping.cons conjunctionAtom [] [.int] []
+      conjunction_atom_typed .nil)
+
+theorem conjunction_search_exact :
+    searchMatchingFuel (reduceBuiltinAtom (evalFuel 1)) 4 conjunctionState =
+      .ok [[.int 1]] := by
+  rfl
+
+theorem conjunction_search_preserves_binding_type :
+    TypedMatchingSearchResult [.int]
+      (searchMatchingFuel (reduceBuiltinAtom (evalFuel 1)) 4
+        conjunctionState) :=
+  searchMatchingFuel_typedSafe
+    (reduceBuiltinAtom_typedSafe CoreEmbeddedTyping (evalFuel 1)
+      (coreEvaluatorSafe 1)) conjunction_state_typed 4
 
 def mismatchAtom : MatchingAtom :=
   ⟨.value (.lit 1), .something, .int 2⟩

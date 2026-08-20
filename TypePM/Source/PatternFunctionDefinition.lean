@@ -37,6 +37,10 @@ mutual
     | .wild => some []
     | .ctor _ fields => Pattern.inlineTemplateEmbedsList fields
     | .tuple items => Pattern.inlineTemplateEmbedsList items
+    | .and left right => do
+        let leftEmbeds ← left.inlineTemplateEmbeds
+        let rightEmbeds ← right.inlineTemplateEmbeds
+        pure (leftEmbeds ++ rightEmbeds)
     | .embed index => some [index]
     | .var | .value _ | .app _ _ => none
 
@@ -76,6 +80,10 @@ template.  Unsupported private constructs return `none`. -/
     | .tuple items => do
         let instantiated ← Pattern.instantiateInlineTemplates arguments items
         pure (.tuple instantiated)
+    | .and left right => do
+        let instantiatedLeft ← left.instantiateInlineTemplate arguments
+        let instantiatedRight ← right.instantiateInlineTemplate arguments
+        pure (.and instantiatedLeft instantiatedRight)
     | .embed index => arguments[index]?
     | .var | .value _ | .app _ _ => none
 
