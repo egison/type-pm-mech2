@@ -69,6 +69,18 @@ def SupportedM4ExpressionPairProperty
       ElaboratesFuel signature rightFuel context expression start right rightNext →
       Nonempty (SupportedM2PairCoherence start leftNext rightNext left right)
 
+/-- Complexity-bounded callback used when pattern coherence is discharged
+from the induction hypothesis of an enclosing expression constructor. -/
+def SupportedM4ExpressionPairPropertyBelow
+    (signature : FrozenSignature) (leftFuel rightFuel limit : Nat) : Prop :=
+  ∀ {context : Context} {expression : Expr} {start : Supply}
+      {left right : Generated} {leftNext rightNext : Supply},
+    expression.complexity < limit →
+      start.WellFormedFor context →
+        ElaboratesFuel signature leftFuel context expression start left leftNext →
+        ElaboratesFuel signature rightFuel context expression start right rightNext →
+        Nonempty (SupportedM2PairCoherence start leftNext rightNext left right)
+
 /-- The syntax-independent part of an embedded-expression comparison. -/
 def M4ExpressionSupplyPairProperty
     (left right : M4ExpressionElaborationRelation) : Prop :=
@@ -2202,15 +2214,16 @@ mutual
 
 /-- Full supported semantic coherence for a user pattern, parameterized only
 by the supported coherence of its embedded expressions. -/
-theorem PatternElaboratesUsing.supportedFuelPairCoherence
-    {signature : FrozenSignature} {leftFuel rightFuel : Nat}
+theorem PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+    {signature : FrozenSignature} {leftFuel rightFuel limit : Nat}
     (signatureWellFormed : signature.WellFormed)
-    (expressionPair : SupportedM4ExpressionPairProperty
-      signature leftFuel rightFuel)
+    (expressionPair : SupportedM4ExpressionPairPropertyBelow
+      signature leftFuel rightFuel limit)
     {context : Context} {outerStart start : Supply}
     {arguments : PatternContext} {pattern : Pattern} {bindings : List Ty}
     {leftGenerated rightGenerated : GeneratedPattern}
     {leftNext rightNext : Supply}
+    (complexityBound : pattern.complexity < limit)
     (contextWellFormed : outerStart.WellFormedFor context)
     (argumentsSupport : VariablesSupportProvenance context outerStart start
       (dualUnificationVars arguments))
@@ -2240,7 +2253,9 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
           have childWellFormed :=
             M4FreshRenaming.Supply.WellFormedFor.of_contextSupport
               contextWellFormed outerToStart contextSupport
-          obtain ⟨child⟩ := expressionPair childWellFormed
+          obtain ⟨child⟩ := expressionPair (by
+              simp_all [Pattern.complexity]
+              omega) childWellFormed
             leftExpression rightExpression
           have bindingsAvoid := support_avoids_laterFresh contextWellFormed
             outerToStart bindingsSupport child.certificate.hiddenFresh
@@ -2257,8 +2272,10 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
           have startToFields : start.Le (leftScheme.instantiate start).2 := by
             simp [Supply.Le, DualScheme.instantiate]
           obtain ⟨fieldsResult⟩ :=
-            PatternsElaborateUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               (argumentsSupport.extend_finish startToFields)
               (bindingsSupport.extend_finish startToFields)
               (Supply.le_trans outerToStart startToFields)
@@ -2315,8 +2332,10 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
       cases rightDerivation with
       | @tuple _ _ _ rightItems rightFinish rightItemsDerivation =>
           obtain ⟨itemsResult⟩ :=
-            PatternsElaborateUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               argumentsSupport bindingsSupport outerToStart
               leftItemsDerivation rightItemsDerivation
           exact ⟨
@@ -2331,8 +2350,10 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
       | @and _ _ _ _ rightFirst rightMiddle rightSecond rightFinish
           rightFirstDerivation rightSecondDerivation =>
           obtain ⟨firstResult⟩ :=
-            PatternElaboratesUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               argumentsSupport bindingsSupport outerToStart
               leftFirstDerivation rightFirstDerivation
           cases firstResult.next_eq
@@ -2349,8 +2370,10 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
             exact leftFirstSupport candidate (by
               simp [GeneratedPattern.unificationVars, member])
           obtain ⟨secondResult⟩ :=
-            PatternElaboratesUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               (argumentsSupport.extend_finish startToMiddle) outputBindings
               (Supply.le_trans outerToStart startToMiddle)
               leftSecondDerivation rightSecondDerivation
@@ -2479,16 +2502,20 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
       | @or _ _ _ _ rightFirst rightMiddle rightSecond rightFinish rightChecks
           rightFirstDerivation rightSecondDerivation rightChecksComputed =>
           obtain ⟨firstResult⟩ :=
-            PatternElaboratesUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               argumentsSupport bindingsSupport outerToStart
               leftFirstDerivation rightFirstDerivation
           cases firstResult.next_eq
           have startToMiddle := leftFirstDerivation.supply_le_next
             (fun child => child.supply_le_next)
           obtain ⟨secondResult⟩ :=
-            PatternElaboratesUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               (argumentsSupport.extend_finish startToMiddle)
               (bindingsSupport.extend_finish startToMiddle)
               (Supply.le_trans outerToStart startToMiddle)
@@ -2623,8 +2650,10 @@ theorem PatternElaboratesUsing.supportedFuelPairCoherence
           have startToFields : start.Le (leftScheme.instantiate start).2 := by
             simp [Supply.Le, DualScheme.instantiate]
           obtain ⟨fieldsResult⟩ :=
-            PatternsElaborateUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.complexity]
+                omega) contextWellFormed
               (argumentsSupport.extend_finish startToFields)
               (bindingsSupport.extend_finish startToFields)
               (Supply.le_trans outerToStart startToFields)
@@ -2683,15 +2712,16 @@ decreasing_by
   all_goals omega
 
 /-- Full supported semantic coherence for a source-ordered pattern list. -/
-theorem PatternsElaborateUsing.supportedFuelPairCoherence
-    {signature : FrozenSignature} {leftFuel rightFuel : Nat}
+theorem PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+    {signature : FrozenSignature} {leftFuel rightFuel limit : Nat}
     (signatureWellFormed : signature.WellFormed)
-    (expressionPair : SupportedM4ExpressionPairProperty
-      signature leftFuel rightFuel)
+    (expressionPair : SupportedM4ExpressionPairPropertyBelow
+      signature leftFuel rightFuel limit)
     {context : Context} {outerStart start : Supply}
     {arguments : PatternContext} {patterns : List Pattern} {bindings : List Ty}
     {leftGenerated rightGenerated : GeneratedPatterns}
     {leftNext rightNext : Supply}
+    (complexityBound : Pattern.listComplexity patterns < limit)
     (contextWellFormed : outerStart.WellFormedFor context)
     (argumentsSupport : VariablesSupportProvenance context outerStart start
       (dualUnificationVars arguments))
@@ -2727,8 +2757,10 @@ theorem PatternsElaborateUsing.supportedFuelPairCoherence
       | @cons _ _ _ _ rightHead rightMiddle rightTail rightFinish
           rightHeadDerivation rightTailDerivation =>
           obtain ⟨headResult⟩ :=
-            PatternElaboratesUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.listComplexity]
+                omega) contextWellFormed
               argumentsSupport bindingsSupport outerToStart
               leftHeadDerivation rightHeadDerivation
           cases headResult.next_eq
@@ -2745,8 +2777,10 @@ theorem PatternsElaborateUsing.supportedFuelPairCoherence
             exact leftHeadSupport candidate (by
               simp [GeneratedPattern.unificationVars, member])
           obtain ⟨tailResult⟩ :=
-            PatternsElaborateUsing.supportedFuelPairCoherence
-              signatureWellFormed expressionPair contextWellFormed
+            PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+              signatureWellFormed expressionPair (by
+                simp_all [Pattern.listComplexity]
+                omega) contextWellFormed
               (argumentsSupport.extend_finish startToMiddle) outputBindings
               (Supply.le_trans outerToStart startToMiddle)
               leftTailDerivation rightTailDerivation
@@ -2807,4 +2841,72 @@ decreasing_by
   all_goals omega
 
 end
+
+/-- Unbounded public wrapper for callers that already have coherence for
+every possible embedded expression. -/
+theorem PatternElaboratesUsing.supportedFuelPairCoherence
+    {signature : FrozenSignature} {leftFuel rightFuel : Nat}
+    (signatureWellFormed : signature.WellFormed)
+    (expressionPair : SupportedM4ExpressionPairProperty
+      signature leftFuel rightFuel)
+    {context : Context} {outerStart start : Supply}
+    {arguments : PatternContext} {pattern : Pattern} {bindings : List Ty}
+    {leftGenerated rightGenerated : GeneratedPattern}
+    {leftNext rightNext : Supply}
+    (contextWellFormed : outerStart.WellFormedFor context)
+    (argumentsSupport : VariablesSupportProvenance context outerStart start
+      (dualUnificationVars arguments))
+    (bindingsSupport : VariablesSupportProvenance context outerStart start
+      (Ty.unificationVarsList bindings))
+    (outerToStart : outerStart.Le start)
+    (leftDerivation : PatternElaboratesUsing
+      (ElaboratesFuel signature leftFuel) signature context arguments pattern
+      bindings start leftGenerated leftNext)
+    (rightDerivation : PatternElaboratesUsing
+      (ElaboratesFuel signature rightFuel) signature context arguments pattern
+      bindings start rightGenerated rightNext) :
+    Nonempty (SupportedM4PatternPairCoherence start leftNext rightNext
+      leftGenerated rightGenerated) := by
+  apply PatternElaboratesUsing.supportedFuelPairCoherenceBelow
+    signatureWellFormed
+    (limit := pattern.complexity + 1)
+    (fun _bound wellFormed left right =>
+      expressionPair wellFormed left right)
+    (Nat.lt_succ_self _)
+    contextWellFormed argumentsSupport bindingsSupport outerToStart
+    leftDerivation rightDerivation
+
+/-- Unbounded public wrapper for source-ordered pattern lists. -/
+theorem PatternsElaborateUsing.supportedFuelPairCoherence
+    {signature : FrozenSignature} {leftFuel rightFuel : Nat}
+    (signatureWellFormed : signature.WellFormed)
+    (expressionPair : SupportedM4ExpressionPairProperty
+      signature leftFuel rightFuel)
+    {context : Context} {outerStart start : Supply}
+    {arguments : PatternContext} {patterns : List Pattern} {bindings : List Ty}
+    {leftGenerated rightGenerated : GeneratedPatterns}
+    {leftNext rightNext : Supply}
+    (contextWellFormed : outerStart.WellFormedFor context)
+    (argumentsSupport : VariablesSupportProvenance context outerStart start
+      (dualUnificationVars arguments))
+    (bindingsSupport : VariablesSupportProvenance context outerStart start
+      (Ty.unificationVarsList bindings))
+    (outerToStart : outerStart.Le start)
+    (leftDerivation : PatternsElaborateUsing
+      (ElaboratesFuel signature leftFuel) signature context arguments patterns
+      bindings start leftGenerated leftNext)
+    (rightDerivation : PatternsElaborateUsing
+      (ElaboratesFuel signature rightFuel) signature context arguments patterns
+      bindings start rightGenerated rightNext) :
+    Nonempty (SupportedM4PatternsPairCoherence start leftNext rightNext
+      leftGenerated rightGenerated) := by
+  apply PatternsElaborateUsing.supportedFuelPairCoherenceBelow
+    signatureWellFormed
+    (limit := Pattern.listComplexity patterns + 1)
+    (fun _bound wellFormed left right =>
+      expressionPair wellFormed left right)
+    (Nat.lt_succ_self _)
+    contextWellFormed argumentsSupport bindingsSupport outerToStart
+    leftDerivation rightDerivation
+
 end TypePM.Source.M4.CompletenessArchitecture
