@@ -50,6 +50,7 @@ import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
 import TypePM.Source.M4StructuralReplay
 import TypePM.Source.M4PatternReplay
+import TypePM.Source.M4MatcherReplay
 import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.M4FixTypingRegression
@@ -836,6 +837,11 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.Typing.infer_isSome_of_principalityComplete
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay_of_components
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.PPatElaborates.executable
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.PPatsElaborate.executable
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.DPatElaborates.executable
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.DPatsElaborate.executable
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matcherM4FuelReplayStep
 #assert_allowed_axioms TypePM.Source.supportedCertificateClosureAlignment_of_support
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.FullM2PairCoherence.ofM4Supported
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.SupportedM4FuelPairProperty.toFull

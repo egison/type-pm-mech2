@@ -254,9 +254,9 @@ M4完全性は，coherenceとexecutable replayの二本を別々に完成させ�
 | C9 | `matchFirst` coherence | **not started** | patternとbodyをarm列，target／matcherへ合成する |
 | C10 | M4 `letE` transport／assembly | **done** | `m4LetTransportAndAssembly`はclosureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
 | C11 | `FullM4Coherence` | **in progress** | 合成定理`fullM4Coherence_of_steps`は完成．C6--C10の実体が残る |
-| R1 | non-let structural replay | **in progress** | 通常root，`fixE`，`matchAll`，`matchFirst`のnon-exact replayとsibling/callの逐次合成は完成．matcher literalだけが残る |
-| R2 | let closure representative agreement | **in progress** | `letM4FuelReplayStep`は完成．全構文fuel帰納への差し込みはmatcher literal replay待ち |
-| R3 | `FullM4ExecutableReplay` | **in progress** | `fullM4ExecutableReplay_of_coherence_and_patternSteps`まで完成．Full coherenceとmatcher literal replayの実体化待ち |
+| R1 | non-let structural replay | **in progress** | 通常root，`fixE`，matcher literal，`matchAll`，`matchFirst`の全constructor-local replayとsibling/callの逐次合成は完成．全構文帰納の実体化はC11待ち |
+| R2 | let closure representative agreement | **in progress** | `letM4FuelReplayStep`と三つのpattern-bearing replay stepは完成．全構文fuel帰納の実体化はC11待ち |
+| R3 | `FullM4ExecutableReplay` | **in progress** | replay側の局所stepはすべて完成し，`fullM4ExecutableReplay_of_coherence_and_patternSteps`へ接続済み．残りは`FullM4Coherence`の実体化だけ |
 | F1 | M4完全性 | **in progress** | coherence／replayから完全性を得る条件付き定理は完成．C11とR3の実体化が残る |
 | F2 | M4受理同値・決定可能性 | **in progress** | 条件付きAPI `typable_iff_infer_isSome_of_principalityComplete`と`typableDecidable_of_principalityComplete`は完成．F1の実体化待ち |
 | F3 | M4主要性 | **in progress** | 条件付きの主要性定理は完成．C11とR3の実体化が残る |
