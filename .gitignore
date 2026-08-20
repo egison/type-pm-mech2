@@ -1,2 +1,6 @@
 /.lake/
 /lake-manifest.json
+/tex/*.aux
+/tex/*.log
+/tex/*.out
+/tex/*.toc

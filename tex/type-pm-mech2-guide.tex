@@ -1,0 +1,917 @@
+\documentclass[11pt,a4paper,oneside]{ltjsbook}
+
+\usepackage[haranoaji]{luatexja-preset}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,longtable,array}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,shapes.geometric,calc}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+
+\geometry{top=24mm,bottom=28mm,left=24mm,right=24mm,headheight=15pt,footskip=12mm}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!45!black,
+  urlcolor=blue!55!black,
+  pdftitle={type-pm-mech2 入門},
+  pdfauthor={type-pm-mech2 project}
+}
+
+\definecolor{CodeBg}{RGB}{246,248,250}
+\definecolor{DeepBlue}{RGB}{33,72,117}
+\definecolor{DeepGreen}{RGB}{35,105,82}
+\definecolor{Warm}{RGB}{150,79,28}
+\definecolor{SoftRed}{RGB}{148,55,55}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  framesep=5pt,
+  rulecolor=\color{black!18},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  xleftmargin=4pt,
+  xrightmargin=4pt
+}
+
+\newtcolorbox{pointbox}[1]{
+  enhanced,
+  colback=blue!3,
+  colframe=DeepBlue,
+  title={#1},
+  fonttitle=\bfseries,
+  boxrule=0.7pt,
+  arc=2mm
+}
+\newtcolorbox{warningbox}[1]{
+  enhanced,
+  colback=orange!4,
+  colframe=Warm,
+  title={#1},
+  fonttitle=\bfseries,
+  boxrule=0.7pt,
+  arc=2mm
+}
+\newtcolorbox{definitionbox}[1]{
+  enhanced,
+  colback=green!3,
+  colframe=DeepGreen,
+  title={#1},
+  fonttitle=\bfseries,
+  boxrule=0.7pt,
+  arc=2mm
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\checks}{\mathrel{\Leftarrow}}
+\newcommand{\TyInt}{\mathsf{Int}}
+\newcommand{\Matcher}{\mathsf{Matcher}}
+\newcommand{\Slot}{\mathsf{Slot}}
+\newcommand{\Prod}{\mathsf{Prod}}
+\newcommand{\fn}{\mathbin{\to}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small type-pm-mech2 入門}
+\fancyhead[R]{\small\leftmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\title{\Huge type-pm-mech2 入門\\[4mm]
+  \Large 制約生成，\code{let}の完全性，matcherまで}
+\author{type-pm-mech2 project}
+\date{2026年8月20日版\\
+  基準実装：\code{main}（本文作成開始時のcommit \code{7fe112f}）}
+
+\begin{document}
+
+\frontmatter
+\maketitle
+
+\chapter*{この文書について}
+\addcontentsline{toc}{chapter}{この文書について}
+
+この文書は，Lean 4リポジトリ\code{type-pm-mech2}の現行実装を，
+型推論や定理証明に初めて触れる読者にも追えるように説明する．
+中心となる問いは次の三つである．
+
+\begin{enumerate}[leftmargin=2em]
+  \item 式を調べると得られる\code{target}，\code{hard}，\code{pending}とは何か．
+  \item 多相\code{let}で右辺を先に閉じると，なぜ完全性の証明が難しくなるのか．
+  \item 現行実装はその問題をどう解き，どこまでを証明済みとしているのか．
+\end{enumerate}
+
+後半では，Paper 1用fixtureとして実装されている再帰的multiset matcher，
+とくに\code{multisetWithListArgument = lambda list. multiset}という補助式の意味と，
+この式が現在のno-guess方針の下で単独では推論に失敗する理由も説明する．
+
+\begin{warningbox}{旧リポジトリと隣接する論文について}
+この文書は\code{type-pm-mech2}のLeanコードを正本とする．
+兄弟リポジトリ\code{type-pm-mech}は旧実装であり，旧\code{SourceTyping}，
+\code{inferRaw}，\code{wBridgeCheck}，terminal audit（推論後の再検査）を
+現行体系へ持ち込まない．また，\code{../type-pm-paper}のTeXには旧実装を説明する
+記述が残っているため，現行mechanizationのAPI一覧としては使わない．
+現状確認には本書，リポジトリ直下の\code{README.md}，\code{DESIGN.md}，
+\code{CHECKPOINT.md}，およびLeanコードを用いる．
+\end{warningbox}
+
+\tableofcontents
+
+\mainmatter
+
+\chapter{まず全体像をつかむ}
+
+\section{何を機械化しているのか}
+
+\code{type-pm-mech2}は，Type-PMという型体系をLean 4で機械化するプロジェクトである．
+ここで\emph{機械化}とは，型や推論規則をプログラムとして定義するだけでなく，
+健全性や完全性のような性質をLeanの定理として検査することをいう．
+
+通常の関数型言語では，型推論は式に\code{Int}や
+$\alpha\fn\beta$のような型を付ける．Type-PMではさらにmatcherを扱う．
+matcherは，値をどのように分解・観察できるかを記述する実行時の値である．
+そのため型にも次の二つの見方が現れる．
+
+\begin{description}[leftmargin=8em,style=nextline]
+  \item[matcher producer]
+    実際に作られたmatcher値の型．本書では概略$\Matcher\,\kappa\,\tau$と書く．
+  \item[matcher slot]
+    matcherを使う場所が要求する型．本書では概略$\Slot\,\kappa\,\tau$と書く．
+\end{description}
+
+$\tau$は対象値の型であり，$\kappa$はcapabilityである．
+capabilityは，matcherが入力値のどの形を観察できるかを表す型情報である．
+producerからslotへの変換は単なる型等式ではないため，普通の単一化だけでなく
+checkingという別の処理が必要になる．これが後で\code{pending}を分離する理由である．
+
+\section{M0からM5まで}
+
+実装は段階に分けられている．2026年8月20日時点の要点は表\ref{tab:milestones}のとおりである．
+
+\begin{longtable}{>{\bfseries}p{9mm}p{42mm}p{18mm}p{70mm}}
+\caption{実装段階の要約}\label{tab:milestones}\\
+\toprule
+段階 & 主題 & 状態 & 意味 \\
+\midrule
+\endfirsthead
+\toprule
+段階 & 主題 & 状態 & 意味 \\
+\midrule
+\endhead
+M0 & 型，代入，局所checking & 完了 & matcherを含む基礎的な型合成とcheckingを検証済み．\\
+M1 & lambda，application，制約block & 完了 & 独立した型付け，停止する単一化，推論の健全性・完全性・主要性を検証済み．\\
+M2 & scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3 sourceで完全性・受理同値・主要性を検証済み．\\
+M3 & data，primitive，signature & 一部 & Bool/List，constructor，primitive，\code{ifE}と有限signatureを実装済み．M4と結ぶlisting全体の回帰が残る．\\
+M4 & pattern，matcher，\code{fix} & 一部 & 最終構文と再帰dispatcherは実装済み．大きいfixtureのkernel推論回帰とM4全域の完全性・主要性が残る．\\
+M5 & 評価と型安全性 & 一部 & 順序付き探索と多くの実行例を実装済み．closureやuser-defined matcherを含む一般の型安全性が残る．\\
+\bottomrule
+\end{longtable}
+
+\begin{pointbox}{「M2が完了」の正確な意味}
+M2の完全性・主要性は，開始supplyがcontextに対してwell-formedである範囲で完了している．
+supplyは新しい型変数名を割り当てるカウンタである．公開推論は常に
+\code{context.initialSupply}から始めるため，この条件を満たす．
+well-formedでない任意の開始supplyは「未解決の宿題」ではなく，仕様の対象外である．
+\end{pointbox}
+
+\section{三つの層を混同しない}
+
+現行実装には，役割の異なる三つの層がある．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{制約生成}：source式から\code{Generated}を作る．
+  \item \textbf{制約の閉包}：生成した制約を解き，主要な結果を得る．
+  \item \textbf{独立した型付け}：実行可能推論器を定義に含めない関係\code{Typing}で，
+        source programが型を持つことを述べる．
+\end{enumerate}
+
+健全性は「推論が成功したなら独立した型付けが存在する」と述べる．
+完全性は逆に「独立した型付けが存在するなら推論は成功する」と述べる．
+主要性は，推論が返す型から代入によって他の型付け結果を得られることを述べる．
+
+\chapter{制約生成：target，hard，pending}
+
+\section{Generatedという三つ組}
+
+Leanでは一つの式から得られる情報を次の構造にまとめる．
+
+\begin{lstlisting}
+structure Generated where
+  target  : Ty
+  hard    : List Equation
+  pending : List CheckObligation
+\end{lstlisting}
+
+それぞれの意味は次のとおりである．
+
+\begin{definitionbox}{target（生の結果型）}
+\code{target}は，式自身を構文に沿って調べた直後の結果型である．
+まだ代入を適用していないため，型変数を含んでよい．
+「最終的に確定した型」ではなく，制約blockが返そうとしている型の入口である．
+\end{definitionbox}
+
+\begin{definitionbox}{hard（無条件に必要な等式）}
+\code{hard}は，checking変換の種類に関係なく必ず成り立つ型等式の列である．
+たとえば関数適用$f\;x$では，$f$の型が「引数型から結果型への関数」でなければならない．
+この外形はhard等式に入る．
+\end{definitionbox}
+
+\begin{definitionbox}{pending（後で判定するchecking要求）}
+\code{pending}は，ある生の型が期待型として使えるかを後で判定する要求の列である．
+本書では$s\checks e$と書き，「source型$s$をexpected型$e$として使えるか」と読む．
+普通の型等式になる場合もあれば，matcher producerからslotへの特殊変換になる場合もある．
+\end{definitionbox}
+
+\section{関数適用を一つ生成してみる}
+
+関数式$f$から
+\[
+  \langle t_f,H_f,P_f\rangle
+\]
+が，引数式$x$から
+\[
+  \langle t_x,H_x,P_x\rangle
+\]
+が得られたとする．新しい型変数$d,r$を割り当てると，$f\;x$の生成結果は概略
+\[
+\begin{aligned}
+  \mathit{target}  &= r,\\
+  \mathit{hard}    &= H_f \mathbin{+\!+} H_x
+                       \mathbin{+\!+} [t_f = d\fn r],\\
+  \mathit{pending} &= P_f \mathbin{+\!+} P_x
+                       \mathbin{+\!+} [t_x\checks d]
+\end{aligned}
+\]
+となる．ここで$+\!+$は列の連結である．
+
+関数の外形$t_f=d\fn r$は常に必要なのでhardである．一方，引数$t_x$を$d$として
+使う方法は，単なる一致かmatcher変換かがまだ分からないのでpendingへ置く．
+
+\begin{pointbox}{「$r$ checks against $d$」の読み方}
+$[r\checks d]$は「式の生の型$r$を，使用箇所が要求する型$d$として使えるか後で調べる」
+という記録である．$r=d$と最初から決める記号ではない．
+同様に$[p\checks d]$は，source型が$p$である別の式に同じ期待型$d$が課されたことを表す．
+\end{pointbox}
+
+\section{なぜpendingをすぐ等式にしないのか}
+
+matcher producerとslotの間には，capabilityを調べる特殊変換がある．
+生成時点で要求の最外形が十分に分からない場合，特殊変換を推測すると，処理順により別の
+結果を選ぶ危険がある．現行設計は，まずhardを最も一般的に解き，その結果でcheckingの種類を
+分類する．この方針を本書では\emph{no-guess}，すなわち構造を先回りして推測しない方針と呼ぶ．
+
+これはあらゆる意味的な解を探索する方式ではない．hardの主要解でchecking分岐を固定した後に
+受理できるものを\emph{branch-stable acceptance}と呼ぶ．branch-stableとは，後から型を具体化しても
+checkingの分岐選択をやり直さない，という意味である．
+
+\section{小さな例：\code{((lambda z. x) 0)}}
+
+外側の変数$x$の型を$p$とする．式
+\[
+  ((\lambda z.\,x)\;0)
+\]
+を生成する．$z$の型を$a$，適用が期待する引数型を$d$，結果型を$r$とすると，
+\[
+\begin{aligned}
+  \mathit{target}  &= r,\\
+  \mathit{hard}    &= [a\fn p = d\fn r],\\
+  \mathit{pending} &= [\TyInt\checks d]
+\end{aligned}
+\]
+となる．hardを解くと$a=d$かつ$p=r$である．その後pendingを調べると$d=\TyInt$になる．
+したがって式全体の結果は$p$，つまり$x$と同じ型である．
+
+ここで$r$は「valueの型」そのものを最初から意味していたのではない．
+$r$は右辺式の\code{target}として新しく割り当てた仮の結果変数であり，
+制約を解いた後に$p$と同じだと分かる．
+
+\chapter{多相letは何をしているのか}
+
+\section{valueとはletの右辺のこと}
+
+Leanの\code{Expr.letE value body}における\code{value}は，実行時の値一般を指す言葉ではない．
+次のsource構文で等号の右側にある式$e_1$を指すフィールド名である．
+\[
+  \mathbf{let}\ y=e_1\ \mathbf{in}\ e_2
+\]
+このとき\code{value}は$e_1$，\code{body}は$e_2$である．
+
+\section{full-cut方式}
+
+現行実装の\code{let}はfull-cut方式である．cutは「境界で切る」という意味であり，
+右辺の制約blockをbodyより先に完全に閉じる．手順は次のとおりである．
+
+\begin{enumerate}[leftmargin=2em]
+  \item 外側contextで右辺\code{value}を生成する．
+  \item 右辺のhardを解き，pendingを分類・解決して，主要closureを得る．
+  \item closureの代入を外側contextへ適用する．
+  \item closureの結果型を，更新後contextに自由でない変数について一般化し，schemeを作る．
+  \item そのschemeをcontext先頭へ追加してbodyを生成する．
+  \item 右辺の内部制約は親blockへ出さず，外側contextへの有限な影響だけを
+        interface equationsとして返す．
+\end{enumerate}
+
+この実行可能な手順は\code{Source/Elaboration.lean}の\code{elaborate}に現れる．
+一方，独立した関係\code{Elaborates.letE}は実行可能推論器を呼ばず，
+任意の主要closureとその吸収性の証明を受け取る．
+
+\section{PrincipalBlockClosure}
+
+主要closureは二段階の解をまとめる．
+
+\begin{enumerate}[leftmargin=2em]
+  \item hard制約を飽和させる最も一般的な代入．
+  \item 残ったpendingから作る残余等式を解く最も一般的な代入．
+\end{enumerate}
+
+二つの代入を合成したものがclosure substitutionであり，それを\code{target}へ適用した型が
+closure targetである．\emph{吸収的}であるとは，後から同じ制約を解く代入を合成しても，
+選んだ主要代表が正規化された形で保たれる性質である．
+
+「最も一般的」であっても，変数名の代表が文字どおり一意になるわけではない．
+等式$p=r$は$r$を$p$へ消しても，$p$を$r$へ消しても解ける．
+この小さな自由度が，\code{let}完全性証明の中心問題になる．
+
+\section{一般化とscheme}
+
+一般化は，結果型に現れる変数のうち，更新後contextに自由に現れないものだけを量化する．
+scheme内の量化変数は名前ではなく位置で表す．これをbound-index schemeという．
+たとえば恒等関数の型$\alpha\fn\alpha$を空contextで一般化すれば
+$\forall\alpha.\alpha\fn\alpha$になる．
+
+一方，右辺の結果型が外側変数$x$の型$p$なら，$p$はcontextにも現れるため量化しない．
+\code{let y = ...}で得た$y$はその外側$x$と同じ単相型$p$を持つ．
+
+\section{具体例を最後まで追う}
+
+次の式を考える．
+
+\begin{lstlisting}
+lambda x.
+  let y = ((lambda z. x) 0) in
+  ((lambda w. 0) y)
+\end{lstlisting}
+
+前章の計算から，let右辺の結果型は外側$x$の型$p$である．右辺を閉じても$p$は外側contextに
+自由に現れるため，$y$のschemeは量化されず，単相$p$になる．bodyの
+\code{(lambda w. 0)}は$q\fn\TyInt$という型を持ち，$y:p$へ適用することで$q=p$となる．
+bodyの結果型は\code{Int}である．したがってlambda全体の型は
+\[
+  p\fn\TyInt
+\]
+である．top-levelで$p$を一般化して読むなら
+\[
+  \forall p.\ p\fn\TyInt
+\]
+である．
+
+\begin{warningbox}{\(\forall a.\TyInt\)ではなく\(\forall a.a\fn\TyInt\)}
+全体は\code{lambda x. ...}なので，引数$x$を受け取る関数である．bodyが常に0を返しても，
+lambdaの矢印は消えない．したがって主要型は$\forall a.a\fn\TyInt$であり，
+$\forall a.\TyInt$ではない．後者は実質\code{Int}と同じで，関数でない．
+\end{warningbox}
+
+\section{interface equations}
+
+右辺を閉じた代入$S$が外側contextの自由変数を変更した場合，その影響をbodyより外へ伝える
+必要がある．ただし右辺の全hardとpendingを再び外へ出すとfull-cutではなくなる．
+そこで，contextの各自由型変数$x$について
+\[
+  x = S(x)
+\]
+だけを作る．capability変数についても同様である．これが
+\code{Context.interfaceEquations}である．
+
+親の後続代入$T$がこのinterfaceを解くことは，contextに見える各変数について
+\[
+  T(x)=T(S(x))
+\]
+が成り立つことと同値である．interfaceは右辺の制約全部でも，bodyへ渡すchecking要求でもない．
+外側から観測できる有限な効果だけである．
+
+最後に\code{Generated.fromLet effects body}は
+\[
+\begin{aligned}
+  \mathit{target} &= \mathit{body.target},\\
+  \mathit{hard} &= \mathit{effects}\mathbin{+\!+}\mathit{body.hard},\\
+  \mathit{pending} &= \mathit{body.pending}
+\end{aligned}
+\]
+を返す．右辺valueのpendingは境界を越えないが，body自身が作ったpendingは外側blockに残る．
+
+\chapter{なぜletの完全性証明が難しかったのか}
+
+\section{実行版は一つを選び，関係版は任意の代表を許す}
+
+公開推論器は実行可能な\code{unify}を使い，右辺に対して一つのclosureを計算する．
+しかし関係\code{Elaborates.letE}は，条件を満たす任意の主要かつ吸収的なclosureを許す．
+完全性を示すには，関係側がどの正しい代表を選んでも，公開推論器が選ぶ代表へ運べることを
+示さなければならない．
+
+先ほどの右辺ではhardから$p=r$が得られた．次の二つはどちらも正しい主要な向きである．
+\[
+  S_L=[r\mapsto p],\qquad S_R=[p\mapsto r].
+\]
+$S_L$では閉じたcontextは$x:p$，右辺結果も$p$である．
+$S_R$では閉じたcontextは$x:r$，右辺結果も$r$である．
+意味は同じだが，bodyの生成に使う変数名が違う．interfaceも一方では$p=p$という自明式，
+他方では$p=r$という非自明な別名等式になり得る．
+
+\section{単純な大域的renameでは直らない}
+
+最初に考えたくなるのは「一方の変数名を全体で置き換えればよい」という案である．
+しかし全単射な変数名変更は，自明式$x=x$を別の自明式$y=y$へ移すことしかできない．
+非自明式$x=y$へは変えられない．現行リポジトリにはこの失敗を
+\code{GlobalRenamingCounterexample}としてLeanで保存している．
+
+ほかにも次の強すぎる案が反例で退けられた．
+
+\begin{itemize}[leftmargin=2em]
+  \item 常に左側だけへ別名等式を足す．実際には代表選択により足す側が変わる．
+  \item hardだけを共通化し，pendingは文字どおり同じだと要求する．bodyのpendingにも代表名の差が残る．
+  \item bodyだけを先にrenameし，任意の外側frameで同値だとする．外側制約が変数の同一性を観測できる．
+\end{itemize}
+
+ここでframeとは，生成済み制約blockを穴へ入れる周囲の制約構造である．
+完全性の帰納法で再利用するには，裸のblockだけでなく適切な周囲へ入れても受理を保つ必要がある．
+
+\section{必要なのは文字列一致ではなく意味の一致}
+
+二つのpendingが別の変数名を含んでも，周囲のhardを解くすべての代入の下で同じ要求になればよい．
+これが\code{EntailedObligationEq H left right}である．\emph{entailed}は
+「hard理論$H$から必ず従う」という意味である．
+
+たとえばhardに$p=r$があれば
+\[
+  p\checks d
+  \quad\text{と}\quad
+  r\checks d
+\]
+は文字どおり違うが，$H$を解く任意の代入の下では同じになる．
+この関係は，checking分岐の分類，hardへの昇格，飽和，残余等式，最終受理まで輸送できる．
+
+\chapter{M2の最終解法：四つの層}
+
+最終証明は，一つの強いrename定理で全部を済ませない．役割の違う四層を組み合わせる．
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=7mm and 7mm,
+  box/.style={draw,rounded corners,align=center,minimum width=36mm,minimum height=11mm,fill=blue!3},
+  arr/.style={-{Latex[length=2mm]},thick}
+]
+\node[box] (value) {二つのvalue導出\\二つの主要closure};
+\node[box,right=of value] (rename) {body renaming\\同じcontextへ輸送};
+\node[box,below=of value] (graph) {visible alias graph\\interfaceを共通化};
+\node[box,right=of graph] (entailed) {entailed alignment\\target/pendingを意味比較};
+\node[box,below=12mm of $(graph)!0.5!(entailed)$,minimum width=55mm] (whole) {whole let certificate\\受理と主要結果を保存};
+\draw[arr] (value) -- (rename);
+\draw[arr] (value) -- (graph);
+\draw[arr] (rename) -- (entailed);
+\draw[arr] (graph) -- (entailed);
+\draw[arr] (graph) -- (whole);
+\draw[arr] (entailed) -- (whole);
+\end{tikzpicture}
+\end{center}
+
+\section{第1層：entailed alignment}
+
+\code{EntailedGeneratedAlignment}は，二つの\code{Generated}について次を要求する．
+
+\begin{enumerate}[leftmargin=2em]
+  \item hardの解集合が同じである．
+  \item そのhardを解く任意の代入の下でtargetが同じになる．
+  \item 対応するpendingが同じ要求になる．
+\end{enumerate}
+
+さらに\code{SupportedEntailedAlignmentCertificate}は，終了supply，左右に追加する有限な
+別名等式，それらを外から観測できなくするfreshness，frameのsupportをまとめる．
+lambda，application，tuple，constructor，primitive，conditionalは，この証明書を構文に沿って
+合成できる．
+
+\section{第2層：bodyを同じcontextへ運ぶ有限rename}
+
+二つのclosureの結果contextは$x:p$と$x:r$のように文字どおり異なり得る．
+bodyの帰納仮定を使うには，contextを同じにしなければならない．
+そこでclosureの有限supportから変数対応$\rho$を作る．
+
+$\rho$には二つの重要な性質がある．
+
+\begin{description}[leftmargin=9em,style=nextline]
+  \item[bodyContext\_exact]
+    左のclosed contextと一般化schemeを$\rho$で移すと，右のものと文字どおり一致する．
+  \item[FixesAtOrAbove]
+    value終了後に新しく割り当てる将来の変数名を$\rho$が変更しない．
+\end{description}
+
+後者により，左bodyの導出を同じsource AST，同じ数値supplyのまま右contextへ輸送できる．
+これはsourceのde Bruijn indexを変える操作ではない．型変数とcapability変数の有限な名前変更である．
+
+\section{第3層：visible closure graph}
+
+bodyを運ぶrenameだけでは，外側\code{fromLet}のinterface差を消せない．
+そこで二closureの変数対応のうち，closed contextから実際に観測でき，かつ名前が動く辺だけを
+有限graphとして取り出す．これをvisible closure graphという．
+
+必要な側へfreshな別名等式を追加すると，左右のinterfaceは共通のhard理論
+\[
+  I_L\mathbin{+\!+}I_R
+\]
+を表すようになる．別名等式は左右非対称でよい．一つの全体swapを要求しない．
+
+先ほどの例で，一方が$p=p$，他方が$p=r$なら，欠けている側へだけfreshな別名を追加して
+共通理論へ移す．ただしcontextやbodyで既に使われている端点をfreshだと呼んではならない．
+そのためgraphは全closure supportではなく，contextから見える移動辺に限定する．
+
+\section{第4層：well-formed supplyとfreshness}
+
+freshnessは「この変数名はたまたま違う」という主張ではない．source生成変数の由来と
+数値区間を使って証明する．開始supplyがcontextに対してwell-formedなら，sourceが新しく作る変数は
+半開区間$[\mathit{start},\mathit{finish})$にあり，古いcontext変数と衝突しない．
+
+closureの局所性により，block supportにない変数はclosure substitutionが変更しない．
+これらを合わせると次が言える．
+
+\begin{itemize}[leftmargin=2em]
+  \item graph aliasのfresh端点はvalueの割当区間内にある．
+  \item 対応する側のinterfaceとbody contextにはその端点が現れない．
+  \item value区間のaliasと，後続bodyが作るaliasは衝突しない．
+  \item body用renameはbody以後のfresh名を固定する．
+\end{itemize}
+
+\section{whole letの組み立て}
+
+bodyの証明書はrename後の座標で作られている．そのため左body側のalias列を$\rho$の逆向きに
+たどり，元の座標へpull backする．pull backとは，移した名前を元の名前空間へ戻す操作である．
+
+最後に，左右のgraph alias，pull backしたbody alias，bodyのentailed alignmentをまとめて，
+元の二つの\code{Generated.fromLet}全体に対する
+\code{SupportedEntailedAlignmentCertificate}を構成する．
+
+この手順が重要なのは，反例で偽になった「孤立したbody renameは任意の周囲で無害」という
+中間命題を仮定しない点である．value導出，closure，transport済みbody導出を保持したまま，
+interfaceとbodyを一緒に組み立てる．
+
+\chapter{定理が公開推論へつながるまで}
+
+\section{証明の主な鎖}
+
+現行の無条件なM2証明入口は\code{Source/FullM2Completion.lean}に集約されている．
+大きな流れは次のとおりである．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \code{fullM2LetGraphAliasPresentationComplete}がvisible graph presentationを構成する．
+  \item \code{fullM2LetSupportedAssemblyBridge}がwhole-\code{let}証明書を構成する．
+  \item \code{fullM2CoherenceComplete}が通常構文の帰納法と\code{let}の場合を統合する．
+  \item \code{FullM2Replay}が任意の関係的導出を実行可能な導出へ再生する．
+  \item \code{wellFormedElaborationPrincipalityComplete}が完全性と主要性をまとめる．
+\end{enumerate}
+
+ここで\emph{coherence}は，同じsourceに対する異なる正しい導出が，受理と主要結果について
+整合することをいう．\emph{replay}は，関係的導出を入力として，公開推論器が実際に選ぶclosureを
+使った導出を再構成することである．
+
+\section{公開API}
+
+最終的に次の定理が公開される．
+
+\begin{longtable}{p{58mm}p{82mm}}
+\toprule
+定理 & 初学者向けの読み方 \\
+\midrule
+\endfirsthead
+\toprule
+定理 & 初学者向けの読み方 \\
+\midrule
+\endhead
+\path{Typing.infer_isSome} & 独立した型付けがあれば，公開推論は失敗しない．\\
+\path{Inference.typable_iff_infer_isSome} & well-formed signatureの下で，型が付くことと推論成功が同値．\\
+\path{Inference.typableDecidable} & 型が付くかどうかを公開推論で決定できる．\\
+\path{Inference.infer_success_principalResult} & 推論が返した型は，すべての型付け結果の主要型である．\\
+\path{Inference.infer_principalResult} & 関係側の主要な型付けから，公開推論の主要結果を得られる．\\
+\path{PrincipalTyping.finiteRenamingEq} & 二つの主要代表は，有限個の変数名変更を除いて一致する．\\
+\bottomrule
+\end{longtable}
+
+\code{Typing.infer\_isSome}と\code{finiteRenamingEq}はsignatureのwell-formednessを仮定しない．
+推論成功から関係的型付けを得る健全性まで使うAPIは，\code{Signature.WellFormed}を明示的に受け取る．
+
+\section{負例にも完全性が効く}
+
+\code{M2Regression.cutRejectsBackflow}は，\code{let}右辺を閉じた後に，bodyから互換でない要求を
+右辺へ逆流させようとする例である．実行可能推論が\code{none}を返すだけなら，推論器が不完全で
+見逃した可能性が残る．M2完全性により，もし独立した\code{Typing}が存在すれば推論は成功するはずである．
+実際には失敗するので，\code{cutRejectsBackflow\_not\_typable}として非型付けまで証明できる．
+
+\chapter{M3からM5までの現在地}
+
+\section{M3：宣言と通常の呼出し}
+
+M3ではBool/Listのdata型，data constructor，pattern constructor，primitive，有限signatureを追加した．
+constructorとprimitiveの引数処理は，通常の関数適用\code{Generated.fromApp}を左から畳み込む．
+したがってM2で証明した通常applicationの構造を再利用できる．
+
+\code{add}，\code{append}，\code{member}，\code{deleteFirst}，\code{map}のcanonical scheme，
+\code{ifE}，名前・引数数・型不一致の正負回帰は実装済みである．
+M3が表で「一部」なのは，M4のpattern/matcherと合わせた論文listing全体の静的回帰が残るためである．
+
+\section{M4：patternとmatcher}
+
+source構文は\code{fixE}，\code{matcher}，\code{matchAll}，\code{matchFirst}，
+value pattern，pattern constructor，pattern function applicationまで持つ．
+M4の実行可能elaborationと関係的elaborationは同じ構文を再帰的に処理し，
+成功から\code{M4.Typing}を得る健全性を証明済みである．
+
+一方，M2--M3で完了した「型が付くなら必ず推論成功」と「返却型の主要性」はM4全域では未証明である．
+matcher literalのstatic check，\code{fix}直下matcherの型形状，clause内部のslot要求，
+および\code{let}での任意closure選択を同時に扱う必要があるため，独立した大きな課題である．
+
+\section{M5：評価と型安全性}
+
+M5には一般のruntime value，closure，matcher closure，順序付き深さ優先探索，
+\code{matchAll}と\code{matchFirst}の関係的評価とfuel付き評価器がある．
+fuelは再帰計算を進められる回数の上限である．有限な成功導出について，実行可能評価の健全性，
+完全性，fuel単調性を証明している．
+
+型安全性は閉じた整数と再帰的tuple，および明示的なcallback仮定の下のbuilt-in matcher断片までである．
+closureの定義環境，primitiveの一般値上の型保存，user-defined matcher clause，data constructor，
+一般pattern functionを同じ契約へ接続する作業が残る．これは標準的な保存・進行の形を持つが，
+多相\code{let}のschemeとruntime環境を結ぶ設計を含むため，小さな機械作業ではない．
+
+\chapter{multisetWithListArgumentを理解する}
+
+\section{Paper 1のmultiset定義との対応}
+
+現行source ASTには，top-levelのuser-defined値を名前で参照するmodule環境がない．
+通常の値参照はde Bruijn indexで表す．de Bruijn indexとは，変数名の代わりに
+「最も内側のbinderから何個外か」を自然数で表す方法である．
+
+Paper 1の概略
+\begin{lstlisting}
+def multiset m := matcher { ... uses list m ... }
+\end{lstlisting}
+では，\code{list}は既に定義済みのlibrary matcherである．Lean fixtureでは
+\code{multisetDefinition}の外側環境に\code{list}が一つあるものとして，内部からindex 2で参照する．
+index 0は\code{fixE}の引数$m$，index 1は再帰的な自己\code{multiset}，index 2が外側の\code{list}である．
+
+\section{三つの式の役割}
+
+\begin{lstlisting}
+multisetDefinition
+  = fixE (matcher multisetClauses)
+
+multisetWithListArgument
+  = lambda list. multisetDefinition
+
+closedMultisetDefinition
+  = multisetWithListArgument listMatcherDefinition
+\end{lstlisting}
+
+\code{multisetDefinition}自体が，Paper 1の再帰的
+\code{def multiset m := ...}に対応する．\code{fixE}を適用すると，実行時環境は
+\code{argument :: self :: definitionEnvironment}となる．
+
+\code{multisetWithListArgument}はPaper 1に表示される別のアルゴリズムではない．
+自由依存である\code{list}をlambda引数へ持ち上げた，closure conversion風の補助式である．
+closure conversionとは，関数が外側から参照する自由な値を，明示的な環境や引数として渡す変換である．
+
+\code{closedMultisetDefinition}はsourceで定義した\code{listMatcherDefinition}を実際に渡し，
+空のsource contextから使える閉じた式にする．静的確認だけなら，\code{multisetDefinition}を
+既知のlist schemeを持つcontextで調べてもよい．end-to-endの実行回帰では隠れたprimitive値を使わず，
+空context・空runtime environmentから始めるため，この明示的な適用を置いている．
+
+\section{なぜlambda版単独は現在拒否されるのか}
+
+\code{multisetWithListArgument}の制約生成自体は成功し，hard制約も解ける．
+失敗は残ったchecking要求の解決で起きる．外側lambda引数\code{list}の型は概略
+\[
+  \Slot\,\chi\,\alpha \fn \beta
+\]
+までhardから分かるが，返り型$\beta$がmatcher producerであることはhardだけから決まらない．
+
+clause内には概略
+\[
+  \Prod[\beta,\ \Matcher(\mathsf{List}\,\chi)(\mathsf{List}\,\alpha)]
+  \checks \text{product-slot}
+\]
+という要求が残る．productからproduct-slotへの特殊変換を選ぶには，productの全成分が
+構文上すでにmatcherだと分かる必要がある．$\beta$が変数のままなので，resolverは普通の等式へ進み，
+最外constructorの不一致で失敗する．
+
+\begin{pointbox}{型が存在しないのではない}
+$\beta$を適切なmatcher型へ具体化すれば，すべてのchecking要求を満たす意味的な解はある．
+期待される全体型は概略
+\[
+  (\Slot\,\chi\,\alpha\fn
+    \Matcher(\mathsf{List}\,\chi)(\mathsf{List}\,\alpha))
+  \fn
+  \Slot\,\chi\,\alpha\fn
+    \Matcher(\mathsf{List}\,\chi)(\mathsf{List}\,\alpha)
+\]
+である．しかしその形を選ぶには，hardの主要解に現れていないmatcher外形を$\beta$へ先回りして与える
+必要がある．現在のbranch-stable/no-guess仕様はこの推測をしない．
+\end{pointbox}
+
+\code{closedMultisetDefinition}では，実引数\code{listMatcherDefinition}の既知の型が外側lambdaの
+domainへhardな情報を与え，$\beta$がmatcherだと確定する．その後なら同じproduct要求を特殊変換として
+分類でき，推論が成功する．
+
+この現象は偶然のM4実装バグではなく，\code{GeneratedSemanticAcceptanceRegression}にある
+M1の最小境界の大規模な実例である．「完全に具体化すれば意味的にchecking可能」と
+「hardの主要解で分岐を固定した公開手続きが受理する」は同じではない．
+
+\section{設計上の選択肢}
+
+この高階matcher constructorをsource言語でどこまで受理したいかにより，選択肢が変わる．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{既知型contextまたは明示注釈を使う}．no-guessを保つ最も安全な案である．
+  \item \textbf{matcher位置から期待slotを逆向きに伝える}．双方向型付けに近い規則を追加する．
+        どの構文位置が十分な根拠になるかを明示する必要がある．
+  \item \textbf{checking分岐を探索する}．より多くの意味的解を受理できるが，
+        branch-stable設計と主要性の証明を大きく変更する．
+\end{enumerate}
+
+現状では，Paper 1の\code{multiset}本体そのものが無意味なのではない．
+名前付きtop-level環境を持たないfixtureを閉じるための外側lambdaが，
+高階matcher constructorに対する既知のno-guess境界を露出している，という位置づけである．
+
+\section{別問題：kernelで大きな推論を計算すること}
+
+大きいmatcher fixtureでは\code{M4.infer}の実行結果を\code{\#eval}で確認できても，
+Lean kernelの定義簡約だけで同じ等式を\code{rfl}により証明することが難しい．
+測度に基づく再帰で定義したpattern検査や単一化が簡約を遮るためである．
+
+これは前節のbranch-stable拒否とは別問題である．改善するなら，既存のfuel構造再帰
+\code{M4.elaborateFuel}をsolverまで引数化し，pattern検査・direct-self検査・単一化にも
+計算可能なfuel版を用意する．その成功を公開版へ輸送する定理を証明した後，
+小さいcatch-all，list matcher，closed multisetの順でkernel回帰を固定するのが自然である．
+
+\chapter{コードを読むための案内}
+
+\section{最初に読むファイル}
+
+\begin{longtable}{p{62mm}p{78mm}}
+\toprule
+ファイル & 読める内容 \\
+\midrule
+\endfirsthead
+\toprule
+ファイル & 読める内容 \\
+\midrule
+\endhead
+\path{TypePM/Constraints.lean} & \code{Equation}，\code{CheckObligation}，\code{Generated}の最小定義．\\
+\path{TypePM/Source/Syntax.lean} & M4までの最終source AST．\\
+\path{TypePM/Source/Elaboration.lean} & 実行可能生成と独立した\code{Elaborates}，\code{fromApp}，\code{fromLet}．\\
+\path{TypePM/BlockClosure.lean} & 右辺blockを閉じる\code{PrincipalBlockClosure}．\\
+\path{TypePM/ContextInterface.lean} & 外側contextへの有限なinterface equations．\\
+\path{TypePM/Source/M2Regression.lean} & 多相identity，明示的let，full-cut負例．\\
+\path{TypePM/Source/GlobalRenamingCounterexample.lean} & 一つの大域renameでは足りない具体的反例．\\
+\path{TypePM/EntailedPendingTransport.lean} & pendingをhard理論の全解の下で比較し，受理を輸送する層．\\
+\path{TypePM/Source/EntailedAlignment.lean} & source blockの意味的な比較証明書．\\
+\path{TypePM/Source/WholeLetEntailedAssembly.lean} & interfaceとpull backしたbody aliasのwhole-let合成．\\
+\path{TypePM/Source/FullM2GraphAliasPresentation.lean} & visible closure graphのsource由来構成．\\
+\path{TypePM/Source/FullM2Coherence.lean} & 通常構文とletの場合を統合する帰納法．\\
+\path{TypePM/Source/FullM2Replay.lean} & 関係的導出から実行可能導出への再生．\\
+\path{TypePM/Source/FullM2Completion.lean} & 完了したM2の公開入口．\\
+\path{TypePM/Source/Paper1Programs.lean} & list/multiset matcherの完全なsource fixture．\\
+\path{TypePM/GeneratedSemanticAcceptance}\newline
+\path{Regression.lean} & branch-stable受理と意味的解の差を示す最小例．\\
+\bottomrule
+\end{longtable}
+
+\section{検証コマンド}
+
+Lean全体はリポジトリ直下で次のように検証する．
+
+\begin{lstlisting}
+lake build
+git diff --check
+\end{lstlisting}
+
+追加公理への依存は\path{TypePM/AxiomAudit.lean}で検査する．
+M2の公開入口はLean標準の\code{propext}，\code{Classical.choice}，\code{Quot.sound}以外の
+追加公理に依存しない．
+
+本書は\code{tex}ディレクトリで次のように生成する．
+
+\begin{lstlisting}
+make
+\end{lstlisting}
+
+出力は\code{type-pm-mech2-guide.pdf}である．
+
+\chapter{まとめと再開地点}
+
+\section{M2について覚えておく四文}
+
+\begin{enumerate}[leftmargin=2em]
+  \item \code{let}右辺はfull-cutで先に閉じ，右辺pendingをbodyへ逆流させない．
+  \item 任意の主要closureは意味的には同じでも，代表変数とinterfaceが文字どおり違い得る．
+  \item bodyはfuture名を固定する有限renameで同じcontextへ運び，outer interfaceは別のvisible alias graphで共通化する．
+  \item pendingは文字列一致でなく，hardを解くすべての代入の下で同じかどうかを比較する．
+\end{enumerate}
+
+この四層をwell-formed supplyによるfreshnessが支え，公開推論の完全性・受理同値・主要性へつながる．
+
+\section{次の作業はM2ではなくM4/M5}
+
+M2のill-formed開始supplyは仕様外であり，完了のために追加証明する項目ではない．
+次の静的な主作業は，大きいPaper 1 fixtureをkernelで計算可能な形にし，正例の正確な
+\code{M4.infer}結果と\code{M4.Typing}，負例の非型付けを固定することである．
+
+その後，M4全域の完全性・主要性を別計画として調べる．M5ではclosure，data，primitive，
+user-defined matcher clause，pattern functionを一般の実行時型付けとno-stuckへ接続する．
+
+\appendix
+
+\chapter{用語集}
+
+\begin{description}[leftmargin=10em,style=nextline]
+  \item[absorbing closure]
+    後続の解を合成しても，選んだ主要代表が正規化された形で保たれるclosure．
+  \item[branch-stable acceptance]
+    hardの主要解でchecking分岐を固定し，後から分岐選択をやり直さない受理概念．
+  \item[capability]
+    matcherが入力値のどの形を観察できるかを表す型情報．
+  \item[closure]
+    生成blockのhardと残余checkingを主要に解く代入と結果をまとめたもの．実行時関数closureとは別．
+  \item[coherence]
+    同じsourceに対する異なる正しい導出が，受理と主要結果について整合する性質．
+  \item[entailed]
+    あるhard理論を満たすすべての代入の下で必ず成り立つこと．
+  \item[frame]
+    生成済み制約blockを穴へ入れる周囲の制約構造．
+  \item[freshness]
+    新しく割り当てた変数名が，既存のsupportと衝突しない性質．
+  \item[full-cut]
+    \code{let}右辺の制約blockをbodyより先に完全に閉じる方式．
+  \item[hard]
+    checking変換の種類に依存せず必ず満たす型・capability等式．
+  \item[interface equations]
+    閉じた\code{let}右辺が外側contextの自由変数へ与えた影響を表す有限な等式列．
+  \item[matcher producer]
+    実際に作られたmatcher値の型．
+  \item[matcher slot]
+    matcherを使用する場所がmatcherへ課す要求型．
+  \item[pending]
+    source型をexpected型として使えるか，hardを解いた後で分類するchecking要求．
+  \item[principal]
+    ほかのすべての解が代入を通して得られるという意味で最も一般的であること．
+  \item[replay]
+    関係的導出から，公開推論器が実際に選ぶclosureを用いた導出を再構成すること．
+  \item[scheme]
+    量化された型変数を持つ多相型．現行M2では量化変数を位置で表す．
+  \item[supply]
+    新しい型変数名とcapability変数名を割り当てる二つの自然数カウンタ．
+  \item[support]
+    型，制約，代入などに実際に現れる有限な変数集合．
+  \item[target]
+    制約生成直後の生の結果型．最終代入の適用前なので型変数を含んでよい．
+  \item[terminal audit]
+    推論完了後に履歴や状態を再検査する旧方式．現行\code{Typing}の定義には含めない．
+  \item[visible closure graph]
+    二closureの有限な変数対応のうち，外側closed contextから観測できる移動辺だけを集めた証明用構造．
+  \item[well-formed supply]
+    contextに既に現れる全自由変数より後からfresh名を割り当てる開始条件．
+\end{description}
+
+\chapter{旧説明から現行説明への対応}
+
+\begin{longtable}{p{48mm}p{92mm}}
+\toprule
+旧資料で見かける語 & 現行\code{type-pm-mech2}での扱い \\
+\midrule
+\endfirsthead
+\toprule
+旧資料で見かける語 & 現行\code{type-pm-mech2}での扱い \\
+\midrule
+\endhead
+\code{SourceTyping} & 使用しない．現行は実行可能推論器と独立した\code{Source.Typing}を定義する．\\
+\code{inferRaw} & 旧API．現行source側は\code{elaborate}，\code{infer}，M4側は\code{M4.infer}を使う．\\
+\code{wBridgeCheck} & 旧terminal auditの一部．現行の宣言的型付け定義には持ち込まない．\\
+\code{TypingInvariant} & 旧推論履歴の検査．現行M2完全性はentailed alignment，closure alignment，visible graphで証明する．\\
+\code{PublicTheorems.lean} & 旧リポジトリの索引．現行の公開M2入口は\path{Source/FullM2Completion.lean}．\\
+\bottomrule
+\end{longtable}
+
+\backmatter
+
+\chapter*{版の基準}
+\addcontentsline{toc}{chapter}{版の基準}
+
+本書は2026年8月20日に，\code{type-pm-mech2}の\code{main}，
+本文作成開始時commit \code{7fe112f}を基準に作成した．
+文書追加以外の実装変更が入った場合は，\code{README.md}，\code{DESIGN.md}，
+\code{CHECKPOINT.md}，\code{TypePM/AxiomAudit.lean}と照合して更新する．
+
+\end{document}

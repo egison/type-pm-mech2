@@ -7,6 +7,9 @@ matcher producerは実際のmatcher値の型であり，matcher slotは使用箇
 ある．
 
 作業を中断した後の確定状態と次の着手点は[`CHECKPOINT.md`](CHECKPOINT.md)にまとめる．
+初めて読む人向けの日本語解説は
+[`tex/type-pm-mech2-guide.pdf`](tex/type-pm-mech2-guide.pdf)にまとめる．TeX sourceと
+ビルド手順も[`tex/`](tex/)に置く．
 
 旧実装は別リポジトリ[`type-pm-mech`](../type-pm-mech/)に保存する．比較が必要な場合は
 両リポジトリを別々に参照，実行する．旧推論器，旧`SourceTyping`，互換層，旧仕様専用の
