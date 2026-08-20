@@ -105,23 +105,29 @@
 中心となる問いは次の三つである．
 
 \begin{enumerate}[leftmargin=2em]
-  \item 式を調べると得られる\code{target}，\code{hard}，\code{pending}とは何か．
-  \item 多相\code{let}で右辺を先に閉じると，なぜ完全性の証明が難しくなるのか．
+  \item 式を調べると得られる，仮の結果型\code{target}，必ず満たす等式\code{hard}，
+        後で分類する使用可能性の要求\code{pending}とは何か．
+  \item 一つの定義を複数の型で使える多相\code{let}で右辺を先に閉じると，なぜ
+        「型付けが存在すれば推論が必ず成功する」
+        という性質（完全性）の証明が難しくなるのか．
   \item 現行実装はその問題をどう解き，どこまでを証明済みとしているのか．
 \end{enumerate}
 
-後半では，Paper 1用fixtureとして実装されている再帰的multiset matcher，
+後半では，Paper 1用の検証例（fixture）として実装されている，値の分解方法を記述する
+再帰的multiset matcher，
 とくに\code{multisetWithListArgument = lambda list. multiset}という補助式の意味と，
-この式が現在のno-guess方針の下で単独では推論に失敗する理由も説明する．
+この式が「制約からまだ決まらない型の形を先回りして推測しない」方針
+（no-guess方針）の下で，単独では推論に失敗する理由も説明する．
 
 \begin{warningbox}{旧リポジトリと隣接する論文について}
 この文書は\code{type-pm-mech2}のLeanコードを正本とする．
 兄弟リポジトリ\code{type-pm-mech}は旧実装であり，旧\code{SourceTyping}，
 \code{inferRaw}，\code{wBridgeCheck}，terminal audit（推論後の再検査）を
 現行体系へ持ち込まない．また，\code{../type-pm-paper}のTeXには旧実装を説明する
-記述が残っているため，現行mechanizationのAPI一覧としては使わない．
+記述が残っているため，現行実装のAPI一覧としては使わない．
 現状確認には本書，リポジトリ直下の\code{README.md}，\code{DESIGN.md}，
-\code{CHECKPOINT.md}，およびLeanコードを用いる．
+\code{CHECKPOINT.md}，およびLeanコードを用いる．ここでAPIとは，ほかのファイルから
+利用するために公開された定義や定理の入口をいう．
 \end{warningbox}
 
 \tableofcontents
@@ -134,10 +140,13 @@
 
 \code{type-pm-mech2}は，Type-PMという型体系をLean 4で機械化するプロジェクトである．
 ここで\emph{機械化}とは，型や推論規則をプログラムとして定義するだけでなく，
-健全性や完全性のような性質をLeanの定理として検査することをいう．
+「推論成功なら規則上も型が付く」ことや「規則上型が付くなら推論が成功する」ことまで，
+Leanの定理として検査することをいう．前者を健全性，後者を完全性と呼び，後で改めて定義する．
 
-通常の関数型言語では，型推論は式に\code{Int}や
-$\alpha\fn\beta$のような型を付ける．Type-PMではさらにmatcherを扱う．
+通常の関数型言語では，型推論，つまりプログラムを調べてその型を自動的に求める処理は，
+式に\code{Int}や$\alpha\fn\beta$のような型を付ける．$\alpha$と$\beta$はまだ分からない型を
+表す型変数であり，矢印は「$\alpha$型の値を受け取り$\beta$型の値を返す関数」を表す．
+Type-PMではさらにmatcherを扱う．
 matcherは，値をどのように分解・観察できるかを記述する実行時の値である．
 そのため型にも次の二つの見方が現れる．
 
@@ -152,6 +161,61 @@ $\tau$は対象値の型であり，$\kappa$はcapabilityである．
 capabilityは，matcherが入力値のどの形を観察できるかを表す型情報である．
 producerからslotへの変換は単なる型等式ではないため，普通の単一化だけでなく
 checkingという別の処理が必要になる．これが後で\code{pending}を分離する理由である．
+
+\section{先に覚える基本語}
+
+この先で繰り返し使う語を，コード上の英語名より先に日本語で説明する．
+
+\begin{description}[leftmargin=10em,style=nextline]
+  \item[source式]
+    型を調べる対象となる入力言語の式である．本書で単に「式」と書くときも，通常はこの式を指す．
+  \item[context]
+    式のその場所から参照できる変数と，各変数に与えられた型を並べた環境である．
+    たとえば無名関数（lambda）の本体では，lambdaが束縛した引数の型がcontextへ追加される．
+    自由変数とは，その式自身のlambdaや\code{let}では導入されず，外側のcontextから参照する変数である．
+  \item[代入]
+    型変数を具体的な型で一斉に置き換える対応である．たとえば
+    $[\alpha\mapsto\TyInt]$は，$\alpha$を\code{Int}で置き換える．
+  \item[単一化]
+    複数の型等式を同時に成り立たせる代入を計算する処理である．
+  \item[関数適用]
+    関数を引数へ使う式である．たとえば$f\;x$は関数$f$を引数$x$へ適用する．
+  \item[制約block]
+    一つの式についてまとめて解く制約の一まとまりである．現行実装では，生の結果型
+    \code{target}，必ず満たす等式\code{hard}，後で分類する使用可能性の要求\code{pending}を持つ．
+    三つの詳しい意味は次章で説明する．
+  \item[型scheme]
+    型変数を利用時ごとに選べる形で束ね，一つの定義を複数の型で使えるようにした多相型である．
+    この束ねる操作を量化といい，コード名は\code{Scheme}である．
+  \item[signature]
+    \code{nil}や\code{cons}のようにdata値を作る名前（data constructor）や，\code{add}のような
+    組込み演算（primitive）と，それらの型schemeを登録した有限の表である．
+  \item[公開推論]
+    利用者が式の型を求めるために呼ぶ，リポジトリの正式な推論関数\code{infer}である．
+  \item[supply]
+    次に作る新しい型変数とcapability変数へ何番を与えるかを記録する二つのカウンタである．
+  \item[well-formedなsupply]
+    contextにすでに現れるすべての自由変数より後の番号から，新しい変数名を割り当てるsupplyである．
+    これにより，生成した新しい名前がcontext中の古い名前と衝突しない．
+  \item[closure]
+    一つの制約blockを解いて得た代入と結果型をまとめた記録である．
+    実行時に関数本体と環境を組にした「関数closure」とは別物である．
+  \item[回帰検証]
+    具体例と期待結果を固定し，将来の変更で以前の正しい動作が壊れていないかを確かめる検査である．
+\end{description}
+
+証明済みの性質を表す四つの語も，次の意味で用いる．
+
+\begin{description}[leftmargin=8em,style=nextline]
+  \item[健全性]
+    公開推論が成功したなら，推論器とは独立に定義した型付け規則でも型が付くこと．
+  \item[完全性]
+    推論器とは独立な型付けが存在するなら，公開推論が必ず成功すること．
+  \item[主要性]
+    公開推論が返す型が最も一般的で，ほかの型付け結果をその型への代入で得られること．
+  \item[受理同値]
+    二つの制約blockについて，一方を解けることと他方を解けることが同値であること．
+\end{description}
 
 \section{M0からM5まで}
 
@@ -169,18 +233,21 @@ checkingという別の処理が必要になる．これが後で\code{pending}�
 \endhead
 M0 & 型，代入，局所checking & 完了 & matcherを含む基礎的な型合成とcheckingを検証済み．\\
 M1 & lambda，application，制約block & 完了 & 独立した型付け，停止する単一化，推論の健全性・完全性・主要性を検証済み．\\
-M2 & scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3 sourceで完全性・受理同値・主要性を検証済み．\\
-M3 & data，primitive，signature & 一部 & Bool/List，constructor，primitive，\code{ifE}と有限signatureを実装済み．M4と結ぶlisting全体の回帰が残る．\\
-M4 & pattern，matcher，\code{fix} & 一部 & 最終構文と再帰dispatcherは実装済み．大きいfixtureのkernel推論回帰とM4全域の完全性・主要性が残る．\\
-M5 & 評価と型安全性 & 一部 & 順序付き探索と多くの実行例を実装済み．closureやuser-defined matcherを含む一般の型安全性が残る．\\
+M2 & 型scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3のsource式で完全性・受理同値・主要性を検証済み．\\
+M3 & data，primitive，signature & 一部 & Bool/List，値を作るconstructor，組込み演算primitive，\code{ifE}，有限signatureを実装済み．M4と結ぶ掲載例全体の回帰が残る．\\
+M4 & pattern，matcher，\code{fix} & 一部 & 値の形を表すpatternと，再帰定義を作る\code{fix}を含む最終構文，および構文を再帰的に振り分ける処理を実装済み．大きい検証例をLeanの最終検査器で確かめる回帰検証と，M4全域の完全性・主要性が残る．\\
+M5 & 評価と型安全性 & 一部 & 順序付き探索と多くの実行例を実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．関数closureやuser-defined matcherを含む一般の場合が残る．\\
 \bottomrule
 \end{longtable}
 
 \begin{pointbox}{「M2が完了」の正確な意味}
-M2の完全性・主要性は，開始supplyがcontextに対してwell-formedである範囲で完了している．
-supplyは新しい型変数名を割り当てるカウンタである．公開推論は常に
-\code{context.initialSupply}から始めるため，この条件を満たす．
-well-formedでない任意の開始supplyは「未解決の宿題」ではなく，仕様の対象外である．
+M2では，独立な型付けがあれば公開推論が必ず成功すること（完全性）と，公開推論の型が
+ほかのすべての型付け結果の元になること（主要性）を証明済みである．ただし推論を始める
+カウンタ（開始supply）は，その場所で参照できる変数の環境（context）にすでに現れる
+すべての自由変数より後から，新しい番号を割り当てなければならない．この安全な開始条件を
+「contextに対してwell-formedである」と呼ぶ．公開推論はこの条件を満たす
+\code{context.initialSupply}から必ず始める．条件を破る任意の開始supplyは未解決の宿題ではなく，
+APIの仕様が受け付ける範囲の外である．
 \end{pointbox}
 
 \section{三つの層を混同しない}
@@ -190,13 +257,12 @@ well-formedでない任意の開始supplyは「未解決の宿題」ではなく
 \begin{enumerate}[leftmargin=2em]
   \item \textbf{制約生成}：source式から\code{Generated}を作る．
   \item \textbf{制約の閉包}：生成した制約を解き，主要な結果を得る．
-  \item \textbf{独立した型付け}：実行可能推論器を定義に含めない関係\code{Typing}で，
+  \item \textbf{独立した型付け}：実行可能推論器を定義に含めず，型付け規則だけで作る命題
+        \code{Typing}で，
         source programが型を持つことを述べる．
 \end{enumerate}
 
-健全性は「推論が成功したなら独立した型付けが存在する」と述べる．
-完全性は逆に「独立した型付けが存在するなら推論は成功する」と述べる．
-主要性は，推論が返す型から代入によって他の型付け結果を得られることを述べる．
+健全性・完全性・主要性は，前節で定義した意味で，この三つの層を結ぶ性質である．
 
 \chapter{制約生成：target，hard，pending}
 
@@ -312,12 +378,14 @@ Leanの\code{Expr.letE value body}における\code{value}は，実行時の値�
 
 \begin{enumerate}[leftmargin=2em]
   \item 外側contextで右辺\code{value}を生成する．
-  \item 右辺のhardを解き，pendingを分類・解決して，主要closureを得る．
+  \item 右辺のhardを解き，pendingを分類・解決して，ほかの解の元になる最も一般的な
+        closure（主要closure）を得る．
   \item closureの代入を外側contextへ適用する．
-  \item closureの結果型を，更新後contextに自由でない変数について一般化し，schemeを作る．
+  \item closureの結果型を，更新後contextに自由でない変数について量化し，型schemeを作る．
+        この量化処理を一般化と呼ぶ．
   \item そのschemeをcontext先頭へ追加してbodyを生成する．
-  \item 右辺の内部制約は親blockへ出さず，外側contextへの有限な影響だけを
-        interface equationsとして返す．
+  \item 右辺の内部制約は親blockへ出さず，外側contextへ見せる必要がある影響だけを
+        有限個の等式（interface equations）として返す．
 \end{enumerate}
 
 この実行可能な手順は\code{Source/Elaboration.lean}の\code{elaborate}に現れる．
@@ -326,15 +394,19 @@ Leanの\code{Expr.letE value body}における\code{value}は，実行時の値�
 
 \section{PrincipalBlockClosure}
 
-主要closureは二段階の解をまとめる．
+\code{PrincipalBlockClosure}は，最も一般的な制約blockの解を表す記録である．
+ここで「最も一般的」とは，ほかの解をこの解への追加の代入で得られることをいう．
+この記録は二段階の解をまとめる．
 
 \begin{enumerate}[leftmargin=2em]
-  \item hard制約を飽和させる最も一般的な代入．
-  \item 残ったpendingから作る残余等式を解く最も一般的な代入．
+  \item pendingからhardへ安全に移せる要求がなくなるまで処理する．この反復を飽和と呼び，
+        飽和後のhardを解く最も一般的な代入を記録する．
+  \item まだpendingに残った要求を分類して得る等式（残余等式）を解く，最も一般的な代入を記録する．
 \end{enumerate}
 
-二つの代入を合成したものがclosure substitutionであり，それを\code{target}へ適用した型が
-closure targetである．\emph{吸収的}であるとは，後から同じ制約を解く代入を合成しても，
+二つの代入を順に適用できる一つの代入へまとめたものがclosure substitutionであり，
+それを\code{target}へ適用した型がclosure targetである．\emph{吸収的}であるとは，
+後から同じ制約を解く代入を合成しても，
 選んだ主要代表が正規化された形で保たれる性質である．
 
 「最も一般的」であっても，変数名の代表が文字どおり一意になるわけではない．
@@ -343,8 +415,10 @@ closure targetである．\emph{吸収的}であるとは，後から同じ制�
 
 \section{一般化とscheme}
 
-一般化は，結果型に現れる変数のうち，更新後contextに自由に現れないものだけを量化する．
-scheme内の量化変数は名前ではなく位置で表す．これをbound-index schemeという．
+一般化は，結果型に現れる変数のうち，更新後contextに自由に現れないものだけを量化する処理である．
+その結果である型schemeは，一つの型を複数の具体的な型として再利用できる多相型である．
+scheme内の量化変数は名前ではなく位置で表す．これをbound-index scheme，つまり
+「量化変数を番号で指すscheme」と呼ぶ．
 たとえば恒等関数の型$\alpha\fn\alpha$を空contextで一般化すれば
 $\forall\alpha.\alpha\fn\alpha$になる．
 
@@ -424,11 +498,13 @@ $\forall a.\TyInt$ではない．後者は実質\code{Int}と同じで，関数�
 $S_L$では閉じたcontextは$x:p$，右辺結果も$p$である．
 $S_R$では閉じたcontextは$x:r$，右辺結果も$r$である．
 意味は同じだが，bodyの生成に使う変数名が違う．interfaceも一方では$p=p$という自明式，
-他方では$p=r$という非自明な別名等式になり得る．
+他方では$p=r$という非自明な別名等式になり得る．別名等式とは，異なる変数名が
+同じ型を表すことを記録する等式であり，以下ではalias equationとも呼ぶ．
 
 \section{単純な大域的renameでは直らない}
 
 最初に考えたくなるのは「一方の変数名を全体で置き換えればよい」という案である．
+本書では，型変数とcapability変数の名前を一対一に付け替える操作をrenameと呼ぶ．
 しかし全単射な変数名変更は，自明式$x=x$を別の自明式$y=y$へ移すことしかできない．
 非自明式$x=y$へは変えられない．現行リポジトリにはこの失敗を
 \code{GlobalRenamingCounterexample}としてLeanで保存している．
@@ -462,6 +538,8 @@ $S_R$では閉じたcontextは$x:r$，右辺結果も$r$である．
 \chapter{M2の最終解法：四つの層}
 
 最終証明は，一つの強いrename定理で全部を済ませない．役割の違う四層を組み合わせる．
+以下でsupportとは，型・制約・代入などに実際に現れる有限個の変数名の集合をいう．
+freshnessとは，新しく割り当てた変数名が既存のsupportと衝突しない性質をいう．
 
 \begin{center}
 \begin{tikzpicture}[
@@ -494,7 +572,7 @@ $S_R$では閉じたcontextは$x:r$，右辺結果も$r$である．
 \end{enumerate}
 
 さらに\code{SupportedEntailedAlignmentCertificate}は，終了supply，左右に追加する有限な
-別名等式，それらを外から観測できなくするfreshness，frameのsupportをまとめる．
+別名等式，それらが既存名と衝突しないことを示すfreshness，frameのsupportをまとめる．
 lambda，application，tuple，constructor，primitive，conditionalは，この証明書を構文に沿って
 合成できる．
 
@@ -520,7 +598,8 @@ $\rho$には二つの重要な性質がある．
 
 bodyを運ぶrenameだけでは，外側\code{fromLet}のinterface差を消せない．
 そこで二closureの変数対応のうち，closed contextから実際に観測でき，かつ名前が動く辺だけを
-有限graphとして取り出す．これをvisible closure graphという．
+有限個の「左の変数名と右の変数名の対応」として取り出す．この有限な対応表を
+visible closure graph，つまり外側contextから見えるclosure変数対応と呼ぶ．
 
 必要な側へfreshな別名等式を追加すると，左右のinterfaceは共通のhard理論
 \[
@@ -604,6 +683,8 @@ interfaceとbodyを一緒に組み立てる．
 
 \code{Typing.infer\_isSome}と\code{finiteRenamingEq}はsignatureのwell-formednessを仮定しない．
 推論成功から関係的型付けを得る健全性まで使うAPIは，\code{Signature.WellFormed}を明示的に受け取る．
+signatureがwell-formedであるとは，名前が重複せず，各型schemeが外部の未定義変数を含まず，
+constructorの引数数や結果のdata型が宣言表と一致することである．
 
 \section{負例にも完全性が効く}
 
@@ -617,10 +698,13 @@ interfaceとbodyを一緒に組み立てる．
 \section{M3：宣言と通常の呼出し}
 
 M3ではBool/Listのdata型，data constructor，pattern constructor，primitive，有限signatureを追加した．
+data constructorは\code{nil}や\code{cons}のようにdata値を作る名前であり，primitiveは
+\code{add}や\code{map}のように実装があらかじめ与えられた組込み演算である．
 constructorとprimitiveの引数処理は，通常の関数適用\code{Generated.fromApp}を左から畳み込む．
 したがってM2で証明した通常applicationの構造を再利用できる．
 
-\code{add}，\code{append}，\code{member}，\code{deleteFirst}，\code{map}のcanonical scheme，
+\code{add}，\code{append}，\code{member}，\code{deleteFirst}，\code{map}について，
+実装が正しいものとして固定する標準の型scheme（canonical scheme），
 \code{ifE}，名前・引数数・型不一致の正負回帰は実装済みである．
 M3が表で「一部」なのは，M4のpattern/matcherと合わせた論文listing全体の静的回帰が残るためである．
 
@@ -630,28 +714,38 @@ source構文は\code{fixE}，\code{matcher}，\code{matchAll}，\code{matchFirst
 value pattern，pattern constructor，pattern function applicationまで持つ．
 M4の実行可能elaborationと関係的elaborationは同じ構文を再帰的に処理し，
 成功から\code{M4.Typing}を得る健全性を証明済みである．
+ここでelaborationはsource式から型制約を生成する処理である．実行可能版はLeanの関数として
+結果を計算し，関係版は「この生成結果が規則から導ける」という命題として同じ処理を表す．
 
 一方，M2--M3で完了した「型が付くなら必ず推論成功」と「返却型の主要性」はM4全域では未証明である．
-matcher literalのstatic check，\code{fix}直下matcherの型形状，clause内部のslot要求，
+matcher literalを構文だけから検査する処理（static check），\code{fix}直下matcherの型形状，clause内部のslot要求，
 および\code{let}での任意closure選択を同時に扱う必要があるため，独立した大きな課題である．
 
 \section{M5：評価と型安全性}
 
-M5には一般のruntime value，closure，matcher closure，順序付き深さ優先探索，
+M5にはプログラム実行中に実際に得られる値（runtime value），関数本体と定義時の環境を組にした
+関数closure，matcher本体と環境を組にしたmatcher closure，候補を記録順に奥まで調べる深さ優先探索，
 \code{matchAll}と\code{matchFirst}の関係的評価とfuel付き評価器がある．
 fuelは再帰計算を進められる回数の上限である．有限な成功導出について，実行可能評価の健全性，
-完全性，fuel単調性を証明している．
+完全性，fuel単調性を証明している．fuel単調性とは，あるfuel量で成功した計算が，より大きい
+fuel量でも同じ結果で成功することである．
 
 型安全性は閉じた整数と再帰的tuple，および明示的なcallback仮定の下のbuilt-in matcher断片までである．
+callbackとは，処理本体を引数として受け取り，必要な時点で呼び出す関数である．built-in matcherとは，
+利用者がsourceで定義するのではなく，実行器に直接実装されたmatcherである．
 closureの定義環境，primitiveの一般値上の型保存，user-defined matcher clause，data constructor，
-一般pattern functionを同じ契約へ接続する作業が残る．これは標準的な保存・進行の形を持つが，
+一般pattern functionを同じ契約へ接続する作業が残る．ここで保存とは，実行の一歩後も型が保たれる
+ことであり，進行とは，型の付いた実行可能状態が結果でなければ次の一歩を進められることである．
+残作業はこの保存・進行の形を持つが，
 多相\code{let}のschemeとruntime環境を結ぶ設計を含むため，小さな機械作業ではない．
 
 \chapter{multisetWithListArgumentを理解する}
 
 \section{Paper 1のmultiset定義との対応}
 
-現行source ASTには，top-levelのuser-defined値を名前で参照するmodule環境がない．
+現行source AST，つまりsource式の構文を木として表すデータ型には，プログラム最外部
+（top-level）の利用者定義値を名前で参照するmodule環境がない．module環境とは，
+名前からその定義済みの値を引く表である．
 通常の値参照はde Bruijn indexで表す．de Bruijn indexとは，変数名の代わりに
 「最も内側のbinderから何個外か」を自然数で表す方法である．
 
@@ -677,7 +771,8 @@ closedMultisetDefinition
 \end{lstlisting}
 
 \code{multisetDefinition}自体が，Paper 1の再帰的
-\code{def multiset m := ...}に対応する．\code{fixE}を適用すると，実行時環境は
+\code{def multiset m := ...}に対応する．\code{fixE}を適用すると，変数から実行中の値を引く表
+（実行時環境）は
 \code{argument :: self :: definitionEnvironment}となる．
 
 \code{multisetWithListArgument}はPaper 1に表示される別のアルゴリズムではない．
@@ -685,9 +780,10 @@ closedMultisetDefinition
 closure conversionとは，関数が外側から参照する自由な値を，明示的な環境や引数として渡す変換である．
 
 \code{closedMultisetDefinition}はsourceで定義した\code{listMatcherDefinition}を実際に渡し，
-空のsource contextから使える閉じた式にする．静的確認だけなら，\code{multisetDefinition}を
+空のsource contextから使える閉じた式にする．閉じた式とは，外側の変数を参照せず，それだけで
+評価できる式である．静的確認だけなら，\code{multisetDefinition}を
 既知のlist schemeを持つcontextで調べてもよい．end-to-endの実行回帰では隠れたprimitive値を使わず，
-空context・空runtime environmentから始めるため，この明示的な適用を置いている．
+空context・空の実行時環境（runtime environment）から始めるため，この明示的な適用を置いている．
 
 \section{なぜlambda版単独は現在拒否されるのか}
 
@@ -747,8 +843,9 @@ M1の最小境界の大規模な実例である．「完全に具体化すれば
 
 \section{別問題：kernelで大きな推論を計算すること}
 
-大きいmatcher fixtureでは\code{M4.infer}の実行結果を\code{\#eval}で確認できても，
-Lean kernelの定義簡約だけで同じ等式を\code{rfl}により証明することが難しい．
+大きいmatcherの検証例（fixture）では\code{M4.infer}の実行結果を\code{\#eval}で確認できても，
+Lean kernelの定義簡約だけで同じ等式を\code{rfl}により証明することが難しい．Lean kernelとは，
+作られた証明がLeanの規則に従うかを最後に確認する，小さな検査器である．
 測度に基づく再帰で定義したpattern検査や単一化が簡約を遮るためである．
 
 これは前節のbranch-stable拒否とは別問題である．改善するなら，既存のfuel構造再帰
@@ -826,11 +923,12 @@ make
 \section{次の作業はM2ではなくM4/M5}
 
 M2のill-formed開始supplyは仕様外であり，完了のために追加証明する項目ではない．
-次の静的な主作業は，大きいPaper 1 fixtureをkernelで計算可能な形にし，正例の正確な
+次の静的な主作業は，大きいPaper 1の検証例をLean kernelで計算可能な形にし，正例の正確な
 \code{M4.infer}結果と\code{M4.Typing}，負例の非型付けを固定することである．
 
 その後，M4全域の完全性・主要性を別計画として調べる．M5ではclosure，data，primitive，
-user-defined matcher clause，pattern functionを一般の実行時型付けとno-stuckへ接続する．
+user-defined matcher clause，pattern functionを一般の実行時型付けと，型の不整合による停止が
+決して起きないという性質（no-stuck）へ接続する．
 
 \appendix
 
