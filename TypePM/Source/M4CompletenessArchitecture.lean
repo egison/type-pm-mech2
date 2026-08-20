@@ -288,7 +288,7 @@ def FullM4ExecutableReplay : Prop :=
   ∀ {signature : FrozenSignature} {context : Context} {expression : Expr}
       {supply : Supply} {generated : Generated} {next : Supply},
     M4.Elaborates signature context expression supply generated next →
-      supply.WellFormedFor context →
+      signature.WellFormed → supply.WellFormedFor context →
         ExecutableElaborationReplay signature context expression supply
 
 /-- Normalize an arbitrary relational fuel witness to the fuel chosen by the
@@ -316,7 +316,7 @@ def M4LetClosureRepresentativeAgreement : Prop :=
       {supply : Supply} {generated : Generated} {next : Supply},
     ElaboratesFuel signature ((Expr.letE value body).complexity + 1) context
         (Expr.letE value body) supply generated next →
-      supply.WellFormedFor context →
+      signature.WellFormed → supply.WellFormedFor context →
         ExecutableElaborationReplay signature context (Expr.letE value body) supply
 
 /-- Replay for every non-`let` root once recursive derivations use the public
@@ -328,7 +328,7 @@ def M4StructuralReplay : Prop :=
     (∀ value body, expression ≠ .letE value body) →
       ElaboratesFuel signature (expression.complexity + 1) context expression
           supply generated next →
-        supply.WellFormedFor context →
+        signature.WellFormed → supply.WellFormedFor context →
           ExecutableElaborationReplay signature context expression supply
 
 /-- Fuel normalization, `let` representative agreement, and non-`let`
@@ -338,27 +338,39 @@ theorem fullM4ExecutableReplay_of_components
     (letAgreement : M4LetClosureRepresentativeAgreement)
     (structural : M4StructuralReplay) :
     FullM4ExecutableReplay := by
-  intro signature context expression supply generated next derivation wellFormed
+  intro signature context expression supply generated next derivation
+    signatureWellFormed wellFormed
   obtain ⟨fuel, fuelDerivation⟩ := derivation
   have normalized := normalization fuelDerivation
   cases expression with
-  | letE value body => exact letAgreement normalized wellFormed
-  | var index => exact structural (by simp) normalized wellFormed
-  | lit value => exact structural (by simp) normalized wellFormed
-  | something => exact structural (by simp) normalized wellFormed
-  | lam body => exact structural (by simp) normalized wellFormed
-  | app function argument => exact structural (by simp) normalized wellFormed
-  | tuple items => exact structural (by simp) normalized wellFormed
-  | ctor constructor arguments => exact structural (by simp) normalized wellFormed
-  | prim operation arguments => exact structural (by simp) normalized wellFormed
+  | letE value body =>
+      exact letAgreement normalized signatureWellFormed wellFormed
+  | var index =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | lit value =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | something =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | lam body =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | app function argument =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | tuple items =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | ctor constructor arguments =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | prim operation arguments =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
   | ifE condition thenBranch elseBranch =>
-      exact structural (by simp) normalized wellFormed
-  | fixE body => exact structural (by simp) normalized wellFormed
-  | matcher clauses => exact structural (by simp) normalized wellFormed
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | fixE body =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
+  | matcher clauses =>
+      exact structural (by simp) normalized signatureWellFormed wellFormed
   | matchAll target matcher pattern body =>
-      exact structural (by simp) normalized wellFormed
+      exact structural (by simp) normalized signatureWellFormed wellFormed
   | matchFirst target matcher arms =>
-      exact structural (by simp) normalized wellFormed
+      exact structural (by simp) normalized signatureWellFormed wellFormed
 
 /-- Per-derivation target correspondence needed for M4 principality.  Two
 types are mutual instances when each can be obtained from the other by a
@@ -392,7 +404,7 @@ theorem wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
   intro signature context expression supply next generated derivation closure
     signatureWellFormed wellFormed absorbing
   obtain ⟨computed, computedNext, executable, computedDerivation⟩ :=
-    replay derivation wellFormed
+    replay derivation signatureWellFormed wellFormed
   obtain ⟨pair⟩ := coherent expression signatureWellFormed wellFormed
     derivation computedDerivation
   have computedAccepts : BlockAccepts computed := by

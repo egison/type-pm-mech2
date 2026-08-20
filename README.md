@@ -252,15 +252,15 @@ M4完全性は，coherenceとexecutable replayの二本を別々に完成させ�
 | C7 | `matchAll` coherence | **not started** | C6とtarget／matcher／bodyの証明書を`Generated.fromMatchAll`へ合成する |
 | C8 | matcher literal coherence | **not started** | pattern-pattern，data-pattern，next matcher，arm，clause列を合成する |
 | C9 | `matchFirst` coherence | **not started** | patternとbodyをarm列，target／matcherへ合成する |
-| C10 | M4 `letE` transport／assembly | **not started** | 異なるvalue closureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
+| C10 | M4 `letE` transport／assembly | **done** | `m4LetTransportAndAssembly`はclosureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
 | C11 | `FullM4Coherence` | **in progress** | 合成定理`fullM4Coherence_of_steps`は完成．C6--C10の実体が残る |
 | R1 | non-let structural replay | **not started** | `M4StructuralReplay`を全constructorについて証明する |
 | R2 | let closure representative agreement | **not started** | 実行solverが選ぶclosureと関係側の任意closureを比較する |
 | R3 | `FullM4ExecutableReplay` | **in progress** | C1とR1/R2を合成する`fullM4ExecutableReplay_of_components`は完成．R1/R2の実体が残る |
 | F1 | M4完全性 | **in progress** | coherence／replayから完全性を得る条件付き定理は完成．C11とR3の実体化が残る |
-| F2 | M4受理同値・決定可能性 | **not started** | F1と既存健全性をM4用の公開APIへまとめる |
+| F2 | M4受理同値・決定可能性 | **in progress** | 条件付きAPI `typable_iff_infer_isSome_of_principalityComplete`と`typableDecidable_of_principalityComplete`は完成．F1の実体化待ち |
 | F3 | M4主要性 | **in progress** | 条件付きの主要性定理は完成．C11とR3の実体化が残る |
-| F4 | M4主要型の一意性 | **not started** | F3からM4用の有限変数名変更定理を公開する |
+| F4 | M4主要型の一意性 | **in progress** | 条件付き`PrincipalTyping.finiteRenamingEq_of_fullM4`は完成．Full M4 coherenceの実体化待ち |
 
 現在の最短経路は，C6 → C7 → C8/C9 → C10 → C11と，R1/R2 → R3を並行して進め，
 `wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay`へ接続することである．
@@ -441,8 +441,8 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | M2--M3完全性・主要性 | [FullM2Completion.lean](TypePM/Source/FullM2Completion.lean) |
 | M4実行可能／関係的elaboration | [M4RecursiveElaboration.lean](TypePM/Source/M4RecursiveElaboration.lean) |
 | M4 fuelとsupport | [M4ElaborationFuelMonotonicity.lean](TypePM/Source/M4ElaborationFuelMonotonicity.lean)，[M4SupplySupport.lean](TypePM/Source/M4SupplySupport.lean) |
-| M4完全性の境界 | [M4CompletenessArchitecture.lean](TypePM/Source/M4CompletenessArchitecture.lean) |
-| M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean) |
+| M4完全性の境界と公開系 | [M4CompletenessArchitecture.lean](TypePM/Source/M4CompletenessArchitecture.lean)，[M4CompletionConsequences.lean](TypePM/Source/M4CompletionConsequences.lean) |
+| M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean)，[M4LetCoherence.lean](TypePM/Source/M4LetCoherence.lean) |
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
