@@ -199,6 +199,7 @@ import TypePM.Source.M4SupplySupport
 import TypePM.Source.M4FreshRenamingTransport
 import TypePM.Source.M4SupportedCoherence
 import TypePM.Source.M4OrdinaryCoherence
+import TypePM.Source.M4PatternCoherence
 import TypePM.Source.M4FixCoherence
 import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences

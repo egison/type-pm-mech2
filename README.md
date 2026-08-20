@@ -248,12 +248,12 @@ M4完全性は，coherenceとexecutable replayの二本を別々に完成させ�
 | C3 | M4 fresh renaming | **done** | 全構文の`M4FreshRenaming.M4.ElaboratesFuel.rename`と`m4FreshRenamingTransport` |
 | C4 | 通常最外構文のcoherence | **done** | lambda，application，tuple，constructor，primitive，`ifE`等を`ordinaryM4CoherenceStep`で合成 |
 | C5 | `fixE` coherence | **done** | `fixCoherenceStep` |
-| C6 | pattern／pattern-list pair coherence | **in progress** | embedded expression，binding interface，pattern由来等式を相互帰納で比較する |
+| C6 | pattern／pattern-list pair coherence | **done** | 全pattern構成子のsupply／binding interfaceと意味的証明書を`PatternElaboratesUsing.supportedFuelPairCoherence`で相互帰納的に比較 |
 | C7 | `matchAll` coherence | **not started** | C6とtarget／matcher／bodyの証明書を`Generated.fromMatchAll`へ合成する |
 | C8 | matcher literal coherence | **not started** | pattern-pattern，data-pattern，next matcher，arm，clause列を合成する |
 | C9 | `matchFirst` coherence | **not started** | patternとbodyをarm列，target／matcherへ合成する |
 | C10 | M4 `letE` transport／assembly | **done** | `m4LetTransportAndAssembly`はclosureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
-| C11 | `FullM4Coherence` | **in progress** | 合成定理`fullM4Coherence_of_steps`は完成．C6--C10の実体が残る |
+| C11 | `FullM4Coherence` | **in progress** | 合成定理`fullM4Coherence_of_steps`は完成．C7--C9の実体が残る |
 | R1 | non-let structural replay | **in progress** | 通常root，`fixE`，matcher literal，`matchAll`，`matchFirst`の全constructor-local replayとsibling/callの逐次合成は完成．全構文帰納の実体化はC11待ち |
 | R2 | let closure representative agreement | **in progress** | `letM4FuelReplayStep`と三つのpattern-bearing replay stepは完成．全構文fuel帰納の実体化はC11待ち |
 | R3 | `FullM4ExecutableReplay` | **in progress** | replay側の局所stepはすべて完成し，`fullM4ExecutableReplay_of_coherence_and_patternSteps`へ接続済み．残りは`FullM4Coherence`の実体化だけ |
@@ -262,7 +262,7 @@ M4完全性は，coherenceとexecutable replayの二本を別々に完成させ�
 | F3 | M4主要性 | **in progress** | 条件付きの主要性定理は完成．C11とR3の実体化が残る |
 | F4 | M4主要型の一意性 | **in progress** | 条件付き`PrincipalTyping.finiteRenamingEq_of_fullM4`は完成．Full M4 coherenceの実体化待ち |
 
-現在の最短経路は，C6 → C7 → C8/C9 → C10 → C11と，R1/R2 → R3を並行して進め，
+現在の最短経路は，C7とC8/C9を並行して閉じてC11を実体化し，完成済みの局所replayからR3を得て，
 `wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay`へ接続することである．
 
 ### M4-C：pattern functionとDamas--Milner対応
@@ -443,7 +443,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | M4 fuelとsupport | [M4ElaborationFuelMonotonicity.lean](TypePM/Source/M4ElaborationFuelMonotonicity.lean)，[M4SupplySupport.lean](TypePM/Source/M4SupplySupport.lean) |
 | M4完全性の境界と公開系 | [M4CompletenessArchitecture.lean](TypePM/Source/M4CompletenessArchitecture.lean)，[M4StructuralReplay.lean](TypePM/Source/M4StructuralReplay.lean)，[M4PatternReplay.lean](TypePM/Source/M4PatternReplay.lean)，[M4MatchAllReplay.lean](TypePM/Source/M4MatchAllReplay.lean)，[M4MatchFirstReplay.lean](TypePM/Source/M4MatchFirstReplay.lean)，[M4CompletionConsequences.lean](TypePM/Source/M4CompletionConsequences.lean) |
 | M4からruntimeへの橋 | [M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean) |
-| M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean)，[M4LetCoherence.lean](TypePM/Source/M4LetCoherence.lean) |
+| M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4PatternCoherence.lean](TypePM/Source/M4PatternCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean)，[M4LetCoherence.lean](TypePM/Source/M4LetCoherence.lean) |
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
