@@ -14,9 +14,10 @@ generalized source `let`.  This module adds that information in a separate
 proof-only Boolean mask.  Only entries marked by the `letPoly` rule may use
 `instantiatedVar`; ordinary runtime variables keep exact lookup typing.
 
-The protected relation is intentionally small.  It supplies the structural
-forms needed to use one generalized value in applications and tuples, and it
-can embed any already certified `RuntimeTyping` subtree.  In particular it
+The protected relation is intentionally bounded.  It supplies the structural
+forms needed to use one generalized value in applications, tuples, canonical
+List construction, integer addition, and same-result-type conditionals, and
+it can embed any already certified `RuntimeTyping` subtree.  In particular it
 does not add an unrestricted `IsInstance` constructor to `RuntimeTyping` and
 does not change runtime contexts to source schemes.
 -/
@@ -50,6 +51,28 @@ inductive ProtectedRuntimeTyping :
       (items : ProtectedRuntimeTypings provenance expressions targets context) :
       ProtectedRuntimeTyping provenance (.tuple expressions) (.prod targets)
         context
+  | listCons
+      (head : ProtectedRuntimeTyping provenance headExpression element context)
+      (tail : ProtectedRuntimeTyping provenance tailExpression
+        (TypePM.DataTypes.list element) context) :
+      ProtectedRuntimeTyping provenance
+        (.ctor DataCtor.cons [headExpression, tailExpression])
+        (TypePM.DataTypes.list element) context
+  | add
+      (left : ProtectedRuntimeTyping provenance leftExpression .int context)
+      (right : ProtectedRuntimeTyping provenance rightExpression .int context) :
+      ProtectedRuntimeTyping provenance
+        (.prim PrimOp.add [leftExpression, rightExpression]) .int context
+  | ifE
+      (condition : ProtectedRuntimeTyping provenance conditionExpression
+        TypePM.DataTypes.bool context)
+      (thenBranch : ProtectedRuntimeTyping provenance thenExpression
+        branchTarget context)
+      (elseBranch : ProtectedRuntimeTyping provenance elseExpression
+        branchTarget context) :
+      ProtectedRuntimeTyping provenance
+        (.ifE conditionExpression thenExpression elseExpression)
+        branchTarget context
   | letPoly
       (value : ProtectedRuntimeTyping provenance valueExpression general context)
       (body : ProtectedRuntimeTyping (true :: provenance) bodyExpression target
@@ -110,6 +133,21 @@ inductive ProtectedRuntimeTypingSubstitutionStable (substitution : Subst) :
   | tuple
       (itemsStable : ProtectedRuntimeTypingsSubstitutionStable substitution items) :
       ProtectedRuntimeTypingSubstitutionStable substitution (.tuple items)
+  | listCons
+      (headStable : ProtectedRuntimeTypingSubstitutionStable substitution head)
+      (tailStable : ProtectedRuntimeTypingSubstitutionStable substitution tail) :
+      ProtectedRuntimeTypingSubstitutionStable substitution (.listCons head tail)
+  | add
+      (leftStable : ProtectedRuntimeTypingSubstitutionStable substitution left)
+      (rightStable : ProtectedRuntimeTypingSubstitutionStable substitution right) :
+      ProtectedRuntimeTypingSubstitutionStable substitution (.add left right)
+  | ifE
+      (conditionStable :
+        ProtectedRuntimeTypingSubstitutionStable substitution condition)
+      (thenStable : ProtectedRuntimeTypingSubstitutionStable substitution thenBranch)
+      (elseStable : ProtectedRuntimeTypingSubstitutionStable substitution elseBranch) :
+      ProtectedRuntimeTypingSubstitutionStable substitution
+        (.ifE condition thenBranch elseBranch)
   | letPoly
       (valueStable : ProtectedRuntimeTypingSubstitutionStable substitution value)
       (bodyStable : ProtectedRuntimeTypingSubstitutionStable substitution body) :
@@ -177,6 +215,13 @@ protected def ProtectedRuntimeTypingSubstitutionStable.applyContext
       .app functionStable.applyContext argumentStable.applyContext
   | .tuple itemsStable =>
       .tuple itemsStable.applyContext
+  | .listCons headStable tailStable =>
+      .listCons headStable.applyContext tailStable.applyContext
+  | .add leftStable rightStable =>
+      .add leftStable.applyContext rightStable.applyContext
+  | .ifE conditionStable thenStable elseStable =>
+      .ifE conditionStable.applyContext thenStable.applyContext
+        elseStable.applyContext
   | .letPoly valueStable bodyStable => by
       simpa [Ty.applyList] using ProtectedRuntimeTyping.letPoly
         valueStable.applyContext bodyStable.applyContext
@@ -230,6 +275,10 @@ theorem ProtectedRuntimeTyping.substitutionStable_id
     (fun _ _ functionStable argumentStable =>
       .app functionStable argumentStable)
     (fun _ itemsStable => .tuple itemsStable)
+    (fun _ _ headStable tailStable => .listCons headStable tailStable)
+    (fun _ _ leftStable rightStable => .add leftStable rightStable)
+    (fun _ _ _ conditionStable thenStable elseStable =>
+      .ifE conditionStable thenStable elseStable)
     (fun _ _ valueStable bodyStable => .letPoly valueStable bodyStable)
     .nil
     (fun _ _ headStable tailStable => .cons headStable tailStable)
@@ -250,6 +299,10 @@ theorem ProtectedRuntimeTypings.substitutionStable_id
     (fun _ _ functionStable argumentStable =>
       .app functionStable argumentStable)
     (fun _ itemsStable => .tuple itemsStable)
+    (fun _ _ headStable tailStable => .listCons headStable tailStable)
+    (fun _ _ leftStable rightStable => .add leftStable rightStable)
+    (fun _ _ _ conditionStable thenStable elseStable =>
+      .ifE conditionStable thenStable elseStable)
     (fun _ _ valueStable bodyStable => .letPoly valueStable bodyStable)
     .nil
     (fun _ _ headStable tailStable => .cons headStable tailStable)
@@ -385,6 +438,21 @@ mutual
         (itemsSeparated :
           ProtectedRuntimeTypingsSupportSeparated support items) :
         ProtectedRuntimeTypingSupportSeparated support (.tuple items)
+    | listCons
+        (headSeparated : ProtectedRuntimeTypingSupportSeparated support head)
+        (tailSeparated : ProtectedRuntimeTypingSupportSeparated support tail) :
+        ProtectedRuntimeTypingSupportSeparated support (.listCons head tail)
+    | add
+        (leftSeparated : ProtectedRuntimeTypingSupportSeparated support left)
+        (rightSeparated : ProtectedRuntimeTypingSupportSeparated support right) :
+        ProtectedRuntimeTypingSupportSeparated support (.add left right)
+    | ifE
+        (conditionSeparated :
+          ProtectedRuntimeTypingSupportSeparated support condition)
+        (thenSeparated : ProtectedRuntimeTypingSupportSeparated support thenBranch)
+        (elseSeparated : ProtectedRuntimeTypingSupportSeparated support elseBranch) :
+        ProtectedRuntimeTypingSupportSeparated support
+          (.ifE condition thenBranch elseBranch)
     | letPoly
         (valueSeparated :
           ProtectedRuntimeTypingSupportSeparated support value)
@@ -558,6 +626,19 @@ mutual
           (argumentSeparated.substitutionStable localized)
     | tuple itemsSeparated =>
         exact .tuple (itemsSeparated.substitutionStable localized)
+    | listCons headSeparated tailSeparated =>
+        exact .listCons
+          (headSeparated.substitutionStable localized)
+          (tailSeparated.substitutionStable localized)
+    | add leftSeparated rightSeparated =>
+        exact .add
+          (leftSeparated.substitutionStable localized)
+          (rightSeparated.substitutionStable localized)
+    | ifE conditionSeparated thenSeparated elseSeparated =>
+        exact .ifE
+          (conditionSeparated.substitutionStable localized)
+          (thenSeparated.substitutionStable localized)
+          (elseSeparated.substitutionStable localized)
     | letPoly valueSeparated bodySeparated =>
         exact .letPoly
           (valueSeparated.substitutionStable localized)
@@ -673,10 +754,13 @@ theorem inferSuccessClosedLetBoundVariableSupportSeparated
 
 /-! ## Syntax-directed bridge for protected first-order bodies
 
-This is the smallest general body bridge needed below a closure that captures
-a generalized binding.  It covers variables, literals, `something`,
-applications, and tuples.  Applications are restricted to ordinary equality
-checks; matcher-to-slot conversions belong to the larger M4 runtime bridge.
+This is the general body bridge needed below a closure that captures a
+generalized binding.  It covers variables, literals, `something`, canonical
+Boolean/List constructors, applications, tuples, integer addition, and
+same-result-type conditionals.  Applications are restricted to ordinary
+equality checks; matcher-to-slot conversions belong to the larger M4 runtime
+bridge.  A nested polymorphic `let` remains a separate representative-closure
+problem and is intentionally not hidden in this syntax judgment.
 -/
 
 /-- A semantic solution in which pending checks are ordinary equalities. -/
@@ -747,6 +831,84 @@ structure ProtectedContextCompatible
         IsInstance general ((scheme.instantiate supply).1.apply solution)
 
 namespace ProtectedContextCompatible
+
+private theorem sourceScheme_mem_of_getElem?_eq_some
+    {context : Source.Context} {index : Nat} {scheme : Source.Scheme}
+    (lookup : context[index]? = some scheme) :
+    scheme ∈ context := by
+  induction context generalizing index with
+  | nil => simp at lookup
+  | cons head tail induction =>
+      cases index with
+      | zero =>
+          simp at lookup
+          subst scheme
+          simp
+      | succ index =>
+          simp only [List.getElem?_cons_succ] at lookup
+          exact List.mem_cons_of_mem head (induction lookup)
+
+/-- Applying a closed child block and then the parent's later solution to a
+source-scheme occurrence is observationally the same as applying the later
+solution directly, provided the let-boundary interface equations hold. -/
+private theorem instantiate_applyFree_apply_eq_of_interface
+    {context : Source.Context} {scheme : Source.Scheme}
+    (schemeMember : scheme ∈ context)
+    (block later : Subst)
+    (solved : Solves later (context.interfaceEquations block))
+    (supply : Source.Supply) :
+    ((scheme.applyFree block).instantiate supply).1.apply later =
+      (scheme.instantiate supply).1.apply later := by
+  have agree :=
+    (context.solves_interfaceEquations_iff block later).mp solved
+  have bodyEquality :
+      (scheme.body.applyFree block).applyFree later =
+        scheme.body.applyFree later := by
+    rw [Source.PolyTy.applyFree_compose]
+    apply Source.PolyTy.applyFree_eq_of_agree
+    · intro index membership
+      exact (agree.1 index (by
+        apply mem_dedupFirst.mpr
+        exact List.mem_flatMap.mpr ⟨scheme, schemeMember,
+          Source.Scheme.mem_freeTyVars.mpr membership⟩)).symm
+    · intro index membership
+      exact (agree.2 index (by
+        apply mem_dedupFirst.mpr
+        exact List.mem_flatMap.mpr ⟨scheme, schemeMember,
+          Source.Scheme.mem_freeCapVars.mpr membership⟩)).symm
+  unfold Source.Scheme.instantiate Source.Scheme.applyFree
+  rw [← Source.PolyTy.openBound_applyFree,
+    ← Source.PolyTy.openBound_applyFree, bodyEquality]
+
+/-- Transport source/runtime context compatibility through the exact
+interface equations exported by a nested source `let`.  The runtime context
+and its provenance mask do not change. -/
+theorem ofApplyFreeInterface
+    (compatible : ProtectedContextCompatible sourceContext runtimeContext
+      provenance later)
+    (solved : Solves later (sourceContext.interfaceEquations block)) :
+    ProtectedContextCompatible (sourceContext.applyFree block)
+      runtimeContext provenance later := by
+  constructor
+  intro index transformedScheme supply lookup
+  simp only [Source.Context.applyFree, List.getElem?_map] at lookup
+  cases originalLookup : sourceContext[index]? with
+  | none => simp [originalLookup] at lookup
+  | some scheme =>
+      simp only [originalLookup, Option.map_some, Option.some.injEq] at lookup
+      subst transformedScheme
+      have schemeMember := sourceScheme_mem_of_getElem?_eq_some originalLookup
+      have targetEquality := instantiate_applyFree_apply_eq_of_interface
+        schemeMember block later solved supply
+      rcases compatible.lookup supply originalLookup with ordinary | protectedCase
+      · rcases ordinary with ⟨provenanceLookup, runtimeLookup⟩
+        exact .inl ⟨provenanceLookup, runtimeLookup.trans
+          (congrArg some targetEquality.symm)⟩
+      · rcases protectedCase with
+          ⟨general, provenanceLookup, runtimeLookup, instantiation⟩
+        exact .inr ⟨general, provenanceLookup, runtimeLookup, by
+          rw [targetEquality]
+          exact instantiation⟩
 
 /-- The canonical fresh ranges are renamed to the corresponding ranges of a
 second instantiation; all names outside those ranges follow `later`. -/
@@ -905,12 +1067,30 @@ mutual
     | var : ProtectedBodySupported (.var index)
     | lit : ProtectedBodySupported (.lit value)
     | something : ProtectedBodySupported .something
+    | boolTrue : ProtectedBodySupported (.ctor DataCtor.true [])
+    | boolFalse : ProtectedBodySupported (.ctor DataCtor.false [])
+    | listNil : ProtectedBodySupported (.ctor DataCtor.nil [])
+    | listCons
+        (head : ProtectedBodySupported headExpression)
+        (tail : ProtectedBodySupported tailExpression) :
+        ProtectedBodySupported
+          (.ctor DataCtor.cons [headExpression, tailExpression])
     | app
         (function : ProtectedBodySupported functionExpression)
         (argument : ProtectedBodySupported argumentExpression) :
         ProtectedBodySupported (.app functionExpression argumentExpression)
+    | add
+        (left : ProtectedBodySupported leftExpression)
+        (right : ProtectedBodySupported rightExpression) :
+        ProtectedBodySupported (.prim PrimOp.add [leftExpression, rightExpression])
     | tuple (items : ProtectedBodiesSupported expressions) :
         ProtectedBodySupported (.tuple expressions)
+    | ifE
+        (condition : ProtectedBodySupported conditionExpression)
+        (thenBranch : ProtectedBodySupported thenExpression)
+        (elseBranch : ProtectedBodySupported elseExpression) :
+        ProtectedBodySupported
+          (.ifE conditionExpression thenExpression elseExpression)
 
   /-- Pointwise syntax coverage for tuple children. -/
   inductive ProtectedBodiesSupported : List Source.Expr → Prop where
@@ -955,6 +1135,25 @@ private theorem strict_fromApp
         List.not_mem_nil, or_false]
       exact Or.inr rfl)
 
+private theorem strict_fromLet
+    (semantic : StrictGeneratedSemanticSolution
+      (Source.Generated.fromLet effects body) solution) :
+    Solves solution effects ∧
+      StrictGeneratedSemanticSolution body solution := by
+  constructor
+  · intro equation membership
+    exact semantic.hard equation (by
+      simp only [Source.Generated.fromLet, List.mem_append]
+      exact .inl membership)
+  · constructor
+    · intro equation membership
+      exact semantic.hard equation (by
+        simp only [Source.Generated.fromLet, List.mem_append]
+        exact .inr membership)
+    · intro obligation membership
+      exact semantic.pending obligation (by
+        simpa [Source.Generated.fromLet] using membership)
+
 mutual
 
   /-- Relational elaboration plus a strict semantic solution determines the
@@ -962,6 +1161,7 @@ mutual
   only leaf information is the source/runtime context agreement above. -/
   theorem ProtectedBodySupported.elaboration_typing
       (supported : ProtectedBodySupported expression)
+      (compatible : SignatureCompatible signature)
       (elaboration : Source.Elaborates signature sourceContext expression
         supply generated next)
       (semantic : StrictGeneratedSemanticSolution generated solution)
@@ -987,31 +1187,173 @@ mutual
           ProtectedRuntimeTyping.runtime
             (provenance := provenance) (RuntimeTyping.something
               (solution.ty ⟨supply.ty⟩))
+    | boolTrue =>
+        cases elaboration with
+        | ctor lookup _arity _closed call =>
+            rw [compatible.boolTrue] at lookup
+            cases lookup
+            cases call
+            simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] using
+              ProtectedRuntimeTyping.runtime
+                (provenance := provenance) RuntimeTyping.boolTrue
+    | boolFalse =>
+        cases elaboration with
+        | ctor lookup _arity _closed call =>
+            rw [compatible.boolFalse] at lookup
+            cases lookup
+            cases call
+            simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] using
+              ProtectedRuntimeTyping.runtime
+                (provenance := provenance) RuntimeTyping.boolFalse
+    | listNil =>
+        cases elaboration with
+        | ctor lookup _arity _closed call =>
+            rw [compatible.listNil] at lookup
+            cases lookup
+            cases call
+            simpa [Source.ConstructorSchemes.instantiate_listNil, Ty.apply,
+              Ty.applyList, TypePM.DataTypes.list] using
+              ProtectedRuntimeTyping.runtime (provenance := provenance)
+                (RuntimeTyping.listNil (solution.ty ⟨supply.ty⟩))
+    | listCons head tail =>
+        cases elaboration with
+        | ctor lookup _arity _closed call =>
+            rw [compatible.listCons] at lookup
+            cases lookup
+            cases call with
+            | cons headElaboration rest =>
+                cases rest with
+                | cons tailElaboration rest =>
+                    cases rest
+                    obtain ⟨firstSemantic, tailSemantic, secondEquation,
+                        tailEquality⟩ := strict_fromApp semantic
+                    obtain ⟨_initialSemantic, headSemantic, firstEquation,
+                        headEquality⟩ := strict_fromApp firstSemantic
+                    have headTyping := head.elaboration_typing compatible
+                      headElaboration headSemantic contextCompatible
+                    have tailTyping := tail.elaboration_typing compatible
+                      tailElaboration tailSemantic contextCompatible
+                    simp only [Ty.apply] at headEquality tailEquality
+                    simp only [Equation.Holds, Ty.apply] at firstEquation secondEquation
+                    simp only [Source.ConstructorSchemes.instantiate_listCons]
+                      at firstEquation
+                    simp only [Source.Generated.fromApp, Ty.apply] at secondEquation
+                    simp only [Source.Generated.fromApp, Ty.apply]
+                    have firstParts := Ty.fn.inj firstEquation
+                    rw [← firstParts.2] at secondEquation
+                    have secondParts := Ty.fn.inj secondEquation
+                    rw [← firstParts.1] at headEquality
+                    rw [← secondParts.1] at tailEquality
+                    rw [headEquality] at headTyping
+                    rw [tailEquality] at tailTyping
+                    rw [← secondParts.2]
+                    exact .listCons headTyping tailTyping
     | app function argument =>
         cases elaboration with
         | app functionElaboration argumentElaboration =>
             obtain ⟨functionSemantic, argumentSemantic, functionEquation,
               argumentEquality⟩ := strict_fromApp semantic
-            have functionTyping := function.elaboration_typing
+            have functionTyping := function.elaboration_typing compatible
               functionElaboration functionSemantic contextCompatible
-            have argumentTyping := argument.elaboration_typing
+            have argumentTyping := argument.elaboration_typing compatible
               argumentElaboration argumentSemantic contextCompatible
             simp only [Equation.Holds, Ty.apply] at functionEquation
             rw [functionEquation] at functionTyping
             rw [argumentEquality] at argumentTyping
             exact .app functionTyping argumentTyping
+    | add left right =>
+        cases elaboration with
+        | prim lookup _arity _closed call =>
+            rw [compatible.add] at lookup
+            cases lookup
+            cases call with
+            | cons leftElaboration rest =>
+                cases rest with
+                | cons rightElaboration rest =>
+                    cases rest
+                    obtain ⟨firstSemantic, rightSemantic, secondEquation,
+                        rightEquality⟩ := strict_fromApp semantic
+                    obtain ⟨_initialSemantic, leftSemantic, firstEquation,
+                        leftEquality⟩ := strict_fromApp firstSemantic
+                    have leftTyping := left.elaboration_typing compatible
+                      leftElaboration leftSemantic contextCompatible
+                    have rightTyping := right.elaboration_typing compatible
+                      rightElaboration rightSemantic contextCompatible
+                    simp only [Ty.apply] at leftEquality rightEquality
+                    simp only [Equation.Holds, Ty.apply] at firstEquation secondEquation
+                    simp only [Source.PrimitiveSchemes.instantiate_add]
+                      at firstEquation
+                    simp only [Source.Generated.fromApp, Ty.apply] at secondEquation
+                    simp only [Source.Generated.fromApp, Ty.apply]
+                    have firstParts := Ty.fn.inj firstEquation
+                    rw [← firstParts.2] at secondEquation
+                    have secondParts := Ty.fn.inj secondEquation
+                    rw [← firstParts.1] at leftEquality
+                    rw [← secondParts.1] at rightEquality
+                    rw [leftEquality] at leftTyping
+                    rw [rightEquality] at rightTyping
+                    rw [← secondParts.2]
+                    exact .add leftTyping rightTyping
     | tuple items =>
         cases elaboration with
         | tuple itemElaboration =>
             have itemSemantic :
                 StrictGeneratedItemsSemanticSolution _ solution :=
               ⟨semantic.hard, semantic.pending⟩
-            exact .tuple (items.elaborationItems_typing itemElaboration
+            exact .tuple (items.elaborationItems_typing compatible itemElaboration
               itemSemantic contextCompatible)
+    | ifE condition thenBranch elseBranch =>
+        cases elaboration with
+        | ifE call =>
+            cases call with
+            | cons conditionElaboration rest =>
+                cases rest with
+                | cons thenElaboration rest =>
+                    cases rest with
+                    | cons elseElaboration rest =>
+                        cases rest
+                        obtain ⟨secondAccumulatedSemantic, elseSemantic,
+                            thirdEquation, elseEquality⟩ :=
+                          strict_fromApp semantic
+                        obtain ⟨firstAccumulatedSemantic, thenSemantic,
+                            secondEquation, thenEquality⟩ :=
+                          strict_fromApp secondAccumulatedSemantic
+                        obtain ⟨_initialSemantic, conditionSemantic,
+                            firstEquation, conditionEquality⟩ :=
+                          strict_fromApp firstAccumulatedSemantic
+                        have conditionTyping := condition.elaboration_typing
+                          compatible conditionElaboration conditionSemantic
+                            contextCompatible
+                        have thenTyping := thenBranch.elaboration_typing
+                          compatible thenElaboration thenSemantic contextCompatible
+                        have elseTyping := elseBranch.elaboration_typing
+                          compatible elseElaboration elseSemantic contextCompatible
+                        simp only [Ty.apply] at conditionEquality thenEquality elseEquality
+                        simp only [Equation.Holds, Ty.apply] at firstEquation secondEquation thirdEquation
+                        simp only [Source.conditionalScheme_instantiate]
+                          at firstEquation
+                        simp only [TypePM.DataTypes.bool, Ty.apply,
+                          Ty.applyList] at firstEquation
+                        simp only [Source.Generated.fromApp, Ty.apply] at secondEquation thirdEquation
+                        simp only [Source.Generated.fromApp, Ty.apply]
+                        have firstParts := Ty.fn.inj firstEquation
+                        rw [← firstParts.2] at secondEquation
+                        have secondParts := Ty.fn.inj secondEquation
+                        rw [← secondParts.2] at thirdEquation
+                        have thirdParts := Ty.fn.inj thirdEquation
+                        rw [← firstParts.1] at conditionEquality
+                        rw [← secondParts.1] at thenEquality
+                        rw [← thirdParts.1] at elseEquality
+                        rw [conditionEquality] at conditionTyping
+                        rw [thenEquality] at thenTyping
+                        rw [elseEquality] at elseTyping
+                        rw [← thirdParts.2]
+                        exact .ifE conditionTyping thenTyping elseTyping
 
   /-- List counterpart of `ProtectedBodySupported.elaboration_typing`. -/
   theorem ProtectedBodiesSupported.elaborationItems_typing
       (supported : ProtectedBodiesSupported expressions)
+      (compatible : SignatureCompatible signature)
       (elaboration : Source.ElaboratesItems signature sourceContext expressions
         supply generated next)
       (semantic : StrictGeneratedItemsSemanticSolution generated solution)
@@ -1050,9 +1392,9 @@ mutual
                   simp only [List.mem_append]
                   exact .inr membership)
             exact .cons
-              (head.elaboration_typing headElaboration headSemantic
+              (head.elaboration_typing compatible headElaboration headSemantic
                 contextCompatible)
-              (tail.elaborationItems_typing tailElaboration tailSemantic
+              (tail.elaborationItems_typing compatible tailElaboration tailSemantic
                 contextCompatible)
 
 end
@@ -1176,6 +1518,86 @@ theorem ProtectedRuntimeTyping.coreSafety
           · exact .inl (by simp [evalFuel, timeout, FuelResult.map])
           · exact .inr ⟨.tuple values, by
               simp [evalFuel, success, FuelResult.map], .tuple childrenTyping⟩
+  | @listCons _ headExpression element _ tailExpression head tail =>
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ childFuel =>
+          have children : TypedResults
+              [element, TypePM.DataTypes.list element]
+              (FuelResult.traverse (evalFuel childFuel environment)
+                [headExpression, tailExpression]) := by
+            simpa [FuelResult.traverse] using TypedResult.pairTraverse
+              (head.coreSafety childFuel environment environmentTyping)
+              (tail.coreSafety childFuel environment environmentTyping)
+          rcases children with timeout | ⟨values, success, valuesTyping⟩
+          · exact .inl (by simp [evalFuel, timeout, FuelResult.map])
+          · cases valuesTyping with
+            | cons headTyping tailTyping =>
+                cases tailTyping with
+                | cons tailValueTyping nilTyping =>
+                    cases nilTyping
+                    obtain ⟨tailValues, tailEq, tailValuesTyping⟩ :=
+                      tailValueTyping.list_canonical
+                    subst tailEq
+                    exact .inr ⟨Value.buildList (_ :: tailValues), by
+                      simp [evalFuel, success, FuelResult.map,
+                        Value.buildList, Value.consValue],
+                      .list (.cons headTyping tailValuesTyping)⟩
+  | @add _ leftExpression _ rightExpression left right =>
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ childFuel =>
+          have children : TypedResults [.int, .int]
+              (FuelResult.traverse (evalFuel childFuel environment)
+                [leftExpression, rightExpression]) := by
+            simpa [FuelResult.traverse] using TypedResult.pairTraverse
+              (left.coreSafety childFuel environment environmentTyping)
+              (right.coreSafety childFuel environment environmentTyping)
+          rcases children with timeout | ⟨values, success, valuesTyping⟩
+          · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
+          · cases valuesTyping with
+            | cons leftTyping tailTyping =>
+                cases tailTyping with
+                | cons rightTyping nilTyping =>
+                    cases nilTyping
+                    obtain ⟨leftValue, rfl⟩ := leftTyping.int_canonical
+                    obtain ⟨rightValue, rfl⟩ := rightTyping.int_canonical
+                    exact .inr ⟨.int (leftValue + rightValue), by
+                      simp [evalFuel, success, evalPrimitive,
+                        FuelResult.bind], .int _⟩
+  | ifE condition thenBranch elseBranch =>
+      cases fuel with
+      | zero => exact .inl rfl
+      | succ childFuel =>
+          have conditionResult :=
+            condition.coreSafety childFuel environment environmentTyping
+          rcases conditionResult with timeout |
+            ⟨conditionValue, success, conditionTyping⟩
+          · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
+          · rcases conditionTyping.bool_canonical with isTrue | isFalse
+            · subst conditionValue
+              have branchResult :=
+                thenBranch.coreSafety childFuel environment environmentTyping
+              rcases branchResult with branchTimeout |
+                ⟨value, branchSuccess, valueTyping⟩
+              · exact .inl (by
+                  simp [evalFuel, success, branchTimeout, FuelResult.bind])
+              · exact .inr ⟨value, by
+                  simp [evalFuel, success, branchSuccess, FuelResult.bind],
+                  valueTyping⟩
+            · subst conditionValue
+              have branchResult :=
+                elseBranch.coreSafety childFuel environment environmentTyping
+              have falseNeTrue : DataCtor.false ≠ DataCtor.true := by decide
+              rcases branchResult with branchTimeout |
+                ⟨value, branchSuccess, valueTyping⟩
+              · exact .inl (by
+                  simp [evalFuel, success, branchTimeout, FuelResult.bind,
+                    falseNeTrue])
+              · exact .inr ⟨value, by
+                  simp [evalFuel, success, branchSuccess, FuelResult.bind,
+                    falseNeTrue],
+                  valueTyping⟩
   | letPoly value body =>
       cases fuel with
       | zero => exact .inl rfl
@@ -1315,6 +1737,37 @@ inductive ProtectedClosureBodySupported : Source.Expr → Prop where
       (function : ProtectedClosureBodySupported functionExpression)
       (argument : ProtectedBodySupported argumentExpression) :
       ProtectedClosureBodySupported (.app functionExpression argumentExpression)
+  /-- A nested principal `let` whose value is the closed identity lambda.
+  This is the first representative-sensitive nested-let case: the body may
+  use both this new generalized binding and generalized bindings captured
+  from the surrounding protected context. -/
+  | letIdentity
+      (body : ProtectedClosureBodySupported bodyExpression) :
+      ProtectedClosureBodySupported
+        (.letE (.lam (.var 0)) bodyExpression)
+
+private theorem generalizedIdentity_instantiate_shape
+    (context : Source.Context) (domain : Ty) (supply : Source.Supply) :
+    ∃ instantiatedDomain,
+      ((context.generalize (.fn domain domain)).instantiate supply).1 =
+        .fn instantiatedDomain instantiatedDomain := by
+  simp [Source.Context.generalize, Source.Scheme.instantiate,
+    Source.PolyTy.close, Source.PolyTy.openBound]
+
+private theorem identityElaboration_closure_target_shape
+    (elaboration : Source.Elaborates signature context (.lam (.var 0))
+      supply generated next)
+    (closure : PrincipalBlockClosure generated) :
+    ∃ domain, closure.target = .fn domain domain := by
+  cases elaboration with
+  | lam bodyElaboration =>
+      cases bodyElaboration with
+      | var lookup =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq] at lookup
+          subst_vars
+          exact ⟨(Ty.var ⟨supply.ty⟩).apply closure.substitution, by
+            simp [PrincipalBlockClosure.target, Source.Scheme.instantiate_mono,
+              Ty.apply]⟩
 
 /-- Relational elaboration constructs the complete surrounding
 `ProtectedClosureRuntimeTyping` derivation for the single-closure fragment.
@@ -1322,6 +1775,7 @@ inductive ProtectedClosureBodySupported : Source.Expr → Prop where
 every pending application check in this fragment is equality. -/
 theorem ProtectedClosureBodySupported.elaboration_typing
     (supported : ProtectedClosureBodySupported expression)
+    (compatible : SignatureCompatible signature)
     (elaboration : Source.Elaborates signature sourceContext expression
       supply generated next)
     (semantic : StrictGeneratedSemanticSolution generated solution)
@@ -1332,7 +1786,7 @@ theorem ProtectedClosureBodySupported.elaboration_typing
   cases supported with
   | firstOrder body =>
       exact .firstOrder
-        (body.elaboration_typing elaboration semantic contextCompatible)
+        (body.elaboration_typing compatible elaboration semantic contextCompatible)
   | lam body =>
       cases elaboration with
       | @lam _ _ _ generatedBody _ bodyElaboration =>
@@ -1340,7 +1794,7 @@ theorem ProtectedClosureBodySupported.elaboration_typing
               StrictGeneratedSemanticSolution generatedBody solution :=
             ⟨semantic.hard, semantic.pending⟩
           simpa [Ty.apply] using ProtectedClosureRuntimeTyping.lam
-            (body.elaboration_typing bodyElaboration bodySemantic
+            (body.elaboration_typing compatible bodyElaboration bodySemantic
               contextCompatible.mono)
   | app function argument =>
       cases elaboration with
@@ -1348,13 +1802,51 @@ theorem ProtectedClosureBodySupported.elaboration_typing
           obtain ⟨functionSemantic, argumentSemantic, functionEquation,
             argumentEquality⟩ := strict_fromApp semantic
           have functionTyping := function.elaboration_typing
-            functionElaboration functionSemantic contextCompatible
+            compatible functionElaboration functionSemantic contextCompatible
           have argumentTyping := argument.elaboration_typing
-            argumentElaboration argumentSemantic contextCompatible
+            compatible argumentElaboration argumentSemantic contextCompatible
           simp only [Equation.Holds, Ty.apply] at functionEquation
           rw [functionEquation] at functionTyping
           rw [argumentEquality] at argumentTyping
           exact .app functionTyping argumentTyping
+  | letIdentity body =>
+      cases elaboration with
+      | letE valueElaboration closure absorbing bodyElaboration =>
+          obtain ⟨interfaceSolved, bodySemantic⟩ := strict_fromLet semantic
+          let closedContext := sourceContext.applyFree closure.substitution
+          let generalizedScheme := closedContext.generalize closure.target
+          let canonicalSupply := closedContext.initialSupply
+          let general := (generalizedScheme.instantiate canonicalSupply).1
+          have closedCompatible : ProtectedContextCompatible closedContext
+              runtimeContext provenance solution := by
+            exact contextCompatible.ofApplyFreeInterface interfaceSolved
+          have bodyCompatible : ProtectedContextCompatible
+              (generalizedScheme :: closedContext)
+              (general :: runtimeContext) (true :: provenance) solution := by
+            apply ProtectedContextCompatible.pushCanonical
+                (canonicalSupply := canonicalSupply)
+            · intro index membership
+              exact Source.Context.freeTyVar_lt_initialSupply
+                ((Source.Context.mem_generalize_freeTyVars.mp membership).2)
+            · intro index membership
+              exact Source.Context.freeCapVar_lt_initialSupply
+                ((Source.Context.mem_generalize_freeCapVars.mp membership).2)
+            · exact closedCompatible
+          have bodyTyping := body.elaboration_typing compatible bodyElaboration
+            bodySemantic bodyCompatible
+          obtain ⟨valueDomain, closureShape⟩ :=
+            identityElaboration_closure_target_shape valueElaboration closure
+          have generalShape : ∃ domain, general = .fn domain domain := by
+            dsimp only [general, generalizedScheme]
+            rw [closureShape]
+            exact generalizedIdentity_instantiate_shape closedContext
+              valueDomain canonicalSupply
+          obtain ⟨generalDomain, generalEq⟩ := generalShape
+          have valueTyping : ProtectedRuntimeTyping provenance
+              (.lam (.var 0)) general runtimeContext := by
+            rw [generalEq]
+            exact .runtime (.lam (.var rfl))
+          exact .letPoly valueTyping bodyTyping
 
 namespace ProtectedClosureValueTyping
 

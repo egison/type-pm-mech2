@@ -291,9 +291,10 @@ theorem typed_node_done_preserves_outer_frame :
 
 `identity` is frozen by the public checker.  Its checked body is one embedded
 parameter, while the actual argument is a variable handled in the outer
-frame.  The small reducer below implements exactly that ordinary variable
-case and times out on every other atom; it is globally safe for the structural
-fragment and lets the finite DFS complete with the exported binding.
+frame.  The small reducer below implements the variable, wildcard, and
+conjunction cases used by these scoped regressions and times out otherwise.
+It is globally safe for the structural fragment and lets the finite DFS
+complete with the exported binding.
 -/
 
 def identityName : PatternFunName := ⟨"identity"⟩
@@ -414,7 +415,29 @@ def variableOnlyReducer (_environment : ValueEnvironment)
     (atom : MatchingAtom) : FuelResult (DispatchResult AtomReduction) :=
   match atom.pattern, atom.matcher with
   | .var, .something => .ok (.hit ⟨[[]], [atom.target]⟩)
+  | .wild, .something => .ok (.hit ⟨[[]], []⟩)
+  | .and left right, .something =>
+      .ok (.hit ⟨[[⟨left, .something, atom.target⟩,
+        ⟨right, .something, atom.target⟩]], []⟩)
+  | .tuple patterns, .tuple matchers =>
+      match atom.target with
+      | .tuple targets =>
+          match zipMatchingAtoms patterns matchers targets with
+          | some atoms => .ok (.hit ⟨[atoms], []⟩)
+          | none => .timeout
+      | _ => .timeout
   | _, _ => .timeout
+
+theorem variableOnlyReducer_andSafe :
+    CheckedAndReducerSafe variableOnlyReducer := by
+  intro environment left right target
+  rfl
+
+theorem variableOnlyReducer_structuralSafe :
+    CheckedBodyReducerSafe variableOnlyReducer := by
+  exact checkedBodyReducerSafe_of_and_tuple variableOnlyReducer_andSafe (by
+    intro environment patterns matchers targets atoms zipped
+    simp [variableOnlyReducer, zipped])
 
 theorem variableOnlyReducer_checkedSafe :
     CheckedScopedAtomReducerTypedSafe variableOnlyReducer := by
@@ -433,22 +456,63 @@ theorem variableOnlyReducer_checkedSafe :
               simp only [List.mem_singleton] at member
               subst branch
               exact ⟨[], .nil, rfl⟩)
+  case wild.something =>
+    cases atomTyped.typed with
+    | builtin typed =>
+        cases typed with
+        | somethingWild targetTyped =>
+            exact .intro [] .nil (by
+              intro branch member
+              simp only [List.mem_singleton] at member
+              subst branch
+              exact ⟨[], .nil, rfl⟩)
+  case and.something left right =>
+    cases atomTyped.typed with
+    | builtin typed =>
+        cases typed with
+        | and leftTyped rightTyped =>
+            exact .intro [] .nil (by
+              intro branch member
+              simp only [List.mem_singleton] at member
+              subst branch
+              exact ⟨_,
+                .cons (by simpa using
+                    CheckedOrdinaryAtomTyping.ofBuiltin leftTyped)
+                  (.cons (by simpa using
+                      CheckedOrdinaryAtomTyping.ofBuiltin rightTyped) .nil),
+                by simp⟩)
+  case tuple.tuple patterns matchers =>
+    cases atomTyped.typed with
+    | builtin typed =>
+        cases typed with
+        | tuple atoms zipped atomsTyped =>
+            simp only
+            rw [zipped.complete]
+            exact .inr ⟨_, rfl, .intro [] .nil (by
+                intro branch member
+                simp only [List.mem_singleton] at member
+                subst branch
+                exact ⟨newBindings, by
+                    simpa using CheckedOrdinaryAtomsTyping.ofBuiltin atomsTyped,
+                  by simp⟩)⟩
 
 def identityInitialState : PatternFunctionState :=
   ⟨[.atom ⟨.app identityName [.var], .something, .int 11⟩], [], []⟩
+
+def identityBodyPlan :
+    CheckedBodyAtomPlan frozenIdentity.signature frozenIdentity.definitions
+      [] [.var] [] ⟨.embed 0, .something, .int 11⟩ [.int] :=
+  CheckedBodyAtomPlan.parameter rfl
+    (.ordinary
+      ⟨.builtin (.somethingVar (.int 11)), by intros; simp, by intros; simp⟩
+      .nil)
 
 theorem identityInitialState_checked :
     CheckedScopedStateTyping frozenIdentity.signature
       frozenIdentity.definitions identityInitialState [.int] := by
   refine .mk .nil .nil ?_
-  apply CheckedScopedWorkTyping.applicationOfAgreement frozenIdentity.agreement
-    frozenIdentity_lookup rfl
-  · apply CheckedMNodeWorkTyping.parameter (index := 0) (argument := .var) rfl
-    · exact .ordinary
-        ⟨.builtin (.somethingVar (.int 11)), by intros; simp, by intros; simp⟩
-        .nil
-    · exact .nil
-  · exact .nil
+  exact CheckedScopedWorkTyping.applicationOfBodyPlan frozenIdentity.agreement
+    frozenIdentity_lookup rfl identityBodyPlan .nil
 
 theorem public_frozen_identity_scoped_dfs_exact :
     depthFirstFuel
@@ -463,7 +527,7 @@ theorem public_frozen_identity_scoped_dfs_typed :
         (stepPatternFunctionState frozenIdentity.definitions variableOnlyReducer)
         8 [identityInitialState]) := by
   apply depthFirstCheckedScopedMatching_typedSafe
-    variableOnlyReducer_checkedSafe
+    variableOnlyReducer_checkedSafe variableOnlyReducer_structuralSafe
   intro state member
   simp only [List.mem_singleton] at member
   subst state
@@ -659,7 +723,7 @@ theorem public_frozen_nested_scoped_dfs_typed :
         (stepPatternFunctionState frozenNested.definitions variableOnlyReducer)
         12 [nestedInitialState]) := by
   apply depthFirstCheckedScopedMatching_typedSafe
-    variableOnlyReducer_checkedSafe
+    variableOnlyReducer_checkedSafe variableOnlyReducer_structuralSafe
   intro state member
   simp only [List.mem_singleton] at member
   subst state
@@ -671,5 +735,380 @@ theorem public_frozen_nested_scoped_dfs_never_stuck :
       12 [nestedInitialState]).NotStuck := by
   rw [public_frozen_nested_scoped_dfs_exact]
   simp [FuelResult.NotStuck]
+
+/-! ## Compound checked callee body -/
+
+def conjoinName : PatternFunName := ⟨"conjoin"⟩
+def binaryCallerName : PatternFunName := ⟨"binaryCaller"⟩
+
+def binaryScheme : DualScheme :=
+  { tyArity := 0
+    capArity := 0
+    fields := [⟨.any, .int⟩, ⟨.any, .int⟩]
+    result := ⟨.any, .int⟩
+    fieldsWellScoped := by
+      simp [PolyDual.WellScoped, PolyCap.WellScoped, PolyTy.WellScoped]
+    resultWellScoped := by
+      simp [PolyDual.WellScoped, PolyCap.WellScoped, PolyTy.WellScoped] }
+
+def conjoinSource : PatternFunctionSourceDefinition :=
+  { name := conjoinName
+    scheme := binaryScheme
+    body := .and (.embed 0) (.embed 1) }
+
+def binaryCallerSource : PatternFunctionSourceDefinition :=
+  { name := binaryCallerName
+    scheme := binaryScheme
+    body := .app conjoinName [.embed 0, .embed 1] }
+
+def compoundSources : List PatternFunctionSourceDefinition :=
+  [conjoinSource, binaryCallerSource]
+
+def binaryCallerGenerated : GeneratedPattern :=
+  { dual := ⟨.any, .int⟩
+    bindings := []
+    hard := [
+      .ty .int .int, .cap .any .any,
+      .ty .int .int, .cap .any .any]
+    pending := [] }
+
+theorem conjoin_elaboration_exact :
+    elaboratePattern
+        (PatternFunctionFreeze.signature Paper1Signature.signature
+          compoundSources) []
+        (binaryScheme.instantiate ⟨0, 0⟩).1.fields conjoinSource.body []
+        (binaryScheme.instantiate ⟨0, 0⟩).2 =
+      some (callerGenerated, ⟨0, 0⟩) := by
+  simp [compoundSources, conjoinSource, binaryCallerSource, binaryScheme,
+    callerGenerated, elaboratePattern, DualScheme.instantiate,
+    PolyDual.openBound, PolyCap.openBound, PolyTy.openBound,
+    Scheme.boundTyInstance, Scheme.boundCapInstance,
+    Pattern.dualEquations]
+
+theorem binaryCaller_elaboration_exact :
+    elaboratePattern
+        (PatternFunctionFreeze.signature Paper1Signature.signature
+          compoundSources) []
+        (binaryScheme.instantiate ⟨0, 0⟩).1.fields
+        binaryCallerSource.body [] (binaryScheme.instantiate ⟨0, 0⟩).2 =
+      some (binaryCallerGenerated, ⟨0, 0⟩) := by
+  simp [compoundSources, conjoinSource, binaryCallerSource, binaryScheme,
+    conjoinName, binaryCallerName, binaryCallerGenerated, elaboratePattern,
+    elaboratePatterns, PatternFunctionFreeze.signature,
+    FrozenSignature.lookupPatternFunction,
+    PatternFunctionSourceDefinition.declaration, DualScheme.instantiate,
+    PolyDual.openBound, PolyCap.openBound, PolyTy.openBound,
+    Scheme.boundTyInstance, Scheme.boundCapInstance,
+    Pattern.fieldEquations]
+
+theorem compound_bodies_checked :
+    checkBodies
+      (PatternFunctionFreeze.signature Paper1Signature.signature
+        compoundSources) compoundSources = true := by
+  have conjoinSemantic :
+      (resultCheckBlock callerGenerated
+        (binaryScheme.instantiate ⟨0, 0⟩).1.result).SemanticSolution
+          identitySolution := by
+    constructor <;>
+      simp [resultCheckBlock, callerGenerated, binaryScheme,
+        identitySolution, Pattern.dualEquations, Solves, Equation.Holds,
+        DualScheme.instantiate, PolyDual.openBound, PolyCap.openBound,
+        PolyTy.openBound, Scheme.boundTyInstance, Scheme.boundCapInstance,
+        Cap.apply, Ty.apply]
+  have callerSemantic :
+      (resultCheckBlock binaryCallerGenerated
+        (binaryScheme.instantiate ⟨0, 0⟩).1.result).SemanticSolution
+          identitySolution := by
+    constructor <;>
+      simp [resultCheckBlock, binaryCallerGenerated, binaryScheme,
+        identitySolution, Pattern.dualEquations, Solves, Equation.Holds,
+        DualScheme.instantiate, PolyDual.openBound, PolyCap.openBound,
+        PolyTy.openBound, Scheme.boundTyInstance, Scheme.boundCapInstance,
+        Cap.apply, Ty.apply]
+  have conjoinChecked := checked_body_isSome conjoin_elaboration_exact
+    (solution := identitySolution) (by rfl) conjoinSemantic
+  have callerChecked := checked_body_isSome binaryCaller_elaboration_exact
+    (solution := identitySolution) (by rfl) callerSemantic
+  simpa [compoundSources, conjoinSource, binaryCallerSource, binaryScheme,
+    checkBodies] using And.intro conjoinChecked callerChecked
+
+set_option maxRecDepth 100000 in
+theorem public_compound_freeze_succeeds :
+    (freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed compoundSources).isSome = true := by
+  have names :
+      (compoundSources.map PatternFunctionSourceDefinition.name).Nodup := by
+    decide
+  have closed : interfacesClosed compoundSources = true := by rfl
+  rw [freezePatternFunctions, dif_pos names, dif_pos closed,
+    dif_pos compound_bodies_checked]
+  rfl
+
+def frozenCompound : FrozenPatternFunctionProgram :=
+  (freezePatternFunctions Paper1Signature.signature
+    Paper1Signature.wellFormed compoundSources).get
+      public_compound_freeze_succeeds
+
+theorem public_compound_freeze_exact :
+    freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed compoundSources = some frozenCompound := by
+  cases frozenEq : freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed compoundSources with
+  | none =>
+      have success := public_compound_freeze_succeeds
+      rw [frozenEq] at success
+      contradiction
+  | some program => simp [frozenCompound, frozenEq]
+
+def conjoinDefinition : PatternFunctionDefinition :=
+  { name := conjoinName
+    parameterCount := 2
+    body := .and (.embed 0) (.embed 1) }
+
+def binaryCallerDefinition : PatternFunctionDefinition :=
+  { name := binaryCallerName
+    parameterCount := 2
+    body := .app conjoinName [.embed 0, .embed 1] }
+
+theorem frozenCompound_definitions_exact :
+    frozenCompound.definitions =
+      [conjoinDefinition, binaryCallerDefinition] := by
+  have definitionsEq := freezePatternFunctions_definitions
+    (program := frozenCompound) public_compound_freeze_exact
+  simpa [PatternFunctionFreeze.definitions, compoundSources, conjoinSource,
+    binaryCallerSource, PatternFunctionSourceDefinition.runtimeDefinition,
+    conjoinDefinition, binaryCallerDefinition, binaryScheme] using definitionsEq
+
+theorem frozenCompound_conjoin_lookup :
+    frozenCompound.definitions.lookup conjoinName = some conjoinDefinition := by
+  rw [frozenCompound_definitions_exact]
+  rfl
+
+theorem frozenCompound_caller_lookup :
+    frozenCompound.definitions.lookup binaryCallerName =
+      some binaryCallerDefinition := by
+  rw [frozenCompound_definitions_exact]
+  rfl
+
+def compoundInitialState : PatternFunctionState :=
+  ⟨[.atom ⟨.app conjoinName [.var, .wild], .something, .int 31⟩],
+    [], []⟩
+
+def compoundConjoinPlan :
+    CheckedBodyAtomPlan frozenCompound.signature frozenCompound.definitions
+      [] [.var, .wild] []
+      ⟨.and (.embed 0) (.embed 1), .something, .int 31⟩ [.int] :=
+  CheckedBodyAtomPlan.expand CheckedBodyAtomExpansion.and
+    (CheckedBodyAtomsPlan.cons
+      (CheckedBodyAtomPlan.parameter rfl
+        (.ordinary
+          (CheckedOrdinaryAtomTyping.ofBuiltin (.somethingVar (.int 31)))
+          .nil))
+      (CheckedBodyAtomsPlan.cons
+        (CheckedBodyAtomPlan.parameter rfl
+          (.ordinary
+            (CheckedOrdinaryAtomTyping.ofBuiltin (.somethingWild (.int 31)))
+            .nil))
+        CheckedBodyAtomsPlan.nil))
+
+theorem compoundInitialState_checked :
+    CheckedScopedStateTyping frozenCompound.signature
+      frozenCompound.definitions compoundInitialState [.int] := by
+  refine .mk .nil .nil ?_
+  exact CheckedScopedWorkTyping.applicationOfBodyPlan frozenCompound.agreement
+    frozenCompound_conjoin_lookup rfl compoundConjoinPlan .nil
+
+theorem public_frozen_compound_scoped_dfs_exact :
+    depthFirstFuel
+      (stepPatternFunctionState frozenCompound.definitions variableOnlyReducer)
+      20 [compoundInitialState] = .ok [[.int 31]] := by
+  rw [frozenCompound_definitions_exact]
+  with_unfolding_all rfl
+
+theorem public_frozen_compound_scoped_dfs_typed :
+    TypedMatchingSearchResult [.int]
+      (depthFirstFuel
+        (stepPatternFunctionState frozenCompound.definitions variableOnlyReducer)
+        20 [compoundInitialState]) := by
+  apply depthFirstCheckedScopedMatching_typedSafe
+    variableOnlyReducer_checkedSafe variableOnlyReducer_structuralSafe
+  intro state member
+  simp only [List.mem_singleton] at member
+  subst state
+  exact compoundInitialState_checked
+
+theorem public_frozen_compound_scoped_dfs_never_stuck :
+    (depthFirstFuel
+      (stepPatternFunctionState frozenCompound.definitions variableOnlyReducer)
+      20 [compoundInitialState]).NotStuck := by
+  rw [public_frozen_compound_scoped_dfs_exact]
+  simp [FuelResult.NotStuck]
+
+/-! ## Three parameters through tuple and nested conjunction -/
+
+def tripleName : PatternFunName := ⟨"tripleBody"⟩
+
+def tripleScheme : DualScheme :=
+  { tyArity := 0
+    capArity := 0
+    fields := [⟨.any, .int⟩, ⟨.any, .int⟩, ⟨.any, .int⟩]
+    result := ⟨.prod [.any, .any], .prod [.int, .int]⟩
+    fieldsWellScoped := by
+      simp [PolyDual.WellScoped, PolyCap.WellScoped, PolyTy.WellScoped]
+    resultWellScoped := by
+      simp [PolyDual.WellScoped, PolyCap.WellScoped, PolyTy.WellScoped] }
+
+def tripleBody : Pattern :=
+  .tuple [.and (.embed 0) (.embed 1), .embed 2]
+
+def tripleSource : PatternFunctionSourceDefinition :=
+  { name := tripleName, scheme := tripleScheme, body := tripleBody }
+
+def tripleSources : List PatternFunctionSourceDefinition := [tripleSource]
+
+def tripleGenerated : GeneratedPattern :=
+  { dual := ⟨.prod [.any, .any], .prod [.int, .int]⟩
+    bindings := []
+    hard := [.ty .int .int, .cap .any .any]
+    pending := [] }
+
+theorem triple_elaboration_exact :
+    elaboratePattern
+      (PatternFunctionFreeze.signature Paper1Signature.signature tripleSources)
+      [] (tripleScheme.instantiate ⟨0, 0⟩).1.fields tripleBody []
+      (tripleScheme.instantiate ⟨0, 0⟩).2 =
+        some (tripleGenerated, ⟨0, 0⟩) := by
+  simp [tripleSources, tripleSource, tripleScheme, tripleBody, tripleGenerated,
+    elaboratePattern, elaboratePatterns, DualScheme.instantiate,
+    PolyDual.openBound, PolyCap.openBound, PolyTy.openBound,
+    Scheme.boundTyInstance, Scheme.boundCapInstance,
+    Pattern.dualEquations, Dual.capabilities, Dual.targets]
+
+theorem triple_bodies_checked :
+    checkBodies
+      (PatternFunctionFreeze.signature Paper1Signature.signature tripleSources)
+      tripleSources = true := by
+  have semantic :
+      (resultCheckBlock tripleGenerated
+        (tripleScheme.instantiate ⟨0, 0⟩).1.result).SemanticSolution
+          identitySolution := by
+    constructor <;>
+      simp [resultCheckBlock, tripleGenerated, tripleScheme, identitySolution,
+        Pattern.dualEquations, Solves, Equation.Holds,
+        DualScheme.instantiate, PolyDual.openBound, PolyCap.openBound,
+        PolyTy.openBound, PolyTy.openBoundList, PolyCap.openBoundList,
+        Scheme.boundTyInstance, Scheme.boundCapInstance,
+        Cap.apply, Cap.applyList, Ty.apply, Ty.applyList]
+  have checked := checked_body_isSome triple_elaboration_exact
+    (solution := identitySolution) (by rfl) semantic
+  simpa [tripleSources, tripleSource, checkBodies] using checked
+
+set_option maxRecDepth 100000 in
+theorem public_triple_freeze_succeeds :
+    (freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed tripleSources).isSome = true := by
+  have names : (tripleSources.map PatternFunctionSourceDefinition.name).Nodup :=
+    by decide
+  have closed : interfacesClosed tripleSources = true := by rfl
+  rw [freezePatternFunctions, dif_pos names, dif_pos closed,
+    dif_pos triple_bodies_checked]
+  rfl
+
+def frozenTriple : FrozenPatternFunctionProgram :=
+  (freezePatternFunctions Paper1Signature.signature
+    Paper1Signature.wellFormed tripleSources).get public_triple_freeze_succeeds
+
+theorem public_triple_freeze_exact :
+    freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed tripleSources = some frozenTriple := by
+  cases frozenEq : freezePatternFunctions Paper1Signature.signature
+      Paper1Signature.wellFormed tripleSources with
+  | none =>
+      have success := public_triple_freeze_succeeds
+      rw [frozenEq] at success
+      contradiction
+  | some program => simp [frozenTriple, frozenEq]
+
+def tripleDefinition : PatternFunctionDefinition :=
+  { name := tripleName, parameterCount := 3, body := tripleBody }
+
+theorem frozenTriple_definitions_exact :
+    frozenTriple.definitions = [tripleDefinition] := by
+  have definitionsEq := freezePatternFunctions_definitions
+    (program := frozenTriple) public_triple_freeze_exact
+  simpa [PatternFunctionFreeze.definitions, tripleSources, tripleSource,
+    PatternFunctionSourceDefinition.runtimeDefinition, tripleDefinition,
+    tripleScheme] using definitionsEq
+
+theorem frozenTriple_lookup :
+    frozenTriple.definitions.lookup tripleName = some tripleDefinition := by
+  rw [frozenTriple_definitions_exact]
+  rfl
+
+def tripleBodyPlan :
+    CheckedBodyAtomPlan frozenTriple.signature frozenTriple.definitions
+      [] [.var, .wild, .var] []
+      ⟨tripleBody, .tuple [.something, .something],
+        .tuple [.int 41, .int 42]⟩ [.int, .int] :=
+  CheckedBodyAtomPlan.expand
+    (CheckedBodyAtomExpansion.tuple (atoms := [
+      ⟨.and (.embed 0) (.embed 1), .something, .int 41⟩,
+      ⟨.embed 2, .something, .int 42⟩]) rfl)
+    (CheckedBodyAtomsPlan.cons
+      (CheckedBodyAtomPlan.expand CheckedBodyAtomExpansion.and
+        (CheckedBodyAtomsPlan.cons
+          (CheckedBodyAtomPlan.parameter rfl
+            (.ordinary
+              (CheckedOrdinaryAtomTyping.ofBuiltin (.somethingVar (.int 41)))
+              .nil))
+          (CheckedBodyAtomsPlan.cons
+            (CheckedBodyAtomPlan.parameter rfl
+              (.ordinary
+                (CheckedOrdinaryAtomTyping.ofBuiltin
+                  (.somethingWild (.int 41))) .nil))
+            CheckedBodyAtomsPlan.nil)))
+      (CheckedBodyAtomsPlan.cons
+        (CheckedBodyAtomPlan.parameter rfl
+          (.ordinary
+            (CheckedOrdinaryAtomTyping.ofBuiltin (.somethingVar (.int 42)))
+            .nil))
+        CheckedBodyAtomsPlan.nil))
+
+def tripleInitialState : PatternFunctionState :=
+  ⟨[.atom ⟨.app tripleName [.var, .wild, .var],
+      .tuple [.something, .something], .tuple [.int 41, .int 42]⟩], [], []⟩
+
+theorem tripleInitialState_checked :
+    CheckedScopedStateTyping frozenTriple.signature frozenTriple.definitions
+      tripleInitialState [.int, .int] := by
+  refine .mk .nil .nil ?_
+  exact CheckedScopedWorkTyping.applicationOfBodyPlan frozenTriple.agreement
+    frozenTriple_lookup rfl tripleBodyPlan .nil
+
+theorem public_frozen_triple_scoped_dfs_exact :
+    depthFirstFuel
+      (stepPatternFunctionState frozenTriple.definitions variableOnlyReducer)
+      20 [tripleInitialState] = .ok [[.int 41, .int 42]] := by
+  rw [frozenTriple_definitions_exact]
+  with_unfolding_all rfl
+
+theorem public_frozen_triple_scoped_dfs_typed :
+    TypedMatchingSearchResult [.int, .int]
+      (depthFirstFuel
+        (stepPatternFunctionState frozenTriple.definitions variableOnlyReducer)
+        20 [tripleInitialState]) := by
+  apply depthFirstCheckedScopedMatching_typedSafe
+    variableOnlyReducer_checkedSafe variableOnlyReducer_structuralSafe
+  intro state member
+  simp only [List.mem_singleton] at member
+  subst state
+  exact tripleInitialState_checked
+
+theorem public_frozen_triple_scoped_dfs_never_stuck :
+    (depthFirstFuel
+      (stepPatternFunctionState frozenTriple.definitions variableOnlyReducer)
+      20 [tripleInitialState]).NotStuck := by
+  rw [public_frozen_triple_scoped_dfs_exact]
+  trivial
 
 end TypePM.PatternFunctionSafetyRegression

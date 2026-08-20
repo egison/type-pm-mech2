@@ -175,6 +175,7 @@ import TypePM.RuntimeTypingRegression
 import TypePM.Source.PolymorphicLetRuntimeBridge
 import TypePM.Source.PolymorphicLetRuntimeBridgeRegression
 import TypePM.Source.PolymorphicLetProtectedClosureRegression
+import TypePM.Source.PolymorphicLetProtectedSyntaxRegression
 import TypePM.MatcherSafety
 import TypePM.MatcherSafetyRegression
 import TypePM.UserMatcherSafety
@@ -188,6 +189,8 @@ import TypePM.RecursiveTotalMatchingSafety
 import TypePM.TotalUserMatcherSafetyRegression
 import TypePM.CommonFuelSafety
 import TypePM.CommonFuelSafetyRegression
+import TypePM.RecursiveTotalClosureSafety
+import TypePM.RecursiveTotalClosureSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -204,9 +207,16 @@ import TypePM.Source.M4UserMatcherRuntimeBridge
 import TypePM.Source.M4UserMatcherRuntimeBridgeRegression
 import TypePM.Source.M4MatchingAtomRuntimeBridge
 import TypePM.Source.M4MatchingAtomRuntimeBridgeRegression
+import TypePM.Source.M4MatchFirstTotalCoreBridge
+import TypePM.Source.M4MatchFirstTotalCoreBridgeRegression
 import TypePM.Source.M4TotalCoreRuntimeBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridgeRegression
+import TypePM.Source.M4RecursiveMatcherInputBridge
+import TypePM.Source.M4Paper1RecursiveSafetyBoundaryRegression
+import TypePM.Source.M4Paper1RecursiveClosureTypingBoundary
+import TypePM.Source.PatternIndexedRecursiveScopedSafety
+import TypePM.Source.PatternIndexedRecursiveScopedSafetyRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
@@ -218,6 +228,7 @@ import TypePM.Source.M4Paper1NegativeRegression
 import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
+import TypePM.Source.M4Paper1RecursiveClosureTotalTyping
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4Paper1SafetyRegression
 import TypePM.Source.M4CompletenessArchitecture

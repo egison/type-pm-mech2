@@ -310,9 +310,10 @@ total-core certificate, applications must select an actually checked runtime
 definition, and an embedded parameter is typed in the outer frame rather than
 the node's private frame.  The fragment permits arbitrary recursive ordinary
 atom reduction inside a checked body.  It also permits a private body to call
-a checked definition whose body directly embeds one of its arguments; the
-exported argument may itself be an embedded parameter of the caller.  General
-nested bodies require a fully stack-indexed version of the same invariant.
+a checked definition whose body directly embeds one argument or conjoins two
+embedded arguments.  The exported arguments may themselves be embedded
+parameters of the caller.  General nested bodies beyond these checked shapes
+require a fully stack-indexed version of the same invariant.
 -/
 
 /-- A total-core atom that is genuinely handled by the ordinary reducer arm,
@@ -323,6 +324,23 @@ structure CheckedOrdinaryAtomTyping
   typed : TotalMatchingAtomTyping environmentTypes bindingTypes atom newBindings
   notApplication : ∀ name arguments, atom.pattern ≠ .app name arguments
   notParameter : ∀ index, atom.pattern ≠ .embed index
+
+namespace CheckedOrdinaryAtomTyping
+
+/-- Every built-in atom certificate is ordinary: the built-in judgment has
+no application or embedded-parameter constructors. -/
+theorem ofBuiltin
+    (typed : MatchingAtomTyping
+      (fun context expression target => RuntimeTyping expression target context)
+      environmentTypes bindingTypes atom newBindings) :
+    CheckedOrdinaryAtomTyping environmentTypes bindingTypes atom newBindings := by
+  refine ⟨.builtin typed, ?_, ?_⟩
+  · intro name arguments equality
+    cases typed <;> simp_all
+  · intro index equality
+    cases typed <;> simp_all
+
+end CheckedOrdinaryAtomTyping
 
 /-- Source-ordered ordinary atoms returned by one reducer branch. -/
 inductive CheckedOrdinaryAtomsTyping :
@@ -338,6 +356,16 @@ inductive CheckedOrdinaryAtomsTyping :
 
 namespace CheckedOrdinaryAtomsTyping
 
+theorem ofBuiltin :
+    ∀ {environmentTypes bindingTypes atoms newBindings},
+      MatchingAtomsTyping
+        (fun context expression target => RuntimeTyping expression target context)
+        environmentTypes bindingTypes atoms newBindings →
+      CheckedOrdinaryAtomsTyping environmentTypes bindingTypes atoms newBindings
+  | _, _, _, _, .nil => .nil
+  | _, _, _, _, .cons _ _ _ _ head tail =>
+      .cons (CheckedOrdinaryAtomTyping.ofBuiltin head) (ofBuiltin tail)
+
 /-- Forgetting the source-form exclusions recovers the total-core branch
 certificate. -/
 theorem total :
@@ -349,6 +377,25 @@ theorem total :
   | _, _, _, _, .cons head tail => .cons head.typed (total tail)
 
 end CheckedOrdinaryAtomsTyping
+
+/-- One syntax-directed expansion step used inside checked pattern-function
+bodies.  The output list is in the exact order installed in the MNode's
+private worklist. -/
+inductive CheckedBodyAtomExpansion : MatchingAtom → List MatchingAtom → Prop where
+  | and : CheckedBodyAtomExpansion
+      ⟨.and left right, .something, target⟩
+      [⟨left, .something, target⟩, ⟨right, .something, target⟩]
+  | tuple
+      (zipped : zipMatchingAtoms patterns matchers targets = some atoms) :
+      CheckedBodyAtomExpansion
+        ⟨.tuple patterns, .tuple matchers, .tuple targets⟩ atoms
+
+/-- A reducer implements every structural body expansion.  This is indexed by
+syntax shape, not by conjunction or tuple arity. -/
+def CheckedBodyReducerSafe (reduceAtom : AtomReducer) : Prop :=
+  ∀ environment atom atoms,
+    CheckedBodyAtomExpansion atom atoms →
+    reduceAtom environment atom = .ok (.hit ⟨[atoms], []⟩)
 
 mutual
 
@@ -416,6 +463,15 @@ mutual
         CheckedMNodeWorkTyping signature definitions environmentTypes
           outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
           (.atom atom :: remaining) answerTypes
+    | expand
+        (expansion : CheckedBodyAtomExpansion atom atoms)
+        (expanded : CheckedMNodeWorkTyping signature definitions
+          environmentTypes outerBindingTypes arguments privateEnvironmentTypes
+          privateBindingTypes (MatchingTree.ofAtoms atoms ++ remaining)
+          answerTypes) :
+        CheckedMNodeWorkTyping signature definitions environmentTypes
+          outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+          (.atom atom :: remaining) answerTypes
     | parameter
         (lookup : arguments[index]? = some argument)
         (exported : CheckedScopedWorkTyping signature definitions
@@ -477,8 +533,187 @@ mutual
           outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
           (.node [] nestedEnvironment nestedBindings nestedArguments :: remaining)
           answerTypes
+    | applicationAndParameters
+        (found : definitions.lookup name = some definition)
+        (checked : Nonempty (definition.Checked signature))
+        (arity : nestedArguments.length = definition.parameterCount)
+        (body : definition.body =
+          .and (.embed leftParameterIndex) (.embed rightParameterIndex))
+        (matcherEq : matcher = .something)
+        (leftNestedLookup : nestedArguments[leftParameterIndex]? =
+          some (.embed leftOuterIndex))
+        (rightNestedLookup : nestedArguments[rightParameterIndex]? =
+          some (.embed rightOuterIndex))
+        (leftOuterLookup : arguments[leftOuterIndex]? = some leftArgument)
+        (rightOuterLookup : arguments[rightOuterIndex]? = some rightArgument)
+        (leftExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes outerBindingTypes
+          [.atom ⟨leftArgument, matcher, target⟩] afterLeftTypes)
+        (rightExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes afterLeftTypes
+          [.atom ⟨rightArgument, matcher, target⟩] afterRightTypes)
+        (tail : CheckedMNodeWorkTyping signature definitions environmentTypes
+          afterRightTypes arguments privateEnvironmentTypes privateBindingTypes
+          remaining answerTypes) :
+        CheckedMNodeWorkTyping signature definitions environmentTypes
+          outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+          (.atom ⟨.app name nestedArguments, matcher, target⟩ :: remaining)
+          answerTypes
+    | nestedAndNode
+        (nestedEnvironmentTyped :
+          EnvironmentTyping nestedEnvironment nestedEnvironmentTypes)
+        (nestedBindingsTyped : ValueTypings nestedBindings nestedBindingTypes)
+        (matcherEq : matcher = .something)
+        (leftNestedLookup : nestedArguments[leftParameterIndex]? =
+          some (.embed leftOuterIndex))
+        (rightNestedLookup : nestedArguments[rightParameterIndex]? =
+          some (.embed rightOuterIndex))
+        (leftOuterLookup : arguments[leftOuterIndex]? = some leftArgument)
+        (rightOuterLookup : arguments[rightOuterIndex]? = some rightArgument)
+        (leftExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes outerBindingTypes
+          [.atom ⟨leftArgument, matcher, target⟩] afterLeftTypes)
+        (rightExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes afterLeftTypes
+          [.atom ⟨rightArgument, matcher, target⟩] afterRightTypes)
+        (tail : CheckedMNodeWorkTyping signature definitions environmentTypes
+          afterRightTypes arguments privateEnvironmentTypes privateBindingTypes
+          remaining answerTypes) :
+        CheckedMNodeWorkTyping signature definitions environmentTypes
+          outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+          (.node [.atom ⟨.and (.embed leftParameterIndex)
+              (.embed rightParameterIndex), matcher, target⟩]
+            nestedEnvironment nestedBindings nestedArguments :: remaining)
+          answerTypes
+    | nestedParameterPairNode
+        (nestedEnvironmentTyped :
+          EnvironmentTyping nestedEnvironment nestedEnvironmentTypes)
+        (nestedBindingsTyped : ValueTypings nestedBindings nestedBindingTypes)
+        (matcherEq : matcher = .something)
+        (leftNestedLookup : nestedArguments[leftParameterIndex]? =
+          some (.embed leftOuterIndex))
+        (rightNestedLookup : nestedArguments[rightParameterIndex]? =
+          some (.embed rightOuterIndex))
+        (leftOuterLookup : arguments[leftOuterIndex]? = some leftArgument)
+        (rightOuterLookup : arguments[rightOuterIndex]? = some rightArgument)
+        (leftExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes outerBindingTypes
+          [.atom ⟨leftArgument, matcher, target⟩] afterLeftTypes)
+        (rightExported : CheckedScopedWorkTyping signature definitions
+          environmentTypes afterLeftTypes
+          [.atom ⟨rightArgument, matcher, target⟩] afterRightTypes)
+        (tail : CheckedMNodeWorkTyping signature definitions environmentTypes
+          afterRightTypes arguments privateEnvironmentTypes privateBindingTypes
+          remaining answerTypes) :
+        CheckedMNodeWorkTyping signature definitions environmentTypes
+          outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+          (.node [
+              .atom ⟨.embed leftParameterIndex, matcher, target⟩,
+              .atom ⟨.embed rightParameterIndex, matcher, target⟩]
+            nestedEnvironment nestedBindings nestedArguments :: remaining)
+          answerTypes
 
 end
+
+/-! ## Stack-indexed algebra for checked body structure -/
+
+/-- Continuation form of one checked structural body atom.  `prepend` works
+for every private frame and every remaining worklist, which makes frame
+separation explicit while avoiding constructors indexed by body arity. -/
+structure CheckedBodyAtomPlan
+    (signature : FrozenSignature)
+    (definitions : PatternFunctionDefinitions)
+    (environmentTypes : List Ty) (arguments : List Pattern)
+    (outerBindingTypes : List Ty) (atom : MatchingAtom)
+    (answerTypes : List Ty) : Type where
+  prepend : ∀ {privateEnvironmentTypes privateBindingTypes remaining finalTypes},
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      answerTypes arguments privateEnvironmentTypes privateBindingTypes
+      remaining finalTypes →
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+      (.atom atom :: remaining) finalTypes
+
+/-- Continuation form of an arbitrary source-ordered child list.  Its two
+outer-binding indices compose sequentially for tuples of any arity and nested
+structural patterns of any depth. -/
+structure CheckedBodyAtomsPlan
+    (signature : FrozenSignature)
+    (definitions : PatternFunctionDefinitions)
+    (environmentTypes : List Ty) (arguments : List Pattern)
+    (outerBindingTypes : List Ty) (atoms : List MatchingAtom)
+    (answerTypes : List Ty) : Type where
+  prepend : ∀ {privateEnvironmentTypes privateBindingTypes remaining finalTypes},
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      answerTypes arguments privateEnvironmentTypes privateBindingTypes
+      remaining finalTypes →
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+      (MatchingTree.ofAtoms atoms ++ remaining) finalTypes
+
+namespace CheckedBodyAtomPlan
+
+/-- Export an embedded parameter through the current outer frame. -/
+def parameter
+    (lookup : arguments[index]? = some argument)
+    (exported : CheckedScopedWorkTyping signature definitions environmentTypes
+      outerBindingTypes [.atom ⟨argument, matcher, target⟩] answerTypes) :
+    CheckedBodyAtomPlan signature definitions environmentTypes arguments
+      outerBindingTypes ⟨.embed index, matcher, target⟩ answerTypes where
+  prepend tail := .parameter lookup exported tail
+
+/-- One structural expansion followed by an arity-independent child plan. -/
+def expand
+    (expansion : CheckedBodyAtomExpansion atom children)
+    (childrenPlan : CheckedBodyAtomsPlan signature definitions environmentTypes
+      arguments outerBindingTypes children answerTypes) :
+    CheckedBodyAtomPlan signature definitions environmentTypes arguments
+      outerBindingTypes atom answerTypes where
+  prepend tail := .expand expansion (childrenPlan.prepend tail)
+
+theorem toMNodeWork
+    (plan : CheckedBodyAtomPlan signature definitions environmentTypes
+      arguments outerBindingTypes atom answerTypes)
+    (tail : CheckedMNodeWorkTyping signature definitions environmentTypes
+      answerTypes arguments privateEnvironmentTypes privateBindingTypes
+      remaining finalTypes) :
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+      (.atom atom :: remaining) finalTypes :=
+  plan.prepend tail
+
+end CheckedBodyAtomPlan
+
+namespace CheckedBodyAtomsPlan
+
+def nil : CheckedBodyAtomsPlan signature definitions environmentTypes arguments
+    outerBindingTypes [] outerBindingTypes where
+  prepend tail := by simpa [MatchingTree.ofAtoms] using tail
+
+/-- Sequential composition is independent of list length and body shape. -/
+def cons
+    (head : CheckedBodyAtomPlan signature definitions environmentTypes arguments
+      outerBindingTypes atom middleTypes)
+    (tail : CheckedBodyAtomsPlan signature definitions environmentTypes arguments
+      middleTypes atoms answerTypes) :
+    CheckedBodyAtomsPlan signature definitions environmentTypes arguments
+      outerBindingTypes (atom :: atoms) answerTypes where
+  prepend rest := by
+    simp only [MatchingTree.ofAtoms, List.map_cons, List.cons_append]
+    exact head.prepend (tail.prepend rest)
+
+theorem toMNodeWork
+    (plan : CheckedBodyAtomsPlan signature definitions environmentTypes
+      arguments outerBindingTypes atoms answerTypes)
+    (tail : CheckedMNodeWorkTyping signature definitions environmentTypes
+      answerTypes arguments privateEnvironmentTypes privateBindingTypes
+      remaining finalTypes) :
+    CheckedMNodeWorkTyping signature definitions environmentTypes
+      outerBindingTypes arguments privateEnvironmentTypes privateBindingTypes
+      (MatchingTree.ofAtoms atoms ++ remaining) finalTypes :=
+  plan.prepend tail
+
+end CheckedBodyAtomsPlan
 
 /-- A concrete scoped state has typed runtime values and structurally typed
 work with one common final outer binding type list. -/
@@ -511,6 +746,25 @@ theorem applicationOfAgreement
       (.atom ⟨.app name arguments, matcher, target⟩ :: remaining)
       answerTypes :=
   .application found (agreement.lookup_checked found) arity body tail
+
+/-- Build a checked application from the arity-independent structural body
+algebra.  Tuple length and conjunction depth occur only in `plan`, never in
+this theorem's constructor shape. -/
+theorem applicationOfBodyPlan
+    (agreement : definitions.Agree signature)
+    (found : definitions.lookup name = some definition)
+    (arity : arguments.length = definition.parameterCount)
+    (plan : CheckedBodyAtomPlan signature definitions environmentTypes arguments
+      bindingTypes ⟨definition.body, matcher, target⟩ afterNodeTypes)
+    (tail : CheckedScopedWorkTyping signature definitions environmentTypes
+      afterNodeTypes remaining answerTypes) :
+    CheckedScopedWorkTyping signature definitions environmentTypes bindingTypes
+      (.atom ⟨.app name arguments, matcher, target⟩ :: remaining)
+      answerTypes :=
+  applicationOfAgreement agreement found arity
+    (plan.toMNodeWork (.nil : CheckedMNodeWorkTyping signature definitions
+      environmentTypes afterNodeTypes arguments environmentTypes [] []
+      afterNodeTypes)) tail
 
 /-- Sequential composition of typed outer work. -/
 theorem append :
@@ -608,6 +862,35 @@ def CheckedScopedAtomReducerTypedSafe (reduceAtom : AtomReducer) : Prop :=
         CheckedScopedAtomReductionTyping environmentTypes bindingTypes
           newBindings reduction
 
+/-- Exact operational contract for the built-in conjunction rule used by a
+compound checked body.  It states the reducer's local syntax rule, not a
+search result or preservation conclusion. -/
+def CheckedAndReducerSafe (reduceAtom : AtomReducer) : Prop :=
+  ∀ environment left right target,
+    reduceAtom environment ⟨.and left right, .something, target⟩ =
+      .ok (.hit ⟨[[⟨left, .something, target⟩,
+        ⟨right, .something, target⟩]], []⟩)
+
+/-- Exact tuple rule, quantified over the zipped child list rather than over
+any fixed tuple arity. -/
+def CheckedTupleReducerSafe (reduceAtom : AtomReducer) : Prop :=
+  ∀ environment patterns matchers targets atoms,
+    zipMatchingAtoms patterns matchers targets = some atoms →
+    reduceAtom environment
+        ⟨.tuple patterns, .tuple matchers, .tuple targets⟩ =
+      .ok (.hit ⟨[atoms], []⟩)
+
+/-- The older conjunction contract and the arity-independent tuple contract
+jointly implement the structural body algebra. -/
+theorem checkedBodyReducerSafe_of_and_tuple
+    (andSafe : CheckedAndReducerSafe reduceAtom)
+    (tupleSafe : CheckedTupleReducerSafe reduceAtom) :
+    CheckedBodyReducerSafe reduceAtom := by
+  intro environment atom atoms expansion
+  cases expansion with
+  | and => exact andSafe _ _ _ _
+  | tuple zipped => exact tupleSafe _ _ _ _ _ zipped
+
 /-- Upgrade the existing total reducer theorem once the concrete successful
 branches have the retained source-pattern evidence.  This isolates the
 missing user-matcher bridge without postulating a branch unrelated to the
@@ -679,6 +962,7 @@ private theorem stepPatternFunctionHead_nodeCheckedOrdinary
 recursive ordinary-plus-parameter fragment. -/
 private theorem CheckedMNodeWorkTyping.stepNodeCheckedSafe
     (reducerSafe : CheckedScopedAtomReducerTypedSafe reduceAtom)
+    (structuralSafe : CheckedBodyReducerSafe reduceAtom)
     (outerEnvironmentTyped :
       EnvironmentTyping outerEnvironment outerEnvironmentTypes)
     (outerBindingsTyped : ValueTypings outerBindings outerBindingTypes)
@@ -741,6 +1025,27 @@ private theorem CheckedMNodeWorkTyping.stepNodeCheckedSafe
                   (privateBindingsTyped.append immediateTyped)
                   (CheckedMNodeWorkTyping.prependTotalAtoms branchTyped rest')
                   tail)
+  | expand expansion expanded =>
+      rename_i atom atoms privateRemaining
+      let successors : List PatternFunctionState := [⟨
+        [.node (MatchingTree.ofAtoms atoms ++ privateRemaining)
+          privateEnvironment privateBindings arguments] ++ remaining,
+        outerEnvironment, outerBindings⟩]
+      refine .inr ⟨successors, ?_, ?_⟩
+      · cases expansion with
+        | and =>
+            simp [successors, stepPatternFunctionHead,
+              structuralSafe _ _ _ CheckedBodyAtomExpansion.and,
+              continueTreeAtom, FuelResult.map]
+        | tuple zipped =>
+            simp [successors, stepPatternFunctionHead,
+              structuralSafe _ _ _ (CheckedBodyAtomExpansion.tuple zipped),
+              continueTreeAtom, FuelResult.map]
+      · intro successor member
+        simp only [successors, List.mem_singleton] at member
+        subst successor
+        exact .mk outerEnvironmentTyped outerBindingsTyped
+          (.node privateEnvironmentTyped privateBindingsTyped expanded tail)
   | parameter lookup exported rest =>
       rename_i index argument matcher target afterExportTypes privateRemaining
       let successors : List PatternFunctionState :=
@@ -814,10 +1119,97 @@ private theorem CheckedMNodeWorkTyping.stepNodeCheckedSafe
         subst successor
         exact .mk outerEnvironmentTyped outerBindingsTyped
           (.node privateEnvironmentTyped privateBindingsTyped rest tail)
+  | applicationAndParameters found checked arity body matcherEq leftNestedLookup
+      rightNestedLookup leftOuterLookup rightOuterLookup leftExported
+      rightExported rest =>
+      rename_i name definition leftParameterIndex rightParameterIndex
+        matcher nestedArguments leftOuterIndex leftArgument rightOuterIndex
+        rightArgument target afterLeftTypes afterRightTypes
+        privateRemaining
+      let successors : List PatternFunctionState := [⟨
+        [MatchingTree.node
+          (MatchingTree.node
+              [.atom ⟨.and (.embed leftParameterIndex)
+                (.embed rightParameterIndex), matcher, target⟩]
+              privateEnvironment [] nestedArguments :: privateRemaining)
+          privateEnvironment privateBindings arguments] ++ remaining,
+        outerEnvironment, outerBindings⟩]
+      refine .inr ⟨successors, ?_, ?_⟩
+      · simp [successors, stepPatternFunctionHead,
+          lookupPatternFunctionApplication, found, arity, body]
+      · intro successor member
+        simp only [successors, List.mem_singleton] at member
+        subst successor
+        exact .mk outerEnvironmentTyped outerBindingsTyped
+          (.node privateEnvironmentTyped privateBindingsTyped
+            (.nestedAndNode privateEnvironmentTyped .nil matcherEq leftNestedLookup
+              rightNestedLookup leftOuterLookup rightOuterLookup leftExported
+              rightExported rest)
+            tail)
+  | nestedAndNode nestedEnvironmentTyped nestedBindingsTyped matcherEq
+      leftNestedLookup
+      rightNestedLookup leftOuterLookup rightOuterLookup leftExported
+      rightExported rest =>
+      rename_i nestedEnvironment nestedEnvironmentTypes nestedBindings
+        nestedBindingTypes matcher nestedArguments leftParameterIndex
+        rightParameterIndex leftOuterIndex leftArgument rightOuterIndex
+        rightArgument target afterLeftTypes afterRightTypes
+        privateRemaining
+      let successors : List PatternFunctionState := [⟨
+        [MatchingTree.node
+          (MatchingTree.node [
+              .atom ⟨.embed leftParameterIndex, matcher, target⟩,
+              .atom ⟨.embed rightParameterIndex, matcher, target⟩]
+              nestedEnvironment nestedBindings nestedArguments ::
+            privateRemaining)
+          privateEnvironment privateBindings arguments] ++ remaining,
+        outerEnvironment, outerBindings⟩]
+      refine .inr ⟨successors, ?_, ?_⟩
+      · subst matcher
+        simp [successors, stepPatternFunctionHead,
+          structuralSafe _ _ _ CheckedBodyAtomExpansion.and, continueTreeAtom,
+          MatchingTree.ofAtoms]
+      · intro successor member
+        simp only [successors, List.mem_singleton] at member
+        subst successor
+        exact .mk outerEnvironmentTyped outerBindingsTyped
+          (.node privateEnvironmentTyped privateBindingsTyped
+            (.nestedParameterPairNode nestedEnvironmentTyped
+              nestedBindingsTyped matcherEq leftNestedLookup rightNestedLookup
+              leftOuterLookup rightOuterLookup leftExported rightExported rest)
+            tail)
+  | nestedParameterPairNode nestedEnvironmentTyped nestedBindingsTyped matcherEq
+      leftNestedLookup rightNestedLookup leftOuterLookup rightOuterLookup
+      leftExported rightExported rest =>
+      rename_i nestedEnvironment nestedEnvironmentTypes nestedBindings
+        nestedBindingTypes matcher nestedArguments leftParameterIndex
+        rightParameterIndex leftOuterIndex leftArgument rightOuterIndex
+        rightArgument target afterLeftTypes afterRightTypes
+        privateRemaining
+      let successors : List PatternFunctionState := [⟨
+        [MatchingTree.node
+          (.atom ⟨.embed leftOuterIndex, matcher, target⟩ ::
+            .node [.atom ⟨.embed rightParameterIndex, matcher, target⟩]
+              nestedEnvironment nestedBindings nestedArguments ::
+            privateRemaining)
+          privateEnvironment privateBindings arguments] ++ remaining,
+        outerEnvironment, outerBindings⟩]
+      refine .inr ⟨successors, ?_, ?_⟩
+      · simp [successors, stepPatternFunctionHead, leftNestedLookup]
+      · intro successor member
+        simp only [successors, List.mem_singleton] at member
+        subst successor
+        exact .mk outerEnvironmentTyped outerBindingsTyped
+          (.node privateEnvironmentTyped privateBindingsTyped
+            (.parameter leftOuterLookup leftExported
+              (.nestedParameterNode nestedEnvironmentTyped nestedBindingsTyped
+                rightNestedLookup rightOuterLookup rightExported rest))
+            tail)
 
 /-- The concrete checked state invariant satisfies the local DFS contract. -/
 theorem stepPatternFunctionState_checkedScopedSafe
-    (reducerSafe : CheckedScopedAtomReducerTypedSafe reduceAtom) :
+    (reducerSafe : CheckedScopedAtomReducerTypedSafe reduceAtom)
+    (structuralSafe : CheckedBodyReducerSafe reduceAtom) :
     ScopedStateStepTypedSafe definitions reduceAtom
       (CheckedScopedStateTyping signature definitions) := by
   intro state answerTypes stateTyped
@@ -882,7 +1274,7 @@ theorem stepPatternFunctionState_checkedScopedSafe
           exact .mk environmentTyped bindingsTyped
             (.node environmentTyped .nil body tail)
       | node privateEnvironmentTyped privateBindingsTyped inside tail =>
-          rcases inside.stepNodeCheckedSafe reducerSafe environmentTyped
+          rcases inside.stepNodeCheckedSafe reducerSafe structuralSafe environmentTyped
               bindingsTyped privateEnvironmentTyped privateBindingsTyped tail with
             timeout | ⟨successors, stepped, successorsTyped⟩
           · exact .inl (by simp [stepPatternFunctionState, timeout])
@@ -893,6 +1285,7 @@ theorem stepPatternFunctionState_checkedScopedSafe
 /-- Finite depth-first safety for the checked recursive MNode fragment. -/
 theorem depthFirstCheckedScopedMatching_typedSafe
     (reducerSafe : CheckedScopedAtomReducerTypedSafe reduceAtom)
+    (structuralSafe : CheckedBodyReducerSafe reduceAtom)
     (statesTyped : ScopedMatchingStatesTyping
       (CheckedScopedStateTyping signature definitions) states answerTypes)
     (fuel : Nat) :
@@ -900,13 +1293,16 @@ theorem depthFirstCheckedScopedMatching_typedSafe
       (depthFirstFuel (stepPatternFunctionState definitions reduceAtom)
         fuel states) :=
   depthFirstScopedMatching_typedSafe
-    (stepPatternFunctionState_checkedScopedSafe reducerSafe) statesTyped fuel
+    (stepPatternFunctionState_checkedScopedSafe reducerSafe structuralSafe)
+    statesTyped fuel
 
 /-- Initial-state checked search safety.  The reducer premise is the explicit
 source-pattern preservation bridge needed for user-matcher branches. -/
 theorem searchPatternFunctionsFuel_checkedScopedSafe
     (reducerSafe : CheckedScopedAtomReducerTypedSafe
       (evaluationAtomReducer evaluate))
+    (structuralSafe :
+      CheckedBodyReducerSafe (evaluationAtomReducer evaluate))
     (initialTyped : CheckedScopedStateTyping signature definitions
       ⟨[.atom ⟨pattern, matcher, target⟩], environment, []⟩ answerTypes)
     (fuel : Nat) :
@@ -914,7 +1310,8 @@ theorem searchPatternFunctionsFuel_checkedScopedSafe
       (searchPatternFunctionsFuel definitions evaluate fuel environment
         pattern matcher target) :=
   searchPatternFunctionsFuel_typedSafe_of_stateStep
-    (stepPatternFunctionState_checkedScopedSafe reducerSafe) initialTyped fuel
+    (stepPatternFunctionState_checkedScopedSafe reducerSafe structuralSafe)
+    initialTyped fuel
 
 /-- The common-fuel total expression judgment supplies the evaluator callback
 used by recursively typed matcher clauses.  A future source-pattern

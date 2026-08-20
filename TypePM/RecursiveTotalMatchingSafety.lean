@@ -15,6 +15,24 @@ namespace TypePM.Runtime
 
 open TypePM.Source
 
+/-- Exact operational certificate for a terminal zero-hole user-matcher atom.
+The real reducer must time out, return no branches, or return the unique empty
+branch.  In the two successful cases there are zero immediate bindings and
+zero recursive atoms, so preservation is definitionally trivial.
+
+This is deliberately *not* a replacement for typed recursive matcher
+closures: it cannot certify any atom that delegates a pattern or returns a
+binding. -/
+def ZeroHoleTerminalUserAtomReduction
+    (eval : ValueEnvironment → Source.Expr → FuelResult Value)
+    (atom : MatchingAtom) : Prop :=
+  ∀ atomEnvironment,
+    evaluationAtomReducer eval atomEnvironment atom = .timeout ∨
+      evaluationAtomReducer eval atomEnvironment atom =
+        .ok (.hit ⟨[], []⟩) ∨
+      evaluationAtomReducer eval atomEnvironment atom =
+        .ok (.hit ⟨[[]], []⟩)
+
 mutual
 
   /-- One atom whose recursive user-matcher branches are tied to the exact
@@ -52,6 +70,14 @@ mutual
           environmentTypes bindingTypes
           ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩
           newBindings
+    /-- Terminal zero-hole operational exception.  Type preservation is
+    trivial because neither successful result contains a binding or a
+    recursive atom.  This constructor does not type the matcher closure and
+    is not part of the general recursive-closure bridge. -/
+    | zeroHoleTerminalUser
+        (reduction : ZeroHoleTerminalUserAtomReduction eval atom) :
+        RecursiveTotalMatchingAtomTyping expressionTyping eval
+          environmentTypes bindingTypes atom []
 
   /-- Pending atoms typed from left to right for one fixed evaluator. -/
   inductive RecursiveTotalMatchingAtomsTyping
@@ -211,6 +237,18 @@ theorem evaluationAtomReducer_recursiveTotalTypedSafe
                     (branches (bindings ++ environment) dispatched
                       recursiveBranchesTyped branch member),
                   rfl⟩)
+  | zeroHoleTerminalUser exactReduction =>
+      rcases exactReduction (bindings ++ environment) with timeout |
+        noBranches | oneEmptyBranch
+      · exact .inl timeout
+      · exact .inr ⟨⟨[], []⟩, noBranches,
+          .intro [] ValueTypings.nil (by simp)⟩
+      · exact .inr ⟨⟨[[]], []⟩, oneEmptyBranch,
+          .intro [] ValueTypings.nil (by
+            intro branch member
+            simp only [List.mem_singleton] at member
+            subst branch
+            exact ⟨[], RecursiveTotalMatchingAtomsTyping.nil, rfl⟩)⟩
 
 /-- A callback-indexed recursive matching state has one answer type list. -/
 inductive RecursiveTotalMatchingStateTyping
@@ -396,5 +434,34 @@ theorem searchPatternFuel_recursiveTotalTypedSafe
     simpa using
       (RecursiveTotalMatchingAtomsTyping.cons atomTyped
         RecursiveTotalMatchingAtomsTyping.nil))
+
+/-- A terminal zero-hole atom has a non-stuck bounded search without any
+typing assumption on its matcher closure.  This theorem is intentionally
+operational and applies only because both successful reducer results contain
+no recursive atoms. -/
+theorem searchPatternFuel_zeroHoleTerminal_notStuck
+    (terminal : ZeroHoleTerminalUserAtomReduction eval
+      ⟨pattern, matcher, target⟩)
+    (fuel : Nat) (environment : ValueEnvironment) :
+    (searchPatternFuel eval fuel environment pattern matcher target).NotStuck := by
+  unfold searchPatternFuel searchMatchingFuel
+  cases fuel with
+  | zero => trivial
+  | succ fuel =>
+      rcases terminal environment with timeout | noBranches | oneEmptyBranch
+      · simp [depthFirstFuel, stepMatchingState, timeout]
+        trivial
+      · simp [depthFirstFuel, stepMatchingState, noBranches,
+          MatchingState.successors]
+        trivial
+      · cases fuel with
+        | zero =>
+            simp [depthFirstFuel, stepMatchingState, oneEmptyBranch,
+              MatchingState.successors, MatchingState.continueWith]
+            trivial
+        | succ fuel =>
+            simp [depthFirstFuel, stepMatchingState, oneEmptyBranch,
+              MatchingState.successors, MatchingState.continueWith]
+            trivial
 
 end TypePM.Runtime

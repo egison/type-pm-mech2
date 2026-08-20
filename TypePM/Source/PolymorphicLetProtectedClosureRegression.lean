@@ -368,8 +368,9 @@ private theorem capturedPolymorphicIdentity_runtimeTypingFromElaboration :
           · exact ProtectedContextCompatible.nil
         rw [← rootTargetEq]
         exact
-          capturedBody_bridgeSupported.elaboration_typing bodyElaboration
-            bodySemantic contextCompatible
+          capturedBody_bridgeSupported.elaboration_typing
+            paper1SignatureCompatible bodyElaboration bodySemantic
+              contextCompatible
 
 /-- The outer lambda captures the generalized identity.  The principal source
 closure, canonical generalized representative, and the relational body
