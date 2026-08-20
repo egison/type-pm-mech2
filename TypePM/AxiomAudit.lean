@@ -48,6 +48,7 @@ import TypePM.Source.M4OrdinaryCoherence
 import TypePM.Source.M4PatternCoherence
 import TypePM.Source.M4MatcherCoherence
 import TypePM.Source.M4MatchAllCoherence
+import TypePM.Source.M4MatchFirstCoherence
 import TypePM.Source.M4FixCoherence
 import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
@@ -56,6 +57,7 @@ import TypePM.Source.M4PatternReplay
 import TypePM.Source.M4MatcherReplay
 import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
+import TypePM.Source.FullM4Completion
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -913,6 +915,17 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matcherCoherenceStep
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchAllSupportedFuelPair
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchAllCoherenceStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchFirstSupportedFuelPair
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.matchFirstCoherenceStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4Coherence
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fullM4ExecutableReplay
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete
+#assert_allowed_axioms TypePM.Source.M4.Typing.infer_isSome
+#assert_allowed_axioms TypePM.Source.M4.typable_iff_infer_isSome
+#assert_allowed_axioms TypePM.Source.M4.typableDecidable
+#assert_allowed_axioms TypePM.Source.M4.principalCoherence
+#assert_allowed_axioms TypePM.Source.M4.infer_success_principalResult
+#assert_allowed_axioms TypePM.Source.M4.PrincipalTyping.finiteRenamingEq
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fixCoherenceStep
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.FullM4FuelPairProperty.transportLetBody
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.m4LetTransportAndAssembly

@@ -204,6 +204,7 @@ import TypePM.Source.M4OrdinaryCoherence
 import TypePM.Source.M4PatternCoherence
 import TypePM.Source.M4MatcherCoherence
 import TypePM.Source.M4MatchAllCoherence
+import TypePM.Source.M4MatchFirstCoherence
 import TypePM.Source.M4FixCoherence
 import TypePM.Source.M4LetCoherence
 import TypePM.Source.M4CompletionConsequences
@@ -212,6 +213,7 @@ import TypePM.Source.M4PatternReplay
 import TypePM.Source.M4MatcherReplay
 import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
+import TypePM.Source.FullM4Completion
 import TypePM.AxiomAudit
 
 /-!
