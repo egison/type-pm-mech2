@@ -29,7 +29,7 @@ def capturedPolymorphicIdentity : Expr :=
 def resultType : Ty :=
   .prod [.int, .matcher .any (.var ⟨6⟩)]
 
-private def capturedGenerated : Generated :=
+def capturedGenerated : Generated :=
   { target := .var ⟨10⟩
     hard := [
       .ty (.fn (.var ⟨2⟩) (.var ⟨2⟩))
@@ -57,7 +57,7 @@ private theorem closeIdentityAt (index : Nat) :
   simp [inferGeneratedUsing, saturateUsing, saturateLoop,
     unify_nil_exact, promoteUnder, residualEquations]
 
-private theorem elaborateCaptured :
+theorem elaborateCaptured :
     elaborateRoot Paper1Signature.signature [] capturedPolymorphicIdentity =
       some capturedGenerated := by
   simp [elaborateRoot, capturedPolymorphicIdentity, elaborate, elaborateItems,

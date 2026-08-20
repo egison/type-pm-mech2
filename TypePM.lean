@@ -180,6 +180,7 @@ import TypePM.Source.PolymorphicLetRuntimeBridge
 import TypePM.Source.PolymorphicLetRuntimeBridgeRegression
 import TypePM.Source.PolymorphicLetProtectedClosureRegression
 import TypePM.Source.PolymorphicLetProtectedSyntaxRegression
+import TypePM.Source.PolymorphicLetInferenceOrdinary
 import TypePM.MatcherSafety
 import TypePM.MatcherSafetyRegression
 import TypePM.UserMatcherSafety
@@ -238,6 +239,7 @@ import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
 import TypePM.Source.M4Paper1RecursiveClosureTotalTyping
 import TypePM.Source.M4Paper1MatcherLiteralEvaluationSafetyRegression
+import TypePM.Source.M4Paper1ListJoinSearchSafety
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4Paper1SafetyRegression
 import TypePM.Source.M4CompletenessArchitecture

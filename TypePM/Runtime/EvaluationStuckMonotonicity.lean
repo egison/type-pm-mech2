@@ -60,6 +60,14 @@ theorem ok_eq (related : Approximates (.ok value) later) :
   cases related
   rfl
 
+theorem trans
+    (first : Approximates earlier middle)
+    (second : Approximates middle later) : Approximates earlier later := by
+  cases first with
+  | timeout middle => exact .timeout later
+  | stuck => cases second; exact .stuck
+  | ok value => cases second; exact .ok value
+
 end Approximates
 
 end FuelResult
@@ -296,7 +304,7 @@ private theorem depthFirstFuel_approximates_succ
             | yield answer => exact Approximates.map (induction rest) (answer :: ·)
             | expand successors => exact induction (successors ++ rest))
 
-private theorem searchPatternFuel_approximates_succ
+theorem searchPatternFuel_approximates_succ
     (evaluation : ∀ environment expression,
       Approximates (before environment expression)
         (after environment expression))

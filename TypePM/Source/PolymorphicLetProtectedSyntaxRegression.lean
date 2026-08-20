@@ -113,7 +113,7 @@ theorem nestedTupleValueBody_bodySupported :
       (.cons (.app .var .lit)
         (.cons (.app .var .something) .nil))))
 
-private theorem closeNestedTupleValue :
+theorem closeNestedTupleValue :
     inferGeneratedUsing unify
       { target := .prod [.int, .int]
         hard := []
@@ -220,7 +220,7 @@ theorem nestedTupleValueBody_neverStuckFromSource
     exact .plainClosure .nil (.var rfl)
   · exact .nil
 
-private def nestedGenerated : Generated :=
+def nestedGenerated : Generated :=
   { target := .prod [.var ⟨3⟩, .var ⟨7⟩, .var ⟨10⟩, .var ⟨14⟩]
     hard := [
       .ty (.fn (.var ⟨1⟩) (.var ⟨1⟩))
@@ -252,7 +252,7 @@ private theorem closeIdentityAt (index : Nat) :
   simp [inferGeneratedUsing, saturateUsing, saturateLoop,
     unify_nil_exact, promoteUnder, residualEquations]
 
-private theorem elaborate_nestedProtectedBody_exact :
+theorem elaborate_nestedProtectedBody_exact :
     elaborate Paper1Signature.signature [identityScheme] nestedProtectedBody
       (Context.initialSupply [identityScheme]) =
       some (nestedGenerated, ⟨15, 0⟩) := by
