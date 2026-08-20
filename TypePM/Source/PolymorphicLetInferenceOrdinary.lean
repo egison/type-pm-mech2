@@ -65,6 +65,167 @@ theorem ExecutableResidualsOrdinary.of_check
     beq_iff_eq] at checked
   exact checked obligation membership
 
+/-! ## Local certificates for root pending obligations
+
+Applications and non-nullary calls add obligations before hard saturation.
+The following certificate checks those actual root obligations under the hard
+substitution selected for the whole generated block.  It is intentionally
+about the conversion class, rather than mere solvability: matcher-to-slot and
+the other special conversions therefore cannot be certified as ordinary. -/
+
+/-- Every obligation in one list selects ordinary equality under a fixed root
+substitution.  Keeping the list and substitution explicit makes the
+certificate compositional across application and call syntax. -/
+def PendingResolutionsOrdinaryAt
+    (substitution : Subst) (pending : List CheckObligation) : Prop :=
+  ∀ obligation ∈ pending,
+    (obligation.resolutionUnder substitution).conversionClass = .ordinary
+
+namespace PendingResolutionsOrdinaryAt
+
+theorem nil (substitution : Subst) :
+    PendingResolutionsOrdinaryAt substitution [] := by
+  simp [PendingResolutionsOrdinaryAt]
+
+theorem append
+    (left : PendingResolutionsOrdinaryAt substitution leftPending)
+    (right : PendingResolutionsOrdinaryAt substitution rightPending) :
+    PendingResolutionsOrdinaryAt substitution (leftPending ++ rightPending) := by
+  intro obligation membership
+  rcases List.mem_append.mp membership with membership | membership
+  · exact left obligation membership
+  · exact right obligation membership
+
+/-- Local application composition.  The final premise is exactly the new
+obligation introduced by this application node. -/
+theorem fromApp
+    {functionGenerated argumentGenerated : Generated} {domain target : Ty}
+    (function : PendingResolutionsOrdinaryAt substitution functionGenerated.pending)
+    (argument : PendingResolutionsOrdinaryAt substitution argumentGenerated.pending)
+    (application :
+      ((CheckObligation.mk argumentGenerated.target domain).resolutionUnder
+        substitution).conversionClass = .ordinary) :
+    PendingResolutionsOrdinaryAt substitution
+      (Source.Generated.fromApp functionGenerated argumentGenerated domain target).pending := by
+  exact (function.append argument).append (by
+    intro obligation membership
+    simp only [List.mem_singleton] at membership
+    subst obligation
+    exact application)
+
+/-- A closed `letE` value contributes no root obligations; the body's local
+certificate is therefore the certificate for the whole `letE`. -/
+theorem fromLet
+    (body : PendingResolutionsOrdinaryAt substitution bodyGenerated.pending) :
+    PendingResolutionsOrdinaryAt substitution
+      (Source.Generated.fromLet effects bodyGenerated).pending := by
+  exact body
+
+/-- The local certificate rejects the canonical matcher-to-slot conversion;
+such checks remain in the special runtime bridge. -/
+theorem matcherToSlot_not_ordinary :
+    ¬ PendingResolutionsOrdinaryAt Subst.id
+      [⟨.matcher .any .int, .slot .any .int⟩] := by
+  intro ordinary
+  have selected := ordinary
+    (⟨.matcher .any .int, .slot .any .int⟩ : CheckObligation) (by simp)
+  change ConversionClass.matcherToSlot = .ordinary at selected
+  contradiction
+
+end PendingResolutionsOrdinaryAt
+
+/-- Local ordinary certificates for the actual root pending list, quantified
+over the concrete hard-saturation result. -/
+def RootPendingResolutionsOrdinary (generated : Generated) : Prop :=
+  ∀ output,
+    saturateUsing unify generated.hard generated.pending = some output →
+      PendingResolutionsOrdinaryAt output.substitution generated.pending
+
+/-- Executable form of the stronger local root certificate. -/
+def rootPendingResolutionsOrdinaryCheckUsing
+    (solve : List Equation → Option Subst) (generated : Generated) : Bool :=
+  match saturateUsing solve generated.hard generated.pending with
+  | none => false
+  | some output => generated.pending.all fun obligation =>
+      (obligation.resolutionUnder output.substitution).conversionClass ==
+        .ordinary
+
+def rootPendingResolutionsOrdinaryCheck (generated : Generated) : Bool :=
+  rootPendingResolutionsOrdinaryCheckUsing unify generated
+
+theorem rootPendingResolutionsOrdinaryCheck_unify_of_fuel
+    {solverFuel : Nat} {generated : Generated}
+    (checked : rootPendingResolutionsOrdinaryCheckUsing
+      (unifyWithFuel solverFuel) generated = true) :
+    rootPendingResolutionsOrdinaryCheck generated = true := by
+  unfold rootPendingResolutionsOrdinaryCheck
+  unfold rootPendingResolutionsOrdinaryCheckUsing at checked ⊢
+  cases fuelSaturation : saturateUsing (unifyWithFuel solverFuel)
+      generated.hard generated.pending with
+  | none => simp [fuelSaturation] at checked
+  | some output =>
+      have publicSaturation := saturateUsing_success_transport
+        unify_eq_of_unifyWithFuel_success fuelSaturation
+      rw [fuelSaturation] at checked
+      rw [publicSaturation]
+      exact checked
+
+theorem RootPendingResolutionsOrdinary.of_check
+    {generated : Generated}
+    (checked : rootPendingResolutionsOrdinaryCheck generated = true) :
+    RootPendingResolutionsOrdinary generated := by
+  intro output success obligation membership
+  simp only [rootPendingResolutionsOrdinaryCheck,
+    rootPendingResolutionsOrdinaryCheckUsing, success, List.all_eq_true,
+    beq_iff_eq] at checked
+  exact checked obligation membership
+
+private theorem mem_of_mem_promoteUnder_pending
+    (substitution : Subst) (obligation : CheckObligation) :
+    ∀ pending,
+      obligation ∈ (promoteUnder substitution pending).pending →
+        obligation ∈ pending := by
+  intro pending
+  induction pending with
+  | nil => simp [promoteUnder]
+  | cons head tail induction =>
+      simp only [promoteUnder]
+      split
+      · intro membership
+        simp only [List.mem_cons] at membership ⊢
+        exact membership.elim Or.inl (fun tailMembership =>
+          Or.inr (induction tailMembership))
+      · intro membership
+        exact List.mem_cons_of_mem head (induction membership)
+
+private theorem PromotionClosure.finalPending_mem_initial
+    (closure : PromotionClosure hard pending finalHard finalPending)
+    (membership : obligation ∈ finalPending) :
+    obligation ∈ pending := by
+  induction closure with
+  | refl => exact membership
+  | @step hard pending substitution promoted finalHard finalPending
+      _ promotedEq _ _ induction =>
+      have promotedMembership : obligation ∈ promoted.pending :=
+        induction membership
+      rw [← promotedEq] at promotedMembership
+      exact mem_of_mem_promoteUnder_pending substitution obligation pending
+        promotedMembership
+
+/-- The stronger local certificate soundly implies the residual certificate.
+Saturation only removes root obligations; it never invents new ones. -/
+theorem ExecutableResidualsOrdinary.of_rootPending
+    {generated : Generated}
+    (ordinary : RootPendingResolutionsOrdinary generated) :
+    ExecutableResidualsOrdinary generated := by
+  intro output success obligation membership
+  have saturated := saturateUsing_sound unify
+    (fun equations substitution solved =>
+      (unify_absorbingMGUSolver equations substitution solved).mostGeneral)
+    success
+  exact ordinary output success obligation
+    (saturated.closure.finalPending_mem_initial membership)
+
 private theorem residualEquations_ordinary_sound
     {hardSubstitution residualSubstitution : Subst}
     {obligations : List CheckObligation}
@@ -181,6 +342,70 @@ theorem InferenceResidualsOrdinary.of_check
   intro generated next success
   simp only [inferenceResidualsOrdinaryCheck, success] at checked
   exact ExecutableResidualsOrdinary.of_check checked
+
+/-- Source-level executable check for the stronger local root certificate,
+parameterized by the hard-equation solver for kernel regressions. -/
+def inferenceRootPendingResolutionsOrdinaryCheckUsing
+    (solve : List Equation → Option Subst)
+    (signature : Signature) (context : Context) (expression : Expr) : Bool :=
+  match elaborate signature context expression context.initialSupply with
+  | none => false
+  | some (generated, _) =>
+      rootPendingResolutionsOrdinaryCheckUsing solve generated
+
+/-- Public source-level check.  Unlike `RootPendingFree`, this accepts
+applications and non-nullary calls when their concrete root obligations
+select ordinary equality. -/
+def inferenceRootPendingResolutionsOrdinaryCheck
+    (signature : Signature) (context : Context) (expression : Expr) : Bool :=
+  inferenceRootPendingResolutionsOrdinaryCheckUsing unify signature context
+    expression
+
+/-- The exact source elaboration carries a local certificate for every
+concrete hard-saturation result.  Proofs may build its fixed-substitution
+premise structurally with `PendingResolutionsOrdinaryAt.fromApp`, repeating
+that constructor for each argument of a non-nullary call. -/
+def InferenceRootPendingResolutionsOrdinary
+    (signature : Signature) (context : Context) (expression : Expr) : Prop :=
+  ∀ generated next,
+    elaborate signature context expression context.initialSupply =
+      some (generated, next) →
+    RootPendingResolutionsOrdinary generated
+
+theorem InferenceRootPendingResolutionsOrdinary.inferenceResidualsOrdinary
+    (ordinary : InferenceRootPendingResolutionsOrdinary signature context
+      expression) :
+    InferenceResidualsOrdinary signature context expression := by
+  intro generated next success
+  exact ExecutableResidualsOrdinary.of_rootPending
+    (ordinary generated next success)
+
+theorem inferenceRootPendingResolutionsOrdinaryCheck_unify_of_fuel
+    {solverFuel : Nat} {signature : Signature} {context : Context}
+    {expression : Expr}
+    (checked : inferenceRootPendingResolutionsOrdinaryCheckUsing
+      (unifyWithFuel solverFuel) signature context expression = true) :
+    inferenceRootPendingResolutionsOrdinaryCheck signature context expression =
+      true := by
+  unfold inferenceRootPendingResolutionsOrdinaryCheck
+  unfold inferenceRootPendingResolutionsOrdinaryCheckUsing at checked ⊢
+  cases elaborated : elaborate signature context expression context.initialSupply with
+  | none => simp [elaborated] at checked
+  | some output =>
+      rcases output with ⟨generated, next⟩
+      simp only [elaborated] at checked ⊢
+      exact rootPendingResolutionsOrdinaryCheck_unify_of_fuel checked
+
+theorem InferenceResidualsOrdinary.of_rootPending_check
+    {signature : Signature} {context : Context} {expression : Expr}
+    (checked : inferenceRootPendingResolutionsOrdinaryCheck signature context
+      expression = true) :
+    InferenceResidualsOrdinary signature context expression := by
+  apply InferenceRootPendingResolutionsOrdinary.inferenceResidualsOrdinary
+  intro generated next success
+  simp only [inferenceRootPendingResolutionsOrdinaryCheck,
+    inferenceRootPendingResolutionsOrdinaryCheckUsing, success] at checked
+  exact RootPendingResolutionsOrdinary.of_check checked
 
 mutual
 
@@ -616,5 +841,137 @@ theorem nestedBoolValueBody_runtimeTyping :
 theorem nestedBoolValueBody_neverStuck (fuel : Nat) :
     (evalFuel fuel [] nestedBoolValueBody).NotStuck :=
   nestedBoolValueBody_neverStuckFromInfer infer_nestedBoolValueBody_exact fuel
+
+/-! ## Local ordinary-application regression: polymorphic identity -/
+
+/-- The body genuinely applies the generalized `let` binding.  Its generated
+root therefore has a nonempty pending list and is outside `RootPendingFree`. -/
+def polymorphicIdentityApplication : Expr :=
+  .letE (.lam (.var 0)) (.app (.var 0) (.lit 7))
+
+def polymorphicIdentityApplicationGenerated : Generated :=
+  { target := .var ⟨3⟩
+    hard := [
+      .ty (.fn (.var ⟨1⟩) (.var ⟨1⟩))
+        (.fn (.var ⟨2⟩) (.var ⟨3⟩))]
+    pending := [⟨.int, .var ⟨2⟩⟩] }
+
+private theorem closePolymorphicIdentityApplicationValue :
+    inferGeneratedUsing unify
+      { target := .fn (.var ⟨0⟩) (.var ⟨0⟩)
+        hard := []
+        pending := [] } =
+      some
+        { substitution := Subst.id
+          target := .fn (.var ⟨0⟩) (.var ⟨0⟩) } := by
+  have emptyUnify : unify [] = some Subst.id := by
+    unfold unify
+    rw [unifyLoop.eq_def]
+  simp [inferGeneratedUsing, saturateUsing, saturateLoop, emptyUnify,
+    promoteUnder, residualEquations]
+
+theorem elaborate_polymorphicIdentityApplication_exact :
+    elaborate Paper1Signature.signature [] polymorphicIdentityApplication
+      (Context.initialSupply []) =
+      some (polymorphicIdentityApplicationGenerated, ⟨4, 0⟩) := by
+  simp [polymorphicIdentityApplication,
+    polymorphicIdentityApplicationGenerated, elaborate,
+    closePolymorphicIdentityApplicationValue, Context.initialSupply,
+    Context.applyFree, Context.generalize, Context.generalizedTyVars,
+    Context.generalizedCapVars, Context.freeTyVars, Context.freeCapVars,
+    Context.interfaceEquations, Scheme.instantiate, Scheme.boundTyInstance,
+    Scheme.boundCapInstance, Scheme.mono, Scheme.applyFree, Scheme.freeTyVars,
+    Scheme.freeCapVars, PolyTy.close, PolyTy.closeList, PolyTy.openBound,
+    PolyTy.openBoundList, PolyTy.applyFree, PolyTy.applyFreeList,
+    PolyTy.freeTyVars, PolyTy.freeTyVarsList, PolyTy.freeCapVars,
+    PolyTy.freeCapVarsList, PolyTy.ofTy, PolyTy.ofTyList,
+    PolyCap.ofCap, PolyCap.ofCapList, PolyCap.close, PolyCap.closeList,
+    PolyCap.openBound, PolyCap.openBoundList, PolyCap.applyFree,
+    PolyCap.applyFreeList, PolyCap.freeCapVars, PolyCap.freeCapVarsList,
+    Generated.fromLet, Supply.join, Supply.nextTy, TyVar.next, CapVar.next,
+    Ty.tyVars, Ty.tyVarsList, Ty.capVars, Ty.capVarsList, Cap.capVars,
+    Cap.capVarsList, dedupFirst, dedup, List.idxOf, List.findIdx,
+    List.findIdx.go, Subst.id]
+
+set_option maxRecDepth 100000 in
+private theorem polymorphicIdentityApplicationGenerated_rootFuelCheck :
+    rootPendingResolutionsOrdinaryCheckUsing (unifyWithFuel 100)
+      polymorphicIdentityApplicationGenerated = true := by
+  with_unfolding_all rfl
+
+/-- The source-level local check is tied to the actual elaboration result,
+not merely to the displayed generated-block fixture. -/
+theorem polymorphicIdentityApplication_rootPendingCheck :
+    inferenceRootPendingResolutionsOrdinaryCheck
+      Paper1Signature.signature [] polymorphicIdentityApplication = true := by
+  apply inferenceRootPendingResolutionsOrdinaryCheck_unify_of_fuel
+    (solverFuel := 100)
+  unfold inferenceRootPendingResolutionsOrdinaryCheckUsing
+  rw [elaborate_polymorphicIdentityApplication_exact]
+  exact polymorphicIdentityApplicationGenerated_rootFuelCheck
+
+theorem polymorphicIdentityApplication_residualsOrdinary :
+    InferenceResidualsOrdinary Paper1Signature.signature []
+      polymorphicIdentityApplication :=
+  InferenceResidualsOrdinary.of_rootPending_check
+    polymorphicIdentityApplication_rootPendingCheck
+
+theorem polymorphicIdentityApplication_bodySupported :
+    ProtectedClosureBodySupported polymorphicIdentityApplication := by
+  exact .letIdentity (.firstOrder (.app .var .lit))
+
+/-- Public inference alone now constructs runtime typing for a polymorphic
+`let` whose body contains an application. -/
+theorem polymorphicIdentityApplication_runtimeTypingFromInfer
+    (success : infer Paper1Signature.signature []
+      polymorphicIdentityApplication = some target) :
+    ProtectedClosureRuntimeTyping [] polymorphicIdentityApplication target [] := by
+  obtain ⟨certified⟩ := Inference.infer_success_ordinaryPrincipalTyping
+    Paper1Signature.wellFormed success
+      polymorphicIdentityApplication_residualsOrdinary
+  have typing := polymorphicIdentityApplication_bodySupported.elaboration_typing
+    Runtime.paper1SignatureCompatible certified.derivation.elaboration
+      (Runtime.strictSemanticSolution_of_closure certified.derivation.closure
+        certified.ordinary)
+      Runtime.ProtectedContextCompatible.nil
+  rw [certified.derivation.target_eq]
+  exact typing
+
+theorem polymorphicIdentityApplication_neverStuckFromInfer
+    (success : infer Paper1Signature.signature []
+      polymorphicIdentityApplication = some target)
+    (fuel : Nat) :
+    (evalFuel fuel [] polymorphicIdentityApplication).NotStuck :=
+  (polymorphicIdentityApplication_runtimeTypingFromInfer success).neverStuck
+    fuel [] EnvironmentTyping.nil
+
+/-- The regression begins at public source inference, rather than assuming a
+hand-written generated block or runtime typing derivation. -/
+theorem infer_polymorphicIdentityApplication_isSome :
+    ∃ target, infer Paper1Signature.signature []
+      polymorphicIdentityApplication = some target := by
+  have fuelSome :
+      (inferGeneratedUsing (unifyWithFuel 100)
+        polymorphicIdentityApplicationGenerated).isSome = true := by
+    with_unfolding_all rfl
+  cases fuelResult : inferGeneratedUsing (unifyWithFuel 100)
+      polymorphicIdentityApplicationGenerated with
+  | none => simp [fuelResult] at fuelSome
+  | some result =>
+      have publicResult := inferGeneratedUsing_unify_of_fuel_success fuelResult
+      refine ⟨result.target, ?_⟩
+      unfold infer elaborateRoot
+      simp [elaborate_polymorphicIdentityApplication_exact, publicResult]
+
+theorem polymorphicIdentityApplication_runtimeTyping :
+    ∃ target,
+      ProtectedClosureRuntimeTyping [] polymorphicIdentityApplication target [] := by
+  obtain ⟨target, success⟩ := infer_polymorphicIdentityApplication_isSome
+  exact ⟨target, polymorphicIdentityApplication_runtimeTypingFromInfer success⟩
+
+theorem polymorphicIdentityApplication_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] polymorphicIdentityApplication).NotStuck := by
+  obtain ⟨target, success⟩ := infer_polymorphicIdentityApplication_isSome
+  exact polymorphicIdentityApplication_neverStuckFromInfer success fuel
 
 end TypePM.Source.PolymorphicLetInferenceOrdinary
