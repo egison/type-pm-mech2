@@ -69,4 +69,18 @@ theorem SupportedM4FuelPairProperty.toFull
   exact FullM2PairCoherence.ofM4Supported signatureWellFormed wellFormed
     rightElaboration comparison
 
+/-- Forget the principal-closure field while retaining the compositional
+supported certificate. -/
+theorem FullM4FuelPairProperty.toSupported
+    {expression : Expr} (full : FullM4FuelPairProperty expression) :
+    SupportedM4FuelPairProperty expression := by
+  intro signature context start leftGenerated rightGenerated leftNext rightNext
+    leftFuel rightFuel signatureWellFormed wellFormed leftElaboration
+    rightElaboration
+  obtain ⟨comparison⟩ := full signatureWellFormed wellFormed
+    leftElaboration rightElaboration
+  exact ⟨
+    { next_eq := comparison.next_eq
+      certificate := comparison.certificate }⟩
+
 end TypePM.Source.M4.CompletenessArchitecture

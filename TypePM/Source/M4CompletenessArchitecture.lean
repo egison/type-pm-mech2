@@ -446,7 +446,8 @@ strictly smaller expression because the direct-self-reference check changes
 the context used for the body. -/
 def FixCoherenceStep : Prop :=
   ∀ (body : Expr),
-    (∀ smaller : Expr, sizeOf smaller < sizeOf (Expr.fixE body) →
+    (∀ smaller : Expr,
+      smaller.complexity < (Expr.fixE body).complexity →
       FullM4FuelPairProperty smaller) →
     FullM4FuelPairProperty (.fixE body)
 
@@ -455,7 +456,8 @@ the expression positions inside matcher clauses as well as the executable
 coverage checks on pattern-pattern and data-pattern headers. -/
 def MatcherCoherenceStep : Prop :=
   ∀ (clauses : List MatcherClause),
-    (∀ smaller : Expr, sizeOf smaller < sizeOf (Expr.matcher clauses) →
+    (∀ smaller : Expr,
+      smaller.complexity < (Expr.matcher clauses).complexity →
       FullM4FuelPairProperty smaller) →
     FullM4FuelPairProperty (.matcher clauses)
 
@@ -464,7 +466,8 @@ value-pattern expressions, and body elaboration. -/
 def MatchAllCoherenceStep : Prop :=
   ∀ (target matcher : Expr) (pattern : Pattern) (body : Expr),
     (∀ smaller : Expr,
-      sizeOf smaller < sizeOf (Expr.matchAll target matcher pattern body) →
+      smaller.complexity <
+        (Expr.matchAll target matcher pattern body).complexity →
         FullM4FuelPairProperty smaller) →
     FullM4FuelPairProperty (.matchAll target matcher pattern body)
 
@@ -473,7 +476,7 @@ body and every expression stored in an arm pattern. -/
 def MatchFirstCoherenceStep : Prop :=
   ∀ (target matcher : Expr) (arms : List MatchFirstArm),
     (∀ smaller : Expr,
-      sizeOf smaller < sizeOf (Expr.matchFirst target matcher arms) →
+      smaller.complexity < (Expr.matchFirst target matcher arms).complexity →
         FullM4FuelPairProperty smaller) →
     FullM4FuelPairProperty (.matchFirst target matcher arms)
 
@@ -498,7 +501,8 @@ def M4FreshRenamingTransport : Prop :=
   ∀ {rho : VariableRenaming} {signature : FrozenSignature} {fuel : Nat}
       {context : Context} {expression : Expr} {start finish : Supply}
       {generated : Generated},
-    ElaboratesFuel signature fuel context expression start generated finish →
+    signature.WellFormed →
+      ElaboratesFuel signature fuel context expression start generated finish →
       start.WellFormedFor context → rho.FixesAtOrAbove start →
         ElaboratesFuel signature fuel
           (ElaborationRenaming.renameContext rho context) expression start
@@ -538,7 +542,7 @@ is a matcher literal.  This is separate from the fragment reuse theorem,
 which applies only when the whole tree is in the old fragment. -/
 def OrdinaryM4CoherenceStep : Prop :=
   ∀ (expression : Expr), M2NonLetRoot expression →
-    (∀ smaller : Expr, sizeOf smaller < sizeOf expression →
+    (∀ smaller : Expr, smaller.complexity < expression.complexity →
       FullM4FuelPairProperty smaller) →
     FullM4FuelPairProperty expression
 
@@ -550,6 +554,63 @@ def M4CoherenceExtensionBoundary : Prop :=
   M4FreshRenamingTransport ∧ OrdinaryM4CoherenceStep ∧ FixCoherenceStep ∧
     MatcherCoherenceStep ∧ MatchAllCoherenceStep ∧ MatchFirstCoherenceStep ∧
       M4LetTransportAndAssembly
+
+/-- Assemble the constructor-local fuel pair theorems by structural
+complexity.  Using the same `Expr.complexity` measure as public elaboration
+keeps list- and pattern-contained expression bounds reusable. -/
+theorem fullM4FuelCoherence_of_steps
+    (ordinary : OrdinaryM4CoherenceStep)
+    (fix : FixCoherenceStep)
+    (matcher : MatcherCoherenceStep)
+    (matchAll : MatchAllCoherenceStep)
+    (matchFirst : MatchFirstCoherenceStep)
+    (letE : M4LetTransportAndAssembly) :
+    ∀ expression, FullM4FuelPairProperty expression := by
+  intro expression
+  apply (measure Expr.complexity).wf.induction expression
+  intro current induction
+  cases current with
+  | var index => exact ordinary _ (.var index) induction
+  | lit value => exact ordinary _ (.lit value) induction
+  | something => exact ordinary _ .something induction
+  | lam body => exact ordinary _ (.lam body) induction
+  | app function argument => exact ordinary _ (.app function argument) induction
+  | tuple items => exact ordinary _ (.tuple items) induction
+  | letE value body =>
+      exact letE value body
+        (induction value (by
+          show value.complexity <
+            value.complexity + body.complexity + 1
+          omega))
+        (induction body (by
+          show body.complexity <
+            value.complexity + body.complexity + 1
+          omega))
+  | ctor constructor arguments =>
+      exact ordinary _ (.ctor constructor arguments) induction
+  | prim operation arguments =>
+      exact ordinary _ (.prim operation arguments) induction
+  | ifE condition thenBranch elseBranch =>
+      exact ordinary _ (.ifE condition thenBranch elseBranch) induction
+  | fixE body => exact fix body induction
+  | matcher clauses => exact matcher clauses induction
+  | matchAll target matcherExpression pattern body =>
+      exact matchAll target matcherExpression pattern body induction
+  | matchFirst target matcherExpression arms =>
+      exact matchFirst target matcherExpression arms induction
+
+/-- Fuel coherence immediately yields the public, fuel-hidden theorem. -/
+theorem fullM4Coherence_of_steps
+    (ordinary : OrdinaryM4CoherenceStep)
+    (fix : FixCoherenceStep)
+    (matcher : MatcherCoherenceStep)
+    (matchAll : MatchAllCoherenceStep)
+    (matchFirst : MatchFirstCoherenceStep)
+    (letE : M4LetTransportAndAssembly) : FullM4Coherence := by
+  intro expression
+  exact FullM4FuelPairProperty.toPublic
+    (fullM4FuelCoherence_of_steps ordinary fix matcher matchAll matchFirst
+      letE expression)
 
 /-- Final proof boundary for results 5.2--5.5 at M4.  The local coherence
 steps must first be assembled into `FullM4Coherence`; the parallel recursive
