@@ -49,8 +49,7 @@ def tupleArm : MatchFirstArm := .mk tuplePattern tupleBody
 theorem tuple_arm_declaratively_exhaustive :
     MatchFirstTyping.Exhaustive [tupleArm] := by
   apply MatchFirstTyping.Exhaustive.last
-  simp [tuplePattern, MatchFirstTyping.structurallyIrrefutable,
-    MatchFirstTyping.allStructurallyIrrefutable]
+  exact .tuple (.cons .var (.cons .var .nil))
 
 def tupleMatch : Expr :=
   .matchFirst (.var 0) tupleMatcher [tupleArm]

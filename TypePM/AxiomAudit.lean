@@ -681,6 +681,11 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4PatternTypingRegression.variable_match_relational
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.elaborateUsing_sound
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.exhaustive
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.Irrefutable.sound
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.AllIrrefutable.sound
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.Irrefutable.of_check
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.AllIrrefutable.of_check
+#assert_allowed_axioms TypePM.Source.MatchFirstTyping.irrefutable_iff_structurallyIrrefutable
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.exhaustive_iff_armsExhaustive
 #assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_arm_declaratively_exhaustive
 #assert_allowed_axioms TypePM.Source.M4MatchFirstTypingRegression.tuple_pattern_lambda_desugaring_exact

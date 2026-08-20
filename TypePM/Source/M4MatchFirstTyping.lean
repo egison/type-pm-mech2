@@ -52,11 +52,111 @@ def armsExhaustive : List MatchFirstArm → Bool
   | [.mk pattern _] => structurallyIrrefutable pattern
   | _ :: arms => armsExhaustive arms
 
+mutual
+
+/-- Proof-level characterization of patterns accepted by the executable
+irrefutability check.  In particular, conjunction requires both sides,
+whereas either side of a disjunction is enough. -/
+inductive Irrefutable : Pattern → Prop where
+  | var : Irrefutable .var
+  | wild : Irrefutable .wild
+  | tuple {fields} (fieldsIrrefutable : AllIrrefutable fields) :
+      Irrefutable (.tuple fields)
+  | and {left right} (leftIrrefutable : Irrefutable left)
+      (rightIrrefutable : Irrefutable right) :
+      Irrefutable (.and left right)
+  | orLeft {left right} (leftIrrefutable : Irrefutable left) :
+      Irrefutable (.or left right)
+  | orRight {left right} (rightIrrefutable : Irrefutable right) :
+      Irrefutable (.or left right)
+
+/-- Pointwise proof-level irrefutability for tuple fields. -/
+inductive AllIrrefutable : List Pattern → Prop where
+  | nil : AllIrrefutable []
+  | cons {pattern patterns} (head : Irrefutable pattern)
+      (tail : AllIrrefutable patterns) :
+      AllIrrefutable (pattern :: patterns)
+
+end
+
+mutual
+
+/-- The proof-level pattern judgment implies executable acceptance. -/
+theorem Irrefutable.sound : {pattern : Pattern} →
+    Irrefutable pattern → structurallyIrrefutable pattern = true
+  | _, .var => rfl
+  | _, .wild => rfl
+  | _, .tuple fieldsIrrefutable => by
+      simpa [structurallyIrrefutable] using
+        AllIrrefutable.sound fieldsIrrefutable
+  | _, .and leftIrrefutable rightIrrefutable => by
+      simp [structurallyIrrefutable, Irrefutable.sound leftIrrefutable,
+        Irrefutable.sound rightIrrefutable]
+  | _, .orLeft leftIrrefutable => by
+      simp [structurallyIrrefutable, Irrefutable.sound leftIrrefutable]
+  | _, .orRight rightIrrefutable => by
+      simp [structurallyIrrefutable, Irrefutable.sound rightIrrefutable]
+
+/-- The list judgment implies the executable tuple-field check. -/
+theorem AllIrrefutable.sound : {patterns : List Pattern} →
+    AllIrrefutable patterns → allStructurallyIrrefutable patterns = true
+  | _, .nil => rfl
+  | _, .cons head tail => by
+      simp [allStructurallyIrrefutable, Irrefutable.sound head,
+        AllIrrefutable.sound tail]
+
+end
+
+
+mutual
+
+/-- Executable acceptance reconstructs the proof-level pattern judgment. -/
+theorem Irrefutable.of_check {pattern : Pattern}
+    (checked : structurallyIrrefutable pattern = true) :
+    Irrefutable pattern := by
+  cases pattern with
+  | var => exact .var
+  | wild => exact .wild
+  | value expression => simp [structurallyIrrefutable] at checked
+  | ctor constructor fields => simp [structurallyIrrefutable] at checked
+  | tuple fields =>
+      exact .tuple (AllIrrefutable.of_check (by
+        simpa [structurallyIrrefutable] using checked))
+  | and left right =>
+      simp only [structurallyIrrefutable, Bool.and_eq_true] at checked
+      exact .and (Irrefutable.of_check checked.1)
+        (Irrefutable.of_check checked.2)
+  | or left right =>
+      simp only [structurallyIrrefutable, Bool.or_eq_true] at checked
+      cases checked with
+      | inl leftChecked => exact .orLeft (Irrefutable.of_check leftChecked)
+      | inr rightChecked => exact .orRight (Irrefutable.of_check rightChecked)
+  | embed name => simp [structurallyIrrefutable] at checked
+  | app name fields => simp [structurallyIrrefutable] at checked
+
+/-- Executable tuple-field acceptance reconstructs the pointwise judgment. -/
+theorem AllIrrefutable.of_check {patterns : List Pattern}
+    (checked : allStructurallyIrrefutable patterns = true) :
+    AllIrrefutable patterns := by
+  cases patterns with
+  | nil => exact .nil
+  | cons pattern patterns =>
+      simp only [allStructurallyIrrefutable, Bool.and_eq_true] at checked
+      exact .cons (Irrefutable.of_check checked.1)
+        (AllIrrefutable.of_check checked.2)
+
+end
+
+/-- The structural judgment is exactly the executable irrefutability test. -/
+theorem irrefutable_iff_structurallyIrrefutable (pattern : Pattern) :
+    Irrefutable pattern ↔ structurallyIrrefutable pattern = true :=
+  ⟨Irrefutable.sound, Irrefutable.of_check⟩
+
 /-- Proof-level source-order exhaustiveness: earlier arms may be refutable,
 but the final arm has a structurally irrefutable pattern. -/
 inductive Exhaustive : List MatchFirstArm → Prop where
   | last {pattern body}
-      (irrefutable : structurallyIrrefutable pattern = true) :
+      (irrefutable : Irrefutable pattern) :
       Exhaustive [.mk pattern body]
   | skip {arm arms} (tail : Exhaustive arms) : Exhaustive (arm :: arms)
 
@@ -65,7 +165,7 @@ theorem exhaustive_iff_armsExhaustive (arms : List MatchFirstArm) :
   constructor
   · intro exhaustive
     induction exhaustive with
-    | last irrefutable => exact irrefutable
+    | last irrefutable => exact irrefutable.sound
     | skip tail induction =>
         cases tail <;> simpa [armsExhaustive] using induction
   · induction arms with
@@ -76,7 +176,7 @@ theorem exhaustive_iff_armsExhaustive (arms : List MatchFirstArm) :
             cases arm with
             | mk pattern body =>
                 intro checked
-                exact .last checked
+                exact .last (Irrefutable.of_check checked)
         | cons next rest =>
             intro checked
             exact .skip (induction (by simpa [armsExhaustive] using checked))
