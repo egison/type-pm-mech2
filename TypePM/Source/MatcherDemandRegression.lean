@@ -75,38 +75,7 @@ theorem unconsWith_elaborate_exact :
   unfold M4.elaborate unconsWith
   simp only [Expr.complexity, Expr.listComplexity, Pattern.complexity,
     Pattern.listComplexity]
-  repeat rw [M4.elaborateFuel]
-  simp only [elaborateMatchAllUsing]
-  repeat rw [M4.elaborateFuel]
-  simp only [Scheme.mono, Scheme.instantiate, Supply.nextTy,
-    List.getElem?_cons_zero, Option.bind_some]
-  simp only [elaboratePatternUsing, elaboratePatternsUsing]
-  simp only [Paper1FrozenSignature.lookup_pattern_cons,
-    DualScheme.instantiate, ListPatternSchemes.cons, PolyDual.openBound,
-    PolyCap.openBound, PolyCap.openBoundList, PolyTy.openBound,
-    PolyTy.openBoundList, Scheme.boundTyInstance, Scheme.boundCapInstance,
-    PolyDataTypes.list]
-  simp (config := { maxSteps := 100000 }) [Supply.nextTy,
-    Pattern.fieldEquations, Pattern.extendContext, PolyDual.openBound,
-    PolyCap.openBound, PolyCap.openBoundList, PolyTy.openBound,
-    PolyTy.openBoundList, Scheme.mono, Scheme.instantiate,
-    DataTypes.list]
-  repeat rw [M4.elaborateFuel]
-  simp [M4.elaborateItemsUsing, Scheme.mono, Scheme.instantiate,
-    Generated.fromMatchAll, Generated.fromLam, unconsWithGenerated,
-    DataTypes.list]
-  repeat rw [M4.elaborateFuel]
-  simp [M4.elaborateItemsUsing, Scheme.mono, Scheme.instantiate,
-    Generated.fromMatchAll, Generated.fromLam, unconsWithGenerated,
-    DataTypes.list]
-  repeat rw [M4.elaborateFuel]
-  simp [M4.elaborateItemsUsing, Scheme.mono, Scheme.instantiate,
-    Generated.fromMatchAll, Generated.fromLam, unconsWithGenerated,
-    DataTypes.list]
-  repeat rw [M4.elaborateFuel]
-  simp [M4.elaborateItemsUsing, Scheme.mono, Scheme.instantiate,
-    Generated.fromMatchAll, Generated.fromLam, unconsWithGenerated,
-    DataTypes.list]
+  with_unfolding_all rfl
 
 /-- Saturation turns the ordinary matcher parameter into the demanded slot,
 without inventing a matcher producer. -/

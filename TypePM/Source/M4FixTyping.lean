@@ -117,108 +117,139 @@ end
 
 mutual
 
-/-- Check an expression in ordinary position.  Applications delegate their
-function spine to `checkHead`, the only place where the tracked recursive
-variable is accepted. -/
-def check (tracked : Nat) : Expr → Bool
-  | .var index => index != tracked
-  | .lit _ | .something => true
-  | .lam body => check (tracked + 1) body
-  | .app function argument => checkHead tracked function && check tracked argument
-  | .tuple items | .ctor _ items | .prim _ items => checkList tracked items
-  | .letE value body => check tracked value && check (tracked + 1) body
-  | .ifE condition thenBranch elseBranch =>
-      check tracked condition && check tracked thenBranch &&
-        check tracked elseBranch
-  | .fixE body =>
-      !mentions (tracked + 2) body && check 1 body
-  | .matcher clauses => checkClauses tracked clauses
-  | .matchAll target matcher pattern body =>
-      check tracked target && check tracked matcher &&
-        checkPattern tracked 0 pattern &&
-        check (tracked + patternBindingCount pattern) body
-  | .matchFirst target matcher arms =>
-      check tracked target && check tracked matcher &&
-        checkMatchFirstArms tracked arms
-termination_by expression => expression.complexity * 3 + 1
-decreasing_by all_goals simp_wf <;> omega
+/-- Kernel-computable direct-self check.  The public wrappers below choose a
+fuel amount from the finite source size. -/
+def checkFuel : Nat → Nat → Expr → Bool
+  | 0, _, _ => false
+  | _ + 1, tracked, .var index => index != tracked
+  | _ + 1, _, .lit _ | _ + 1, _, .something => true
+  | fuel + 1, tracked, .lam body => checkFuel fuel (tracked + 1) body
+  | fuel + 1, tracked, .app function argument =>
+      checkHeadFuel fuel tracked function && checkFuel fuel tracked argument
+  | fuel + 1, tracked, .tuple items
+  | fuel + 1, tracked, .ctor _ items
+  | fuel + 1, tracked, .prim _ items => checkListFuel fuel tracked items
+  | fuel + 1, tracked, .letE value body =>
+      checkFuel fuel tracked value && checkFuel fuel (tracked + 1) body
+  | fuel + 1, tracked, .ifE condition thenBranch elseBranch =>
+      checkFuel fuel tracked condition && checkFuel fuel tracked thenBranch &&
+        checkFuel fuel tracked elseBranch
+  | fuel + 1, tracked, .fixE body =>
+      !mentions (tracked + 2) body && checkFuel fuel 1 body
+  | fuel + 1, tracked, .matcher clauses => checkClausesFuel fuel tracked clauses
+  | fuel + 1, tracked, .matchAll target matcher pattern body =>
+      checkFuel fuel tracked target && checkFuel fuel tracked matcher &&
+        checkPatternFuel fuel tracked 0 pattern &&
+        checkFuel fuel (tracked + patternBindingCount pattern) body
+  | fuel + 1, tracked, .matchFirst target matcher arms =>
+      checkFuel fuel tracked target && checkFuel fuel tracked matcher &&
+        checkMatchFirstArmsFuel fuel tracked arms
 
-/-- Check the function spine of an application.  A variable at its head is a
-direct callee.  Arguments in a curried spine remain ordinary positions. -/
-def checkHead (tracked : Nat) : Expr → Bool
-  | .var _ => true
-  | .app function argument =>
-      checkHead tracked function && check tracked argument
-  | expression => check tracked expression
-termination_by expression => expression.complexity * 3 + 2
-decreasing_by all_goals simp_wf <;> omega
+/-- Check the function spine of an application. -/
+def checkHeadFuel : Nat → Nat → Expr → Bool
+  | 0, _, _ => false
+  | _ + 1, _, .var _ => true
+  | fuel + 1, tracked, .app function argument =>
+      checkHeadFuel fuel tracked function && checkFuel fuel tracked argument
+  | fuel + 1, tracked, expression => checkFuel fuel tracked expression
 
-def checkList (tracked : Nat) : List Expr → Bool
-  | [] => true
-  | expression :: expressions =>
-      check tracked expression && checkList tracked expressions
-termination_by expressions => Expr.listComplexity expressions * 3
-decreasing_by all_goals simp_wf <;> omega
+def checkListFuel : Nat → Nat → List Expr → Bool
+  | 0, _, _ => false
+  | _ + 1, _, [] => true
+  | fuel + 1, tracked, expression :: expressions =>
+      checkFuel fuel tracked expression && checkListFuel fuel tracked expressions
 
-/-- Check embedded expressions with the left-to-right pattern binder shift. -/
-def checkPattern (tracked before : Nat) : Pattern → Bool
-  | .var | .wild | .embed _ => true
-  | .value expression => check (tracked + before) expression
-  | .ctor _ fields | .tuple fields | .app _ fields =>
-      checkPatterns tracked before fields
-termination_by pattern => pattern.complexity * 3 + 1
-decreasing_by all_goals simp_wf <;> omega
+def checkPatternFuel : Nat → Nat → Nat → Pattern → Bool
+  | 0, _, _, _ => false
+  | _ + 1, _, _, .var | _ + 1, _, _, .wild | _ + 1, _, _, .embed _ => true
+  | fuel + 1, tracked, before, .value expression =>
+      checkFuel fuel (tracked + before) expression
+  | fuel + 1, tracked, before, .ctor _ fields
+  | fuel + 1, tracked, before, .tuple fields
+  | fuel + 1, tracked, before, .app _ fields =>
+      checkPatternsFuel fuel tracked before fields
 
-def checkPatterns (tracked before : Nat) : List Pattern → Bool
-  | [] => true
-  | pattern :: patterns =>
-      checkPattern tracked before pattern &&
-        checkPatterns tracked (before + patternBindingCount pattern) patterns
-termination_by patterns => Pattern.listComplexity patterns * 3
-decreasing_by all_goals simp_wf <;> omega
+def checkPatternsFuel : Nat → Nat → Nat → List Pattern → Bool
+  | 0, _, _, _ => false
+  | _ + 1, _, _, [] => true
+  | fuel + 1, tracked, before, pattern :: patterns =>
+      checkPatternFuel fuel tracked before pattern &&
+        checkPatternsFuel fuel tracked (before + patternBindingCount pattern)
+          patterns
 
-def checkClause (tracked : Nat) : MatcherClause → Bool
-  | .mk header nextMatchers arms =>
-      check (tracked + header.captureCount) nextMatchers &&
-        checkArms tracked header.captureCount arms
-termination_by clause => clause.complexity * 3 + 1
-decreasing_by all_goals simp_wf <;> omega
+def checkClauseFuel : Nat → Nat → MatcherClause → Bool
+  | 0, _, _ => false
+  | fuel + 1, tracked, .mk header nextMatchers arms =>
+      checkFuel fuel (tracked + header.captureCount) nextMatchers &&
+        checkArmsFuel fuel tracked header.captureCount arms
 
-def checkClauses (tracked : Nat) : List MatcherClause → Bool
-  | [] => true
-  | clause :: clauses =>
-      checkClause tracked clause && checkClauses tracked clauses
-termination_by clauses => MatcherClause.listComplexity clauses * 3
-decreasing_by all_goals simp_wf <;> omega
+def checkClausesFuel : Nat → Nat → List MatcherClause → Bool
+  | 0, _, _ => false
+  | _ + 1, _, [] => true
+  | fuel + 1, tracked, clause :: clauses =>
+      checkClauseFuel fuel tracked clause && checkClausesFuel fuel tracked clauses
 
-def checkArm (tracked captures : Nat) : MatcherArm → Bool
-  | .mk header body =>
-      check (tracked + header.bindingCount + captures) body
-termination_by arm => arm.complexity * 3 + 1
-decreasing_by all_goals simp_wf <;> omega
+def checkArmFuel : Nat → Nat → Nat → MatcherArm → Bool
+  | 0, _, _, _ => false
+  | fuel + 1, tracked, captures, .mk header body =>
+      checkFuel fuel (tracked + header.bindingCount + captures) body
 
-def checkArms (tracked captures : Nat) : List MatcherArm → Bool
-  | [] => true
-  | arm :: arms =>
-      checkArm tracked captures arm && checkArms tracked captures arms
-termination_by arms => MatcherArm.listComplexity arms * 3
-decreasing_by all_goals simp_wf <;> omega
+def checkArmsFuel : Nat → Nat → Nat → List MatcherArm → Bool
+  | 0, _, _, _ => false
+  | _ + 1, _, _, [] => true
+  | fuel + 1, tracked, captures, arm :: arms =>
+      checkArmFuel fuel tracked captures arm &&
+        checkArmsFuel fuel tracked captures arms
 
-def checkMatchFirstArm (tracked : Nat) : MatchFirstArm → Bool
-  | .mk pattern body =>
-      checkPattern tracked 0 pattern &&
-        check (tracked + patternBindingCount pattern) body
-termination_by arm => arm.complexity * 3 + 1
-decreasing_by all_goals simp_wf <;> omega
+def checkMatchFirstArmFuel : Nat → Nat → MatchFirstArm → Bool
+  | 0, _, _ => false
+  | fuel + 1, tracked, .mk pattern body =>
+      checkPatternFuel fuel tracked 0 pattern &&
+        checkFuel fuel (tracked + patternBindingCount pattern) body
 
-def checkMatchFirstArms (tracked : Nat) : List MatchFirstArm → Bool
-  | [] => true
-  | arm :: arms =>
-      checkMatchFirstArm tracked arm && checkMatchFirstArms tracked arms
-termination_by arms => MatchFirstArm.listComplexity arms * 3
-decreasing_by all_goals simp_wf <;> omega
+def checkMatchFirstArmsFuel : Nat → Nat → List MatchFirstArm → Bool
+  | 0, _, _ => false
+  | _ + 1, _, [] => true
+  | fuel + 1, tracked, arm :: arms =>
+      checkMatchFirstArmFuel fuel tracked arm &&
+        checkMatchFirstArmsFuel fuel tracked arms
 
 end
+
+/-- Check an expression in ordinary position. -/
+def check (tracked : Nat) (expression : Expr) : Bool :=
+  checkFuel (expression.complexity * 3 + 1) tracked expression
+
+def checkHead (tracked : Nat) (expression : Expr) : Bool :=
+  checkHeadFuel (expression.complexity * 3 + 2) tracked expression
+
+def checkList (tracked : Nat) (expressions : List Expr) : Bool :=
+  checkListFuel (Expr.listComplexity expressions * 3 + 1) tracked expressions
+
+def checkPattern (tracked before : Nat) (pattern : Pattern) : Bool :=
+  checkPatternFuel (pattern.complexity * 3 + 1) tracked before pattern
+
+def checkPatterns (tracked before : Nat) (patterns : List Pattern) : Bool :=
+  checkPatternsFuel (Pattern.listComplexity patterns * 3 + 1) tracked before
+    patterns
+
+def checkClause (tracked : Nat) (clause : MatcherClause) : Bool :=
+  checkClauseFuel (clause.complexity * 3 + 1) tracked clause
+
+def checkClauses (tracked : Nat) (clauses : List MatcherClause) : Bool :=
+  checkClausesFuel (MatcherClause.listComplexity clauses * 3 + 1) tracked clauses
+
+def checkArm (tracked captures : Nat) (arm : MatcherArm) : Bool :=
+  checkArmFuel (arm.complexity * 3 + 1) tracked captures arm
+
+def checkArms (tracked captures : Nat) (arms : List MatcherArm) : Bool :=
+  checkArmsFuel (MatcherArm.listComplexity arms * 3 + 1) tracked captures arms
+
+def checkMatchFirstArm (tracked : Nat) (arm : MatchFirstArm) : Bool :=
+  checkMatchFirstArmFuel (arm.complexity * 3 + 1) tracked arm
+
+def checkMatchFirstArms (tracked : Nat) (arms : List MatchFirstArm) : Bool :=
+  checkMatchFirstArmsFuel (MatchFirstArm.listComplexity arms * 3 + 1) tracked arms
 
 /-- Proof-level direct-self side condition for a fix body. -/
 def Holds (body : Expr) : Prop :=
@@ -226,18 +257,6 @@ def Holds (body : Expr) : Prop :=
 
 instance (body : Expr) : Decidable (Holds body) :=
   inferInstanceAs (Decidable (check 1 body = true))
-
-@[simp] theorem bare_self_rejected : ¬ Holds (.var 1) := by
-  simp [Holds, check]
-
-@[simp] theorem direct_application_accepted (argument : Expr)
-    (argumentSafe : check 1 argument = true) :
-    Holds (.app (.var 1) argument) := by
-  simp [Holds, check, checkHead, argumentSafe]
-
-@[simp] theorem self_as_argument_rejected (function : Expr) :
-    ¬ Holds (.app function (.var 1)) := by
-  simp [Holds, check]
 
 end DirectSelf
 

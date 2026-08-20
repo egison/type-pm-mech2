@@ -121,13 +121,13 @@ def freshTargets (supply : Supply) (count : Nat) : List Ty :=
 
 mutual
 
-/-- Type a primitive pattern against one target.  `expectedCapability` is
-present only below a pattern constructor; a root hole is intentionally not
-equated with the enclosing matcher's producer capability. -/
-def elaboratePPat
+/-- Structurally recursive primitive-pattern typing.  Fuel is internal: the
+public wrapper below chooses it from the finite pattern size. -/
+def elaboratePPatFuel
     (signature : FrozenSignature) :
-    PPat → Ty → Option Cap → Supply → Option (GeneratedPPat × Supply)
-  | .hole, expectedTarget, expectedCapability, supply =>
+    Nat → PPat → Ty → Option Cap → Supply → Option (GeneratedPPat × Supply)
+  | 0, _, _, _, _ => none
+  | _ + 1, .hole, expectedTarget, expectedCapability, supply =>
       let capability : Cap := .var ⟨supply.cap⟩
       let hard := match expectedCapability with
         | some expected => [.cap capability expected]
@@ -135,16 +135,16 @@ def elaboratePPat
       some
         (⟨[⟨capability, expectedTarget⟩], [], none, hard⟩,
           ⟨supply.ty, supply.cap + 1⟩)
-  | .wild, _, _, supply => some (⟨[], [], none, []⟩, supply)
-  | .capture, expectedTarget, _, supply =>
+  | _ + 1, .wild, _, _, supply => some (⟨[], [], none, []⟩, supply)
+  | _ + 1, .capture, expectedTarget, _, supply =>
       some (⟨[], [expectedTarget], none, []⟩, supply)
-  | .ctor constructor fields, expectedTarget, expectedCapability, supply => do
+  | fuel + 1, .ctor constructor fields, expectedTarget, expectedCapability,
+      supply => do
       let scheme ← signature.lookupPatternConstructor constructor
       if fields.length = scheme.fields.length then
         let instantiated := scheme.instantiate supply
-        let (generatedFields, next) ←
-          elaboratePPatFields signature fields instantiated.1.fields
-            instantiated.2
+        let (generatedFields, next) ← elaboratePPatFieldsFuel signature fuel
+          fields instantiated.1.fields instantiated.2
         let outerCapability := match expectedCapability with
           | some expected => [.cap instantiated.1.result.capability expected]
           | none => []
@@ -156,101 +156,112 @@ def elaboratePPat
             next)
       else
         none
-termination_by pattern => MatcherTyping.PPat.typingSize pattern * 2 + 1
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.PPat.typingSize,
-    MatcherTyping.PPat.listTypingSize]
-  all_goals omega
 
-/-- Left-to-right typing of constructor fields against their frozen duals. -/
-def elaboratePPatFields
+/-- Structurally recursive left-to-right primitive-pattern field typing. -/
+def elaboratePPatFieldsFuel
     (signature : FrozenSignature) :
-    List PPat → List Dual → Supply → Option (GeneratedPPats × Supply)
-  | [], [], supply => some (⟨[], [], []⟩, supply)
-  | pattern :: patterns, expected :: expecteds, supply => do
-      let (generatedPattern, afterPattern) ←
-        elaboratePPat signature pattern expected.target
-          (some expected.capability) supply
-      let (generatedPatterns, next) ←
-        elaboratePPatFields signature patterns expecteds afterPattern
+    Nat → List PPat → List Dual → Supply → Option (GeneratedPPats × Supply)
+  | 0, _, _, _ => none
+  | _ + 1, [], [], supply => some (⟨[], [], []⟩, supply)
+  | fuel + 1, pattern :: patterns, expected :: expecteds, supply => do
+      let (generatedPattern, afterPattern) ← elaboratePPatFuel signature fuel
+        pattern expected.target (some expected.capability) supply
+      let (generatedPatterns, next) ← elaboratePPatFieldsFuel signature fuel
+        patterns expecteds afterPattern
       pure
         (⟨generatedPattern.holes ++ generatedPatterns.holes,
           generatedPattern.captures ++ generatedPatterns.captures,
           generatedPattern.hard ++ generatedPatterns.hard⟩,
           next)
-  | _, _, _ => none
-termination_by patterns => MatcherTyping.PPat.listTypingSize patterns * 2
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.PPat.typingSize,
-    MatcherTyping.PPat.listTypingSize]
-  all_goals omega
+  | _ + 1, _, _, _ => none
 
 end
 
+/-- Type a primitive pattern against one target.  `expectedCapability` is
+present only below a pattern constructor; a root hole is intentionally not
+equated with the enclosing matcher's producer capability. -/
+def elaboratePPat
+    (signature : FrozenSignature) (pattern : PPat) (expectedTarget : Ty)
+    (expectedCapability : Option Cap) (supply : Supply) :
+    Option (GeneratedPPat × Supply) :=
+  elaboratePPatFuel signature (MatcherTyping.PPat.typingSize pattern * 2 + 1) pattern
+    expectedTarget expectedCapability supply
+
+/-- Left-to-right typing of constructor fields against their frozen duals. -/
+def elaboratePPatFields
+    (signature : FrozenSignature) (patterns : List PPat) (expected : List Dual)
+    (supply : Supply) : Option (GeneratedPPats × Supply) :=
+  elaboratePPatFieldsFuel signature
+    (MatcherTyping.PPat.listTypingSize patterns * 2 + 1)
+    patterns expected supply
+
 mutual
 
-/-- Type one data pattern against the matcher target and return its arm
-bindings in left-to-right source order. -/
-def elaborateDPat
+/-- Structurally recursive data-pattern typing. -/
+def elaborateDPatFuel
     (signature : FrozenSignature) :
-    DPat → Ty → Supply → Option (GeneratedDPat × Supply)
-  | .var, expected, supply => some (⟨[expected], []⟩, supply)
-  | .wild, _, supply => some (⟨[], []⟩, supply)
-  | .ctor constructor fields, expected, supply => do
+    Nat → DPat → Ty → Supply → Option (GeneratedDPat × Supply)
+  | 0, _, _, _ => none
+  | _ + 1, .var, expected, supply => some (⟨[expected], []⟩, supply)
+  | _ + 1, .wild, _, supply => some (⟨[], []⟩, supply)
+  | fuel + 1, .ctor constructor fields, expected, supply => do
       let scheme ← signature.lookupDataConstructor constructor
       if fields.length = scheme.callArity then
         let instantiated := scheme.instantiate supply
         let (fieldTypes, resultType) ←
           peelFunctionExact fields.length instantiated.1
-        let (generatedFields, next) ←
-          elaborateDPatFields signature fields fieldTypes instantiated.2
+        let (generatedFields, next) ← elaborateDPatFieldsFuel signature fuel
+          fields fieldTypes instantiated.2
         pure
           (⟨generatedFields.bindings,
             [.ty resultType expected] ++ generatedFields.hard⟩,
             next)
       else
         none
-  | .tuple items, expected, supply => do
+  | fuel + 1, .tuple items, expected, supply => do
       let fields := freshTargets supply items.length
       let afterFields := supply.nextTy items.length
-      let (generatedItems, next) ←
-        elaborateDPatFields signature items fields afterFields
+      let (generatedItems, next) ← elaborateDPatFieldsFuel signature fuel items
+        fields afterFields
       pure
         (⟨generatedItems.bindings,
           [.ty expected (.prod fields)] ++ generatedItems.hard⟩,
           next)
-termination_by pattern => MatcherTyping.DPat.typingSize pattern * 2 + 1
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.DPat.typingSize,
-    MatcherTyping.DPat.listTypingSize]
-  all_goals omega
 
-/-- Left-to-right typing of data-pattern children. -/
-def elaborateDPatFields
+/-- Structurally recursive left-to-right data-pattern field typing. -/
+def elaborateDPatFieldsFuel
     (signature : FrozenSignature) :
-    List DPat → List Ty → Supply → Option (GeneratedDPats × Supply)
-  | [], [], supply => some (⟨[], []⟩, supply)
-  | pattern :: patterns, expected :: expecteds, supply => do
+    Nat → List DPat → List Ty → Supply → Option (GeneratedDPats × Supply)
+  | 0, _, _, _ => none
+  | _ + 1, [], [], supply => some (⟨[], []⟩, supply)
+  | fuel + 1, pattern :: patterns, expected :: expecteds, supply => do
       let (generatedPattern, afterPattern) ←
-        elaborateDPat signature pattern expected supply
-      let (generatedPatterns, next) ←
-        elaborateDPatFields signature patterns expecteds afterPattern
+        elaborateDPatFuel signature fuel pattern expected supply
+      let (generatedPatterns, next) ← elaborateDPatFieldsFuel signature fuel
+        patterns expecteds afterPattern
       pure
         (⟨generatedPattern.bindings ++ generatedPatterns.bindings,
           generatedPattern.hard ++ generatedPatterns.hard⟩,
           next)
-  | _, _, _ => none
-termination_by patterns => MatcherTyping.DPat.listTypingSize patterns * 2
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.DPat.typingSize,
-    MatcherTyping.DPat.listTypingSize]
-  all_goals omega
+  | _ + 1, _, _, _ => none
 
 end
+
+/-- Type one data pattern against the matcher target and return its arm
+bindings in left-to-right source order. -/
+def elaborateDPat
+    (signature : FrozenSignature) (pattern : DPat) (expected : Ty)
+    (supply : Supply) : Option (GeneratedDPat × Supply) :=
+  elaborateDPatFuel signature (MatcherTyping.DPat.typingSize pattern * 2 + 1)
+    pattern expected supply
+
+/-- Left-to-right typing of data-pattern children. -/
+def elaborateDPatFields
+    (signature : FrozenSignature) (patterns : List DPat) (expected : List Ty)
+    (supply : Supply) : Option (GeneratedDPats × Supply) :=
+  elaborateDPatFieldsFuel signature
+    (MatcherTyping.DPat.listTypingSize patterns * 2 + 1)
+    patterns expected supply
 
 /-- Runtime and static decomposition products share this convention: no
 holes use the empty tuple, one hole is scalar, and two or more holes use an
@@ -1068,6 +1079,95 @@ inductive MatcherLiteralElaborates
 
 mutual
 
+/-- Structural-fuel primitive-pattern typing is sound. -/
+theorem elaboratePPatFuel_sound
+    {signature : FrozenSignature} {fuel : Nat} {pattern : PPat} {expectedTarget : Ty}
+    {expectedCapability : Option Cap} {supply next : Supply}
+    {generated : GeneratedPPat}
+    (success : elaboratePPatFuel signature fuel pattern expectedTarget
+      expectedCapability supply = some (generated, next)) :
+    PPatElaborates signature pattern expectedTarget expectedCapability supply
+      generated next := by
+  cases fuel with
+  | zero => simp [elaboratePPatFuel] at success
+  | succ fuel =>
+    cases pattern with
+    | hole =>
+        cases expectedCapability <;>
+          simp [elaboratePPatFuel] at success <;>
+          rcases success with ⟨rfl, rfl⟩ <;> exact .hole
+    | wild =>
+        simp [elaboratePPatFuel] at success
+        rcases success with ⟨rfl, rfl⟩
+        exact .wild
+    | capture =>
+        simp [elaboratePPatFuel] at success
+        rcases success with ⟨rfl, rfl⟩
+        exact .capture
+    | ctor constructor fields =>
+        cases lookup : signature.lookupPatternConstructor constructor with
+        | none => simp [elaboratePPatFuel, lookup] at success
+        | some scheme =>
+            by_cases arity : fields.length = scheme.fields.length
+            · cases fieldsResult : elaboratePPatFieldsFuel signature fuel fields
+                  (scheme.instantiate supply).1.fields
+                  (scheme.instantiate supply).2 with
+              | none =>
+                  simp [elaboratePPatFuel, lookup, arity, fieldsResult] at success
+              | some output =>
+                  rcases output with ⟨generatedFields, afterFields⟩
+                  simp [elaboratePPatFuel, lookup, arity, fieldsResult] at success
+                  rcases success with ⟨rfl, rfl⟩
+                  exact .ctor lookup arity
+                    (elaboratePPatFieldsFuel_sound fieldsResult)
+            · simp [elaboratePPatFuel, lookup, arity] at success
+termination_by fuel
+
+/-- Structural-fuel primitive-pattern field typing is sound. -/
+theorem elaboratePPatFieldsFuel_sound
+    {signature : FrozenSignature} {fuel : Nat} {patterns : List PPat}
+    {expected : List Dual} {supply next : Supply} {generated : GeneratedPPats}
+    (success : elaboratePPatFieldsFuel signature fuel patterns expected supply =
+      some (generated, next)) :
+    PPatsElaborate signature patterns expected supply generated next := by
+  cases fuel with
+  | zero => simp [elaboratePPatFieldsFuel] at success
+  | succ fuel =>
+    cases patterns with
+    | nil =>
+        cases expected with
+        | nil =>
+            simp [elaboratePPatFieldsFuel] at success
+            rcases success with ⟨rfl, rfl⟩
+            exact .nil
+        | cons expected expecteds =>
+            simp [elaboratePPatFieldsFuel] at success
+    | cons pattern patterns =>
+        cases expected with
+        | nil => simp [elaboratePPatFieldsFuel] at success
+        | cons expected expecteds =>
+            cases patternResult : elaboratePPatFuel signature fuel pattern
+                expected.target (some expected.capability) supply with
+            | none =>
+                simp [elaboratePPatFieldsFuel, patternResult] at success
+            | some output =>
+                rcases output with ⟨generatedPattern, afterPattern⟩
+                cases patternsResult : elaboratePPatFieldsFuel signature fuel
+                    patterns expecteds afterPattern with
+                | none =>
+                    simp [elaboratePPatFieldsFuel, patternResult, patternsResult]
+                      at success
+                | some rest =>
+                    rcases rest with ⟨generatedPatterns, afterPatterns⟩
+                    simp [elaboratePPatFieldsFuel, patternResult, patternsResult]
+                      at success
+                    rcases success with ⟨rfl, rfl⟩
+                    exact .cons (elaboratePPatFuel_sound patternResult)
+                      (elaboratePPatFieldsFuel_sound patternsResult)
+termination_by fuel
+
+end
+
 /-- Executable primitive-pattern typing is sound for its independent
 relation. -/
 theorem elaboratePPat_sound
@@ -1077,42 +1177,8 @@ theorem elaboratePPat_sound
     (success : elaboratePPat signature pattern expectedTarget expectedCapability supply =
       some (generated, next)) :
     PPatElaborates signature pattern expectedTarget expectedCapability supply
-      generated next := by
-  cases pattern with
-  | hole =>
-      cases expectedCapability <;>
-        simp [elaboratePPat] at success <;>
-        rcases success with ⟨rfl, rfl⟩ <;> exact .hole
-  | wild =>
-      simp [elaboratePPat] at success
-      rcases success with ⟨rfl, rfl⟩
-      exact .wild
-  | capture =>
-      simp [elaboratePPat] at success
-      rcases success with ⟨rfl, rfl⟩
-      exact .capture
-  | ctor constructor fields =>
-      cases lookup : signature.lookupPatternConstructor constructor with
-      | none => simp [elaboratePPat, lookup] at success
-      | some scheme =>
-          by_cases arity : fields.length = scheme.fields.length
-          · cases fieldsResult : elaboratePPatFields signature fields
-                (scheme.instantiate supply).1.fields
-                (scheme.instantiate supply).2 with
-            | none => simp [elaboratePPat, lookup, arity, fieldsResult] at success
-            | some output =>
-                rcases output with ⟨generatedFields, afterFields⟩
-                simp [elaboratePPat, lookup, arity, fieldsResult] at success
-                rcases success with ⟨rfl, rfl⟩
-                exact .ctor lookup arity
-                  (elaboratePPatFields_sound fieldsResult)
-          · simp [elaboratePPat, lookup, arity] at success
-termination_by MatcherTyping.PPat.typingSize pattern * 2 + 1
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.PPat.typingSize,
-    MatcherTyping.PPat.listTypingSize]
-  all_goals omega
+      generated next :=
+  elaboratePPatFuel_sound success
 
 /-- Executable primitive-pattern field typing is sound. -/
 theorem elaboratePPatFields_sound
@@ -1120,46 +1186,112 @@ theorem elaboratePPatFields_sound
     {supply next : Supply} {generated : GeneratedPPats}
     (success : elaboratePPatFields signature patterns expected supply =
       some (generated, next)) :
-    PPatsElaborate signature patterns expected supply generated next := by
-  cases patterns with
-  | nil =>
-      cases expected with
-      | nil =>
-          simp [elaboratePPatFields] at success
-          rcases success with ⟨rfl, rfl⟩
-          exact .nil
-      | cons expected expecteds =>
-          simp [elaboratePPatFields] at success
-  | cons pattern patterns =>
-      cases expected with
-      | nil => simp [elaboratePPatFields] at success
-      | cons expected expecteds =>
-          cases patternResult : elaboratePPat signature pattern expected.target
-              (some expected.capability) supply with
-          | none => simp [elaboratePPatFields, patternResult] at success
-          | some output =>
-              rcases output with ⟨generatedPattern, afterPattern⟩
-              cases patternsResult : elaboratePPatFields signature patterns expecteds
-                  afterPattern with
-              | none =>
-                  simp [elaboratePPatFields, patternResult, patternsResult] at success
-              | some rest =>
-                  rcases rest with ⟨generatedPatterns, afterPatterns⟩
-                  simp [elaboratePPatFields, patternResult, patternsResult] at success
-                  rcases success with ⟨rfl, rfl⟩
-                  exact .cons (elaboratePPat_sound patternResult)
-                    (elaboratePPatFields_sound patternsResult)
-termination_by MatcherTyping.PPat.listTypingSize patterns * 2
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.PPat.typingSize,
-    MatcherTyping.PPat.listTypingSize]
-  all_goals omega
-
-end
-
+    PPatsElaborate signature patterns expected supply generated next :=
+  elaboratePPatFieldsFuel_sound success
 
 mutual
+
+/-- Structural-fuel data-pattern typing is sound. -/
+theorem elaborateDPatFuel_sound
+    {signature : FrozenSignature} {fuel : Nat} {pattern : DPat} {expected : Ty}
+    {supply next : Supply} {generated : GeneratedDPat}
+    (success : elaborateDPatFuel signature fuel pattern expected supply =
+      some (generated, next)) :
+    DPatElaborates signature pattern expected supply generated next := by
+  cases fuel with
+  | zero => simp [elaborateDPatFuel] at success
+  | succ fuel =>
+    cases pattern with
+    | var =>
+        simp [elaborateDPatFuel] at success
+        rcases success with ⟨rfl, rfl⟩
+        exact .var
+    | wild =>
+        simp [elaborateDPatFuel] at success
+        rcases success with ⟨rfl, rfl⟩
+        exact .wild
+    | ctor constructor fields =>
+        cases lookup : signature.lookupDataConstructor constructor with
+        | none => simp [elaborateDPatFuel, lookup] at success
+        | some scheme =>
+            by_cases arity : fields.length = scheme.callArity
+            · cases peelResult : peelFunctionExact scheme.callArity
+                  (scheme.instantiate supply).1 with
+              | none =>
+                  simp [elaborateDPatFuel, lookup, arity, peelResult] at success
+              | some peeled =>
+                  rcases peeled with ⟨fieldTypes, resultType⟩
+                  have peel : peelFunctionExact fields.length
+                      (scheme.instantiate supply).1 =
+                      some (fieldTypes, resultType) := by
+                    rw [arity]
+                    exact peelResult
+                  cases fieldsResult : elaborateDPatFieldsFuel signature fuel fields
+                      fieldTypes (scheme.instantiate supply).2 with
+                  | none =>
+                      simp [elaborateDPatFuel, lookup, arity, peelResult,
+                        fieldsResult] at success
+                  | some output =>
+                      rcases output with ⟨generatedFields, afterFields⟩
+                      simp [elaborateDPatFuel, lookup, arity, peelResult,
+                        fieldsResult] at success
+                      rcases success with ⟨rfl, rfl⟩
+                      exact .ctor lookup arity peel
+                        (elaborateDPatFieldsFuel_sound fieldsResult)
+            · simp [elaborateDPatFuel, lookup, arity] at success
+    | tuple items =>
+        cases itemsResult : elaborateDPatFieldsFuel signature fuel items
+            (freshTargets supply items.length) (supply.nextTy items.length) with
+        | none => simp [elaborateDPatFuel, itemsResult] at success
+        | some output =>
+            rcases output with ⟨generatedItems, afterItems⟩
+            simp [elaborateDPatFuel, itemsResult] at success
+            rcases success with ⟨rfl, rfl⟩
+            exact .tuple rfl (elaborateDPatFieldsFuel_sound itemsResult)
+termination_by fuel
+
+/-- Structural-fuel data-pattern field typing is sound. -/
+theorem elaborateDPatFieldsFuel_sound
+    {signature : FrozenSignature} {fuel : Nat} {patterns : List DPat}
+    {expected : List Ty} {supply next : Supply} {generated : GeneratedDPats}
+    (success : elaborateDPatFieldsFuel signature fuel patterns expected supply =
+      some (generated, next)) :
+    DPatsElaborate signature patterns expected supply generated next := by
+  cases fuel with
+  | zero => simp [elaborateDPatFieldsFuel] at success
+  | succ fuel =>
+    cases patterns with
+    | nil =>
+        cases expected with
+        | nil =>
+            simp [elaborateDPatFieldsFuel] at success
+            rcases success with ⟨rfl, rfl⟩
+            exact .nil
+        | cons expected expecteds => simp [elaborateDPatFieldsFuel] at success
+    | cons pattern patterns =>
+        cases expected with
+        | nil => simp [elaborateDPatFieldsFuel] at success
+        | cons expected expecteds =>
+            cases patternResult : elaborateDPatFuel signature fuel pattern expected
+                supply with
+            | none => simp [elaborateDPatFieldsFuel, patternResult] at success
+            | some output =>
+                rcases output with ⟨generatedPattern, afterPattern⟩
+                cases patternsResult : elaborateDPatFieldsFuel signature fuel patterns
+                    expecteds afterPattern with
+                | none =>
+                    simp [elaborateDPatFieldsFuel, patternResult, patternsResult]
+                      at success
+                | some rest =>
+                    rcases rest with ⟨generatedPatterns, afterPatterns⟩
+                    simp [elaborateDPatFieldsFuel, patternResult, patternsResult]
+                      at success
+                    rcases success with ⟨rfl, rfl⟩
+                    exact .cons (elaborateDPatFuel_sound patternResult)
+                      (elaborateDPatFieldsFuel_sound patternsResult)
+termination_by fuel
+
+end
 
 /-- Executable data-pattern typing is sound. -/
 theorem elaborateDPat_sound
@@ -1167,59 +1299,8 @@ theorem elaborateDPat_sound
     {supply next : Supply} {generated : GeneratedDPat}
     (success : elaborateDPat signature pattern expected supply =
       some (generated, next)) :
-    DPatElaborates signature pattern expected supply generated next := by
-  cases pattern with
-  | var =>
-      simp [elaborateDPat] at success
-      rcases success with ⟨rfl, rfl⟩
-      exact .var
-  | wild =>
-      simp [elaborateDPat] at success
-      rcases success with ⟨rfl, rfl⟩
-      exact .wild
-  | ctor constructor fields =>
-      cases lookup : signature.lookupDataConstructor constructor with
-      | none => simp [elaborateDPat, lookup] at success
-      | some scheme =>
-          by_cases arity : fields.length = scheme.callArity
-          · cases peelResult : peelFunctionExact scheme.callArity
-                (scheme.instantiate supply).1 with
-            | none => simp [elaborateDPat, lookup, arity, peelResult] at success
-            | some peeled =>
-                rcases peeled with ⟨fieldTypes, resultType⟩
-                have peel : peelFunctionExact fields.length
-                    (scheme.instantiate supply).1 =
-                    some (fieldTypes, resultType) := by
-                  rw [arity]
-                  exact peelResult
-                cases fieldsResult : elaborateDPatFields signature fields fieldTypes
-                    (scheme.instantiate supply).2 with
-                | none =>
-                    simp [elaborateDPat, lookup, arity, peelResult,
-                      fieldsResult] at success
-                | some output =>
-                    rcases output with ⟨generatedFields, afterFields⟩
-                    simp [elaborateDPat, lookup, arity, peelResult,
-                      fieldsResult] at success
-                    rcases success with ⟨rfl, rfl⟩
-                    exact .ctor lookup arity peel
-                      (elaborateDPatFields_sound fieldsResult)
-          · simp [elaborateDPat, lookup, arity] at success
-  | tuple items =>
-      cases itemsResult : elaborateDPatFields signature items
-          (freshTargets supply items.length) (supply.nextTy items.length) with
-      | none => simp [elaborateDPat, itemsResult] at success
-      | some output =>
-          rcases output with ⟨generatedItems, afterItems⟩
-          simp [elaborateDPat, itemsResult] at success
-          rcases success with ⟨rfl, rfl⟩
-          exact .tuple rfl (elaborateDPatFields_sound itemsResult)
-termination_by MatcherTyping.DPat.typingSize pattern * 2 + 1
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.DPat.typingSize,
-    MatcherTyping.DPat.listTypingSize]
-  all_goals omega
+    DPatElaborates signature pattern expected supply generated next :=
+  elaborateDPatFuel_sound success
 
 /-- Executable data-pattern field typing is sound. -/
 theorem elaborateDPatFields_sound
@@ -1227,41 +1308,10 @@ theorem elaborateDPatFields_sound
     {supply next : Supply} {generated : GeneratedDPats}
     (success : elaborateDPatFields signature patterns expected supply =
       some (generated, next)) :
-    DPatsElaborate signature patterns expected supply generated next := by
-  cases patterns with
-  | nil =>
-      cases expected with
-      | nil =>
-          simp [elaborateDPatFields] at success
-          rcases success with ⟨rfl, rfl⟩
-          exact .nil
-      | cons expected expecteds => simp [elaborateDPatFields] at success
-  | cons pattern patterns =>
-      cases expected with
-      | nil => simp [elaborateDPatFields] at success
-      | cons expected expecteds =>
-          cases patternResult : elaborateDPat signature pattern expected supply with
-          | none => simp [elaborateDPatFields, patternResult] at success
-          | some output =>
-              rcases output with ⟨generatedPattern, afterPattern⟩
-              cases patternsResult : elaborateDPatFields signature patterns expecteds
-                  afterPattern with
-              | none =>
-                  simp [elaborateDPatFields, patternResult, patternsResult] at success
-              | some rest =>
-                  rcases rest with ⟨generatedPatterns, afterPatterns⟩
-                  simp [elaborateDPatFields, patternResult, patternsResult] at success
-                  rcases success with ⟨rfl, rfl⟩
-                  exact .cons (elaborateDPat_sound patternResult)
-                    (elaborateDPatFields_sound patternsResult)
-termination_by MatcherTyping.DPat.listTypingSize patterns * 2
-decreasing_by
-  all_goals simp_wf
-  all_goals simp_all [MatcherTyping.DPat.typingSize,
-    MatcherTyping.DPat.listTypingSize]
-  all_goals omega
+    DPatsElaborate signature patterns expected supply generated next :=
+  elaborateDPatFieldsFuel_sound success
 
-end
+
 
 /-- Executable M3-boundary checking is sound. -/
 theorem elaborateCheckedExpression_sound

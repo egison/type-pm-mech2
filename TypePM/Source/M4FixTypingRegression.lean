@@ -90,46 +90,50 @@ theorem matcher_root_fix_shape_exact :
 
 theorem direct_body_checked_exact :
     check 1 directBody = true := by
-  simp [directBody, check, checkHead]
+  simp [directBody, check, checkFuel, checkHead, checkHeadFuel]
 
 theorem lambda_shift_checked_exact :
     check 1 shiftedLambdaBody = true := by
-  simp [shiftedLambdaBody, check, checkHead]
+  simp [shiftedLambdaBody, check, checkFuel, checkHead, checkHeadFuel]
 
 theorem let_shift_checked_exact :
     check 1 shiftedLetBody = true := by
-  simp [shiftedLetBody, check, checkHead]
+  simp [shiftedLetBody, check, checkFuel, checkHead, checkHeadFuel]
 
 /-- The value expression after one pattern variable sees self at index two,
 and the match body receives the same one-binder shift. -/
 theorem pattern_shifts_checked_exact :
     check 1 shiftedPatternBody = true := by
-  simp [shiftedPatternBody, shiftedPattern, check, checkHead, checkPattern,
-    checkPatterns, patternBindingCount, patternBindingCountList]
+  simp [shiftedPatternBody, shiftedPattern, check, checkFuel, checkHead,
+    checkHeadFuel, checkPattern, checkPatternFuel, checkPatterns,
+    checkPatternsFuel, patternBindingCount, patternBindingCountList]
 
 /-- A next-matcher expression has capture at index zero, fix argument at one,
 and recursive self at two.  An arm body additionally has its data variable at
 index zero, shifting capture, argument, and self to one, two, and three. -/
 theorem clause_shifts_checked_exact :
     check 1 shiftedClauseBody = true := by
-  simp [shiftedClauseBody, shiftedClause, check, checkHead, checkClauses,
-    checkClause, checkArms, checkArm, PPat.captureCount, DPat.bindingCount]
+  simp [shiftedClauseBody, shiftedClause, check, checkFuel, checkHead,
+    checkHeadFuel, checkClauses, checkClausesFuel, checkClause,
+    checkClauseFuel, checkArms, checkArmsFuel, checkArm, checkArmFuel,
+    PPat.captureCount, DPat.bindingCount]
 
 theorem bare_self_checked_exact :
     check 1 bareBody = false := by
-  simp [bareBody, check]
+  simp [bareBody, check, checkFuel]
 
 theorem alias_checked_exact :
     check 1 aliasBody = false := by
-  simp [aliasBody, check, checkHead]
+  simp [aliasBody, check, checkFuel, checkHead, checkHeadFuel]
 
 theorem higher_order_checked_exact :
     check 1 higherOrderBody = false := by
-  simp [higherOrderBody, check, checkHead]
+  simp [higherOrderBody, check, checkFuel, checkHead, checkHeadFuel]
 
 theorem mutual_style_checked_exact :
     check 1 mutualStyleBody = false := by
-  simp [mutualStyleBody, check, mentions, checkHead]
+  simp [mutualStyleBody, check, checkFuel, mentions, checkHead,
+    checkHeadFuel]
 
 def directGenerated : Generated :=
   { target := .fn (.var ⟨0⟩) (.var ⟨1⟩)
@@ -143,7 +147,8 @@ theorem elaborate_direct_exact :
     elaborateFix Paper1Signature.signature [] directBody ⟨0, 0⟩ =
       some (directGenerated, ⟨4, 0⟩) := by
   simp [elaborateFix, directBody, directGenerated, DirectSelf.check,
-    elaborateFixUsing, DirectSelf.checkHead, Fix.bodyContext, elaborate, Generated.fromFix,
+    DirectSelf.checkFuel, elaborateFixUsing, DirectSelf.checkHead,
+    DirectSelf.checkHeadFuel, Fix.bodyContext, elaborate, Generated.fromFix,
     Fix.domain, Fix.codomain, Fix.bodySupply, Scheme.mono,
     Scheme.instantiate, Supply.nextTy]
 

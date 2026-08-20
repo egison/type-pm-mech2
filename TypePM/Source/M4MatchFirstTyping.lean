@@ -91,14 +91,16 @@ def Generated.fromMatchFirst
     hard := target.hard ++ matcher.hard ++ arms.hard
     pending := target.pending ++ matcher.pending ++ arms.pending }
 
-/-- Elaborate every arm after the first, preserving source order. -/
-def elaborateTailUsing
+/-- Fuel-structural elaboration of every arm after the first, preserving
+source order.  One unit is consumed for each tail cell. -/
+def elaborateTailUsingFuel
     (elaborateExpression : ExpressionElaborator)
     (signature : FrozenSignature) (context : Context)
     (targetType matcherType expectedResult : Ty) :
-    List MatchFirstArm → Supply → Option (GeneratedTail × Supply)
-  | [], supply => some (⟨[], []⟩, supply)
-  | .mk pattern body :: arms, supply => do
+    Nat → List MatchFirstArm → Supply → Option (GeneratedTail × Supply)
+  | 0, _, _ => none
+  | _ + 1, [], supply => some (⟨[], []⟩, supply)
+  | fuel + 1, .mk pattern body :: arms, supply => do
       let (generatedPattern, afterPattern) ←
         elaboratePatternUsing elaborateExpression signature context [] pattern [] supply
       let (generatedBody, afterBody) ←
@@ -106,16 +108,26 @@ def elaborateTailUsing
           (Pattern.extendContext generatedPattern.bindings context)
           body afterPattern
       let (generatedTail, next) ←
-        elaborateTailUsing elaborateExpression signature context targetType
-          matcherType expectedResult arms afterBody
+        elaborateTailUsingFuel elaborateExpression signature context targetType
+          matcherType expectedResult fuel arms afterBody
       let current := GeneratedTail.fromArm targetType matcherType
         expectedResult generatedPattern generatedBody
       pure
         (⟨current.hard ++ generatedTail.hard,
           current.pending ++ generatedTail.pending⟩,
           next)
-termination_by arms => MatchFirstArm.listComplexity arms * 2
-decreasing_by all_goals simp_wf <;> omega
+
+/-- Public tail elaborator.  Its size-derived fuel is strictly larger than
+the number of recursive tail calls. -/
+def elaborateTailUsing
+    (elaborateExpression : ExpressionElaborator)
+    (signature : FrozenSignature) (context : Context)
+    (targetType matcherType expectedResult : Ty)
+    (arms : List MatchFirstArm) (supply : Supply) :
+    Option (GeneratedTail × Supply) :=
+  elaborateTailUsingFuel elaborateExpression signature context targetType
+    matcherType expectedResult (MatchFirstArm.listComplexity arms * 2 + 1)
+    arms supply
 
 /-- Elaborate a nonempty arm list.  The first body fixes the direct result
 type against which later bodies are equated. -/
@@ -277,6 +289,62 @@ abbrev Elaborates
     (signature : FrozenSignature) (context : Context) :=
   ElaboratesUsing (TypePM.Source.Elaborates signature.base) signature context
 
+theorem elaborateTailUsingFuel_sound
+    {elaborateExpression : ExpressionElaborator}
+    {ExpressionElaborates :
+      Context → Expr → Supply → Generated → Supply → Prop}
+    (expressionSound : ∀ {context expression supply generated next},
+      elaborateExpression context expression supply = some (generated, next) →
+        ExpressionElaborates context expression supply generated next)
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {context : Context} {targetType matcherType expectedResult : Ty}
+    {fuel : Nat}
+    {arms : List MatchFirstArm} {supply next : Supply}
+    {generated : GeneratedTail}
+    (success : elaborateTailUsingFuel elaborateExpression signature context
+      targetType matcherType expectedResult fuel arms supply = some (generated, next)) :
+    TailElaboratesUsing ExpressionElaborates signature context targetType
+      matcherType expectedResult arms supply generated next := by
+  induction fuel generalizing arms supply generated next with
+  | zero => simp [elaborateTailUsingFuel] at success
+  | succ fuel induction =>
+      cases arms with
+      | nil =>
+          simp [elaborateTailUsingFuel] at success
+          rcases success with ⟨rfl, rfl⟩
+          exact .nil
+      | cons arm arms =>
+          cases arm with
+          | mk pattern body =>
+              cases patternResult : elaboratePatternUsing elaborateExpression signature context [] pattern []
+                  supply with
+              | none => simp [elaborateTailUsingFuel, patternResult] at success
+              | some patternOutput =>
+                  rcases patternOutput with ⟨generatedPattern, afterPattern⟩
+                  cases bodyResult : elaborateExpression
+                      (Pattern.extendContext generatedPattern.bindings context)
+                      body afterPattern with
+                  | none =>
+                      simp [elaborateTailUsingFuel, patternResult, bodyResult] at success
+                  | some bodyOutput =>
+                      rcases bodyOutput with ⟨generatedBody, afterBody⟩
+                      cases tailResult : elaborateTailUsingFuel elaborateExpression
+                          signature context targetType matcherType expectedResult
+                          fuel arms afterBody with
+                      | none =>
+                          simp [elaborateTailUsingFuel, patternResult, bodyResult,
+                            tailResult] at success
+                      | some tailOutput =>
+                          rcases tailOutput with ⟨generatedTail, afterTail⟩
+                          simp [elaborateTailUsingFuel, patternResult, bodyResult,
+                            tailResult] at success
+                          rcases success with ⟨rfl, rfl⟩
+                          exact .cons
+                            (elaboratePatternUsing_sound expressionSound wellFormed
+                              patternResult)
+                            (expressionSound bodyResult)
+                            (induction tailResult)
+
 theorem elaborateTailUsing_sound
     {elaborateExpression : ExpressionElaborator}
     {ExpressionElaborates :
@@ -291,45 +359,8 @@ theorem elaborateTailUsing_sound
     (success : elaborateTailUsing elaborateExpression signature context
       targetType matcherType expectedResult arms supply = some (generated, next)) :
     TailElaboratesUsing ExpressionElaborates signature context targetType
-      matcherType expectedResult arms supply generated next := by
-  cases arms with
-  | nil =>
-      simp [elaborateTailUsing] at success
-      rcases success with ⟨rfl, rfl⟩
-      exact .nil
-  | cons arm arms =>
-      cases arm with
-      | mk pattern body =>
-          cases patternResult : elaboratePatternUsing elaborateExpression signature context [] pattern []
-              supply with
-          | none => simp [elaborateTailUsing, patternResult] at success
-          | some patternOutput =>
-              rcases patternOutput with ⟨generatedPattern, afterPattern⟩
-              cases bodyResult : elaborateExpression
-                  (Pattern.extendContext generatedPattern.bindings context)
-                  body afterPattern with
-              | none =>
-                  simp [elaborateTailUsing, patternResult, bodyResult] at success
-              | some bodyOutput =>
-                  rcases bodyOutput with ⟨generatedBody, afterBody⟩
-                  cases tailResult : elaborateTailUsing elaborateExpression
-                      signature context targetType matcherType expectedResult
-                      arms afterBody with
-                  | none =>
-                      simp [elaborateTailUsing, patternResult, bodyResult,
-                        tailResult] at success
-                  | some tailOutput =>
-                      rcases tailOutput with ⟨generatedTail, afterTail⟩
-                      simp [elaborateTailUsing, patternResult, bodyResult,
-                        tailResult] at success
-                      rcases success with ⟨rfl, rfl⟩
-                      exact .cons
-                        (elaboratePatternUsing_sound expressionSound wellFormed patternResult)
-                        (expressionSound bodyResult)
-                        (elaborateTailUsing_sound expressionSound wellFormed
-                          tailResult)
-termination_by MatchFirstArm.listComplexity arms * 2
-decreasing_by all_goals simp_wf <;> subst_vars <;> simp <;> omega
+      matcherType expectedResult arms supply generated next :=
+  elaborateTailUsingFuel_sound expressionSound wellFormed success
 
 theorem elaborateArmsUsing_sound
     {elaborateExpression : ExpressionElaborator}

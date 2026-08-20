@@ -1,6 +1,7 @@
 import TypePM.Source.M4FixTyping
 import TypePM.Source.M4MatcherTyping
 import TypePM.Source.M4MatchFirstTyping
+import TypePM.InferenceFuelTransport
 
 /-!
 # Complete recursive M4 source elaboration
@@ -43,13 +44,15 @@ def elaborateCallUsing (elaborateExpression : ExpressionElaborator)
         (Generated.fromApp accumulated generatedArgument domain target)
         arguments (afterArgument.nextTy 2)
 
-/-- Fuel-indexed implementation.  Each source-expression edge consumes one
-unit; sibling-list traversal does not. -/
-def elaborateFuel (signature : FrozenSignature) :
+/-- Fuel-indexed implementation parameterized by the solver used at `let`.
+Each source-expression edge consumes one unit; sibling-list traversal does
+not. -/
+def elaborateFuelUsing (solveHard : List Equation → Option Subst)
+    (signature : FrozenSignature) :
     Nat → Context → Expr → Supply → Option (Generated × Supply)
   | 0, _, _, _ => none
   | fuel + 1, context, expression, supply =>
-      let recur : ExpressionElaborator := elaborateFuel signature fuel
+      let recur : ExpressionElaborator := elaborateFuelUsing solveHard signature fuel
       match expression with
       | .var index => do
           let scheme ← context[index]?
@@ -76,7 +79,7 @@ def elaborateFuel (signature : FrozenSignature) :
             generatedItems.pending⟩, next)
       | .letE value body => do
           let (generatedValue, afterValue) ← recur context value supply
-          let closedValue ← inferGeneratedUsing unify generatedValue
+          let closedValue ← inferGeneratedUsing solveHard generatedValue
           let closedContext := context.applyFree closedValue.substitution
           let generalized := closedContext.generalize closedValue.target
           let bodySupply := afterValue.join closedContext.initialSupply
@@ -113,6 +116,12 @@ def elaborateFuel (signature : FrozenSignature) :
       | .matchFirst target matcher arms =>
           MatchFirstTyping.elaborateUsing recur signature context target matcher
             arms supply
+
+/-- Public fuel-indexed elaborator, using the total certified unifier at
+every `let` boundary. -/
+def elaborateFuel (signature : FrozenSignature) :
+    Nat → Context → Expr → Supply → Option (Generated × Supply) :=
+  elaborateFuelUsing unify signature
 
 /-- Public full-syntax elaborator. -/
 def elaborate (signature : FrozenSignature) (context : Context)
@@ -287,96 +296,98 @@ theorem elaborateCallUsing_sound
 
 /-- Soundness of the fuel-indexed executable against the independent
 fuel-indexed relation. -/
-theorem elaborateFuel_sound
+theorem elaborateFuelUsing_sound
+    {solveHard : List Equation → Option Subst}
+    (solverAbsorbing : AbsorbingMGUSolver solveHard)
     {signature : FrozenSignature} (wellFormed : signature.WellFormed) :
     ∀ {fuel context expression supply generated next},
-      elaborateFuel signature fuel context expression supply =
+      elaborateFuelUsing solveHard signature fuel context expression supply =
         some (generated, next) →
       ElaboratesFuel signature fuel context expression supply generated next := by
   intro fuel
   induction fuel with
   | zero =>
       intro context expression supply generated next success
-      simp [elaborateFuel] at success
+      simp [elaborateFuelUsing] at success
   | succ fuel induction =>
       intro context expression supply generated next success
       cases expression with
       | var index =>
           cases lookup : context[index]? with
-          | none => simp [elaborateFuel, lookup] at success
+          | none => simp [elaborateFuelUsing, lookup] at success
           | some scheme =>
-              simp [elaborateFuel, lookup] at success
+              simp [elaborateFuelUsing, lookup] at success
               rcases success with ⟨rfl, rfl⟩
               exact ⟨scheme, lookup, rfl, rfl⟩
       | lit value =>
-          simp [elaborateFuel] at success
+          simp [elaborateFuelUsing] at success
           rcases success with ⟨rfl, rfl⟩
           exact ⟨rfl, rfl⟩
       | something =>
-          simp [elaborateFuel] at success
+          simp [elaborateFuelUsing] at success
           rcases success with ⟨rfl, rfl⟩
           exact ⟨rfl, rfl⟩
       | lam body =>
-          cases bodyResult : elaborateFuel signature fuel
+          cases bodyResult : elaborateFuelUsing solveHard signature fuel
               (.mono (.var ⟨supply.ty⟩) :: context) body (supply.nextTy 1) with
-          | none => simp [elaborateFuel, bodyResult] at success
+          | none => simp [elaborateFuelUsing, bodyResult] at success
           | some output =>
               rcases output with ⟨generatedBody, afterBody⟩
-              simp [elaborateFuel, bodyResult] at success
+              simp [elaborateFuelUsing, bodyResult] at success
               rcases success with ⟨rfl, rfl⟩
               exact ⟨generatedBody, induction bodyResult, rfl⟩
       | app function argument =>
-          cases functionResult : elaborateFuel signature fuel context function supply with
-          | none => simp [elaborateFuel, functionResult] at success
+          cases functionResult : elaborateFuelUsing solveHard signature fuel context function supply with
+          | none => simp [elaborateFuelUsing, functionResult] at success
           | some output =>
               rcases output with ⟨generatedFunction, afterFunction⟩
-              cases argumentResult : elaborateFuel signature fuel context argument
+              cases argumentResult : elaborateFuelUsing solveHard signature fuel context argument
                   afterFunction with
-              | none => simp [elaborateFuel, functionResult, argumentResult] at success
+              | none => simp [elaborateFuelUsing, functionResult, argumentResult] at success
               | some output =>
                   rcases output with ⟨generatedArgument, afterArgument⟩
-                  simp [elaborateFuel, functionResult, argumentResult] at success
+                  simp [elaborateFuelUsing, functionResult, argumentResult] at success
                   rcases success with ⟨rfl, rfl⟩
                   exact ⟨generatedFunction, afterFunction, generatedArgument,
                     afterArgument, induction functionResult,
                     induction argumentResult, rfl, rfl⟩
       | tuple items =>
-          cases itemsResult : elaborateItemsUsing (elaborateFuel signature fuel)
+          cases itemsResult : elaborateItemsUsing (elaborateFuelUsing solveHard signature fuel)
               context items supply with
-          | none => simp [elaborateFuel, itemsResult] at success
+          | none => simp [elaborateFuelUsing, itemsResult] at success
           | some output =>
               rcases output with ⟨generatedItems, afterItems⟩
-              simp [elaborateFuel, itemsResult] at success
+              simp [elaborateFuelUsing, itemsResult] at success
               rcases success with ⟨rfl, rfl⟩
               exact ⟨generatedItems,
                 elaborateItemsUsing_sound induction itemsResult, rfl⟩
       | letE value body =>
-          cases valueResult : elaborateFuel signature fuel context value supply with
-          | none => simp [elaborateFuel, valueResult] at success
+          cases valueResult : elaborateFuelUsing solveHard signature fuel context value supply with
+          | none => simp [elaborateFuelUsing, valueResult] at success
           | some output =>
               rcases output with ⟨generatedValue, afterValue⟩
-              cases closureResult : inferGeneratedUsing unify generatedValue with
-              | none => simp [elaborateFuel, valueResult, closureResult] at success
+              cases closureResult : inferGeneratedUsing solveHard generatedValue with
+              | none => simp [elaborateFuelUsing, valueResult, closureResult] at success
               | some closed =>
-                  cases bodyResult : elaborateFuel signature fuel
+                  cases bodyResult : elaborateFuelUsing solveHard signature fuel
                       ((context.applyFree closed.substitution).generalize
                           closed.target :: context.applyFree closed.substitution)
                       body
                       (afterValue.join
                         (context.applyFree closed.substitution).initialSupply) with
                   | none =>
-                      simp [elaborateFuel, valueResult, closureResult, bodyResult]
+                      simp [elaborateFuelUsing, valueResult, closureResult, bodyResult]
                         at success
                   | some output =>
                       rcases output with ⟨generatedBody, afterBody⟩
-                      simp [elaborateFuel, valueResult, closureResult, bodyResult]
+                      simp [elaborateFuelUsing, valueResult, closureResult, bodyResult]
                         at success
                       rcases success with ⟨rfl, rfl⟩
                       obtain ⟨closure, substitutionEquality, targetEquality,
                           absorbing⟩ :=
                         inferGeneratedUsing_absorbingPrincipalBlockClosure
-                          unify_absorbingMGUSolver closureResult
-                      have bodyResult' : elaborateFuel signature fuel
+                          solverAbsorbing closureResult
+                      have bodyResult' : elaborateFuelUsing solveHard signature fuel
                           ((context.applyFree closure.substitution).generalize
                               closure.target ::
                             context.applyFree closure.substitution)
@@ -391,56 +402,67 @@ theorem elaborateFuel_sound
                         induction bodyResult', by simp [substitutionEquality]⟩
       | ctor constructor arguments =>
           cases lookup : signature.base.lookupDataConstructor constructor with
-          | none => simp [elaborateFuel, lookup] at success
+          | none => simp [elaborateFuelUsing, lookup] at success
           | some scheme =>
               by_cases arity : arguments.length = scheme.callArity
               · cases callResult : elaborateCallUsing
-                    (elaborateFuel signature fuel) context
+                    (elaborateFuelUsing solveHard signature fuel) context
                     ⟨(scheme.instantiate supply).1, [], []⟩ arguments
                     (scheme.instantiate supply).2 with
-                | none => simp [elaborateFuel, lookup, arity, callResult] at success
+                | none => simp [elaborateFuelUsing, lookup, arity, callResult] at success
                 | some output =>
                     rcases output with ⟨generatedCall, afterCall⟩
-                    simp [elaborateFuel, lookup, arity, callResult] at success
+                    simp [elaborateFuelUsing, lookup, arity, callResult] at success
                     rcases success with ⟨rfl, rfl⟩
                     exact ⟨scheme, lookup, arity,
                       wellFormed.baseWellFormed.dataConstructorClosed_of_lookup
                         lookup,
                       elaborateCallUsing_sound induction callResult⟩
-              · simp [elaborateFuel, lookup, arity] at success
+              · simp [elaborateFuelUsing, lookup, arity] at success
       | prim operation arguments =>
           cases lookup : signature.base.lookupPrimitive operation with
-          | none => simp [elaborateFuel, lookup] at success
+          | none => simp [elaborateFuelUsing, lookup] at success
           | some scheme =>
               by_cases arity : arguments.length = scheme.callArity
               · cases callResult : elaborateCallUsing
-                    (elaborateFuel signature fuel) context
+                    (elaborateFuelUsing solveHard signature fuel) context
                     ⟨(scheme.instantiate supply).1, [], []⟩ arguments
                     (scheme.instantiate supply).2 with
-                | none => simp [elaborateFuel, lookup, arity, callResult] at success
+                | none => simp [elaborateFuelUsing, lookup, arity, callResult] at success
                 | some output =>
                     rcases output with ⟨generatedCall, afterCall⟩
-                    simp [elaborateFuel, lookup, arity, callResult] at success
+                    simp [elaborateFuelUsing, lookup, arity, callResult] at success
                     rcases success with ⟨rfl, rfl⟩
                     exact ⟨scheme, lookup, arity,
                       wellFormed.baseWellFormed.primitiveClosed_of_lookup lookup,
                       elaborateCallUsing_sound induction callResult⟩
-              · simp [elaborateFuel, lookup, arity] at success
+              · simp [elaborateFuelUsing, lookup, arity] at success
       | ifE condition thenBranch elseBranch =>
           exact elaborateCallUsing_sound induction (by
-            simpa [elaborateFuel] using success)
+            simpa [elaborateFuelUsing] using success)
       | fixE body =>
           exact elaborateFixUsing_sound induction (by
-            simpa [elaborateFuel] using success)
+            simpa [elaborateFuelUsing] using success)
       | matcher clauses =>
           exact MatcherTyping.elaborateMatcherLiteralUsing_sound induction (by
-            simpa [elaborateFuel] using success)
+            simpa [elaborateFuelUsing] using success)
       | matchAll target matcher pattern body =>
           exact elaborateMatchAllUsing_sound induction wellFormed (by
-            simpa [elaborateFuel] using success)
+            simpa [elaborateFuelUsing] using success)
       | matchFirst target matcher arms =>
           exact MatchFirstTyping.elaborateUsing_sound induction wellFormed (by
-            simpa [elaborateFuel] using success)
+            simpa [elaborateFuelUsing] using success)
+
+
+/-- Soundness of the public fuel-indexed elaborator. -/
+theorem elaborateFuel_sound
+    {signature : FrozenSignature} (wellFormed : signature.WellFormed)
+    {fuel context expression supply generated next}
+    (success : elaborateFuel signature fuel context expression supply =
+      some (generated, next)) :
+    ElaboratesFuel signature fuel context expression supply generated next :=
+  elaborateFuelUsing_sound unify_absorbingMGUSolver wellFormed
+    (by simpa [elaborateFuel] using success)
 
 /-- Public executable elaboration is sound. -/
 theorem elaborate_sound

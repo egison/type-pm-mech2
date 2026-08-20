@@ -31,6 +31,10 @@ import TypePM.Source.Paper1Programs
 import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
+import TypePM.Source.M4Paper1NegativeRegression
+import TypePM.Source.M4ElaborationFuelTransport
+import TypePM.Source.M4CompletenessArchitecture
+import TypePM.Source.M4SupplySupport
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -659,6 +663,26 @@ every full build.
 #print axioms TypePM.Source.MatcherDemand.unconsWith_infer_principal
 #print axioms TypePM.Source.MatcherDemand.unconsWith_principalTyping
 #print axioms TypePM.Source.MatcherDemand.unconsWith_typing
+#print axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.value_before_binder_infer_none
+#print axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.occurs_tail_infer_none
+#print axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.value_expression_int_list_mismatch_infer_none
+#print axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.something_cons_infer_none
+#print axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.matcher_target_mismatch_infer_none
+#print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_not_typable
+#print axioms TypePM.Source.M4Paper1NegativeRegression.unconsWith_something_infer_none
+#print axioms TypePM.unify_eq_of_unifyWithFuel_success
+#print axioms TypePM.inferGeneratedUsing_unify_of_fuel_success
+#print axioms TypePM.Source.M4.elaborateFuel_success_of_solverFuel_success
+#print axioms TypePM.Source.M4.CompletenessArchitecture.elaboratesFuel_toM2_of_m2Fragment
+#print axioms TypePM.Source.M4.CompletenessArchitecture.fullM4PairProperty_of_m2Fragment
+#print axioms TypePM.Source.M4.CompletenessArchitecture.wellFormedM4ElaborationPrincipalityComplete_of_coherence_and_replay
+#print axioms TypePM.Source.M4.ElaboratesFuel.supply_le_next
+#print axioms TypePM.Source.FixElaboratesUsing.supportProvenance
 #print axioms TypePM.Source.M3Regression.infer_true_exact
 #print axioms TypePM.Source.M3Regression.infer_nil_exact
 #print axioms TypePM.Source.M3Regression.elaborate_cons_succeeds
@@ -672,15 +696,31 @@ every full build.
 #print axioms TypePM.Source.PrimitiveSchemes.instantiate_deleteFirst
 #print axioms TypePM.Source.PrimitiveSchemes.instantiate_map
 #print axioms TypePM.Source.conditionalScheme_instantiate
-#print axioms TypePM.Runtime.RuntimeTyping.elaboration_exact
+#print axioms TypePM.Runtime.paper1SignatureCompatible
+#print axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
 #print axioms TypePM.Source.Typing.toRuntimeTyping
 #print axioms TypePM.Runtime.RuntimeTyping.coreSafety
+#print axioms TypePM.Runtime.ValueTyping.bool_canonical
 #print axioms TypePM.Source.Typing.coreSafety
 #print axioms TypePM.Source.Typing.neverStuck
 #print axioms TypePM.Source.Inference.infer_neverStuck
 #print axioms TypePM.RuntimeTypingRegression.nestedTuple_state_erasure
 #print axioms TypePM.RuntimeTypingRegression.nestedTuple_typed_result
 #print axioms TypePM.RuntimeTypingRegression.inferred_nestedTuple_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.true_environmentTyping
+#print axioms TypePM.RuntimeTypingRegression.true_state_erasure
+#print axioms TypePM.RuntimeTypingRegression.inferred_true_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_state_erasure
+#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.canonicalConditional_exact_valueTyping
+#print axioms TypePM.RuntimeTypingRegression.append123_runtimeTyping
+#print axioms TypePM.RuntimeTypingRegression.append123_exact_evaluation
+#print axioms TypePM.RuntimeTypingRegression.append123_neverStuck
+#print axioms TypePM.RuntimeTypingRegression.member2_runtimeTyping
+#print axioms TypePM.RuntimeTypingRegression.member2_exact_evaluation
+#print axioms TypePM.RuntimeTypingRegression.delete1_runtimeTyping
+#print axioms TypePM.RuntimeTypingRegression.delete1_exact_evaluation
+#print axioms TypePM.RuntimeTypingRegression.map_not_in_certified_core
 #print axioms TypePM.RuntimeTypingRegression.matchFirst_empty_arms_is_stuck
 #print axioms TypePM.Runtime.ValueTypings.appendEnvironment
 #print axioms TypePM.Runtime.MatchingAtomsTyping.append

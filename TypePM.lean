@@ -177,6 +177,12 @@ import TypePM.Source.M4MatcherTypingRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
+import TypePM.UnificationFuelTransport
+import TypePM.InferenceFuelTransport
+import TypePM.Source.M4ElaborationFuelTransport
+import TypePM.Source.M4Paper1NegativeRegression
+import TypePM.Source.M4CompletenessArchitecture
+import TypePM.Source.M4SupplySupport
 import TypePM.AxiomAudit
 
 /-!
