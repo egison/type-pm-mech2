@@ -199,11 +199,81 @@ mutual
 
 end
 
-/-- Solved typing for the data-pattern fragment used by the first typed
-user-matcher slice.  Its final index is the source-ordered binding prefix. -/
-inductive RuntimeDPatTyping : Source.DPat → Ty → List Ty → Prop where
-  | var : RuntimeDPatTyping .var target [target]
-  | wild : RuntimeDPatTyping .wild target []
+/-- The canonical runtime constructors implemented by `ValueTyping`.  This
+relation is also the exact bridge shape needed from an instantiated M4 data
+constructor scheme: ordered field types and the solved result type. -/
+inductive RuntimeDataConstructorTyping :
+    DataCtor → List Ty → Ty → Prop where
+  | boolTrue : RuntimeDataConstructorTyping DataCtor.true [] DataTypes.bool
+  | boolFalse : RuntimeDataConstructorTyping DataCtor.false [] DataTypes.bool
+  | listNil (element : Ty) :
+      RuntimeDataConstructorTyping DataCtor.nil [] (DataTypes.list element)
+  | listCons (element : Ty) :
+      RuntimeDataConstructorTyping DataCtor.cons
+        [element, DataTypes.list element] (DataTypes.list element)
+
+/-- Reassemble a constructor's monomorphic curried type from its ordered
+field types and result type. -/
+def runtimeDataConstructorType (fieldTypes : List Ty) (resultType : Ty) : Ty :=
+  fieldTypes.foldr Ty.fn resultType
+
+/-- Bridge-ready evidence connecting a solved runtime constructor type to the
+declaration stored in the fixed runtime signature.  M4 need only provide the
+same scheme opening and solved field/result equality. -/
+structure RuntimeDataConstructorSchemeInstance
+    (constructor : DataCtor) (fieldTypes : List Ty) (resultType : Ty) : Prop where
+  evidence : ∃ (scheme : Source.Scheme) (boundTy : Nat → Ty)
+      (boundCap : Nat → Cap),
+    StandardSignature.lookupDataConstructor constructor = some scheme ∧
+      scheme.body.openBound boundTy boundCap =
+        runtimeDataConstructorType fieldTypes resultType
+
+theorem RuntimeDataConstructorTyping.schemeInstance
+    (typing : RuntimeDataConstructorTyping constructor fieldTypes resultType) :
+    RuntimeDataConstructorSchemeInstance constructor fieldTypes resultType := by
+  cases typing with
+  | boolTrue =>
+      exact ⟨⟨Source.ConstructorSchemes.boolTrue, fun _ => .int, fun _ => .any,
+        standardSignatureCompatible.boolTrue, rfl⟩⟩
+  | boolFalse =>
+      exact ⟨⟨Source.ConstructorSchemes.boolFalse, fun _ => .int, fun _ => .any,
+        standardSignatureCompatible.boolFalse, rfl⟩⟩
+  | listNil element =>
+      exact ⟨⟨Source.ConstructorSchemes.listNil, fun _ => element,
+        fun _ => .any, standardSignatureCompatible.listNil, rfl⟩⟩
+  | listCons element =>
+      exact ⟨⟨Source.ConstructorSchemes.listCons, fun _ => element,
+        fun _ => .any, standardSignatureCompatible.listCons, rfl⟩⟩
+
+mutual
+
+  /-- Solved typing for a data pattern.  Constructor nodes must carry an
+  explicit canonical runtime-constructor certificate; no unconstrained
+  constructor rule is available.  The final index is the source-ordered
+  binding prefix. -/
+  inductive RuntimeDPatTyping : Source.DPat → Ty → List Ty → Prop where
+    | var : RuntimeDPatTyping .var target [target]
+    | wild : RuntimeDPatTyping .wild target []
+    | ctor
+        (constructor : RuntimeDataConstructorTyping dataConstructor fieldTypes
+          target)
+        (fields : RuntimeDPatsTyping patterns fieldTypes bindingTypes) :
+        RuntimeDPatTyping (.ctor dataConstructor patterns) target bindingTypes
+    | tuple
+        (items : RuntimeDPatsTyping patterns targets bindingTypes) :
+        RuntimeDPatTyping (.tuple patterns) (.prod targets) bindingTypes
+
+  /-- Left-to-right solved typing of data-pattern children. -/
+  inductive RuntimeDPatsTyping :
+      List Source.DPat → List Ty → List Ty → Prop where
+    | nil : RuntimeDPatsTyping [] [] []
+    | cons
+        (head : RuntimeDPatTyping pattern target headBindingTypes)
+        (tail : RuntimeDPatsTyping patterns targets tailBindingTypes) :
+        RuntimeDPatsTyping (pattern :: patterns) (target :: targets)
+          (headBindingTypes ++ tailBindingTypes)
+
+end
 
 /-- Runtime type of one decomposition element under the zero/one/many hole
 convention used by `decodeProduct`. -/

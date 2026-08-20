@@ -190,4 +190,117 @@ theorem orderedClauses_typedSafe :
   exact dispatchMatcherClauses_typedSafe (coreEvaluatorSafe 3)
     .nil .nil (.int 6) orderedClauses_input_typed
 
+/-! ## Nested data constructors and tuples -/
+
+def nestedDataPattern : Source.DPat :=
+  .tuple
+    [.ctor DataCtor.cons [.var, .ctor DataCtor.nil []],
+      .ctor DataCtor.true []]
+
+def nestedDataValue : Value :=
+  .tuple [Value.buildList [.int 11], .data DataCtor.true []]
+
+def nestedMismatchValue : Value :=
+  .tuple [Value.buildList [], .data DataCtor.true []]
+
+theorem nestedDataPattern_typed :
+  RuntimeDPatTyping nestedDataPattern
+      (.prod [DataTypes.list .int, DataTypes.bool]) [.int] := by
+  apply RuntimeDPatTyping.tuple
+  apply RuntimeDPatsTyping.cons
+    (headBindingTypes := [.int]) (tailBindingTypes := [])
+  · apply RuntimeDPatTyping.ctor (.listCons .int)
+    exact RuntimeDPatsTyping.cons RuntimeDPatTyping.var
+      (RuntimeDPatsTyping.cons
+        (.ctor (.listNil .int) RuntimeDPatsTyping.nil)
+        RuntimeDPatsTyping.nil)
+  · exact RuntimeDPatsTyping.cons
+      (.ctor .boolTrue RuntimeDPatsTyping.nil)
+      RuntimeDPatsTyping.nil
+
+theorem nestedDataValue_typed :
+    ValueTyping nestedDataValue
+      (.prod [DataTypes.list .int, DataTypes.bool]) := by
+  exact .tuple (.cons (.list (.cons (.int 11) .nil))
+    (.cons .boolTrue .nil))
+
+theorem nestedMismatchValue_typed :
+    ValueTyping nestedMismatchValue
+      (.prod [DataTypes.list .int, DataTypes.bool]) := by
+  exact .tuple (.cons (.list .nil) (.cons .boolTrue .nil))
+
+theorem nested_constructor_tuple_match_exact :
+    matchValueDataPattern nestedDataPattern nestedDataValue =
+      some [.int 11] := by
+  with_unfolding_all rfl
+
+theorem nested_constructor_tuple_match_typed :
+    matchValueDataPattern nestedDataPattern nestedDataValue = none ∨
+      ∃ bindings,
+        matchValueDataPattern nestedDataPattern nestedDataValue = some bindings ∧
+        ValueTypings bindings [.int] :=
+  nestedDataPattern_typed.match_typed nestedDataValue_typed
+
+def nestedDataArm : Source.MatcherArm :=
+  .mk nestedDataPattern emptyProductListBody
+
+theorem nestedDataArm_typed :
+    RuntimeMatcherArmTyping [] []
+      (.prod [DataTypes.list .int, DataTypes.bool]) [] nestedDataArm := by
+  exact .mk nestedDataPattern_typed
+    (.listCons (.tuple .nil) (.listNil (.prod [])))
+
+theorem nested_constructor_arm_mismatch_is_normal :
+    tryMatcherArm (evalFuel 3) [] [] [] (.tuple []) nestedMismatchValue
+      nestedDataArm = .ok .miss := by
+  with_unfolding_all rfl
+
+theorem nested_constructor_arm_mismatch_typedSafe :
+    tryMatcherArm (evalFuel 3) [] [] [] (.tuple []) nestedMismatchValue
+        nestedDataArm = .timeout ∨
+      ∃ result,
+        tryMatcherArm (evalFuel 3) [] [] [] (.tuple []) nestedMismatchValue
+          nestedDataArm = .ok result ∧
+        MatcherArmResultTyping [] result := by
+  exact tryMatcherArm_typedSafe (coreEvaluatorSafe 3) .nil .nil
+    nestedMismatchValue_typed .zero nestedDataArm_typed rfl
+
+def nestedFallbackArm : Source.MatcherArm :=
+  .mk .wild emptyProductListBody
+
+def nestedDataClause : Source.MatcherClause :=
+  .mk .wild (.tuple []) [nestedDataArm, nestedFallbackArm]
+
+theorem nestedDataClause_input_typed :
+    RuntimeMatcherClauseInputTyping [] []
+      (.prod [DataTypes.list .int, DataTypes.bool]) .wild nestedDataClause := by
+  apply RuntimeMatcherClauseInputTyping.mk
+    (holes := []) (captureTypes := [])
+  · exact .wild
+  · exact .zero
+  · exact .cons nestedDataArm_typed
+      (.cons
+        (.mk .wild
+          (.listCons (.tuple .nil) (.listNil (.prod []))))
+        .nil)
+  · intro dispatch inspected
+    simp [inspectPatternPattern] at inspected
+    subst dispatch
+    exact .nil
+
+theorem nested_clause_skips_constructor_mismatch_exact :
+    tryMatcherClause (evalFuel 3) [] [] .wild nestedMismatchValue
+        nestedDataClause = .ok (.hit [[]]) := by
+  with_unfolding_all rfl
+
+theorem nested_clause_skips_constructor_mismatch_typedSafe :
+    tryMatcherClause (evalFuel 3) [] [] .wild nestedMismatchValue
+        nestedDataClause = .timeout ∨
+      ∃ result,
+        tryMatcherClause (evalFuel 3) [] [] .wild nestedMismatchValue
+          nestedDataClause = .ok result ∧
+        MatcherClauseResultTyping result := by
+  exact tryMatcherClause_typedSafe (coreEvaluatorSafe 3) .nil .nil
+    nestedMismatchValue_typed nestedDataClause_input_typed
+
 end TypePM.UserMatcherGeneralSafetyRegression

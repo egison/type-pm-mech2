@@ -179,15 +179,127 @@ theorem buildMatchingBranches_typed
         simp [buildMatchingBranches, List.mapM_cons, zipped, built],
         .cons branchTyped branchesTyped⟩
 
-theorem RuntimeDPatTyping.match_typed
-    (typing : RuntimeDPatTyping pattern target bindingTypes)
+theorem RuntimeDataConstructorTyping.value_shape
+    (constructorTyped : RuntimeDataConstructorTyping constructor fieldTypes target)
     (targetTyped : ValueTyping value target) :
-    ∃ bindings,
-      matchValueDataPattern pattern value = some bindings ∧
-      ValueTypings bindings bindingTypes := by
-  cases typing with
-  | var => exact ⟨[value], rfl, .cons targetTyped .nil⟩
-  | wild => exact ⟨[], rfl, .nil⟩
+    ∃ actual arguments,
+      value = .data actual arguments ∧
+      (actual = constructor → ValueTypings arguments fieldTypes) := by
+  cases constructorTyped with
+  | boolTrue =>
+      rcases targetTyped.bool_canonical with isTrue | isFalse
+      · exact ⟨DataCtor.true, [], isTrue, fun _ => .nil⟩
+      · refine ⟨DataCtor.false, [], isFalse, ?_⟩
+        intro impossible
+        simp [DataCtor.true, DataCtor.false] at impossible
+  | boolFalse =>
+      rcases targetTyped.bool_canonical with isTrue | isFalse
+      · refine ⟨DataCtor.true, [], isTrue, ?_⟩
+        intro impossible
+        simp [DataCtor.true, DataCtor.false] at impossible
+      · exact ⟨DataCtor.false, [], isFalse, fun _ => .nil⟩
+  | listNil element =>
+      obtain ⟨values, valueEq, valuesTyped⟩ := targetTyped.list_canonical
+      cases values with
+      | nil => exact ⟨DataCtor.nil, [], valueEq, fun _ => .nil⟩
+      | cons head tail =>
+          refine ⟨DataCtor.cons, [head, Value.buildList tail], valueEq, ?_⟩
+          intro impossible
+          simp [DataCtor.nil, DataCtor.cons] at impossible
+  | listCons element =>
+      obtain ⟨values, valueEq, valuesTyped⟩ := targetTyped.list_canonical
+      cases values with
+      | nil =>
+          refine ⟨DataCtor.nil, [], valueEq, ?_⟩
+          intro impossible
+          simp [DataCtor.nil, DataCtor.cons] at impossible
+      | cons head tail =>
+          cases valuesTyped with
+          | cons headTyped tailTyped =>
+              exact ⟨DataCtor.cons, [head, Value.buildList tail], valueEq,
+                fun _ => .cons headTyped (.cons (.list tailTyped) .nil)⟩
+
+mutual
+
+  theorem RuntimeDPatTyping.match_typed
+      (typing : RuntimeDPatTyping pattern target bindingTypes)
+      (targetTyped : ValueTyping value target) :
+      matchValueDataPattern pattern value = none ∨
+        ∃ bindings,
+          matchValueDataPattern pattern value = some bindings ∧
+          ValueTypings bindings bindingTypes := by
+    cases typing with
+    | var => exact .inr ⟨[value], rfl, .cons targetTyped .nil⟩
+    | wild => exact .inr ⟨[], rfl, .nil⟩
+    | ctor constructorTyped fields =>
+        rename_i dataConstructor fieldTypes patterns
+        obtain ⟨actual, arguments, rfl, argumentsTyped⟩ :=
+          constructorTyped.value_shape targetTyped
+        by_cases same : actual = dataConstructor
+        · subst actual
+          rcases fields.match_typed (argumentsTyped rfl) with mismatch |
+            ⟨bindings, matched, bindingsTyped⟩
+          · exact .inl (by simp [matchValueDataPattern, mismatch])
+          · exact .inr ⟨bindings, by
+              simp [matchValueDataPattern, matched], bindingsTyped⟩
+        · have different : dataConstructor ≠ actual := fun equal => same equal.symm
+          exact .inl (by
+            simp [matchValueDataPattern, different])
+    | tuple items =>
+        obtain ⟨values, rfl, valuesTyped⟩ := targetTyped.product_canonical
+        rcases items.match_typed valuesTyped with mismatch |
+          ⟨bindings, matched, bindingsTyped⟩
+        · exact .inl mismatch
+        · exact .inr ⟨bindings, matched, bindingsTyped⟩
+
+  theorem RuntimeDPatsTyping.match_typed
+      (typing : RuntimeDPatsTyping patterns targets bindingTypes)
+      (valuesTyped : ValueTypings values targets) :
+      matchValueDataPatterns patterns values = none ∨
+        ∃ bindings,
+          matchValueDataPatterns patterns values = some bindings ∧
+          ValueTypings bindings bindingTypes := by
+    cases typing with
+    | nil =>
+        cases valuesTyped
+        exact .inr ⟨[], rfl, .nil⟩
+    | cons head tail =>
+        cases valuesTyped with
+        | cons headTyped tailTyped =>
+            rcases head.match_typed headTyped with headMismatch |
+              ⟨headBindings, headMatched, headBindingsTyped⟩
+            · exact .inl (by
+                simp [matchValueDataPatterns, headMismatch])
+            · rcases tail.match_typed tailTyped with tailMismatch |
+                ⟨tailBindings, tailMatched, tailBindingsTyped⟩
+              · exact .inl (by
+                  simp [matchValueDataPatterns, headMatched, tailMismatch])
+              · exact .inr ⟨headBindings ++ tailBindings, by
+                  simp [matchValueDataPatterns, headMatched, tailMatched],
+                  headBindingsTyped.append tailBindingsTyped⟩
+
+end
+
+mutual
+
+  theorem RuntimeDPatTyping.bindings_length
+      (typing : RuntimeDPatTyping pattern target bindingTypes) :
+      bindingTypes.length = pattern.bindingCount := by
+    cases typing with
+    | var => simp [DPat.bindingCount]
+    | wild => simp [DPat.bindingCount]
+    | ctor _ fields | tuple fields =>
+        simpa [DPat.bindingCount] using fields.bindings_length
+
+  theorem RuntimeDPatsTyping.bindings_length
+      (typing : RuntimeDPatsTyping patterns targets bindingTypes) :
+      bindingTypes.length = (patterns.map DPat.bindingCount).sum := by
+    cases typing with
+    | nil => rfl
+    | cons head tail =>
+        simp [head.bindings_length, tail.bindings_length]
+
+end
 
 mutual
 
@@ -238,46 +350,48 @@ theorem tryMatcherArm_typedSafe
         MatcherArmResultTyping holes result := by
   cases armTyped with
   | @mk dataPattern bindingTypes bodyExpression header body =>
-      obtain ⟨dataValues, dataMatch, dataValuesTyped⟩ :=
-        header.match_typed targetTyped
-      have bodyEnvironmentTyped := dataValuesTyped.dataCapturesDefinition
-        captureValuesTyped matcherEnvironmentTyped
-      rcases evalSafe bodyEnvironmentTyped body with bodyTimeout |
-        ⟨decompositionValue, bodySuccess, decompositionTyped⟩
-      · have bodyTimeout' :
-            eval (dataValues ++ (captureValues ++ matcherEnvironment))
-                bodyExpression = .timeout := by
-            simpa [List.append_assoc] using bodyTimeout
-        exact .inl (by simp [tryMatcherArm, dataMatch, bodyTimeout'])
-      · obtain ⟨decompositions, decompositionsDecoded,
-          decompositionsTyped⟩ := decompositionTyped.decodeDecompositions_typed
-        have bodySuccess' :
-            eval (dataValues ++ (captureValues ++ matcherEnvironment))
-                bodyExpression = .ok decompositionValue := by
-          simpa [List.append_assoc] using bodySuccess
-        have decompositionsDecoded' :
-            decodeDecompositions patterns.length decompositionValue =
-              some decompositions := by
-          simpa [patternsLength] using decompositionsDecoded
-        have nextEnvironmentTyped :=
-          captureValuesTyped.appendEnvironment matcherEnvironmentTyped
-        rcases evalSafe nextEnvironmentTyped nextMatchersTyped.runtimeTyping with
-          nextTimeout | ⟨matcherProduct, nextSuccess, matcherProductTyped⟩
-        · exact .inl (by
-            simp [tryMatcherArm, dataMatch, bodySuccess',
-              decompositionsDecoded', nextTimeout])
-        · obtain ⟨matcherValues, matchersDecoded, matcherValuesTyped⟩ :=
-            matcherProductTyped.decodeRuntimeProduct
-          have matchersDecoded' :
-              decodeProduct patterns.length matcherProduct = some matcherValues := by
-            simpa [patternsLength] using matchersDecoded
-          obtain ⟨branches, branchesBuilt, branchesTyped⟩ :=
-            buildMatchingBranches_typed patternsLength matcherValuesTyped
-              decompositionsTyped
-          exact .inr ⟨.hit branches, by
-            simp [tryMatcherArm, dataMatch, bodySuccess',
-              decompositionsDecoded', nextSuccess, matchersDecoded', branchesBuilt],
-            .hit branchesTyped⟩
+      rcases header.match_typed targetTyped with dataMismatch |
+        ⟨dataValues, dataMatch, dataValuesTyped⟩
+      · exact .inr ⟨.miss, by
+          simp [tryMatcherArm, dataMismatch], .miss⟩
+      · have bodyEnvironmentTyped := dataValuesTyped.dataCapturesDefinition
+          captureValuesTyped matcherEnvironmentTyped
+        rcases evalSafe bodyEnvironmentTyped body with bodyTimeout |
+          ⟨decompositionValue, bodySuccess, decompositionTyped⟩
+        · have bodyTimeout' :
+              eval (dataValues ++ (captureValues ++ matcherEnvironment))
+                  bodyExpression = .timeout := by
+              simpa [List.append_assoc] using bodyTimeout
+          exact .inl (by simp [tryMatcherArm, dataMatch, bodyTimeout'])
+        · obtain ⟨decompositions, decompositionsDecoded,
+            decompositionsTyped⟩ := decompositionTyped.decodeDecompositions_typed
+          have bodySuccess' :
+              eval (dataValues ++ (captureValues ++ matcherEnvironment))
+                  bodyExpression = .ok decompositionValue := by
+            simpa [List.append_assoc] using bodySuccess
+          have decompositionsDecoded' :
+              decodeDecompositions patterns.length decompositionValue =
+                some decompositions := by
+            simpa [patternsLength] using decompositionsDecoded
+          have nextEnvironmentTyped :=
+            captureValuesTyped.appendEnvironment matcherEnvironmentTyped
+          rcases evalSafe nextEnvironmentTyped nextMatchersTyped.runtimeTyping with
+            nextTimeout | ⟨matcherProduct, nextSuccess, matcherProductTyped⟩
+          · exact .inl (by
+              simp [tryMatcherArm, dataMatch, bodySuccess',
+                decompositionsDecoded', nextTimeout])
+          · obtain ⟨matcherValues, matchersDecoded, matcherValuesTyped⟩ :=
+              matcherProductTyped.decodeRuntimeProduct
+            have matchersDecoded' :
+                decodeProduct patterns.length matcherProduct = some matcherValues := by
+              simpa [patternsLength] using matchersDecoded
+            obtain ⟨branches, branchesBuilt, branchesTyped⟩ :=
+              buildMatchingBranches_typed patternsLength matcherValuesTyped
+                decompositionsTyped
+            exact .inr ⟨.hit branches, by
+              simp [tryMatcherArm, dataMatch, bodySuccess',
+                decompositionsDecoded', nextSuccess, matchersDecoded', branchesBuilt],
+              .hit branchesTyped⟩
 
 /-- Ordered arm dispatch is safe for every finite typed arm list.  The empty
 list returns a normal miss. -/
