@@ -331,9 +331,75 @@ $[r\checks d]$は「式の生の型$r$を，使用箇所が要求する型$d$と
 \section{なぜpendingをすぐ等式にしないのか}
 
 matcher producerとslotの間には，capabilityを調べる特殊変換がある．
-生成時点で要求の最外形が十分に分からない場合，特殊変換を推測すると，処理順により別の
-結果を選ぶ危険がある．現行設計は，まずhardを最も一般的に解き，その結果でcheckingの種類を
-分類する．この方針を本書では\emph{no-guess}，すなわち構造を先回りして推測しない方針と呼ぶ．
+したがって「source型をexpected型として使える」という要求は，常に型等式になるとは限らない．
+説明のため，次の三つの名前と型がcontextに登録済みだと仮定し，末尾の二つの関数適用を比べる．
+最初の三行は説明用の型の前提であり，sourceプログラム本体は最後の二行である．
+
+\begin{lstlisting}
+inc : Int -> Int
+useMatcher : Slot Any Int -> Bool
+m : Matcher Any Int
+
+inc 0
+useMatcher m
+\end{lstlisting}
+
+ここで\code{Any}は「特定の分解能力を要求しない」capabilityである．\code{m}は実際に作られた
+matcherなのでproducer型\code{Matcher Any Int}を持ち，\code{useMatcher}はmatcherを受け取る
+場所なのでslot型\code{Slot Any Int}を引数に要求する．
+
+どちらの適用でも，制約生成時には引数位置の型として新しい変数$d$を置き，引数について
+「引数の生の型を$d$として使えるか」というpendingを作る．違いが分かるのはhardを解いた後である．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \code{inc 0}では，関数側のhard
+
+        \[
+          \TyInt\fn\TyInt = d\fn r
+        \]
+
+        を解くと$d=\TyInt$になる．したがってpendingは
+        $\TyInt\checks\TyInt$となり，普通の等式$\TyInt=\TyInt$として処理できる．
+  \pagebreak[3]
+  \item \code{useMatcher m}では，関数側のhard
+
+        \[
+          (\Slot\,\mathsf{Any}\,\TyInt)\fn\mathsf{Bool} = d\fn r
+        \]
+
+        を解くと$d=\Slot\,\mathsf{Any}\,\TyInt$になる．pendingは
+
+        \[
+          \Matcher\,\mathsf{Any}\,\TyInt
+          \checks
+          \Slot\,\mathsf{Any}\,\TyInt
+        \]
+
+        となる．これはproducer型とslot型の外側が異なるため型等式ではないが，
+        matcherが調べる対象値の型\code{Int}とcapabilityの\code{Any}が適合するので，matcherからslotへの
+        特殊変換として受理できる．
+\end{enumerate}
+
+もし生成直後にすべてのpendingを等式へ変えると，二番目は
+\[
+  \Matcher\,\mathsf{Any}\,\TyInt
+  =
+  \Slot\,\mathsf{Any}\,\TyInt
+\]
+を要求してしまう．\code{Matcher}と\code{Slot}は型の最外形を作る異なる記号
+（型constructor）なので，これは解けず，
+本来受理すべき\code{useMatcher m}を誤って拒否する．反対に，すべてをmatcher変換として扱えば，
+一番目の普通の\code{Int}引数を処理できない．
+
+生成時点では$d$がまだ新しい型変数であり，expected型の外側が\code{Int}なのか\code{Slot}なのか
+確定していない．実際の関数式はさらに別の関数適用や\code{let}を含むこともあり，その場合は
+hardをまとめて解くまで外側の形が分からない．そこで現行設計は，まずhardを最も一般的に解き，
+その結果をpendingへ適用してから，普通の等式かmatcher変換かを分類する．
+
+pendingは制約を無視する仕組みではなく，\emph{どのchecking規則を使うかだけを延期する仕組み}である．
+分類後に得られる型とcapabilityの等式は，最終的にすべて解かなければならない．
+
+この「hardを解く前に型の外側を推測しない」方針を本書では\emph{no-guess}と呼ぶ．
 
 これはあらゆる意味的な解を探索する方式ではない．hardの主要解でchecking分岐を固定した後に
 受理できるものを\emph{branch-stable acceptance}と呼ぶ．branch-stableとは，後から型を具体化しても
