@@ -108,6 +108,7 @@ import TypePM.Source.FrozenSignature
 import TypePM.Source.M4FrozenSignatureRegression
 import TypePM.Source.PatternFunctionDefinition
 import TypePM.Source.M4PatternFunctionDefinitionRegression
+import TypePM.Source.M4PatternFunctionPairRegression
 import TypePM.Source.PatternFunctionExpansion
 import TypePM.Source.M4PatternFunctionExpansionRegression
 import TypePM.Source.MatcherPattern
@@ -150,6 +151,10 @@ import TypePM.Runtime.MatchAllRegression
 import TypePM.Runtime.MatchFirstRegression
 import TypePM.Runtime.PatternFunctionEvaluation
 import TypePM.Runtime.PatternFunctionEvaluationRegression
+import TypePM.Runtime.PatternFunctionMatching
+import TypePM.Runtime.PatternFunctionMatchingRegression
+import TypePM.Runtime.PatternFunctionNodeEvaluation
+import TypePM.Runtime.PatternFunctionNodeEvaluationRegression
 import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Runtime.ValueDataPattern

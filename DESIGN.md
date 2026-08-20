@@ -48,8 +48,8 @@ adequacyは，実行可能な評価器の成功結果を関係的評価でも導
 | M1 | done | lambda/applicationを含む独立`Typing`と公開`infer`の健全性・完全性・主要性，制約処理順序不変性，順序境界回帰 |
 | M2 | done | bound-index scheme，`letE`，value block一般化，吸収的closureの局所性，source生成変数の由来と割当区間，`let`境界のsupply安定性に加え，一般の入れ子`letE`を含むM2--M3 sourceについて公開推論の完全性と有限な変数名変更による一意性を，well-formed signatureの下で健全性・受理同値・決定可能性・主要性を証明済み |
 | M3 | partial | 宣言名，`Ty.data`／`Cap.con`，Bool/Listとprimitiveのscheme，List pattern scheme，有限signatureの整合性検査，constructor／primitive／`ifE`のsource構文とsignature付きelaborationは実装済み．論文listing全体の静的回帰はM4型付け待ち |
-| M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user pattern，conjunction pattern（同じ対象へ左右を順に照合するpattern）と単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む統合M4推論を実装済み．M4 elaborationの主要な相互再帰はfuel構造版へ整理し，fuel付き単一化の成功を公開単一化へ移す定理を証明した．Paper 1の静的負例6件は宣言的な非導出まで証明済みである．大きいPaper 1 fixtureのexact kernel推論回帰と，一般のprivate bindingを持つpattern functionは未実装 |
-| M5 | partial | conjunction patternの組込み規則A-AND，multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，inline pattern-function展開後の評価，成功時健全性，有限完全性，fuel単調性は実装済み．閉じた整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐に加え，monomorphicな環境変数，closure，関数部が直接`lam`または`fixE`であるapplicationでは実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．built-in matcher断片では型付きbinding／atom／stateと有限DFSの保存・局所progressも条件付きで証明済みである．高階の関数位置，`let`多相性，`map`，user-defined matcher clause，一般pattern functionへの型安全性拡張は未完了 |
+| M4 | partial | pattern function名とfrozen signature，検査済みinline本体の全source構文上の展開，matcher headerの静的検査，直接の相互再帰構文，shapeへのcanonicalな消去，user pattern，conjunction pattern（同じ対象へ左右を順に照合するpattern）と単一`matchAll`節，Paper 1の派生surface `match`，matcher literal/clauseのcallback-parametricな実行可能・関係的型付け，単項・単相の直接自己再帰`fixE`，matcher-root再帰を含む統合M4推論を実装済み．一般pattern functionでは，本体の照合を外側から隔離する実行時nodeであるMNodeとPaper 2の`pair`回帰を実装した．source/runtime定義表の双方向対応（全runtime本体が保存schemeの標準的な一つの具体化について検査証拠を持ち，全source宣言に実装があること）を`PatternFunctionDefinitions.Agree`で定義し，`pair`で証明済みである．この証拠だけでは全具体化に対するinterface一致や主要性を主張しない．support provenance（生成変数がcontext由来かsupplyの割当区間内であること）はwell-formed signatureの下で最終`ElaboratesFuel`と公開`M4.Elaborates`を含む全M4構文について証明し，architecture上の`M4.supplyAndSupport`も完了した．Paper 1の静的負例6件は宣言的な非導出まで証明済みである．大きいPaper 1 fixtureのexact kernel推論回帰とM4全域の完全性・主要性は未完了 |
+| M5 | partial | conjunction patternの組込み規則A-AND，multisetの順序付き分解，具体的matcher clause dispatch，matching state/search，`matchAll`と派生surface `matchFirst`を含む全core式の関係的・実行可能評価，5 primitiveの一般value実行，inline pattern-function展開後の評価，成功時健全性，有限完全性，fuel単調性は実装済み．一般pattern functionについても，source/runtime定義表の整合性証明を必須にするMNode全式評価器とPaper 2の全式回帰を実装済みである．閉じた整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，`map`，両枝が同じ型の条件分岐に加え，monomorphicな環境変数，closure，任意の型付き関数位置を持つapplicationでは実行時型付け，型保存，任意fuelでのno-stuckまで証明済みである．built-in matcher断片では型付きbinding／atom／stateと有限DFSの保存・局所progressも条件付きで証明済みである．MNode評価器全体の関係的意味論と型安全性，`let`多相性，source型付けから関数断片への橋，user-defined matcher clauseは未完了 |
 
 ### M0：独立した基礎
 
@@ -347,15 +347,23 @@ DESIGNの旧版ではpattern functionをM4の一覧に明記していなかっ�
 
 実装moduleには`Source/M4Elaboration.lean`，`Source/M4MatcherTyping.lean`，`Source/M4FixTyping.lean`，
 `Source/M4RecursiveElaboration.lean`と各回帰を含む．
-`PatternFunctionDefinition.lean`では，独立したpattern本体の型付け，frozen interfaceとの引数数・結果dualの一致，
-runtime本体表との双方向対応を定義した．また，private binderを持たず埋込み引数を宣言順に一度ずつ使う
+`PatternFunctionDefinition.lean`では，保存schemeの標準的な一つの具体化に対する独立したpattern本体の型付け，
+引数数の一致，生成制約を実際に満たすsemantic solution（制約を満たす代入）の存在，その代入後の結果dualの一致，
+runtime本体表とsource宣言の双方向対応を定義した．この証拠だけでは，全具体化に対するinterface一致や主要性を主張しない．また，private binderを持たず埋込み引数を宣言順に一度ずつ使う
 inline実行可能断片を切り出した．`unit`と`pass`の正例，private binder，value式，重複・逆順引数の負例を
 検証済みである．`PatternFunctionExpansion.lean`はinline断片を最終source構文全体で展開し，value pattern，
 matcher clause，`matchAll`，`matchFirst`の内側まで再帰的に置き換える．未定義名，引数数の不一致，裸の
 引数参照，inline条件を満たさない本体は失敗する．`Runtime/PatternFunctionEvaluation.lean`は展開後の式を
 既存評価器へ渡し，成功時健全性，有限完全性，fuel単調性を証明する．`unit`と`pass`を実際のmatch siteで
-正確に評価する回帰も持つ．一般のprivate bindingを隔離するruntime nodeは残る．残る予定moduleは
-一般pattern function実行，`M4EgisonRegression.lean`である．M4完了時には
+正確に評価する回帰も持つ．さらに`Runtime/PatternFunctionMatching.lean`で一般のprivate bindingを隔離する
+MNodeを実装した．pattern function適用はmatcher dispatchより先に処理し，埋込み引数patternのbindingだけを
+外へ返し，完了時に本体のprivate bindingを捨てる．Paper 2の`pair`と正確なsource `multiset` matcherを組み合わせた
+4結果の探索回帰も持つ．`PatternFunctionDefinitions.Agree`は全runtime本体がsource側で検査済みであり，
+全source宣言にruntime実装があることを要求する．`pair`の定義表はこの双方向条件を満たす．さらに
+`Runtime/PatternFunctionNodeEvaluation.lean`は整合性証明を必須にして定義表を全式の再帰評価へ渡し，
+`matchAll`／`matchFirst`をMNode探索へ接続する公開fuel評価器を持つ．Paper 2の`pair`と正確な7節source
+`multiset`を組み合わせた全式の結果，`matchFirst`の先頭結果，`matchAll`成功時に実行可能な一歩関数を使う帰納的な順序付き深さ優先導出を固定済みである．
+評価器全体の独立な関係仕様と型安全性，および`M4EgisonRegression.lean`が残る．M4完了時には
 論文listingの全静的正例について公開`infer`と`Typing`を，静的負例について`Typing`の不存在を
 検証する．
 
@@ -456,7 +464,9 @@ atom reductionに渡す評価環境は`bindings ++ environment`であり，左�
 一度ずつ評価し，各armで同じ順序付き`matchAll`探索を実行する．空結果だけが次armへ進み，最初の
 非空結果の先頭binding groupでbodyを評価する．このAppendix Aの展開との対応は実行器の等式と独立な
 `EvalMatchFirstArms`関係で固定し，成功時健全性，有限完全性，fuel単調性まで接続した．空arm列は
-動的には`stuck`だが，静的な網羅性検査が受理済みprogramでは除外する．pattern function atomは次の依存項目である．
+動的には`stuck`だが，静的な網羅性検査が受理済みprogramでは除外する．一般pattern function atomは
+独立したMNode探索と，source/runtime定義表の整合性証明を必須にする全式公開fuel評価器まで実装済みである．この評価器全体に
+対応する独立な`Eval`関係と型安全性は残る．
 
 先行する`Runtime/OrderedChoice.lean`は，matchingの選択肢を通常の`List`で保持し，入力位置の
 順序と重複を保存する．general-consの一要素選択とjoinの左右分割について，三要素での正確な
@@ -474,10 +484,10 @@ atom reductionに渡す評価環境は`bindings ++ environment`であり，左�
 `CombinedAtomReducer.lean`である．`Evaluation.lean`，`EvalFuel.lean`，`EvaluationAdequacy.lean`，
 `EvaluationCompleteness.lean`は関係的評価と実行可能評価を接続する．`RuntimeTyping.lean`，`CoreSafety.lean`，
 `NoStuck.lean`は，整数，真偽値とListの標準データ，再帰的tuple，整数加算，`append`，`member`，`deleteFirst`，両枝が同じ型の条件分岐，
-型付き環境の変数，通常・再帰closure，`lam`，`fixE`，関数部が直接`lam`または`fixE`であるapplicationについて
+型付き環境の変数，通常・再帰closure，`lam`，`fixE`，任意の型付き関数位置を持つapplication，`map`について
 独立した値・式の型付け，型保存，進行可能性，
 任意fuelでのno-stuckを証明する．ここで進行可能性とは，各fuelの結果がfuel切れか型付き成功のどちらかであり，
-規則不足の`stuck`にならないことである．`SignatureCompatible`は，この断片が使うsource宣言の型と
+規則不足の`stuck`にならないことである．`SignatureCompatible`は，現在のsource-to-runtime橋が使うsource宣言の型と
 固定評価器の意味が一致することを表す．`MatcherSafety.lean`はこれと衝突しない別の条件付き境界として，
 pattern bindingをsource順に型付けし，binding列と通常環境を分けたmatching atom/state型付けを定義する．
 atom reducerがtimeoutまたは型保存した`hit`を返すという契約から，state一歩と任意の有限DFS boundの

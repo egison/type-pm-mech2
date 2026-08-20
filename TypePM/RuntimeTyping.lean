@@ -14,19 +14,21 @@ This module establishes an honest state-erasure boundary for closed integer
 expressions, canonical Boolean and List data, recursively nested tuples,
 integer addition, `append`, `member`, `deleteFirst`, and conditionals whose
 two branches have the same certified type.  It also types variables under a
-monomorphic runtime context, closures, and direct applications whose function
-is syntactically `lam` or `fixE`.  The judgment is declarative and
-syntax directed;
+monomorphic runtime context, closures, applications with an arbitrary typed
+function expression, and `map`.  The judgment is declarative and syntax
+directed;
 it does not mention `evalFuel`, `stuck`, or a fuel amount.  Runtime values use a
-separate judgment with the same type index.  Later modules prove preservation
-and progress for this core.
+separate judgment with the same type index.  Function application permits an
+arbitrary typed expression in function position, and `map` applies such a
+function to a canonical List.  Later modules prove preservation and progress
+for this core.
 -/
 
 namespace TypePM.Runtime
 
 set_option maxRecDepth 4096
 
-/-- The source declarations used by the certified runtime fragment agree
+/-- The source declarations used by the current source-to-runtime bridge agree
 with the fixed meanings implemented by `evalFuel`.  Without these equalities,
 a well-formed signature could assign the name `true` or `add` a different
 source type while the evaluator continued to use its built-in behavior. -/
@@ -83,15 +85,9 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
       RuntimeTyping (.tuple expressions) (.prod targets) context
   | lam (body : RuntimeTyping bodyExpression codomain (domain :: context)) :
       RuntimeTyping (.lam bodyExpression) (.fn domain codomain) context
-  | appLam (body : RuntimeTyping bodyExpression codomain (domain :: context))
+  | app (function : RuntimeTyping functionExpression (.fn domain codomain) context)
       (argument : RuntimeTyping argumentExpression domain context) :
-      RuntimeTyping (.app (.lam bodyExpression) argumentExpression)
-        codomain context
-  | appFix (body : RuntimeTyping bodyExpression codomain
-      (domain :: .fn domain codomain :: context))
-      (argument : RuntimeTyping argumentExpression domain context) :
-      RuntimeTyping (.app (.fixE bodyExpression) argumentExpression)
-        codomain context
+      RuntimeTyping (.app functionExpression argumentExpression) codomain context
   | fixE (body : RuntimeTyping bodyExpression codomain
       (domain :: .fn domain codomain :: context)) :
       RuntimeTyping (.fixE bodyExpression) (.fn domain codomain) context
@@ -112,6 +108,10 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
       RuntimeTyping
         (.prim PrimOp.deleteFirst [needleExpression, targetExpression])
         (TypePM.DataTypes.list element) context
+  | map (function : RuntimeTyping functionExpression (.fn domain codomain) context)
+      (target : RuntimeTyping targetExpression (TypePM.DataTypes.list domain) context) :
+      RuntimeTyping (.prim PrimOp.map [functionExpression, targetExpression])
+        (TypePM.DataTypes.list codomain) context
   | ifE (condition : RuntimeTyping conditionExpression TypePM.DataTypes.bool context)
       (thenBranch : RuntimeTyping thenExpression branchTarget context)
       (elseBranch : RuntimeTyping elseExpression branchTarget context) :
@@ -120,9 +120,9 @@ inductive RuntimeTyping : Source.Expr → Ty → (context : List Ty := []) → P
   | checked (source : RuntimeTyping expression sourceTarget context)
       (conversion : CheckConversion conversionClass sourceTarget target) :
       RuntimeTyping expression target context
-  | instantiated (source : RuntimeTyping expression sourceTarget context)
+  | instantiated (source : RuntimeTyping expression sourceTarget [])
       (substitution : Subst) :
-      RuntimeTyping expression (sourceTarget.apply substitution) context
+      RuntimeTyping expression (sourceTarget.apply substitution) []
 
 /-- Pointwise expression typing under one shared context. -/
 inductive RuntimeTypings : List Source.Expr → List Ty →
@@ -183,6 +183,92 @@ inductive EnvironmentTyping : ValueEnvironment → List Ty → Prop where
       EnvironmentTyping (value :: environment) (target :: context)
 
 end
+
+namespace CapabilityDemand
+
+theorem apply
+    (demand : CapabilityDemand producer consumer)
+    (substitution : CapSubst) :
+    CapabilityDemand (producer.apply substitution) (consumer.apply substitution) := by
+  cases demand with
+  | equal => exact .equal
+  | any => exact .any
+
+end CapabilityDemand
+
+namespace RuntimeDual
+
+def apply (substitution : Subst) (dual : Dual) : Dual :=
+  ⟨dual.capability.apply substitution.cap, dual.target.apply substitution⟩
+
+private theorem capApplyList_eq_map (items : List Cap) :
+    Cap.applyList substitution items = items.map (Cap.apply substitution) := by
+  induction items with
+  | nil => rfl
+  | cons item items induction =>
+      simp [Cap.applyList, induction]
+
+private theorem tyApplyList_eq_map (items : List Ty) :
+    Ty.applyList substitution items = items.map (Ty.apply substitution) := by
+  induction items with
+  | nil => rfl
+  | cons item items induction =>
+      simp [Ty.applyList, induction]
+
+@[simp] theorem matcherTypes_apply (duals : List Dual) :
+    Ty.applyList substitution (duals.map Dual.matcherType) =
+      (duals.map (apply substitution)).map Dual.matcherType := by
+  induction duals with
+  | nil => rfl
+  | cons dual duals induction =>
+      simp [Ty.applyList, Ty.apply, Dual.matcherType, apply, induction]
+
+@[simp] theorem capabilities_apply (duals : List Dual) :
+    Cap.applyList substitution.cap (Dual.capabilities duals) =
+      Dual.capabilities (duals.map (apply substitution)) := by
+  rw [capApplyList_eq_map]
+  simp [Dual.capabilities, apply, List.map_map, Function.comp_def]
+
+@[simp] theorem targets_apply (duals : List Dual) :
+    Ty.applyList substitution (Dual.targets duals) =
+      Dual.targets (duals.map (apply substitution)) := by
+  rw [tyApplyList_eq_map]
+  simp [Dual.targets, apply, List.map_map, Function.comp_def]
+
+end RuntimeDual
+
+namespace CheckConversion
+
+theorem apply
+    (conversion : CheckConversion conversionClass source target)
+    (substitution : Subst) :
+    CheckConversion conversionClass
+      (source.apply substitution) (target.apply substitution) := by
+  cases conversion with
+  | ordinary => exact .ordinary
+  | matcherToSlot demand =>
+      simpa [Ty.apply] using .matcherToSlot
+        (CapabilityDemand.apply demand substitution.cap)
+  | @productMatcher duals nonempty =>
+      have appliedNonempty : duals.map (RuntimeDual.apply substitution) ≠ [] := by
+        simpa using nonempty
+      simpa [Ty.apply, Cap.apply] using
+        CheckConversion.productMatcher appliedNonempty
+  | @productMatcherToSlot duals consumer nonempty demand =>
+      have appliedNonempty : duals.map (RuntimeDual.apply substitution) ≠ [] := by
+        simpa using nonempty
+      have appliedDemand :
+          CapabilityDemand
+            (.prod (Dual.capabilities
+              (duals.map (RuntimeDual.apply substitution))))
+            (consumer.apply substitution.cap) := by
+        simpa [Cap.apply] using
+          CapabilityDemand.apply demand substitution.cap
+      simpa [Ty.apply, Cap.apply] using
+        CheckConversion.productMatcherToSlot appliedNonempty
+          appliedDemand
+
+end CheckConversion
 
 mutual
 
@@ -248,6 +334,101 @@ theorem EnvironmentTyping.apply
   | nil => exact .nil
   | cons head tail =>
       exact .cons (head.apply substitution) (tail.apply substitution)
+
+private theorem getElem?_applyList
+    {context : List Ty} {index : Nat} {target : Ty}
+    {substitution : Subst}
+    (found : context[index]? = some target) :
+    (Ty.applyList substitution context)[index]? =
+      some (target.apply substitution) := by
+  induction context generalizing index target with
+  | nil => simp at found
+  | cons head tail induction =>
+      cases index with
+      | zero =>
+          simp at found ⊢
+          subst target
+          rfl
+      | succ index =>
+          simp only [List.getElem?_cons_succ] at found ⊢
+          exact induction found
+
+mutual
+
+/-- Apply one type substitution to both the result type and every entry of a
+monomorphic runtime context.  Unlike the closed `instantiated` constructor,
+this operation is structural: closure bodies and all of their variable
+assumptions are transported together. -/
+protected def RuntimeTyping.applyContext
+    (substitution : Subst) :
+    (typing : RuntimeTyping expression target context) →
+      RuntimeTyping expression (target.apply substitution)
+        (Ty.applyList substitution context)
+  | .var lookup => .var (getElem?_applyList lookup)
+  | .lit value => .lit value
+  | .boolTrue => by
+      change RuntimeTyping (.ctor DataCtor.true []) TypePM.DataTypes.bool _
+      exact RuntimeTyping.boolTrue
+  | .boolFalse => by
+      change RuntimeTyping (.ctor DataCtor.false []) TypePM.DataTypes.bool _
+      exact RuntimeTyping.boolFalse
+  | .listNil element => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using
+        RuntimeTyping.listNil (element.apply substitution)
+  | .listCons head tail => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using
+        RuntimeTyping.listCons (head.applyContext substitution)
+          (tail.applyContext substitution)
+  | .tuple items => by
+      simpa [Ty.apply] using RuntimeTyping.tuple (items.applyContext substitution)
+  | .lam body => by
+      simpa [Ty.apply, Ty.applyList] using
+        RuntimeTyping.lam (body.applyContext substitution)
+  | .app function argument => by
+      simpa [Ty.apply] using RuntimeTyping.app
+        (function.applyContext substitution) (argument.applyContext substitution)
+  | .fixE body => by
+      simpa [Ty.apply, Ty.applyList] using
+        RuntimeTyping.fixE (body.applyContext substitution)
+  | .add left right => by
+      simpa [Ty.apply] using RuntimeTyping.add
+        (left.applyContext substitution) (right.applyContext substitution)
+  | .append left right => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using RuntimeTyping.append
+        (left.applyContext substitution) (right.applyContext substitution)
+  | .member needle target => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.bool,
+        TypePM.DataTypes.list] using RuntimeTyping.member
+          (needle.applyContext substitution) (target.applyContext substitution)
+  | .deleteFirst needle target => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using RuntimeTyping.deleteFirst
+        (needle.applyContext substitution) (target.applyContext substitution)
+  | .map function target => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.list] using RuntimeTyping.map
+        (function.applyContext substitution) (target.applyContext substitution)
+  | .ifE condition thenBranch elseBranch => by
+      simpa [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] using RuntimeTyping.ifE
+        (condition.applyContext substitution)
+        (thenBranch.applyContext substitution)
+        (elseBranch.applyContext substitution)
+  | .checked source conversion =>
+      .checked (source.applyContext substitution)
+        (TypePM.Runtime.CheckConversion.apply conversion substitution)
+  | .instantiated source earlier => by
+      simpa only [Ty.apply_compose, Ty.applyList] using
+        RuntimeTyping.instantiated source (Subst.compose substitution earlier)
+
+/-- List counterpart of `RuntimeTyping.applyContext`. -/
+protected def RuntimeTypings.applyContext
+    (substitution : Subst) :
+    (typing : RuntimeTypings expressions targets context) →
+      RuntimeTypings expressions (Ty.applyList substitution targets)
+        (Ty.applyList substitution context)
+  | .nil => .nil
+  | .cons head tail =>
+      .cons (head.applyContext substitution) (tail.applyContext substitution)
+
+end
 
 
 /-- Runtime expression typing is closed under substitution of its type
@@ -647,15 +828,16 @@ private theorem PrincipalBlockClosure.semanticSolution
       rw [equality]
       exact ⟨.ordinary, .ordinary⟩
 
-/-- **Theorem 5.6, certified core (state erasure).**  A declaratively typed,
-closed source expression in the canonical core has the corresponding runtime
-typing.  The source type cannot be changed by the instance closure, because
-this core contains no type variables.
+/-- **Theorem 5.6, current source-to-runtime bridge.**  A declaratively typed,
+closed source expression in the `RuntimeSupported` fragment has the
+corresponding runtime typing.  The proof reconstructs the runtime type from
+the elaboration closure, so polymorphic List declarations and their concrete
+instances are included.
 
 The `RuntimeSupported` premise is the precise current boundary.  Removing it
-requires closure and application typing, polymorphic list data and primitives,
-general result types for conditionals, matcher-state, and search
-preservation. -/
+requires source derivations for variables, lambda/application, `fixE`, `map`,
+polymorphic `let`, matcher states, and matching search to be transported into
+the already more general runtime judgment. -/
 theorem toRuntimeTyping
     {signature : Signature} {expression : Expr} {target : Ty}
     (typing : Typing signature [] expression target)

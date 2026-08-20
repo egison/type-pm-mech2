@@ -68,8 +68,10 @@ def unitChecked : unitDefinition.InlineChecked signature where
       pending := [] }
   next := ⟨0, 0⟩
   bodyElaboration := .tuple .nil
-  result_eq := by rfl
-  bindings_eq := by rfl
+  solution := Subst.id
+  semanticSolution := by simp [GeneratedPattern.SemanticSolution, Solves]
+  resultCapability_eq := by rfl
+  resultTarget_eq := by rfl
   inlineRuntimeSafe := unit_inline_safe
 
 def passChecked : passDefinition.InlineChecked signature where
@@ -83,8 +85,10 @@ def passChecked : passDefinition.InlineChecked signature where
       pending := [] }
   next := ⟨1, 1⟩
   bodyElaboration := .embed (by rfl)
-  result_eq := by rfl
-  bindings_eq := by rfl
+  solution := Subst.id
+  semanticSolution := by simp [GeneratedPattern.SemanticSolution, Solves]
+  resultCapability_eq := by rfl
+  resultTarget_eq := by rfl
   inlineRuntimeSafe := pass_inline_safe
 
 def definitions : PatternFunctionDefinitions :=

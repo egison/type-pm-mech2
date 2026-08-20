@@ -106,7 +106,7 @@ def identityApplication : Source.Expr :=
 
 theorem identityApplication_runtimeTyping :
     RuntimeTyping identityApplication .int := by
-  exact .appLam (.var rfl) (.lit 7)
+  exact .app (.lam (.var rfl)) (.lit 7)
 
 theorem identityApplication_exact_evaluation :
     evalFuel 3 [] identityApplication = .ok (.int 7) := by
@@ -121,7 +121,7 @@ def directFixApplication : Source.Expr :=
 
 theorem directFixApplication_runtimeTyping :
     RuntimeTyping directFixApplication .int := by
-  exact .appFix (.var rfl) (.lit 5)
+  exact .app (.fixE (.var rfl)) (.lit 5)
 
 theorem directFixApplication_exact_evaluation :
     evalFuel 3 [] directFixApplication = .ok (.int 5) := by
@@ -130,6 +130,25 @@ theorem directFixApplication_exact_evaluation :
 theorem directFixApplication_neverStuck (fuel : Nat) :
     (evalFuel fuel [] directFixApplication).NotStuck :=
   directFixApplication_runtimeTyping.neverStuck fuel [] .nil
+
+/-- The function position is itself evaluated: it need not be syntactically
+a lambda or a fixed point. -/
+def conditionalFunctionApplication : Source.Expr :=
+  .app
+    (.ifE (.ctor DataCtor.true []) (.lam (.var 0)) (.lam (.var 0)))
+    (.lit 11)
+
+theorem conditionalFunctionApplication_runtimeTyping :
+    RuntimeTyping conditionalFunctionApplication .int := by
+  exact .app (.ifE .boolTrue (.lam (.var rfl)) (.lam (.var rfl))) (.lit 11)
+
+theorem conditionalFunctionApplication_exact_evaluation :
+    evalFuel 4 [] conditionalFunctionApplication = .ok (.int 11) := by
+  with_unfolding_all rfl
+
+theorem conditionalFunctionApplication_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] conditionalFunctionApplication).NotStuck :=
+  conditionalFunctionApplication_runtimeTyping.neverStuck fuel [] .nil
 
 theorem capturedVariable_typed_result :
     TypedResult .int (evalFuel 1 [.int 9] (.var 0)) := by
@@ -252,11 +271,28 @@ theorem delete1_runtimeTyping :
     RuntimeTyping delete1 (TypePM.DataTypes.list .int) := by
   exact .deleteFirst (.lit 1) intList12_runtimeTyping
 
-/-- `map` evaluates closures, so it remains outside this checkpoint until
-closure and application preservation are connected to runtime typing. -/
-theorem map_not_in_certified_core :
+/-- The source-to-runtime bridge still excludes `map`; the direct runtime
+judgment below now certifies it independently. -/
+theorem map_not_in_source_bridge :
     ¬ RuntimeSupported (.prim PrimOp.map [.lam (.var 0), intList12]) := by
   intro supported
   cases supported
+
+def incrementList : Source.Expr :=
+  .prim PrimOp.map
+    [.lam (.prim PrimOp.add [.var 0, .lit 1]), intList12]
+
+theorem incrementList_runtimeTyping :
+    RuntimeTyping incrementList (TypePM.DataTypes.list .int) := by
+  exact .map (.lam (.add (.var rfl) (.lit 1))) intList12_runtimeTyping
+
+theorem incrementList_exact_evaluation :
+    evalFuel 5 [] incrementList =
+      .ok (Value.buildList [.int 2, .int 3]) := by
+  with_unfolding_all rfl
+
+theorem incrementList_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] incrementList).NotStuck :=
+  incrementList_runtimeTyping.neverStuck fuel [] .nil
 
 end TypePM.RuntimeTypingRegression

@@ -24,6 +24,13 @@ def TypedResults (targets : List Ty) (result : FuelResult (List Value)) : Prop :
   result = .timeout ∨
     ∃ values, result = .ok values ∧ ValueTypings values targets
 
+/-- Homogeneous counterpart used for the result of applying one function to
+every element of a canonical runtime list. -/
+def TypedHomogeneousResults
+    (target : Ty) (result : FuelResult (List Value)) : Prop :=
+  result = .timeout ∨
+    ∃ values, result = .ok values ∧ ListValueTypings values target
+
 namespace TypedResult
 
 /-- Typed ready progress, exposing the two possible evaluator observations. -/
@@ -115,6 +122,16 @@ theorem source_apply_eq_of_data_target
     (conversion : CheckConversion conversionClass source target)
     (targetEq : target.apply substitution = .data former arguments) :
     source.apply substitution = .data former arguments := by
+  cases conversion with
+  | ordinary => exact targetEq
+  | matcherToSlot => simp [Ty.apply] at targetEq
+  | productMatcher => simp [Ty.apply] at targetEq
+  | productMatcherToSlot => simp [Ty.apply] at targetEq
+
+theorem source_apply_eq_of_fn_target
+    (conversion : CheckConversion conversionClass source target)
+    (targetEq : target.apply substitution = .fn domain codomain) :
+    source.apply substitution = .fn domain codomain := by
   cases conversion with
   | ordinary => exact targetEq
   | matcherToSlot => simp [Ty.apply] at targetEq
@@ -258,6 +275,86 @@ theorem list_canonical
       ListValueTypings values element := by
   exact (canonicalProperties typing).listShape Subst.id element (by simp)
 
+private def FunctionShape (value : Value) (target : Ty) : Prop :=
+  ∀ substitution domain codomain,
+    target.apply substitution = .fn domain codomain →
+      (∃ environment context bodyExpression,
+        value = Value.plainClosure environment bodyExpression ∧
+        EnvironmentTyping environment context ∧
+        RuntimeTyping bodyExpression codomain (domain :: context)) ∨
+      (∃ environment context bodyExpression,
+        value = Value.recursiveClosure environment bodyExpression ∧
+        EnvironmentTyping environment context ∧
+        RuntimeTyping bodyExpression codomain
+          (domain :: .fn domain codomain :: context))
+
+private theorem functionShape
+    (typing : ValueTyping value target) : FunctionShape value target := by
+  refine @ValueTyping.rec
+    (motive_1 := fun value target _ => FunctionShape value target)
+    (motive_2 := fun _ _ _ => True)
+    (motive_3 := fun _ _ _ => True)
+    (motive_4 := fun _ _ _ => True)
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ _ _ typing
+  · intro literal substitution domain codomain equality
+    simp [Ty.apply] at equality
+  · intro substitution domain codomain equality
+    simp [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] at equality
+  · intro substitution domain codomain equality
+    simp [Ty.apply, Ty.applyList, TypePM.DataTypes.bool] at equality
+  · intro _values _targets _items _itemsIH substitution domain codomain equality
+    simp [Ty.apply] at equality
+  · intro _values _element _items _itemsIH substitution domain codomain equality
+    simp [Ty.apply, TypePM.DataTypes.list] at equality
+  · intro values context bodyExpression sourceCodomain sourceDomain
+      environment body _environmentIH substitution domain codomain equality
+    have parts := Ty.fn.inj equality
+    exact .inl ⟨values, Ty.applyList substitution context, bodyExpression, rfl,
+      environment.apply substitution, by
+        simpa [Ty.apply, Ty.applyList, parts.1, parts.2] using
+          body.applyContext substitution⟩
+  · intro values context bodyExpression sourceCodomain sourceDomain
+      environment body _environmentIH substitution domain codomain equality
+    have parts := Ty.fn.inj equality
+    exact .inr ⟨values, Ty.applyList substitution context, bodyExpression, rfl,
+      environment.apply substitution, by
+        simpa [Ty.apply, Ty.applyList, parts.1, parts.2] using
+          body.applyContext substitution⟩
+  · intro _value _sourceTarget _class _target source conversion sourceIH
+      substitution domain codomain equality
+    exact sourceIH substitution domain codomain
+      (TypePM.Runtime.CheckConversion.source_apply_eq_of_fn_target
+        conversion equality)
+  · intro _value _sourceTarget source earlier sourceIH substitution domain
+      codomain equality
+    exact sourceIH (Subst.compose substitution earlier) domain codomain (by
+      simpa only [Ty.apply_compose] using equality)
+  · trivial
+  · intros
+    trivial
+  · intro
+    trivial
+  · intros
+    trivial
+  · trivial
+  · intros
+    trivial
+
+/-- A function-typed value is one of the evaluator's two closure forms, and
+its captured environment and body carry the corresponding runtime types. -/
+theorem function_canonical
+    (typing : ValueTyping value (.fn domain codomain)) :
+      (∃ environment context bodyExpression,
+        value = Value.plainClosure environment bodyExpression ∧
+        EnvironmentTyping environment context ∧
+        RuntimeTyping bodyExpression codomain (domain :: context)) ∨
+      (∃ environment context bodyExpression,
+        value = Value.recursiveClosure environment bodyExpression ∧
+        EnvironmentTyping environment context ∧
+        RuntimeTyping bodyExpression codomain
+          (domain :: .fn domain codomain :: context)) := by
+  exact functionShape typing Subst.id domain codomain (by simp)
+
 theorem boolValue (value : Bool) :
     ValueTyping (Value.boolValue value) TypePM.DataTypes.bool := by
   cases value <;> simp [Value.boolValue]
@@ -286,30 +383,59 @@ protected def deleteFirstStructural
       · exact tail
       · exact .cons head (tail.deleteFirstStructural needle)
 
+/-- Pointwise safety lifts to the evaluator's left-to-right homogeneous
+traversal.  This separates host-list recursion from expression-evaluation
+recursion in the `map` proof. -/
+protected def traverseTyped
+    (applyValue : Value → FuelResult Value)
+    (safe : ∀ {value}, ValueTyping value source →
+      TypedResult target (applyValue value)) :
+    (typing : ListValueTypings values source) →
+      TypedHomogeneousResults target
+        (FuelResult.traverse applyValue values)
+  | .nil => .inr ⟨[], rfl, .nil⟩
+  | .cons head tail => by
+      rcases safe head with headTimeout |
+        ⟨output, headSuccess, outputTyping⟩
+      · exact .inl (by
+          simp [FuelResult.traverse, headTimeout])
+      · rcases tail.traverseTyped applyValue safe with tailTimeout |
+          ⟨outputs, tailSuccess, outputsTyping⟩
+        · exact .inl (by
+            simp [FuelResult.traverse, headSuccess, tailTimeout,
+              FuelResult.bind, FuelResult.map])
+        · exact .inr ⟨output :: outputs, by
+            simp [FuelResult.traverse, headSuccess, tailSuccess,
+              FuelResult.bind, FuelResult.map],
+            .cons outputTyping outputsTyping⟩
+
 end ListValueTypings
 
 /-- **Theorem 5.7, certified core.**  Expression evaluation preserves the
 runtime type, and every fuel-bounded evaluation is ready: it either times out
 or produces a typed value.  The certified constructors cover integers,
 canonical Booleans and Lists, tuples, integer addition, `append`, `member`,
-`deleteFirst`, same-result-type conditionals, typed environments, closures,
-and direct `lam`/`fixE` applications. -/
-theorem RuntimeTyping.coreSafety
+`deleteFirst`, `map`, same-result-type conditionals, typed environments,
+closures, and applications with an arbitrary typed function expression. -/
+private theorem RuntimeTyping.coreSafetyBound
     (typing : RuntimeTyping expression target context)
-    (fuel : Nat) (environment : ValueEnvironment)
+    (budget fuel : Nat) (fuelBound : fuel ≤ budget)
+    (environment : ValueEnvironment)
     (environmentTyping : EnvironmentTyping environment context) :
     TypedResult target (evalFuel fuel environment expression) := by
   apply RuntimeTyping.rec
     (motive_1 := fun expression target context _ =>
-      ∀ fuel environment, EnvironmentTyping environment context →
+      ∀ fuel, fuel ≤ budget → ∀ environment,
+        EnvironmentTyping environment context →
         TypedResult target
         (evalFuel fuel environment expression))
     (motive_2 := fun expressions targets context _ =>
-      ∀ fuel environment, EnvironmentTyping environment context →
+      ∀ fuel, fuel ≤ budget → ∀ environment,
+        EnvironmentTyping environment context →
         TypedResults targets
         (FuelResult.traverse (evalFuel fuel environment) expressions))
   case var =>
-      intro context index target lookup fuel environment environmentTyping
+      intro context index target lookup fuel _fuelBound environment environmentTyping
       cases fuel with
       | zero => exact .inl rfl
       | succ fuel =>
@@ -317,29 +443,29 @@ theorem RuntimeTyping.coreSafety
             EnvironmentTyping.lookup environmentTyping lookup
           exact .inr ⟨value, by simp [evalFuel, found], valueTyping⟩
   case lit =>
-          intro context value fuel environment environmentTyping
+          intro context value fuel _fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => exact .inr ⟨_, rfl, .int _⟩
   case boolTrue =>
-          intro context fuel environment environmentTyping
+          intro context fuel _fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => exact .inr ⟨_, rfl, .boolTrue⟩
   case boolFalse =>
-          intro context fuel environment environmentTyping
+          intro context fuel _fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => exact .inr ⟨_, rfl, .boolFalse⟩
   case listNil =>
-          intro context element fuel environment environmentTyping
+          intro context element fuel _fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel =>
               exact .inr ⟨Value.buildList [], rfl, .list .nil⟩
   case listCons =>
           intro headExpression element context tailExpression head tail headIH
-            tailIH fuel environment environmentTyping
+            tailIH fuel fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
@@ -348,8 +474,8 @@ theorem RuntimeTyping.coreSafety
               (FuelResult.traverse (evalFuel fuel environment)
                 [headExpression, tailExpression]) := by
             simpa [FuelResult.traverse] using TypedResult.pairTraverse
-              (headIH fuel environment environmentTyping)
-              (tailIH fuel environment environmentTyping)
+              (headIH fuel (by omega) environment environmentTyping)
+              (tailIH fuel (by omega) environment environmentTyping)
           rcases children with timeout | ⟨values, success, valuesTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.map])
           · cases valuesTyping with
@@ -366,19 +492,19 @@ theorem RuntimeTyping.coreSafety
                       .list (.cons headTyping tailValuesTyping)⟩
           }
   case tuple =>
-          intro expressions targets context items itemsIH fuel environment
+          intro expressions targets context items itemsIH fuel fuelBound environment
             environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
-          have children := itemsIH fuel environment environmentTyping
+          have children := itemsIH fuel (by omega) environment environmentTyping
           rcases children with timeout | ⟨values, success, childrenTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.map])
           · exact .inr ⟨.tuple values, by
               simp [evalFuel, success, FuelResult.map], .tuple childrenTyping⟩
           }
   case lam =>
-      intro bodyExpression codomain domain context body bodyIH fuel environment
+      intro bodyExpression codomain domain context body bodyIH fuel _fuelBound environment
         environmentTyping
       cases fuel with
       | zero => exact .inl rfl
@@ -386,110 +512,84 @@ theorem RuntimeTyping.coreSafety
           exact .inr ⟨Value.plainClosure environment bodyExpression, rfl,
             .plainClosure environmentTyping body⟩
   case fixE =>
-      intro bodyExpression codomain domain context body bodyIH fuel environment
+      intro bodyExpression codomain domain context body bodyIH fuel _fuelBound environment
         environmentTyping
       cases fuel with
       | zero => exact .inl rfl
       | succ fuel =>
           exact .inr ⟨Value.recursiveClosure environment bodyExpression, rfl,
             .recursiveClosure environmentTyping body⟩
-  case appLam =>
-      intro bodyExpression codomain domain context argumentExpression body
-        argument bodyIH argumentIH fuel environment environmentTyping
+  case app =>
+      intro functionExpression domain codomain context argumentExpression function
+        argument functionIH argumentIH fuel fuelBound environment environmentTyping
       cases fuel with
       | zero => exact .inl rfl
-      | succ fuel =>
-          cases fuel with
-          | zero => exact .inl rfl
-          | succ innerFuel =>
-              have argumentResult :=
-                argumentIH (innerFuel + 1) environment environmentTyping
-              rcases argumentResult with timeout |
-                ⟨argumentValue, success, argumentValueTyping⟩
-              · exact .inl (by
-                  rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                  rw [evalFuel.eq_def]
-                  simp only
-                  rw [show evalFuel (innerFuel + 1) environment
-                    (.lam bodyExpression) =
-                      .ok (Value.plainClosure environment bodyExpression) by rfl]
-                  rw [timeout]
-                  rfl)
-              · have bodyResult := bodyIH innerFuel
-                  (argumentValue :: environment)
-                  (.cons argumentValueTyping environmentTyping)
-                rcases bodyResult with bodyTimeout |
-                  ⟨value, bodySuccess, valueTyping⟩
-                · exact .inl (by
-                    rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                    rw [evalFuel.eq_def]
-                    simp only
-                    rw [show evalFuel (innerFuel + 1) environment
-                      (.lam bodyExpression) =
-                        .ok (Value.plainClosure environment bodyExpression) by rfl]
-                    rw [success]
-                    exact bodyTimeout)
-                · exact .inr ⟨value, by
-                    rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                    rw [evalFuel.eq_def]
-                    simp only
-                    rw [show evalFuel (innerFuel + 1) environment
-                      (.lam bodyExpression) =
-                        .ok (Value.plainClosure environment bodyExpression) by rfl]
-                    rw [success]
-                    exact bodySuccess, valueTyping⟩
-  case appFix =>
-      intro bodyExpression codomain domain context argumentExpression body
-        argument bodyIH argumentIH fuel environment environmentTyping
-      cases fuel with
-      | zero => exact .inl rfl
-      | succ fuel =>
-          cases fuel with
-          | zero => exact .inl rfl
-          | succ innerFuel =>
-              have argumentResult :=
-                argumentIH (innerFuel + 1) environment environmentTyping
-              rcases argumentResult with timeout |
-                ⟨argumentValue, success, argumentValueTyping⟩
-              · exact .inl (by
-                  rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                  rw [evalFuel.eq_def]
-                  simp only
-                  rw [show evalFuel (innerFuel + 1) environment
-                    (.fixE bodyExpression) =
-                      .ok (Value.recursiveClosure environment bodyExpression) by rfl]
-                  rw [timeout]
-                  rfl)
-              · let closure :=
-                  Value.recursiveClosure environment bodyExpression
-                have closureTyping :
-                    ValueTyping closure (.fn domain codomain) :=
-                  .recursiveClosure environmentTyping body
-                have bodyResult := bodyIH innerFuel
-                  (argumentValue :: closure :: environment)
-                  (.cons argumentValueTyping
-                    (.cons closureTyping environmentTyping))
-                rcases bodyResult with bodyTimeout |
-                  ⟨value, bodySuccess, valueTyping⟩
-                · exact .inl (by
-                    rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                    rw [evalFuel.eq_def]
-                    simp only
-                    rw [show evalFuel (innerFuel + 1) environment
-                      (.fixE bodyExpression) = .ok closure by rfl]
-                    rw [success]
-                    exact bodyTimeout)
-                · exact .inr ⟨value, by
-                    rw [show innerFuel + 1 + 1 = Nat.succ (Nat.succ innerFuel) by omega]
-                    rw [evalFuel.eq_def]
-                    simp only
-                    rw [show evalFuel (innerFuel + 1) environment
-                      (.fixE bodyExpression) = .ok closure by rfl]
-                    rw [success]
-                    exact bodySuccess, valueTyping⟩
+      | succ applicationFuel =>
+          have functionResult :=
+            functionIH applicationFuel (by omega) environment environmentTyping
+          rcases functionResult with functionTimeout |
+            ⟨functionValue, functionSuccess, functionValueTyping⟩
+          · exact .inl (by
+              simp [evalFuel, functionTimeout, FuelResult.bind])
+          · have argumentResult :=
+              argumentIH applicationFuel (by omega) environment environmentTyping
+            rcases argumentResult with argumentTimeout |
+              ⟨argumentValue, argumentSuccess, argumentValueTyping⟩
+            · exact .inl (by
+                simp [evalFuel, functionSuccess, argumentTimeout,
+                  FuelResult.bind])
+            · cases applicationFuel with
+              | zero => exact .inl (by simp [evalFuel])
+              | succ bodyFuel =>
+                rcases functionValueTyping.function_canonical with
+                  ⟨definitionEnvironment, definitionContext, bodyExpression,
+                    functionEq, definitionEnvironmentTyping, bodyTyping⟩ |
+                  ⟨definitionEnvironment, definitionContext, bodyExpression,
+                    functionEq, definitionEnvironmentTyping, bodyTyping⟩
+                · subst functionValue
+                  have bodyResult := bodyTyping.coreSafetyBound bodyFuel bodyFuel
+                    (Nat.le_refl _)
+                    (argumentValue :: definitionEnvironment)
+                    (.cons argumentValueTyping definitionEnvironmentTyping)
+                  rcases bodyResult with bodyTimeout |
+                    ⟨value, bodySuccess, valueTyping⟩
+                  · exact .inl (by
+                      rw [evalFuel.eq_def]
+                      simp only
+                      rw [functionSuccess, argumentSuccess]
+                      exact bodyTimeout)
+                  · exact .inr ⟨value, by
+                      rw [evalFuel.eq_def]
+                      simp only
+                      rw [functionSuccess, argumentSuccess]
+                      exact bodySuccess, valueTyping⟩
+                · subst functionValue
+                  let closure := Value.recursiveClosure definitionEnvironment
+                    bodyExpression
+                  have closureTyping :
+                      ValueTyping closure (.fn domain codomain) :=
+                    .recursiveClosure definitionEnvironmentTyping bodyTyping
+                  have bodyResult := bodyTyping.coreSafetyBound bodyFuel bodyFuel
+                    (Nat.le_refl _)
+                    (argumentValue :: closure :: definitionEnvironment)
+                    (.cons argumentValueTyping
+                      (.cons closureTyping definitionEnvironmentTyping))
+                  rcases bodyResult with bodyTimeout |
+                    ⟨value, bodySuccess, valueTyping⟩
+                  · exact .inl (by
+                      rw [evalFuel.eq_def]
+                      simp only
+                      rw [functionSuccess, argumentSuccess]
+                      exact bodyTimeout)
+                  · exact .inr ⟨value, by
+                      rw [evalFuel.eq_def]
+                      simp only
+                      rw [functionSuccess, argumentSuccess]
+                      exact bodySuccess,
+                      valueTyping⟩
   case add =>
           intro leftExpression context rightExpression left right leftIH rightIH
-            fuel environment environmentTyping
+            fuel fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
@@ -497,8 +597,8 @@ theorem RuntimeTyping.coreSafety
               (FuelResult.traverse (evalFuel fuel environment)
                 [leftExpression, rightExpression]) := by
             simpa [FuelResult.traverse] using TypedResult.pairTraverse
-              (leftIH fuel environment environmentTyping)
-              (rightIH fuel environment environmentTyping)
+              (leftIH fuel (by omega) environment environmentTyping)
+              (rightIH fuel (by omega) environment environmentTyping)
           rcases children with timeout | ⟨values, success, valuesTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
           · cases valuesTyping with
@@ -514,7 +614,7 @@ theorem RuntimeTyping.coreSafety
           }
   case append =>
           intro leftExpression element context rightExpression left right leftIH
-            rightIH fuel environment environmentTyping
+            rightIH fuel fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
@@ -523,8 +623,8 @@ theorem RuntimeTyping.coreSafety
               (FuelResult.traverse (evalFuel fuel environment)
                 [leftExpression, rightExpression]) := by
             simpa [FuelResult.traverse] using TypedResult.pairTraverse
-              (leftIH fuel environment environmentTyping)
-              (rightIH fuel environment environmentTyping)
+              (leftIH fuel (by omega) environment environmentTyping)
+              (rightIH fuel (by omega) environment environmentTyping)
           rcases children with timeout | ⟨values, success, valuesTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
           · cases valuesTyping with
@@ -545,7 +645,7 @@ theorem RuntimeTyping.coreSafety
           }
   case member =>
           intro needleExpression element context targetExpression needle list
-            needleIH listIH fuel environment environmentTyping
+            needleIH listIH fuel fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
@@ -554,8 +654,8 @@ theorem RuntimeTyping.coreSafety
               (FuelResult.traverse (evalFuel fuel environment)
                 [needleExpression, targetExpression]) := by
             simpa [FuelResult.traverse] using TypedResult.pairTraverse
-              (needleIH fuel environment environmentTyping)
-              (listIH fuel environment environmentTyping)
+              (needleIH fuel (by omega) environment environmentTyping)
+              (listIH fuel (by omega) environment environmentTyping)
           rcases children with timeout | ⟨values, success, valuesTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
           · cases valuesTyping with
@@ -575,7 +675,7 @@ theorem RuntimeTyping.coreSafety
           }
   case deleteFirst =>
           intro needleExpression element context targetExpression needle list
-            needleIH listIH fuel environment environmentTyping
+            needleIH listIH fuel fuelBound environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
@@ -584,8 +684,8 @@ theorem RuntimeTyping.coreSafety
               (FuelResult.traverse (evalFuel fuel environment)
                 [needleExpression, targetExpression]) := by
             simpa [FuelResult.traverse] using TypedResult.pairTraverse
-              (needleIH fuel environment environmentTyping)
-              (listIH fuel environment environmentTyping)
+              (needleIH fuel (by omega) environment environmentTyping)
+              (listIH fuel (by omega) environment environmentTyping)
           rcases children with timeout | ⟨values, success, valuesTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
           · cases valuesTyping with
@@ -601,20 +701,123 @@ theorem RuntimeTyping.coreSafety
                         FuelResult.bind],
                       .list (itemsTyping.deleteFirstStructural needleValue)⟩
           }
+  case map =>
+          intro functionExpression domain codomain context targetExpression
+            function target functionIH targetIH fuel fuelBound environment
+              environmentTyping
+          cases fuel with
+          | zero => exact .inl rfl
+          | succ primitiveFuel =>
+            have children : TypedResults
+                [.fn domain codomain, TypePM.DataTypes.list domain]
+                (FuelResult.traverse (evalFuel primitiveFuel environment)
+                  [functionExpression, targetExpression]) := by
+              simpa [FuelResult.traverse] using TypedResult.pairTraverse
+                (functionIH primitiveFuel (by omega) environment environmentTyping)
+                (targetIH primitiveFuel (by omega) environment environmentTyping)
+            rcases children with timeout | ⟨values, success, valuesTyping⟩
+            · exact .inl (by
+                simp [evalFuel, timeout, FuelResult.bind])
+            · cases valuesTyping with
+              | @cons functionValue _ _ _ functionValueTyping tailTyping =>
+                cases tailTyping with
+                | @cons targetValue _ _ _ targetValueTyping nilTyping =>
+                  cases nilTyping
+                  obtain ⟨inputs, targetEq, inputsTyping⟩ :=
+                    targetValueTyping.list_canonical
+                  subst targetValue
+                  rcases functionValueTyping.function_canonical with
+                    ⟨definitionEnvironment, definitionContext, bodyExpression,
+                      functionEq, definitionEnvironmentTyping, bodyTyping⟩ |
+                    ⟨definitionEnvironment, definitionContext, bodyExpression,
+                      functionEq, definitionEnvironmentTyping, bodyTyping⟩
+                  · subst functionValue
+                    cases primitiveFuel with
+                    | zero =>
+                      exfalso
+                      simp [FuelResult.traverse, evalFuel] at success
+                    | succ bodyFuel =>
+                      have mapped : TypedHomogeneousResults codomain
+                          (FuelResult.traverse
+                            (applyFuel (bodyFuel + 1)
+                              (Value.plainClosure definitionEnvironment
+                                bodyExpression)) inputs) :=
+                        inputsTyping.traverseTyped _ (fun inputTyping => by
+                          rw [show applyFuel (bodyFuel + 1)
+                            (Value.plainClosure definitionEnvironment
+                              bodyExpression) _ =
+                            evalFuel bodyFuel (_ :: definitionEnvironment)
+                              bodyExpression by rfl]
+                          exact bodyTyping.coreSafetyBound bodyFuel bodyFuel
+                            (Nat.le_refl _)
+                            (_ :: definitionEnvironment)
+                            (.cons inputTyping definitionEnvironmentTyping))
+                      rcases mapped with mappedTimeout |
+                        ⟨outputs, mappedSuccess, outputsTyping⟩
+                      · exact .inl (by
+                          rw [evalFuel.eq_def]
+                          simp only
+                          rw [success]
+                          simp [evalPrimitive, mappedTimeout, FuelResult.map])
+                      · exact .inr ⟨Value.buildList outputs, by
+                          rw [evalFuel.eq_def]
+                          simp only
+                          rw [success]
+                          simp [evalPrimitive, mappedSuccess, FuelResult.map],
+                          .list outputsTyping⟩
+                  · subst functionValue
+                    let closure := Value.recursiveClosure definitionEnvironment
+                      bodyExpression
+                    have closureTyping :
+                        ValueTyping closure (.fn domain codomain) :=
+                      .recursiveClosure definitionEnvironmentTyping bodyTyping
+                    cases primitiveFuel with
+                    | zero =>
+                      exfalso
+                      simp [FuelResult.traverse, evalFuel] at success
+                    | succ bodyFuel =>
+                      have mapped : TypedHomogeneousResults codomain
+                          (FuelResult.traverse
+                            (applyFuel (bodyFuel + 1) closure) inputs) :=
+                        inputsTyping.traverseTyped _ (fun inputTyping => by
+                          rw [show applyFuel (bodyFuel + 1) closure _ =
+                            evalFuel bodyFuel
+                              (_ :: closure :: definitionEnvironment)
+                              bodyExpression by rfl]
+                          exact bodyTyping.coreSafetyBound bodyFuel bodyFuel
+                            (Nat.le_refl _)
+                            (_ :: closure :: definitionEnvironment)
+                            (.cons inputTyping (.cons closureTyping
+                              definitionEnvironmentTyping)))
+                      rcases mapped with mappedTimeout |
+                        ⟨outputs, mappedSuccess, outputsTyping⟩
+                      · exact .inl (by
+                          rw [evalFuel.eq_def]
+                          simp only
+                          rw [success]
+                          simp [evalPrimitive, closure, mappedTimeout,
+                            FuelResult.map])
+                      · exact .inr ⟨Value.buildList outputs, by
+                          rw [evalFuel.eq_def]
+                          simp only
+                          rw [success]
+                          simp [evalPrimitive, closure, mappedSuccess,
+                            FuelResult.map],
+                          .list outputsTyping⟩
   case ifE =>
           intro conditionExpression context thenExpression branchTarget elseExpression
-            condition thenBranch elseBranch conditionIH thenIH elseIH fuel
+            condition thenBranch elseBranch conditionIH thenIH elseIH fuel fuelBound
             environment environmentTyping
           cases fuel with
           | zero => exact .inl rfl
           | succ fuel => {
-          have conditionResult := conditionIH fuel environment environmentTyping
+          have conditionResult := conditionIH fuel (by omega) environment environmentTyping
           rcases conditionResult with timeout |
             ⟨conditionValue, success, conditionTyping⟩
           · exact .inl (by simp [evalFuel, timeout, FuelResult.bind])
           · rcases conditionTyping.bool_canonical with isTrue | isFalse
             · subst conditionValue
-              have branchResult := thenIH fuel environment environmentTyping
+              have branchResult := thenIH fuel (by omega) environment environmentTyping
               rcases branchResult with branchTimeout |
                 ⟨value, branchSuccess, valueTyping⟩
               · exact .inl (by
@@ -623,7 +826,7 @@ theorem RuntimeTyping.coreSafety
                   simp [evalFuel, success, branchSuccess, FuelResult.bind],
                   valueTyping⟩
             · subst conditionValue
-              have branchResult := elseIH fuel environment environmentTyping
+              have branchResult := elseIH fuel (by omega) environment environmentTyping
               have falseNeTrue : DataCtor.false ≠ DataCtor.true := by decide
               rcases branchResult with branchTimeout |
                 ⟨value, branchSuccess, valueTyping⟩
@@ -637,29 +840,29 @@ theorem RuntimeTyping.coreSafety
           }
   case checked =>
           intro expression sourceTarget context conversionClass target source
-            conversion sourceIH fuel environment environmentTyping
-          have sourceResult := sourceIH fuel environment environmentTyping
+            conversion sourceIH fuel fuelBound environment environmentTyping
+          have sourceResult := sourceIH fuel fuelBound environment environmentTyping
           rcases sourceResult with timeout | ⟨value, success, valueTyping⟩
           · exact .inl timeout
           · exact .inr ⟨value, success, .checked valueTyping conversion⟩
   case instantiated =>
-          intro expression sourceTarget context source substitution sourceIH fuel
+          intro expression sourceTarget source substitution sourceIH fuel fuelBound
             environment environmentTyping
-          have sourceResult := sourceIH fuel environment environmentTyping
+          have sourceResult := sourceIH fuel fuelBound environment environmentTyping
           rcases sourceResult with timeout | ⟨value, success, valueTyping⟩
           · exact .inl timeout
           · exact .inr ⟨value, success, valueTyping.apply substitution⟩
   case nil =>
-      intro context fuel environment environmentTyping
+      intro context fuel _fuelBound environment environmentTyping
       exact .inr ⟨[], rfl, .nil⟩
   case cons =>
       intro expression target context expressions targets head tail headIH tailIH
-        fuel environment environmentTyping
-      have headResult := headIH fuel environment environmentTyping
+        fuel fuelBound environment environmentTyping
+      have headResult := headIH fuel fuelBound environment environmentTyping
       rcases headResult with headTimeout |
         ⟨headValue, headSuccess, headTyping⟩
       · exact .inl (by simp [FuelResult.traverse, headTimeout])
-      · have tailResult := tailIH fuel environment environmentTyping
+      · have tailResult := tailIH fuel fuelBound environment environmentTyping
         rcases tailResult with tailTimeout |
           ⟨tailValues, tailSuccess, tailTyping⟩
         · exact .inl (by
@@ -671,6 +874,18 @@ theorem RuntimeTyping.coreSafety
             .cons headTyping tailTyping⟩
   case t => exact typing
   all_goals assumption
+termination_by budget
+decreasing_by all_goals simp_wf <;> subst_vars <;> omega
+
+/-- **Theorem 5.7, certified core.**  Public preservation and ready-progress
+theorem, obtained by choosing the evaluation fuel itself as the recursive
+proof budget. -/
+theorem RuntimeTyping.coreSafety
+    (typing : RuntimeTyping expression target context)
+    (fuel : Nat) (environment : ValueEnvironment)
+    (environmentTyping : EnvironmentTyping environment context) :
+    TypedResult target (evalFuel fuel environment expression) :=
+  typing.coreSafetyBound fuel fuel (Nat.le_refl _) environment environmentTyping
 
 /-- List preservation/progress used by tuple and constructor evaluation. -/
 theorem RuntimeTypings.coreSafety
@@ -686,7 +901,7 @@ theorem RuntimeTypings.coreSafety
         TypedResults targets
         (FuelResult.traverse (evalFuel fuel environment) expressions))
   case var | lit | boolTrue | boolFalse | listNil | listCons | tuple | lam |
-      appLam | appFix | fixE | add | append | member | deleteFirst | ifE |
+      app | fixE | add | append | member | deleteFirst | map | ifE |
       checked | instantiated =>
     simp
   case nil =>

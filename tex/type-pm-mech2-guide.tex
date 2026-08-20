@@ -235,8 +235,8 @@ M0 & 型，代入，局所checking & 完了 & matcherを含む基礎的な型合
 M1 & lambda，application，制約block & 完了 & 独立した型付け，停止する単一化，推論の健全性・完全性・主要性を検証済み．\\
 M2 & 型scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3のsource式で完全性・受理同値・主要性を検証済み．\\
 M3 & data，primitive，signature & 一部 & Bool/List，値を作るconstructor，組込み演算primitive，\code{ifE}，有限signatureを実装済み．M4と結ぶ掲載例全体の回帰が残る．\\
-M4 & pattern，matcher，\code{fix} & 一部 & 値の形を表すpatternと，再帰定義を作る\code{fix}を含む最終構文，および構文を再帰的に振り分ける処理を実装済み．大きい検証例をLeanの最終検査器で確かめる回帰検証と，M4全域の完全性・主要性が残る．\\
-M5 & 評価と型安全性 & 一部 & 順序付き探索，型付き環境，通常・再帰closure，直接のlambda・fix適用まで実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．高階関数，多相let，map，user-defined matcherを含む一般の場合が残る．\\
+M4 & pattern，matcher，\code{fix} & 一部 & 最終構文と統合推論に加え，pattern function本体の照合を外側から隔離する実行時nodeであるMNodeとPaper 2の\code{pair}回帰を実装済み．source宣言とruntime本体表の双方向対応も\code{pair}で証明した．各runtime本体は保存schemeの標準的な一つの具体化について検査証拠を持つが，全具体化に対する主要性までは未証明である．生成変数の由来を追う証明は，公開M4 elaborationまで完了した．大きい検証例の正確な公開推論とM4全域の完全性・主要性が残る．\\
+M5 & 評価と型安全性 & 一部 & 順序付き探索，型付き環境，通常・再帰closure，任意の型付き関数位置を持つapplication，\code{map}まで実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．source/runtime定義表の整合性証明を必須にするMNode全式評価器と，Paper 2の全式回帰も実装済みだが，評価器全体の関係的意味論と型安全性は未証明である．source多相\code{let}から実行時型付けへの橋とuser-defined matcherの型安全性も残る．\\
 \bottomrule
 \end{longtable}
 
@@ -784,6 +784,14 @@ M4の実行可能elaborationと関係的elaborationは同じ構文を再帰的�
 ここでelaborationはsource式から型制約を生成する処理である．実行可能版はLeanの関数として
 結果を計算し，関係版は「この生成結果が規則から導ける」という命題として同じ処理を表す．
 
+fresh変数の由来を追うsupport provenanceも証明している．supportとは，型や制約に
+実際に現れる変数の有限集合である．provenanceは「由来」という意味であり，ここでは各変数が
+もとのcontextにあったか，開始supplyから終了supplyまでの間に新しく割り当てられたことを表す．
+well-formed signature，つまり同じ名前の宣言が重複せず，各schemeが正しく閉じている宣言表の下では，
+最終的な相互再帰関係\code{ElaboratesFuel}と，公開関係\code{M4.Elaborates}を含む全M4構文について
+この性質を証明済みである．公開されたsupply増加と由来証明をまとめた\code{M4.supplyAndSupport}も完成した．
+これは生成変数の管理が正しいという結果であり，M4全域の完全性が得られたという意味ではない．
+
 一方，M2--M3で完了した「型が付くなら必ず推論成功」と「返却型の主要性」はM4全域では未証明である．
 matcher literalを構文だけから検査する処理（static check），\code{fix}直下matcherの型形状，clause内部のslot要求，
 および\code{let}での任意closure選択を同時に扱う必要があるため，独立した大きな課題である．
@@ -801,12 +809,68 @@ conjunction patternは組込み規則A-ANDで実行する．A-ANDは一つの照
 左pattern，右patternの二課題へこの順で置き換える．左側で得たbindingが右側のvalue patternから見えるため，
 静的型付けと実行の変数順が一致する．
 
-型安全性は整数，真偽値，List，tuple，型付き環境，通常・再帰closure，直接のlambda・fix適用，
-および明示的なcallback仮定の下のbuilt-in matcher断片までである．
+\section{一般pattern functionとMNode}
+
+pattern functionはpatternを引数に取り，別のpatternを組み立てる機能である．本体内で一時的に束縛した
+変数は外側の\code{matchAll}へ見せてはならない一方，引数として渡されたpatternが作る束縛は外側へ返す必要がある．
+この二つを区別するため，実行時にはMNodeを使う．MNodeは，pattern function本体専用の照合課題，環境，
+private binding（本体の中だけで使う束縛）を持つ隔離された探索nodeである．
+
+具体例はPaper 2の\code{pair}である．
+
+\begin{lstlisting}
+def pattern pair (first, rest) :=
+  ($private & ~first) :: #private :: ~rest
+\end{lstlisting}
+
+\code{\$private}は最初の要素を本体内だけで束縛し，\code{\#private}が次の要素と同じかを検査する．
+\code{\textasciitilde first}と\code{\textasciitilde rest}は，呼出し側から渡された第一・第二引数patternを表す．MNodeの処理は次の順である．
+
+\begin{enumerate}[leftmargin=2em]
+  \item \code{pair q1 q2}をmatcherへ渡す前に，\code{pair}本体を持つMNodeへ展開する．
+  \item 本体の通常の照合はMNode内部で進め，\code{private}の束縛も内部に保存する．
+  \item \code{\textasciitilde first}または\code{\textasciitilde rest}へ着いたら，対応する実引数patternを外側の探索へ戻す．
+  \item 本体が終わったらMNode内部の束縛を捨て，実引数patternが作った外側の束縛だけを残す．
+\end{enumerate}
+
+また，pattern function適用はuser-defined matcherのcatch-all clauseより先に処理する．catch-all clauseとは，
+それ以前のclauseに一致しなかったpatternを一般的に受け取る最後のclauseである．先にMNodeへ展開しなければ，
+\code{pair}そのものがcatch-allに捕まり，本体が実行されないからである．
+
+正確な7-clause source \code{multiset} matcherを使う回帰では，
+
+\begin{lstlisting}
+matchAll [1,2,1,3] as multiset integer with
+  $outer :: pair $inner _ -> [outer, inner]
+\end{lstlisting}
+
+の照合結果に対応するbinding列として，
+
+\[
+ [[1,2],[1,2],[1,3],[1,3]]
+\]
+
+を外側，内側の順で並べ，順序と重複を保って得る全\code{matchAll}式をLean kernelで確認している．
+同じ探索を使う\code{matchFirst}が先頭の\code{[1,2]}を返すことも固定した．\code{private}は各結果に含まれない．
+pattern function本体の静的な検査証明も，保存schemeの標準的な一つの具体化について，生成された等式とchecking条件を実際に満たす代入と，代入後の結果型の一致を保持する．これは，全具体化に対するinterface一致や主要性の証明ではない．
+さらに，source/runtime定義表の双方向対応を\code{PatternFunctionDefinitions.Agree}で表す．これは，
+runtime表の各本体が上記の標準的な具体化に対するsource側の検査証拠を持ち，source側の各宣言にruntime実装があるという条件である．
+したがって，runtimeだけにある未検査本体と，実装のないsource宣言の両方を除ける．\code{pair}の定義表が
+この条件を満たすことも証明済みである．
+
+MNode探索は\code{evalCheckedPatternFunctionNodesFuel}という公開fuel評価器にも接続した．この評価器は定義表と
+上記の双方向対応の証明を受け取り，全\code{Expr}を再帰的に評価し，\code{matchAll}と\code{matchFirst}ではMNode探索を使う．成功した
+\code{matchAll}の探索部分について，実行可能な一歩関数を使う帰納的な順序付き深さ優先導出も証明済みである．ただし評価器全体に
+対応する独立な関係的評価\code{Eval}と，MNodeを含む型安全性はまだ証明していない．
+
+型安全性は整数，真偽値，List，tuple，型付き環境，通常・再帰closure，任意の型付き関数位置を持つapplication，
+\code{map}，および明示的なcallback仮定の下のbuilt-in matcher断片までである．
 callbackとは，処理本体を引数として受け取り，必要な時点で呼び出す関数である．built-in matcherとは，
 利用者がsourceで定義するのではなく，実行器に直接実装されたmatcherである．
-sourceの多相型付けからclosure断片への橋，高階の関数位置，map，user-defined matcher clause，
-一般pattern functionを同じ契約へ接続する作業が残る．ここで保存とは，実行の一歩後も型が保たれる
+ここで「任意の型付き関数位置」とは，applicationの左側が構文上直接のlambdaや\code{fixE}でなくても，
+実行時型付けで関数型を持てばよいという意味である．例えば条件分岐が返したclosureの適用も扱える．
+sourceの多相型付けからこの関数断片を再構成する橋，user-defined matcher clause，
+一般pattern functionのMNodeを同じ型安全性契約へ接続する作業が残る．ここで保存とは，実行の一歩後も型が保たれる
 ことであり，進行とは，型の付いた実行可能状態が結果でなければ次の一歩を進められることである．
 残作業はこの保存・進行の形を持つが，
 多相\code{let}のschemeとruntime環境を結ぶ設計を含むため，小さな機械作業ではない．
@@ -998,9 +1062,11 @@ M2のill-formed開始supplyは仕様外であり，完了のために追加証�
 次の静的な主作業は，大きいPaper 1の検証例をLean kernelで計算可能な形にし，正例の正確な
 \code{M4.infer}結果と\code{M4.Typing}，負例の非型付けを固定することである．
 
-その後，M4全域の完全性・主要性を別計画として調べる．M5ではsourceの多相型付けからclosure断片への橋，
-高階関数，map，user-defined matcher clause，pattern functionを一般の実行時型付けと，型の不整合による停止が
-決して起きないという性質（no-stuck）へ接続する．
+fresh変数の由来証明は公開\code{M4.Elaborates}まで完成したため，次はM4全域の完全性・主要性を
+別計画として調べる．M5ではsourceの多相\code{let}から，すでに
+任意の型付き関数位置と\code{map}を扱える実行時型付けへの橋を作り，user-defined matcher clauseと
+pattern functionのMNodeを一般の実行時型付けと，型の不整合による停止が決して起きないという性質
+（no-stuck）へ接続する．
 
 \appendix
 
@@ -1490,8 +1556,8 @@ source構文の型規則とは分けている．またM4の健全性は実装済
 \chapter*{版の基準}
 \addcontentsline{toc}{chapter}{版の基準}
 
-本書は2026年8月20日に，\code{type-pm-mech2}の\code{main}，
-本文作成開始時commit \code{7fe112f}を基準に作成した．
+本書は2026年8月20日に，\code{type-pm-mech2}の現行\code{main}の
+実装と公開監査項目を基準に更新した．
 文書追加以外の実装変更が入った場合は，\code{README.md}，\code{DESIGN.md}，
 \code{CHECKPOINT.md}，\code{TypePM/AxiomAudit.lean}と照合して更新する．
 
