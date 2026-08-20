@@ -562,7 +562,7 @@ theorem finalCatchAll_iff (clauses : List MatcherClause) :
     induction final with
     | last => rfl
     | skip tail induction => cases tail <;>
-        simpa [finalCatchAllVariableArm] using induction
+        simp [finalCatchAllVariableArm] at induction ⊢ <;> assumption
   · induction clauses with
     | nil => simp [finalCatchAllVariableArm]
     | cons clause clauses induction =>
