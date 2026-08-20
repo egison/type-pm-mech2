@@ -44,6 +44,7 @@ import TypePM.Source.M4SupplySupport
 import TypePM.Source.M4FreshRenamingTransport
 import TypePM.Source.M4SupportedCoherence
 import TypePM.Source.M4OrdinaryCoherence
+import TypePM.Source.M4FixCoherence
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -843,6 +844,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.SupportedM4FuelPairProperty.prim
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.SupportedM4FuelPairProperty.ifE
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.ordinaryM4CoherenceStep
+#assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fixCoherenceStep
 #assert_allowed_axioms TypePM.Source.MatchFirstTyping.ElaboratesUsing.supportProvenance
 #assert_allowed_axioms TypePM.Source.FixElaboratesUsing.supportProvenance
 #assert_allowed_axioms TypePM.Source.M3Regression.infer_true_exact
