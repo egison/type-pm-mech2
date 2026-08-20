@@ -164,6 +164,83 @@ theorem matcherFixElaboration_totalValueTyping
             (TotalRecursiveClosureBodyTyping.solvedMatcher
               bodyElaboration bodySemantic bodyContextCompatible clausesTyped)
 
+/-- A matcher-root fix also exposes safety of evaluating its body literal.
+This evaluates only `.matcher clauses` to a closure; it does not run clause
+dispatch or any arm body. -/
+theorem matcherFixElaboration_literalEvaluationSafe
+    (elaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature fuel
+      sourceContext (.fixE (.matcher clauses)) start generated next)
+    (semantic : generated.SemanticSolution solution)
+    (contextCompatible : MonomorphicContextCompatible
+      sourceContext runtimeContext solution) :
+    ∃ domain codomain,
+      generated.target.apply solution = .fn domain codomain ∧
+      TotalEnvironmentSafe (.matcher clauses) codomain
+        (domain :: .fn domain codomain :: runtimeContext) := by
+  cases fuel with
+  | zero => contradiction
+  | succ fuel =>
+      simp only [M4.ElaboratesFuel] at elaboration
+      obtain ⟨generatedBody, bodyElaboration, generated_eq⟩ :=
+        fixElaboration_parts elaboration
+      cases fuel with
+      | zero => simp [M4.ElaboratesFuel] at bodyElaboration
+      | succ bodyFuel =>
+          simp only [M4.ElaboratesFuel] at bodyElaboration
+          rw [generated_eq] at semantic ⊢
+          obtain ⟨bodySemantic, bodyEquation⟩ :=
+            fromFix_body_semantic semantic
+          have bodyContextCompatible : MonomorphicContextCompatible
+              (Fix.bodyContext (Fix.domain (.matcher clauses) start)
+                (Fix.codomain (.matcher clauses) start) sourceContext)
+              ((Fix.domain (.matcher clauses) start).apply solution ::
+                ((Ty.fn (Fix.domain (.matcher clauses) start)
+                  (Fix.codomain (.matcher clauses) start)).apply solution) ::
+                runtimeContext)
+              solution := by
+            simp only [Fix.bodyContext]
+            exact .cons (.cons contextCompatible)
+          let domain := (Fix.domain (.matcher clauses) start).apply solution
+          let codomain := (Fix.codomain (.matcher clauses) start).apply solution
+          refine ⟨domain, codomain, by
+            simp [Generated.fromFix, domain, codomain, Ty.apply], ?_⟩
+          have literalSafe := totalEnvironmentSafe_solvedMatcher
+            bodyElaboration bodySemantic bodyContextCompatible
+          simp only [Equation.Holds] at bodyEquation
+          have targetShape := congrArg (Ty.apply solution)
+            (matcherLiteral_target_eq bodyElaboration)
+          simp only [Ty.apply] at targetShape
+          have preciseTarget_eq :
+              (.matcher
+                ((Cap.var ⟨(Fix.bodySupply (.matcher clauses) start).cap⟩).apply
+                  solution.cap)
+                ((Ty.var ⟨(Fix.bodySupply (.matcher clauses) start).ty⟩).apply
+                  solution)) = codomain := by
+            exact targetShape.symm.trans (by simpa [codomain] using bodyEquation)
+          rw [preciseTarget_eq] at literalSafe
+          simpa [domain, codomain, Ty.apply] using literalSafe
+
+/-- Public principal wrapper for the literal-evaluation boundary of a closed
+matcher-root fix. -/
+theorem principalMatcherFix_literalEvaluationSafe
+    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature []
+      (.fixE (.matcher clauses)) target) :
+    ∃ domain codomain,
+      target = .fn domain codomain ∧
+      TotalEnvironmentSafe (.matcher clauses) codomain
+        [domain, .fn domain codomain] := by
+  rcases typing with ⟨derivation⟩
+  rcases derivation.elaboration with ⟨fuel, fuelDerivation⟩
+  let solution := derivation.closure.substitution
+  have semantic : derivation.generated.SemanticSolution solution :=
+    TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
+      derivation.closure
+  obtain ⟨domain, codomain, generatedTarget, literalSafe⟩ :=
+    matcherFixElaboration_literalEvaluationSafe fuelDerivation semantic .nil
+  refine ⟨domain, codomain, ?_, literalSafe⟩
+  rw [derivation.target_eq]
+  simpa [PrincipalBlockClosure.target, solution] using generatedTarget
+
 /-- Any closed Paper-1 matcher-root fix with a public principal M4 derivation
 types its concrete recursive closure in the proof-only total value layer. -/
 theorem principalMatcherFix_totalValueTyping
@@ -235,6 +312,79 @@ theorem listRecursiveClosure_totalValueTyping :
   exact principalMatcherFix_totalValueTyping
     (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed
       M4Paper1ListExactRegression.infer_exact)
+
+/-- Actual Paper-1 list matcher body: evaluating the literal constructs its
+matcher closure at every fuel.  The existential types are exactly the domain
+and codomain selected by the public principal M4 derivation.  No clause is
+dispatched by this theorem. -/
+theorem listMatcherBody_literalEvaluation_totalEnvironmentSafe :
+    ∃ domain codomain,
+      M4Paper1ListExactRegression.listMatcherType = .fn domain codomain ∧
+      TotalEnvironmentSafe (.matcher listMatcherClauses) codomain
+        [domain, .fn domain codomain] := by
+  exact principalMatcherFix_literalEvaluationSafe
+    (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed
+      M4Paper1ListExactRegression.infer_exact)
+
+/-- Extract literal-evaluation safety for the matcher-root fix under a
+surrounding lambda.  This is the source shape of the closed Paper-1 multiset
+constructor before its list-library argument is applied. -/
+theorem principalAppliedLambdaMatcherFix_literalEvaluationSafe
+    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature []
+      (.app (.lam (.fixE (.matcher clauses))) argument) target) :
+    ∃ capturedType domain codomain,
+      TotalEnvironmentSafe (.matcher clauses) codomain
+        [domain, .fn domain codomain, capturedType] := by
+  rcases typing with ⟨derivation⟩
+  rcases derivation.elaboration with ⟨fuel, fuelDerivation⟩
+  cases fuel with
+  | zero => simp [M4.ElaboratesFuel] at fuelDerivation
+  | succ fuel =>
+      simp only [M4.ElaboratesFuel] at fuelDerivation
+      rcases fuelDerivation with
+        ⟨generatedFunction, afterFunction, generatedArgument, afterArgument,
+          functionElaboration, argumentElaboration, generated_eq, next_eq⟩
+      cases fuel with
+      | zero => simp [M4.ElaboratesFuel] at functionElaboration
+      | succ childFuel =>
+          have functionShape := functionElaboration
+          simp only [M4.ElaboratesFuel] at functionShape
+          rcases functionShape with
+            ⟨generatedFix, fixElaboration, function_eq⟩
+          let solution := derivation.closure.substitution
+          have outerSemantic : Generated.SemanticSolution
+              (Generated.fromApp generatedFunction generatedArgument
+                (.var ⟨afterArgument.ty⟩) (.var ⟨afterArgument.ty + 1⟩))
+                solution := by
+            rw [← generated_eq]
+            exact TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
+              derivation.closure
+          obtain ⟨functionSemantic, argumentSemantic, functionEquation,
+              argumentConversion⟩ := fromApp_semantic_parts outerSemantic
+          have fixSemantic : generatedFix.SemanticSolution solution := by
+            rw [function_eq] at functionSemantic
+            exact fromLam_body_semantic functionSemantic
+          let capturedType :=
+            (Ty.var ⟨(Context.initialSupply []).ty⟩).apply solution
+          obtain ⟨domain, codomain, generatedTarget, literalSafe⟩ :=
+            matcherFixElaboration_literalEvaluationSafe fixElaboration
+              fixSemantic (.cons .nil)
+          exact ⟨capturedType, domain, codomain, by
+            simpa [capturedType] using literalSafe⟩
+
+/-- Actual Paper-1 multiset matcher body under its captured list constructor.
+As with the list theorem, this is closure-generation safety only. -/
+theorem multisetMatcherBody_literalEvaluation_totalEnvironmentSafe :
+    ∃ capturedListType domain codomain,
+      TotalEnvironmentSafe (.matcher multisetClauses) codomain
+        [domain, .fn domain codomain, capturedListType] := by
+  have principal := M4.infer_success_principalTyping
+    Paper1FrozenSignature.wellFormed
+    M4Paper1ClosedMultisetExactRegression.infer_exact
+  apply principalAppliedLambdaMatcherFix_literalEvaluationSafe
+    (argument := listMatcherDefinition)
+  simpa [closedMultisetDefinition, multisetWithListArgument,
+    multisetDefinition] using principal
 
 /-- The two concrete recursive closures produced while evaluating the closed
 Paper-1 multiset constructor are simultaneously typable.  Their exact solved

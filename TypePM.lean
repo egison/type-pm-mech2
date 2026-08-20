@@ -151,6 +151,7 @@ import TypePM.Runtime.Evaluation
 import TypePM.Runtime.EvalFuel
 import TypePM.Runtime.EvaluationAdequacy
 import TypePM.Runtime.EvaluationCompleteness
+import TypePM.Runtime.EvaluationStuckMonotonicity
 import TypePM.Runtime.EvaluationRegression
 import TypePM.Runtime.MatchAllRegression
 import TypePM.Runtime.MatchFirstRegression
@@ -162,8 +163,11 @@ import TypePM.Runtime.PatternFunctionNodeEvaluation
 import TypePM.Runtime.PatternFunctionNodeEvaluationRegression
 import TypePM.PatternFunctionSafety
 import TypePM.PatternFunctionSafetyRegression
+import TypePM.PatternFunctionBodyPlanAutomation
+import TypePM.PatternFunctionBodyPlanAutomationRegression
 import TypePM.Runtime.Paper1ExecutionRegression
 import TypePM.Runtime.MultisetClauseExecutionRegression
+import TypePM.Runtime.Paper1NeverStuckRegression
 import TypePM.Runtime.ValueDataPattern
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch
@@ -191,6 +195,8 @@ import TypePM.CommonFuelSafety
 import TypePM.CommonFuelSafetyRegression
 import TypePM.RecursiveTotalClosureSafety
 import TypePM.RecursiveTotalClosureSafetyRegression
+import TypePM.TotalPlainClosureSafety
+import TypePM.TotalPlainClosureSafetyRegression
 import TypePM.Source.MatcherClauseShape
 import TypePM.Source.M4MatcherClauseShapeRegression
 import TypePM.Source.M4SyntaxRegression
@@ -229,6 +235,7 @@ import TypePM.Source.M4Paper1ComputabilityRegression
 import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
 import TypePM.Source.M4Paper1RecursiveClosureTotalTyping
+import TypePM.Source.M4Paper1MatcherLiteralEvaluationSafetyRegression
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4Paper1SafetyRegression
 import TypePM.Source.M4CompletenessArchitecture

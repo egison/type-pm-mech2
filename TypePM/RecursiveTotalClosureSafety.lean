@@ -427,6 +427,38 @@ theorem totalEnvironmentSafe_totalMatcher
       exact .inr ⟨Value.matcherClosure environment clauses, rfl,
         .matcherClosure environmentTyped clausesTyped ⟨[], by simp⟩⟩
 
+/-- Evaluating a solved M4 matcher literal only constructs its closure.  The
+precise source capability is retained by `solvedMatcherClosure`; this theorem
+does not execute clause dispatch and therefore makes no claim about the
+safety of next-matcher expressions or arm bodies. -/
+theorem totalEnvironmentSafe_solvedMatcher
+    (elaboration : Source.MatcherTyping.MatcherLiteralElaboratesUsing
+      (Source.M4.ElaboratesFuel Source.Paper1FrozenSignature.signature fuel)
+      Source.MatcherTyping.PPatElaborates Source.MatcherTyping.DPatElaborates
+      Source.Paper1FrozenSignature.signature sourceContext clauses supply
+      generated next)
+    (semantic : generated.SemanticSolution solution)
+    (contextCompatible : MonomorphicContextCompatible
+      sourceContext context solution) :
+    TotalEnvironmentSafe (.matcher clauses)
+      (.matcher
+        ((Cap.var ⟨supply.cap⟩).apply solution.cap)
+        ((Ty.var ⟨supply.ty⟩).apply solution))
+      context := by
+  intro runtimeFuel environment environmentTyped
+  cases runtimeFuel with
+  | zero => exact .inl rfl
+  | succ runtimeFuel =>
+      have output_eq : generated.target.apply solution =
+          .matcher
+            ((Cap.var ⟨supply.cap⟩).apply solution.cap)
+            ((Ty.var ⟨supply.ty⟩).apply solution) := by
+        cases elaboration
+        rfl
+      exact .inr ⟨Value.matcherClosure environment clauses, rfl,
+        .solvedMatcherClosure environmentTyped elaboration semantic
+          contextCompatible output_eq ⟨[], by simp⟩⟩
+
 /-- Evaluating `fixE` constructs the recursive closure whose body is certified
 by `TotalCoreTyping`. -/
 theorem totalEnvironmentSafe_fixE
