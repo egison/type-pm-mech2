@@ -70,6 +70,29 @@ mutual
           environmentTypes bindingTypes
           ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩
           newBindings
+    /-- A user matcher whose progress and recursive branch typing are tied to
+    the exact pattern-indexed dispatch result.  Unlike `user`, this low-level
+    certificate does not require the older `EnvironmentTyping` for a
+    recursive matcher closure.  It instead requires each actual typed
+    dispatch either to time out or to return pattern-indexed branches, all of
+    which are recursively typed.  A separate source-to-runtime theorem must
+    still establish where that pattern index came from. -/
+    | patternIndexedUser
+        (builtinMiss : ∀ atomEnvironment,
+          reduceBuiltinAtom eval atomEnvironment
+            ⟨pattern, .matcherV matcherEnvironment original remaining,
+              target⟩ = .ok .miss)
+        (dispatch : ∀ atomEnvironment,
+          EnvironmentTyping atomEnvironment
+            (bindingTypes ++ environmentTypes) →
+          PatternIndexedRecursiveDispatchTyping expressionTyping eval
+            environmentTypes bindingTypes newBindings
+            (dispatchMatcherClauses eval atomEnvironment matcherEnvironment
+              remaining pattern target)) :
+        RecursiveTotalMatchingAtomTyping expressionTyping eval
+          environmentTypes bindingTypes
+          ⟨pattern, .matcherV matcherEnvironment original remaining, target⟩
+          newBindings
     /-- Terminal zero-hole operational exception.  Type preservation is
     trivial because neither successful result contains a binding or a
     recursive atom.  This constructor does not type the matcher closure and
@@ -94,6 +117,29 @@ mutual
         RecursiveTotalMatchingAtomsTyping expressionTyping eval
           environmentTypes bindingTypes (atom :: atoms)
           (headBindings ++ tailBindings)
+
+  /-- Exact timeout-or-hit classification for a user-matcher dispatch.  A hit
+  carries pattern evidence for, and recursively types, every branch returned
+  by that same dispatch.  This judgment does not by itself derive that pattern
+  evidence from the dispatch input.  Making it an indexed member of the
+  mutual block avoids hiding recursive evidence inside an untracked
+  existential. -/
+  inductive PatternIndexedRecursiveDispatchTyping
+      (expressionTyping : EmbeddedExpressionTyping)
+      (eval : ValueEnvironment → Source.Expr → FuelResult Value) :
+      (environmentTypes bindingTypes newBindings : List Ty) →
+      FuelResult (DispatchResult MatchingBranches) → Prop where
+    | timeout : PatternIndexedRecursiveDispatchTyping expressionTyping eval
+        environmentTypes bindingTypes newBindings .timeout
+    | hit
+        (patternsPreserved : ∀ branch ∈ recursiveBranches,
+          branch.map (fun atom => atom.pattern) = patterns)
+        (branches : ∀ branch ∈ recursiveBranches,
+          RecursiveTotalMatchingAtomsTyping expressionTyping eval
+            environmentTypes bindingTypes branch newBindings) :
+        PatternIndexedRecursiveDispatchTyping expressionTyping eval
+          environmentTypes bindingTypes newBindings
+          (.ok (.hit recursiveBranches))
 
 end
 
@@ -237,6 +283,41 @@ theorem evaluationAtomReducer_recursiveTotalTypedSafe
                     (branches (bindings ++ environment) dispatched
                       recursiveBranchesTyped branch member),
                   rfl⟩)
+  | patternIndexedUser builtinMiss dispatch =>
+      rename_i pattern matcherEnvironment original remaining target
+      have atomEnvironmentTyped : EnvironmentTyping
+          (bindings ++ environment) (bindingTypes ++ environmentTypes) :=
+        bindingsTyped.appendEnvironment environmentTyped
+      have classified := dispatch (bindings ++ environment)
+        atomEnvironmentTyped
+      generalize dispatchEq :
+          dispatchMatcherClauses eval (bindings ++ environment)
+            matcherEnvironment remaining pattern target = dispatchResult
+        at classified
+      cases classified with
+      | timeout =>
+        exact .inl (by
+          unfold evaluationAtomReducer combineAtomReducers
+          rw [builtinMiss]
+          simp only [FuelResult.bind]
+          simpa [reduceMatcherAtom] using
+            congrArg (FuelResult.map clauseResultToAtomReduction) dispatchEq)
+      | hit patternsPreserved branchesTyped =>
+        rename_i recursiveBranches patterns
+        let reduction : AtomReduction := ⟨recursiveBranches, []⟩
+        refine .inr ⟨reduction, ?_, ?_⟩
+        · unfold evaluationAtomReducer combineAtomReducers
+          rw [builtinMiss]
+          simp only [FuelResult.bind]
+          simpa [reduceMatcherAtom, reduction,
+            clauseResultToAtomReduction] using
+            congrArg (FuelResult.map clauseResultToAtomReduction) dispatchEq
+        · exact .intro [] .nil (by
+            intro branch member
+            exact ⟨newBindings,
+              by simpa using
+                (branchesTyped branch member),
+              rfl⟩)
   | zeroHoleTerminalUser exactReduction =>
       rcases exactReduction (bindings ++ environment) with timeout |
         noBranches | oneEmptyBranch

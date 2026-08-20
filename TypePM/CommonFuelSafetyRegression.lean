@@ -5,7 +5,8 @@ import TypePM.CommonFuelSafety
 
 The sole ordinary arm is a wildcard, but the user matcher returns zero
 decompositions.  The typed matching search therefore returns no binding
-groups and `matchFirst` evaluates its separate matcher-independent fallback.
+groups and `matchFirst` evaluates its separate fallback in the original
+environment, without any arm-local bindings.
 -/
 
 namespace TypePM.CommonFuelSafetyRegression

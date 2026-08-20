@@ -8,7 +8,8 @@ This module closes the evaluator-callback premise for the currently typed
 runtime core.  Expression evaluation and matching search use the same
 decreasing fuel.  The expression judgment below adds matcher literals,
 recursive `matchAll`, and the total core `matchFirst` with its mandatory
-matcher-independent fallback to `RuntimeTyping`.
+fallback, typed in the original context and independent of arm-local bindings,
+to `RuntimeTyping`.
 
 The remaining explicit boundary is source-pattern typing for atoms delegated
 by user matchers.  `UserMatcherGeneralSafety` proves their matcher and target

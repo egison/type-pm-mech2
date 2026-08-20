@@ -95,8 +95,8 @@ theorem evalMatchFirstArmsFuel_skip
         fallback := by
   simp [evalMatchFirstArmsFuel, search]
 
-/-- Exhausting the ordinary arms evaluates the explicit matcher-independent
-fallback in the original environment. -/
+/-- Exhausting the ordinary arms evaluates the explicit fallback in the
+original environment, without any arm-local bindings. -/
 @[simp] theorem evalMatchFirstArmsFuel_nil :
     evalMatchFirstArmsFuel evaluate fuel environment target matcher [] fallback =
       evaluate environment fallback :=

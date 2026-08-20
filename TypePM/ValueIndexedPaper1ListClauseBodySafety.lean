@@ -596,7 +596,13 @@ private theorem actualJoinContinuation_pairSafe
 /-- After the concrete recursive-search certificate has been supplied, the
 continuation of the whole arm is assembled from the value-indexed `matchAll`,
 `letE`, projection, List construction, `map`, and `append` rules. -/
-theorem actualListJoinConsBody_listPairSafe_compositional :
+theorem actualListJoinConsBody_listPairSafe_of_splitTailResults
+    (splitTailResultsSafe : ∀ fuel,
+      ListResultSafeWith
+        (PairValueSafeWith
+          (fun value => AllFuelListValueSafe value .int)
+          (fun value => AllFuelListValueSafe value .int))
+        (evalFuel fuel actualJoinConsEnvironment listSplitTailResults)) :
     ∀ fuel,
       ListResultSafeWith
         (PairValueSafeWith
@@ -609,10 +615,24 @@ theorem actualListJoinConsBody_listPairSafe_compositional :
           [actualJoinBaseExpression,
             .prim PrimOp.map [putCurrentAtPrefixEnd, .var 0]]) by rfl]
   exact evalFuel_letE_resultSafeWith_all
-    actualListSplitTailResults_pairSafe_all
+    splitTailResultsSafe
     (fun fuel value safe => actualJoinContinuation_pairSafe value safe fuel)
 
-private theorem listPairPost_toAllFuelValueSafe
+/-- The existing exact-search-backed recursive `matchAll` is one producer of
+the pair postcondition accepted by the public continuation theorem. -/
+theorem actualListJoinConsBody_listPairSafe_compositional :
+    ∀ fuel,
+      ListResultSafeWith
+        (PairValueSafeWith
+          (fun value => AllFuelListValueSafe value .int)
+          (fun value => AllFuelListValueSafe value .int))
+        (evalFuel fuel actualJoinConsEnvironment listJoinConsBody) :=
+  actualListJoinConsBody_listPairSafe_of_splitTailResults
+    actualListSplitTailResults_pairSafe_all
+
+/-- A pair of all-fuel-safe integer Lists is an all-fuel-safe value at the
+tuple type returned by the inner join body. -/
+theorem listPairPost_toAllFuelValueSafe
     (safe : PairValueSafeWith
       (fun value => AllFuelListValueSafe value .int)
       (fun value => AllFuelListValueSafe value .int) value) :

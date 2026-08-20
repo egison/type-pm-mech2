@@ -22,6 +22,18 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
 
 ## 最初に読む用語
 
+### READMEで繰り返し使う基本語
+
+- **context**は，その場所で参照できる変数の型を順番に並べたものである．
+- **arm**は，patternと，そのpatternが結果を返したときに評価する式を組にした分岐である．
+- **decomposition（候補分解）**は，matcherが一つの対象から返す照合候補の列である．0件でも
+  正常な結果であり，型エラーや`stuck`ではない．
+- **closedな式**は自由変数を持たない式，**openな式**は外側のcontextにある変数を参照する式である．
+- **certificate（証明書）**は，ある前提や実行結果が型を保つことをLean内で記録した証明データである．
+  外部ツールが発行する証明書という意味ではない．
+- **exact regression（結果を等式で固定した回帰）**は，具体例が特定の値を返すことをLeanの等式で
+  検査するテストである．具体例の動作は保証するが，それだけでは任意のプログラムに対する一般定理にならない．
+
 ### 型推論を二つの経路で記述する理由
 
 まず`fun x => x`を例に，全体の流れを示す．このREADMEで
@@ -47,7 +59,9 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
   fresh変数の番号や`letE`で選んだ代表が違っても，名前を対応させれば同じ受理結果と型を表す
   ことを示す．中間データが文字どおり同じ，という意味ではない．
 - **executable replay（実行関数による再現）**は，関係的な導出があるなら，公開`infer`が使う
-  実行可能なelaborationも成功し，同じ意味の代表結果を返すことを示す．
+  実行可能なelaborationも成功し，同じ意味の代表結果を返すことを示す．ここでいうreplayは
+  推論器が過去に残した実行履歴を再生することではなく，規則版で認めた型付けを関数版でも再現できる
+  という定理を指す．
 
 たとえば`α10 → α10`と`α37 → α37`は，型変数の名前だけが違う．coherenceはこの二つを
 同じ型付けとして結び付ける．executable replayは，関係的な規則で`α37 → α37`という導出を
@@ -91,8 +105,21 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
 **progress（行き詰まらず進めること）**は，型の付いた未完了状態が一歩進むか正常な不一致になる性質，
 **no-stuck**は，評価規則が足りない状態`stuck`へ到達しない性質である．fuel切れの`timeout`は
 `stuck`と区別する．`matchFirst`は必須の`else`を持つため，すべてのarmの探索結果が空でも
-`stuck`にはならず，元の環境で`else`を評価する．sourceでは通常armを1本以上要求し，runtimeの
-空arm caseは全armを試し終えたことを表す内部状態としてだけ使う．
+`stuck`にはならず，元の環境で`else`を評価する．sourceでは通常armを1本以上要求する．静的に
+受理されたsource式のruntimeでは，空arm caseを全armの試行後を表す内部状態としてだけ使う．
+
+```text
+matchFirst target matcher
+| pattern1 -> body1
+| pattern2 -> body2
+else fallback
+```
+
+型推論はtargetとmatcher，各body，fallbackを型検査し，すべてのbodyとfallbackが同じ結果型を
+持つことを確認する．通常armが実際に結果を返すことは保証しない．すべての候補分解が空なら，
+arm内でだけ使える変数を含まない元の環境でfallbackを評価する．したがって`else`が
+「現在のarmに依存しない」とは，そのarm内で導入された変数を参照しないという意味である．
+`else`は元のcontextで型付けする任意の式なので，内部に別の`matchAll`や`matchFirst`を含めてもよい．
 
 ## 状態の読み方
 
@@ -207,7 +234,8 @@ inventoryで追跡する．
   mutual-styleな形を拒否する．相互`letrec`は現行の形式体系に含めない．
 - `matchFirst`はcore構文`.matchFirst target matcher arms fallback`として保持する．target，matcherを
   この順で先に評価し，通常armをsource順に試す．最初の非空結果の先頭だけを使い，すべて空なら
-  matcherに依存しない必須の`fallback`（表面構文では`else`）を元のcontext・元の実行環境で評価する．
+  通常armが導入する変数に依存しない必須の`fallback`（表面構文では`else`）を元のcontext・元の
+  実行環境で評価する．
   静的に受理するsource式には通常armを1本以上要求する．runtime helperの空arm caseは，受理済みの
   通常armをすべて空結果として消費した後に`fallback`へ進む内部終端である．最初からarmが不要なら
   sourceでは`fallback`自体を書けばよく，target／matcherの先行評価も残す必要があれば`letE`で書ける
@@ -255,7 +283,7 @@ freshnessを外部の証明関係で記録して接続する方針で進める�
 
 `matchFirst`の通常armに結果があるかを型推論で判定しないことも固定済みである．user matcherは
 型の正しい空decomposition列を返せるため，wildcard armでも照合結果がない場合がある．この場合は
-必須のmatcher非依存`else`へ進む．全matcherの意味的な全域性を型検査で要求する案は採用しない．
+通常armが導入した変数から独立した必須`else`へ進む．全matcherの意味的な全域性を型検査で要求する案は採用しない．
 この設計について追加のユーザー判断は不要である．
 
 ## 詳細ロードマップ
@@ -341,7 +369,7 @@ M4完全性では，任意の`Typing`導出を受け取り，公開`infer`も成
 | C6 | pattern／pattern-list pair coherence | **done** | 全pattern構成子のsupply／binding interfaceと意味的証明書を`PatternElaboratesUsing.supportedFuelPairCoherence`で相互帰納的に比較 |
 | C7 | `matchAll` coherence | **done** | target，pattern，matcher，bodyの4段階を比較し，pattern bindingと`Generated.fromMatchAll`の制約を`matchAllCoherenceStep`へ合成 |
 | C8 | matcher literal coherence | **done** | pattern-pattern／data-patternの決定性，固定した外側境界を保つsupport，next matcher／arm／clause列，evidence等式を`matcherCoherenceStep`へ合成 |
-| C9 | `matchFirst` coherence | **done** | `matchFirstCoherenceStep`がtarget／matcher，1本以上の通常arm，matcher非依存`fallback`の二導出を比較 |
+| C9 | `matchFirst` coherence | **done** | `matchFirstCoherenceStep`がtarget／matcher，1本以上の通常arm，arm-local bindingから独立して元contextで型付けする`fallback`の二導出を比較 |
 | C10 | M4 `letE` transport／assembly | **done** | `m4LetTransportAndAssembly`はclosureの代表を揃え，bodyと`Generated.fromLet`へ合成する |
 | C11 | `FullM4Coherence` | **done** | `CompletenessArchitecture.fullM4Coherence`が全constructor-local証明を合成 |
 | R1 | non-let structural replay | **done** | `m4StructuralReplay_of_fuelReplay`が必須`fallback`を含む全構文fuel帰納を公開elaboratorへ接続 |
@@ -403,15 +431,36 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．公開橋はsignature等式だけで使え，内部のlookup契約は無関係な追加宣言も許す |
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
-| T6 | source多相`let`の実行時型付け | **in progress** | ここでいう橋は，sourceの型付け導出から，評価器が使う値・環境・式の型付けを自動で組み立てる定理である．多相bindingだけを証明用の印で追跡し，実行時contextは`List Ty`のまま保つ．入れ子`letE`の値はidentity限定ではなく，実際のvalue elaborationと，その`let`が採用した同じprincipal closureに結び付いたcertificateがあれば任意の構文を扱える．非identityのclosed tuple `(1, 2)`，入れ子identity，外側lambdaが多相identityを捕捉する三回帰では，公開`infer`成功だけからruntime typingと任意fuel no-stuckを得られる．var／literal／`something`／引数なしBool・List constructor／tuple／nested letからなるroot-pending-free断片では，残存検査がないことをelaboration導出の構造帰納で証明する．さらにapplicationが作る実際の検査要求について，hard制約を解いた同じ代入の下で通常等式を選ぶことを確認する局所certificateを追加した．`let (fun x => x) in (var 0) 7`は，非空のapplication検査要求を持つ実elaborationから公開`infer`，runtime typing，任意fuel no-stuckまで接続済みである．matcher-to-slotはこのcertificateを通らないことも証明した．非nullary call全般の構造的なcertificate生成と，same-closure certificateをほかの値へ広げる作業が残る |
-| T7 | M4型付けから実行時型付けを作る定理 | **in progress** | M2--M3と共有する構文，通常の`fixE`，解決済みのmatcher header／arm／clauseは接続済み．arm bodyが`matchAll`を含む最小の再帰matcherでも，M4の導出から実行時のclause証明書を作り，任意fuel no-stuckへ接続した．built-in matcher上のvar／wild／value／tuple／and／or patternを使う，必須`fallback`付き`matchFirst`も，M4 fuel導出から`TotalCoreTyping`（共通fuel安全性が使える式型付け）を自動構成する．Paper 1のlist／multisetについては，公開主要導出を実call siteへ具体化して両再帰matcher本体の証明書を抽出し，実matcher値をすべてのfuel indexで型付けした．P1-L01の実cons-arm本体とP1-L02／L05の掲載式全体も値に固定して型保存・no-stuckへ接続済みである．ただしtarget／matcher値の同定と探索証明は具体的なexact実行から作っており，一般のM4 clause bridgeではない．これらを任意のclause body環境へ運ぶ規則，matcherを返す`fixE`全般，user matcher／constructorを使う`matchFirst`，存在だけが与えられた一般のM4 `Typing`が残る |
+| T6 | source多相`let`の実行時型付け | **in progress** | ここでいう橋は，sourceの型付け導出から，評価器が使う値・環境・式の型付けを自動で組み立てる定理である．多相bindingだけを証明用の印で追跡し，実行時contextは`List Ty`のまま保つ．入れ子`letE`の値はidentity限定ではなく，実際のvalue elaborationと，その`let`が採用した同じprincipal closureに結び付いたcertificateがあれば任意の構文を扱える．非identityのclosed tuple `(1, 2)`，入れ子identity，外側lambdaが多相identityを捕捉する三回帰では，公開`infer`成功だけからruntime typingと任意fuel no-stuckを得られる．var／literal／`something`／lambda／application／tuple／nested letに加え，複数引数のconstructor・primitive・`ifE`について，実際の関係的elaboration導出に沿って各残存検査の由来を記録する構造的certificateを追加した．一つの実elaboration導出と代入に固定した実行可能checkerも追加し，受理と同じ導出の構造的certificateが同値であることを証明した．さらに，引数位置をliteral／lambdaに制限して型の最外形を`Int`／関数型に固定する明示的な`RootOrdinarySourceFragment`では，構文証明と実際のelaboration成功からchecker受理を自動導出する．関数位置とtupleの子では入れ子applicationを許し，`letE`右辺の内部検査はroot列に現れないためbodyだけを調べる．この断片のlambda application＋tuple＋二引数`add`回帰も，公開`infer`からruntime typingと任意fuel no-stuckへ接続した．matcher-to-slotはrootの残存検査列に現れる限り通常等式として隠せない．公開root checkerについては受理からcertificateを作る向きだけを主張し，任意の`infer`成功からchecker成功が従うとはしていない．matcher構文，引数位置の一般化，同じclosureのcertificateをさらに一般の値へ広げる作業が残る |
+| T7 | M4型付けから実行時型付けを作る定理 | **in progress** | M2--M3と共有する構文，通常の`fixE`，解決済みのmatcher header／arm／clauseは接続済み．arm bodyが`matchAll`を含む最小の再帰matcherでも，M4の導出から実行時のclause証明書を作り，任意fuel no-stuckへ接続した．built-in matcher上のvar／wild／value／tuple／and／or patternを使う，必須`fallback`付き`matchFirst`も，M4 fuel導出から`TotalCoreTyping`（共通fuel安全性が使える式型付け）を自動構成する．具体的なuser matcher literal＋wildcard armで実dispatchが0 branchを返し`fallback`へ進むclosed回帰も，入力に添字を付けたM4 matcher導出からruntime証明へ接続した．Paper 1のlist／multisetについては，公開主要導出を実call siteへ具体化して両再帰matcher本体の証明書を抽出し，実matcher値をすべてのfuel indexで型付けした．P1-L01の実cons-arm本体とP1-L02／L05の掲載式全体も値に固定して型保存・no-stuckへ接続済みである．P1-L02／L05と従来のP1-L01経路では，target／matcher値の同定と探索証明を具体的なexact実行から作る．一方，新しいP1-L01環境添字付き経路は，callback fuel 0--12の局所timeout，13の局所dispatch成功，それ以上のcallback単調性から内側探索を任意のsearch fuelで型付けし，full cons-armまで構成する．whole-search exactや旧`EnvironmentTyping`は使わない．いずれも一般のM4 clause bridgeではない．これらを任意のclause body環境へ運ぶ規則，matcherを返す`fixE`全般，任意user matcher／constructorを使う`matchFirst`，存在だけが与えられた一般のM4 `Typing`が残る |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
 | T9 | matcher closureとdispatchの型付け部品 | **done** | cursor不変条件，product/list/slot canonical forms，0／1／複数holeの復号，pattern-pattern constructor，全data-pattern形，環境連結順，任意長arm／clause列の条件付き型保存と進行 |
-| T10 | user matcherの型安全性 | **in progress** | runtime側の任意長arm／clause，最終catch-allによる`.miss`排除，M4のvar／wild／value／tuple／and／or patternから実dispatchが返した枝への接続は証明済み．再帰closure専用の`TotalValueTyping`／`TotalEnvironmentTyping`も追加し，Paper 1で実際に使うlist closure，multiset closure，それらを捕捉する環境，最終的なmatcher値をM4導出から構造的に型付けした．nil入力の無条件探索に加え，P1-L01の実cons armとP1-L02／L05の掲載式全体について，実dispatchからbody終端まで値に固定した型保存・no-stuckを得た．探索部分はexact実行から作った具体証明である．残りはこれらを一般のclause bodyへ運ぶ規則と，fieldや再帰tailを返す任意constructor branchの自動構成 |
-| T11 | 式評価と探索を同じfuelで証明する安全性 | **in progress** | `TotalCoreTyping`に対しては，式評価とmatching探索を同じfuelで同時に追い，`matchAll`と必須`fallback`付き`matchFirst`を含む型保存・任意fuel no-stuckまで完了した．通常lambdaが再帰matcherを捕捉する場合も扱う`TotalPlainEnvironmentSafe`を追加した．値に固定した`matchAll`規則は，target／matcher式が実際に返した値，その値に対する探索，bindingを受け取るbodyを同じfuelで合成する．P1-L01の実join cons-armではself適用，内側探索，`letE`，pair分解，`map`，`append`まで，P1-L02／L05では掲載式全体まで型保存・no-stuckを証明した．いずれも最終式のexact結果から型保存を導いてはいないが，target／matcher値の固定と探索certificateはexact実行とfuel単調性を使う．残る中心課題はこの規則を任意の再帰matcher clauseへ運び，一般M4導出から必要な証明書を自動構成するT10の接続である |
-| T12 | explicit-else `matchFirst` no-stuck | **in progress** | runtime armループと`TotalCoreTyping.matchFirst`では，空探索が通常armを飛ばし，全armが空なら元の環境で`fallback`を評価する型保存・no-stuckを証明済み．wildcardに対してuser matcherが空decompositionを返し`else`へ進む回帰に加え，built-in matcher/pattern断片では，公開M4推論が受理した1-arm例のM4 fuel導出とsemantic solutionから`TotalCoreTyping`を自動構成し，exact評価・任意fuel no-stuckへ接続した．user matcher／constructorを含むarmと，存在量化された一般のM4 `Typing`からの自動構成が残る |
-| T13 | MNode／pattern function safety | **in progress** | MNodeは，pattern functionの内部bindingを呼出し側から分離して探索するnodeである．application，parameterの受渡し，node終了の型付けと，有限の深さ優先探索の型保存・no-stuckは証明済み．既存compilerは埋め込み引数，conjunction，任意長tupleからなる周囲の構造を再帰的にたどり，入れ子pattern-function applicationを証明付きleafとしてresolver（呼出し解決器）へ渡す．これとは別に，呼出し側とMNode内部のbinding列を独立に追跡し，private `.var`／`.wild`を自動構成し，`.value`／`.or`は式型付けと全branchを保持する正確な通常atom証明がある場合だけ受理するcompilerを追加した．public freezeを通るprivate-variable／value-pattern／parameter-export回帰は，built-in専用reducerについてexactと任意fuelのtyped・no-stuckまで完了した．二つのcompilerの統合，constructor，実user matcher branch，入れ子applicationの実行証明をresolverなしで作る橋，checked evaluator全体への一般接続が残る |
+| T10 | user matcherの型安全性 | **in progress** | runtime側の任意長arm／clause，最終catch-allによる`.miss`排除，M4のvar／wild／value／tuple／and／or patternから実dispatchが返した枝への接続は証明済み．再帰closure専用の`TotalValueTyping`／`TotalEnvironmentTyping`も追加し，Paper 1で実際に使うlist closure，multiset closure，それらを捕捉する環境，最終的なmatcher値をM4導出から構造的に型付けした．nil入力の無条件探索に加え，実multisetの第2節`$ :: _`は，`Value.buildList values`で表せる空を含む任意の有限runtime listについて，単一fuelの成功結果とfuel単調性を種にせず，全callback／search fuelを直接分類した．空入力では探索が正常終了して回答0件，非空入力では入力順と重複を保ち，各回答が1要素だけを含む回答列になる．実第4節`$ :: $`も固定target `[1,2,3]`について，callback fuel 0--25のtimeoutと26の最初のdispatch成功を直接計算し，26以上はdispatch結果だけのfuel単調性で同じ三branchを保つことを証明した．各branchのsource patternと再帰atom型付けを同じ実dispatchに結び付け，全callback／search fuelの型保存・no-stuckを得た．whole-searchのexact成功やsearch fuel単調性は使わないが，26以上のdispatchはfuel 26の実行結果を種にする．さらに，探索で残る状態訪問回数を添字にした再帰branch型付けを追加した．user matcherのdispatchが返した実branchだけを一段小さい添字で検査するため，P1-L05の三branchと各branch内の再帰variable dispatchを，matcher値が捕捉する再帰closure環境へ旧`ValueTyping`／`EnvironmentTyping`や無制限の再帰証明書を要求せず，全callback／search fuelの型保存へ接続できる．このM4由来のfuel添字付き経路では，初期の通常環境に旧`EnvironmentTyping`が残る．これらはM4導出から自動生成される一般bridgeやmatcher closure型付けの代替ではない．残りは任意target／clause body／field／captureを扱う一般規則と，証明書の自動構成である |
+| T11 | 式評価と探索を同じfuelで証明する安全性 | **in progress** | `TotalCoreTyping`に対しては，式評価とmatching探索を同じfuelで同時に追い，`matchAll`と必須`fallback`付き`matchFirst`を含む型保存・任意fuel no-stuckまで完了した．通常lambdaが再帰matcherを捕捉する場合も扱う`TotalPlainEnvironmentSafe`を追加した．値に固定した`matchAll`規則は，target／matcher式が実際に返した値，その値に対する探索，bindingを受け取るbodyを同じfuelで合成する．P1-L01の実join cons-armではself適用，内側探索，`letE`，pair分解，`map`，`append`まで，P1-L02／L05では掲載式全体まで型保存・no-stuckを証明した．P1-L02／L05と従来のP1-L01経路は，target／matcher値の固定と探索certificateにexact実行とfuel単調性を使う．新しいP1-L01環境添字付き経路は，callback fuel 0--12の局所timeout，13の局所dispatch成功，それ以上のcallback単調性から内側探索を任意のsearch fuelで型付けし，同じfull cons-armまで構成する．whole-search exactやsearch fuel単調性は使わない．multisetの`$ :: _`探索は空を含む任意長のruntime listについて全fuelを直接場合分けした．固定したP1-L05の`$ :: $`探索も，全callback／search fuelの型保存まで広げたが，26以上のdispatchはfuel 26の結果を単調性で運ぶ．残る中心課題は，節固有・値固有の証明を任意の型付きtargetとM4 clause導出へ一般化し，必要な証明書を自動構成するT10の接続である |
+| T12 | explicit-else `matchFirst` no-stuck | **in progress** | runtime armループと`TotalCoreTyping.matchFirst`では，空探索が通常armを飛ばし，全armが空なら元の環境で`fallback`を評価する型保存・no-stuckを証明済み．built-in `.something` matcherと，それで実行できるvar／wild／value／and／or pattern断片では，公開M4 `infer`成功からfuel導出・semantic solutionを取り出し，target・各arm body・fallback・patternの動的support証明と合わせて`TotalCoreTyping`を構成した．open contextでも，そのinfer導出が実際に選んだsubstitutionと明示的なruntime contextの対応をcertificateで保持し，`[mono Int]`／実行環境`[19]`の回帰をexact評価・関係的な`Eval`・任意fuel no-stuckまで接続した．さらにfinal catch-all節を1本持つ具体的なuser matcher literal＋wildcard armのclosed回帰では，公開M4 `infer = some Int`とruntime証明書を別々に構成した．runtime側は実dispatch結果を添字として保持し，成功時のbranch列が任意fuelで空であることを示すため，fuel 30で`fallback`の`7`を返すexact評価，対応する`Eval`，任意fuel no-stuckまで得た．対照となる`cons [var,wild]`回帰では，実user matcherが1件のbranchと`Int` bindingを返し，通常armの`99`がelseの`7`を抑制するruntime型保存・`Eval`・no-stuckを証明した．ただしこの二節matcherは，shape・arm coverage・final catch-allには合格する一方，Listの一般`nil`／`cons`／`join`節をそろえるroot coverageに失敗するため，どの結果型にも独立した`M4.Typing`を持たず，推論健全性から公開M4 `infer = none`が従う．したがって後者は受理済みsource橋ではなく，非空branchと静的coverageの境界を固定するruntime回帰である．任意contextの対応certificate，完全なcoverageを持つ任意user matcher／constructor arm，任意matcher producer，存在量化された一般のM4 `Typing`からの自動構成が残る |
+| T13 | MNode／pattern function safety | **in progress** | MNodeは，pattern functionの内部bindingを呼出し側から分離して探索するnodeである．application，parameterの受渡し，node終了の型付けと，有限の深さ優先探索の型保存・no-stuckは証明済み．body-plan compilerは，埋め込み引数，conjunction，任意長tuple，private `.var`／`.wild`，証明付き`.value`／`.or`，証明付きnested applicationに加え，証明付きconstructorを扱う．constructor resolverは具体的なconstructor・子pattern・matcher・targetに対応する通常atomの証明を返し，外側frameを変えずprivate frameだけを証明どおり更新する．Paper 1のnil節とは別の検証用最小回帰では，patternとtargetの形はともにnilだが，final catch-all user matcherが分解を0件返すため正常な不一致となる．さらに固定した`cons [.var, .wild]`／target `cons(7, nil)`回帰では，source順の二節user matcherが先頭節を選び，`[var, something, 7]`だけを返してprivate `Int` bindingを1件増やす．public freezeから専用reducerでfuel 20のexact結果と任意search fuelのtyped・no-stuckを証明した．実`evaluationAtomReducer`についてはcallback fuel 0／1がuser-matcher atomでtimeoutし，2以上が同じsingleton branchを返すことを直接分類した．成功範囲ではapplication展開からyieldまでの固定5状態だけで専用reducerとの探索結果が任意search fuelで一致する．したがって全callback／search fuelでtyped・no-stuckとなり，callback 2以上ではsearch fuel 5でexact結果を得る．専用reducerのbranch型付け証明書はcallback 4のexact dispatchを種にしており，global reducer等式や一般のconstructor／user matcherは主張しない．残りはM4と実dispatchからresolver証明を自動生成する橋と一般checked evaluatorへの接続である |
 | T14 | 全域的Source断片の5.8 | **in progress** | `TotalCoreTyping`では`matchAll`／`matchFirst`込みの任意fuel no-stuckまで到達．M4 bridge，T6，T10，T13を合成して任意の対象source導出から証明書を作る作業が残る |
+
+T6の`RootOrdinarySourceFragment`には，式・tuple要素列・call引数列を構文だけで調べるBoolean判定器もある．
+判定成功と構文certificateは正確に同値であり，判定成功と独立した公開`infer`成功を合わせて
+root checkerまで一般に進む．固定回帰では，さらに構文support，signature整合性，runtime contextの型付けと合成して
+runtime typingと任意fuel no-stuckを得た．判定器単独で推論成功を主張せず，任意の`infer`成功から
+判定成功が従うとも主張しない．
+
+T10のM4由来のfuel添字付き経路では，初期の通常環境に旧`EnvironmentTyping`が残る．
+別の環境添字付きDFSでは，callerが環境の不変条件を与えることでこの制約を外し，
+実P1-L01の再帰closure環境を扱う．この一般DFSは明示的な局所reducer遷移の証明書を受け取り，
+回帰ではその遷移木を具体計算で作る．したがって，まだM4導出からの自動producerではなく，
+束縛・回答にclosure値が現れる場合は旧`ValueTypings`の制約も残る．
+
+環境添字付きDFSには，fuel添字付きの未処理atom列と，callerが選んだ環境不変条件の下での
+一段のreducer保存則から，探索用の状態証明を組み立てる一般生成定理も追加した．保存則は
+`bindings ++ environment`の実行順でreducerを一度だけ分類し，成功時の各branchを一段小さい
+探索fuelで型付けする．そのため，この一般定理は有限な遷移木や探索全体の結果を前提にしない．
+ただし，実P1-L01の再帰closure環境についてこの局所保存則と未処理atom列の証明をM4導出から
+作る定理は未完である．既存のuser matcher用work証明もatom環境に旧`EnvironmentTyping`を使い，
+束縛と回答は引き続き旧`ValueTypings`で型付けする．したがって現在のP1-L01回帰自体は，
+fixture固有の局所遷移木を使う経路のままである．
 
 T6でいう「同じclosureのcertificate」は，`let`の値を型生成した導出と，その導出から実際に選ばれた
 principal closureを一組として記録する証明である．一般化後のschemeはこのclosureの代入とtargetから
@@ -423,6 +472,23 @@ root closureに残る検査については，実際のelaboration結果と制約
 処理されたかを確認する実行可能な検査を証明した．これは`Typing`の定義へ検査器を混ぜるものではなく，
 source導出をruntime証明へ移す入口だけで用いる．matcher-to-slotなどの特殊変換が残る場合はfalseになり，
 通常等式だったと仮定して先へ進むことはない．現在は上記三回帰でこの検査の成功をkernelが確認している．
+
+さらに，この検査結果を単なる検査要求の列として扱うだけでなく，実際の関係的elaboration導出の
+どのapplication／constructor引数／primitive引数／条件分岐から生じたかを保持する相互帰納的な証明へ
+分解した．逆向きに，この構造的な証明から元のroot残存検査列がすべて通常等式であることも復元できる．
+`elaborationResolutionsOrdinaryCheckAt`は，一つの関係的elaboration導出が生成したroot残存検査列を，
+指定した代入の下で実行可能に走査する．trueになることと，同じ導出に対する構造的certificateを構成できる
+ことは同値である．一方，公開root checkerについて証明したのはtrueならcertificateを作れる向きであり，
+任意の`infer`成功だけからchecker成功が従うわけではない．`letE`の値側でprincipal closure内部に処理された
+検査要求はroot列にもこのcertificateにも含まれず，root列にmatcher-to-slotが残ればcheckerはfalseになる．
+
+`sourceStructuralOrdinaryCheckAt`は，同じ判定を生成後の平らな列だけでなく，元のsource式の構造を
+たどって行う実行可能checkerである．成功した同一のelaborationから各節点の型とsupplyを再取得し，
+applicationが追加した検査要求をその場で確認する．一つの成功したelaborationと一つの固定した代入について，
+この構造走査の結果がroot残存検査列の全件検査と等しいことを証明した．source構文だけから通常変換を保証する
+定理でも，任意の`infer`成功からchecker成功を導く定理でもない．`letE`の値側の検査要求はclosure内部で
+処理されroot列へ出ないため，構造走査の対象外である．新しい混合回帰は公開`infer`からruntime typingと
+任意fuel no-stuckへ進むが，構文support，context対応，初期環境の型付けは回帰固有の証明として残る．
 
 Paper 1の実closed multiset環境は，従来の`EnvironmentTyping`では型付けできない．これは未証明な
 だけではなく，`closedMultisetMatcherEnvironment_not_environmentTyping`で不可能だと証明している．
@@ -438,18 +504,34 @@ list／multiset双方の再帰matcher本体を正確なcaptured contextで型付
 fuel単調性で広げたものであり，任意のM4 clauseやconstructor branchを扱う一般定理ではない．本体先頭の
 matcher literalだけを評価する一般`TotalEnvironmentSafe`も別に残しており，これはclause選択やarm body評価を
 始めない．nil入力はbindingも再帰atomも返さない実dispatchを直接検証した無条件の全fuel no-stuckである．
+また，実7節matcherの第2節`$ :: _`については，`Value.buildList values`で作られる空を含む
+任意長の有限runtime listへ一般化した．nil節のmiss，第2節のtimeoutまたは成功，後続探索を
+全fuelで直接分類する．空入力は回答0件で正常終了し，非空入力は順序と重複を保つ．この証明は
+固定fuelの成功結果をfuel単調性で広げない．ただし実第2節に固定した証明であり，静的本体証明と
+組み合わせた回帰用certificateも，一般のtargetやconstructor節に対するsource-to-runtime定理ではない．
+
+実第4節`$ :: $`については，P1-L05のtarget `[1,2,3]`と三つのbranchに固定し，callback fuel
+0--25のtimeoutと26の最初のdispatch成功を直接計算した．26以上では，評価callbackを一段増やしても
+完了済みdispatch結果が変わらない定理だけを使って，同じbranchを保つ．各branchの先頭の整数と，
+残りのlistを実第7節catch-allへ委譲する再帰atomを型付けし，任意のcallback／search fuelで探索が
+型を保存して`stuck`にならないことを得た．whole-searchの固定成功やsearch fuel単調性には依存しないが，
+26以上のdispatchにはfuel 26の具体的な成功を種として使う．任意targetやM4 clauseへ広げた一般定理ではない．
 
 再帰matcherを捕捉する通常lambdaについては，従来の値型付けを無理に変更せず，証明専用の
 `TotalPlainEnvironmentSafe`を追加した．lambda，application，`letE`，`map`，tuple，List constructor，
-pair projection，`append`，`matchAll`をこの層で組み合わせられる．Paper 1の実際の
-`listJoinConsBody`では，具体的なcons-arm環境についてrecursive self適用とjoin探索の二証明を実closureから
-作り，内側`matchAll`後の`letE`／pair分解／`map`／`append`まで合成した．周囲のarm本体exact等式には
-依存しないが，join探索certificate自体は一度のexact探索から作る．任意入力・任意clauseへの一般化は未完了である．
+pair projection，`append`，`matchAll`をこの層で組み合わせられる．さらに，通常環境の型付けを
+callerが選ぶ不変条件に置き換え，各reducer遷移と後続状態だけを一段小さい探索fuelで検査する
+環境添字付きDFSを追加した．Paper 1の`listJoinConsBody`では，再帰closureを含む実cons-arm環境を
+旧`EnvironmentTyping`へ変換せず，callback fuel 0--12の局所timeout，13の局所dispatch成功，それ以上の
+callback単調性と後続atomの局所遷移から，全callback／探索fuelの内側`matchAll`を証明した．
+その後の`letE`／pair分解／`map`／`append`も同じ新しい前提から合成し，arm本体全体の型保存・no-stuckまで
+探索全体のexact結果なしで得た．ただし局所遷移木はfixture固有で，M4導出から自動構成する一般橋ではない．
 
 `MatcherSafety`のembedded evaluator契約は「必ず収束する」仮定ではない．型付き式の評価が
 `timeout`になるか，型の付いた値を返すことを要求する．T11はこの契約を`TotalCoreTyping`について
-内部の共通fuel帰納で放電した．残る問題は，同じ帰納をuser matcherが生成するsource pattern付き
-branchへ広げるT10の接続である．
+内部の共通fuel帰納で放電した．user matcherが生成する実branchには，残る探索回数を指標にした
+型付けまで拡張した．残る問題は，任意のM4導出からこの証明書を自動構成し，
+再帰closureを含む通常環境へ運ぶ一般接続である．
 
 ## 論文の結果5.1--5.8との対応
 
@@ -463,9 +545,15 @@ branchへ広げるT10の接続である．
 | 5.3 | `Typing`の存在と推論成功が同値で，受理を決定できる | **done** | `M4.typable_iff_infer_isSome`と`M4.typableDecidable` |
 | 5.4 | 二つの主要な代表型が有限な変数名変更を除いて一致する | **done** | `M4.PrincipalTyping.finiteRenamingEq` |
 | 5.5 | 公開`infer`結果がすべての`Typing`結果の最も一般的な型である | **done** | `M4.infer_success_principalResult` |
-| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`，解決済みM4 matcher clause，built-in pattern断片の必須`fallback`付き`matchFirst`からruntime証明書への橋は完了．source多相`let`は，実際のvalue elaborationと同じprincipal closureに対するcertificateがあれば任意valueを扱う．root-pending-free断片に加え，実際のhard制約解の下でapplication検査が通常等式になる局所certificateを作り，application付き多相identity回帰も公開`infer`からruntimeへ接続した．非nullary call全般へこのcertificateを構造的に生成する定理，matcher-rootの`fixE`，user matcher／constructorを含む再帰的M4式が残る |
-| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，`TotalCoreTyping`の共通fuel安全性，再帰matcherの実dispatchを使う最小回帰まで進んだ．Paper 1の実再帰closureと環境はM4導出から型付け済みである．値に固定した`matchAll`規則により，P1-L01のtop-level掲載式と実join cons-arm本体，P1-L02／L05の掲載式全体を全fuel型保存／no-stuckへ統合した．最終式のexact結果を型保存の根拠にはしないが，具体的なtarget／matcher値の同定と探索certificateはexact実行から作る．したがって一般のM4 bridgeではなく，再帰matcherの任意clause環境へ運ぶ接続が残る．MNodeは周囲のtuple／conjunction，証明付きnested application leaf，および別compilerでprivate `.var`／`.wild`と証明付き`.value`／`.or`を扱うが，両compilerの統合とconstructor／user matcherが残る |
-| 5.8 | 全域的断片の型付きclosed programは任意fuelで`stuck`にならない | **in progress** | `TotalCoreTyping`では`matchAll`と必須`else`付き`matchFirst`を含めて完了．P1-L01／L02／L05は値に固定したruntime合成による型保存／no-stuck証明を持つ．ただしtarget／matcher評価と探索を一度のexact成功からfuel単調性で広げるfixture固有の証明であり，一般のsource-to-runtime橋ではない．multiset 7 clause個別の実行回帰もeventual exact成功に依存する．Paper 1のnil constructorは実closureから無条件に完了．任意のM4 source導出からT6／T10／T13の証明書を自動構成し，非空branchと再帰closure本体を覆う一般定理が残る |
+| 5.6 | 静的型付けを状態を含まないruntime typingへ移す | **in progress** | 固定signatureのsource橋，共有M2--M3構文，通常のM4 `fixE`，解決済みM4 matcher clause，`.something` matcherで実行できる直接pattern断片の必須`fallback`付き`matchFirst`からruntime証明書への橋は完了．`matchFirst`はclosed contextに加え，公開infer導出が選んだsubstitutionと実行時の型の並びを明示的に対応付けたopen contextを扱い，具体的なuser matcher literalがwildcardへ0 branchを返すclosed回帰も入力添字付きM4導出からruntimeへ接続した．source多相`let`は，実際のvalue elaborationと同じprincipal closureに対するcertificateがあれば任意valueを扱う．実elaborationに添字を付けた構造的certificateをapplication，tuple，nested let，複数引数constructor／primitive／`ifE`まで定義し，固定導出と代入に対する実行可能checkerからcertificateを構成する橋も追加した．引数位置をliteral／lambdaに限定する明示的なsource断片では，構文だけを読むBoolean判定器と構文certificateが正確に同値である．判定成功と独立したpublic infer成功からroot checkerまで一般に接続し，runtime typingと任意fuel no-stuckまでは回帰固有の構文support，signature整合性，runtime context型付けと合成した．任意の`infer`成功からchecker成功を導くわけではない．context対応certificateの自動構成，matcher-rootの`fixE`，引数形の一般化，任意user matcher／constructorを含む再帰的M4式が残る |
+| 5.7 | 型付き評価・matching・有限探索が型を保存し，局所的に進む | **in progress** | core，built-in matching，`TotalCoreTyping`の共通fuel安全性，再帰matcherの実dispatchを使う最小回帰まで進んだ．Paper 1の実再帰closureと環境はM4導出から型付け済みである．値に固定した`matchAll`規則により，P1-L01のtop-level掲載式と実join cons-arm本体，P1-L02／L05の掲載式全体を全fuel型保存／no-stuckへ統合した．P1-L01の新しい環境添字付き経路は実clause-body環境をcaller不変条件で保持し，局所的な0--12のtimeoutと13のdispatch成功から内側探索を全callback／search fuelで型付けし，full cons-armまでwhole-search exactなしで証明する．具体的なtarget／matcher値の同定と多くの探索certificateはexact実行から作るが，multisetの実`$ :: _`節では任意の有限runtime listに対して全fuelを直接分類し，実`$ :: $`節では固定targetの全callback／search fuelをdispatch単調性と，残る探索状態数を添字にした再帰atom型付けから証明した．このP1-L05のM4由来fuel添字付き経路では，actual三branchと内側の同じmatcherへのvariable dispatchを直接構成し，matcherが捕捉する再帰closureに旧環境型付けを要求しない一方，初期の通常環境は従来の`EnvironmentTyping`であり，一般のM4 bridgeでもない．再帰matcherの任意target・clause環境へ運ぶ接続が残る．MNodeはouter/privateの二frameでtuple／conjunction，private variable，証明付きvalue/or，証明付きnested applicationを同時に扱う．constructorは，固定nilの空分解と，固定`cons [.var,.wild]`の非空分解・private binding追加まで証明付きresolverで扱う．後者は実評価器をcallback 0／1のtimeoutと2以上の同一branchに分け，全callback／search fuelの型保存まで接続した．任意constructor／user matcher，resolver証明の自動生成が残る |
+| 5.8 | 全域的断片の型付きclosed programは任意fuelで`stuck`にならない | **in progress** | `TotalCoreTyping`では`matchAll`と必須`else`付き`matchFirst`を含めて完了．P1-L01／L02／L05は値に固定したruntime合成による型保存／no-stuck証明を持つ．target／matcher評価と多くの探索は一度のexact成功からfuel単調性で広げるfixture固有の証明である．ただしP1-L01の新しい環境添字付き経路は，実再帰closure環境を旧`EnvironmentTyping`に落とさず，callback 0--12のtimeout，13のdispatch成功，それ以上のcallback単調性からfull cons-armの任意fuel no-stuckをwhole-search exactなしで導く．一方，Paper 1のnil constructorと実`$ :: _`節の任意有限runtime listは，固定成功を種にせず全fuelを直接解析した．実`$ :: $`節の固定targetも全callback／search fuelでno-stuckであり，残る探索状態数を添字にした証明により，再帰closureの旧環境型付けや無制限の再帰証明書を使わない．ただし26以上の外側dispatchはfuel 26の成功から単調性で運ぶ．MNodeの固定`cons` constructor回帰は実評価器でも全callback／search fuelでno-stuckである．ただし成功範囲の型付けはcallback 4の具体dispatchから得た同一branch証明書を使い，一般constructorには広げない．任意のM4 source導出からT6／T10／T13の証明書を自動構成し，任意targetと再帰closureを含むclause-body環境を覆う一般定理が残る |
+
+5.7の「初期の通常環境に旧`EnvironmentTyping`が残る」という制限は，M4由来のfuel添字付き経路のものである．
+環境添字付きDFSではP1-L01の実clause-body環境を旧判定に落とさず，全callback／探索fuelの内側join探索を
+型付けた．その証明を周囲の`letE`／pair分解／`map`／`append`へ渡し，full cons-armのno-stuckまで合成した．
+この新経路はwhole-search exactを使わないが，callback 0--12の局所timeoutと13の局所dispatch成功を直接計算し，
+それ以上はcallback単調性を使うfixture固有の遷移木である．M4導出からその木を自動構成する定理は未完である．
 
 5.6は旧体系の推論状態を後から消す定理ではない．新体系には初めから状態を含まない`Typing`がある
 ため，sourceの型付け導出をruntime value・環境・matching stateの型付けへ移す構造的な定理として
@@ -500,10 +588,10 @@ branchへ広げるT10の接続である．
 
 | ID | 実行 | 関係 | 安全 | 主な根拠／残り |
 |---|---|---|---|---|
-| P1-L01 | done | done | in progress | listの全join分割をsource順で確認し，実4-clause dispatchと型付き探索を固定した．実cons-arm環境ではrecursive self適用，内側`matchAll`，`letE`，pair分解，`map`，`append`を一つの全fuel型保存・no-stuck証明へ合成した．arm本体全体のexact結果には依存しないが，探索certificateは具体的なexact探索から作る．一般のM4導出からこの証明書を作る橋が残る |
+| P1-L01 | done | done | in progress | listの全join分割をsource順で確認し，実4-clause dispatchと型付き探索を固定した．実cons-arm環境ではrecursive self適用，内側`matchAll`，`letE`，pair分解，`map`，`append`を一つの全fuel型保存・no-stuck証明へ合成した．新しい環境添字付き経路は，探索全体のexact結果や旧環境型付けを使わない．ただしcallback 13の局所dispatchと後続atomの遷移を固定したfixture証明であり，一般のM4導出からこの証明書を作る橋が残る |
 | P1-L02 | done | done | in progress | `[1,2,5,6] → [1,5]`と，実7-clause dispatchが完全な`$x :: #(x+1) :: _` patternを保持することを固定した．M4由来の再帰matcher本体証明と値に固定した`matchAll`規則により，掲載式全体の全fuel型保存・no-stuckも証明済み．target／matcher値の同定と探索はexact実行から作るため，一般のsource-to-runtime橋は未完 |
-| P1-L04 | done | done | in progress | `listMatcherDefinition`，closed multiset constructor，`multiset something`の実matcher値生成を一つの実行pipelineとして固定した．公開M4主要導出から，exactに具体化されたlist／multiset matcher本体の証明書と実closed matcher値の全fuel型付けも構成済み．pipeline全体はなお具体的なexact実行に依存する．nil constructorは実dispatchが返す唯一の枝`[[]]`を固定し，全callback／search fuelで無条件にno-stuck．任意constructor branchの一般橋が残る |
-| P1-L05 | done | done | in progress | 三要素consの3結果をsource順で確認し，実7-clause dispatchが各候補で元の二つの`.var` patternを保持することを固定した．M4由来の再帰matcher本体証明と値に固定した`matchAll`規則により，掲載式全体の全fuel型保存・no-stuckも証明済み．target／matcher値の同定と探索はexact実行から作るため，一般のsource-to-runtime橋は未完 |
+| P1-L04 | done | done | in progress | `listMatcherDefinition`，closed multiset constructor，`multiset something`の実matcher値生成を一つの実行pipelineとして固定した．公開M4主要導出から，exactに具体化されたlist／multiset matcher本体の証明書と実closed matcher値の全fuel型付けも構成済み．pipeline全体はなお具体的なexact実行に依存する．nil constructorは実dispatchが返す唯一の枝`[[]]`を固定し，全callback／search fuelで無条件にno-stuck．実第2節`$ :: _`は，`Value.buildList values`で作られた任意の有限runtime listについて，空入力なら探索が正常終了して回答0件，非空入力なら入力順・重複を保ち，各回答が1要素だけを含む回答列になることを，全callback／search fuelで直接証明した．固定fuelの成功やfuel単調性には依存しないが，実第2節に固定した証明であり，任意constructor節と再帰tailの一般橋は残る |
+| P1-L05 | done | done | in progress | 三要素consの3結果をsource順で確認し，実7-clause dispatchが各候補で元の二つの`.var` patternを保持することを固定した．M4由来の再帰matcher本体証明と値に固定した`matchAll`規則により，掲載式全体の全fuel型保存・no-stuckも証明済み．さらに同じ固定targetと三branchでは，callback fuel 0--25のtimeoutと26の最初のhitを直接計算し，26以上はdispatchだけのcallback-fuel単調性で同じbranchを保つ．各branchの再帰atom型付けと組み合わせ，全callback／search fuelの型保存・no-stuckを得た．whole-searchのexact成功やsearch fuel単調性は使わないが，任意targetやM4 clauseに対する一般定理ではない |
 | P1-L13 | done | done | done | M4のvariable-pattern導出から`TotalCoreTyping`を構成し，exact評価・型付き結果・任意fuel no-stuckを証明済み |
 | P1-L14 | done | done | done | M4のvalue-pattern導出から`TotalCoreTyping`を構成し，正常な不一致として空Listを返すexact評価と任意fuel no-stuckを証明済み |
 
@@ -517,7 +605,10 @@ branchへ広げるT10の接続である．
 1. M3でList，pattern宣言，使用するprimitiveの型を定義する．完了済み．
 2. M4で7節をmatcher literalとして型付けし，clause順とhole要求を検査する．完了済み．
 3. M5で同じ定義を評価し，nil，head-only，value-cons，general-cons，join，whole-value，
-   catch-allを個別に固定する．exact評価，関係的導出，exact成功から得る任意fuel no-stuckは完了済み．
+   catch-allを個別に固定する．exact評価，関係的導出，任意fuel no-stuckは完了済み．このうちhead-onlyは，
+   単一fuelの成功とfuel単調性ではなく，実dispatchと探索の全fuelを直接分類した証明も持つ．general-consは
+   固定target `[1,2,3]`について全callback／search fuelの型保存を持つが，26以上のdispatchはfuel 26の
+   実行結果を単調性で運ぶ具体例固有の証明である．
 4. 静的型付けとruntime typingを一般定理で接続し，各closed利用例のno-stuckを得る．未完了．
 
 joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を右側へ置く結果を，左側へ置く結果より
@@ -528,20 +619,33 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 依存順に並べると，現在の作業列は次のとおりである．
 
 1. P1-L01の実join cons-armでは，recursive self，探索，内側`matchAll`，残りのarm bodyまで接続済みである．
-   次は，exact探索から作った具体certificateを前提にせず，任意の型付き値とM4 clause導出から同じ証明を
-   構成する一般規則へ持ち上げる．
+   再帰closureを含む実環境はcaller不変条件で保持し，全callback／探索fuelの型保存を探索全体の
+   exact結果なしで証明した．一段のreducer保存則とfuel添字付きwork証明から，明示的な有限遷移木なしで
+   探索安全性を構成する一般定理も追加した．次は，再帰closureを許す環境不変条件の下でこの保存則と
+   user matcherのwork証明をM4 clause導出から自動構成し，実P1-L01を一般定理の経路へ移す．
 2. P1-L02／L05も，公開M4主要導出から再帰matcher本体を取り出し，実値に固定した掲載式全体の型保存・
-   no-stuckまで完了した．次は，field，capture，再帰tailを持つ任意のM4 constructor branchについて，
-   target／matcher／探索のexact-seeded certificateを自動的なsource-to-runtime証明へ置き換える．
+   no-stuckまで完了した．head-only節は任意長listを直接解析し，general-cons節は固定targetについて
+   全callback／search fuelまで到達した．general-consの三branchと内側の再帰variable dispatchは，残る
+   探索状態数を添字にして直接構成し，matcherが捕捉する再帰closureの旧環境型付けを使わない．次は，field，
+   capture，再帰tailを持つ任意のM4 constructor branchへ一般化し，target／matcher／探索の具体実行を種にする
+   certificateを自動的なsource-to-runtime証明へ置き換える．
 3. M4 `Typing`からruntime typingを作る定理を，matcherを返す`fixE`，一般のmatcher literal，
-   `matchAll`，user matcher／constructorを含む`matchFirst`へ広げる．
-4. 多相`let`のsame-closure certificateを，現在のidentityとclosed tuple以外の値についてもsource導出から
-   自動構成する．syntaxだけから作る誤った一般化は行わず，実際のvalue elaborationとprincipal closureを
-   保つ．root-pending-free断片とapplication一例で完成した残存検査の局所certificateを，非nullary callを含む
-   対象fragment全体へ構造的に広げる．
-5. MNodeの周囲構造／nested application用compilerと，private `.var`／`.wild`／証明付き`.value`／`.or`用の
-   二frame compilerを統合し，constructorへ広げる．lookup成功と`Checked`だけでは呼出し時の安全性が
-   足りないため，resolverが実行証明を渡す現在の境界を保ち，全user matcher branchとchecked evaluatorへ接続する．
+   `matchAll`，任意のuser matcher／constructorを含む`matchFirst`へ広げる．user matcher literal＋wildcardの
+   0-branch closed回帰は公開M4 `infer`から到達した．非空constructor branchのruntime回帰もあるが，その
+   二節matcherはroot coverage不足のため静的には拒否される．完全なcoverageを持つ受理済みconstructor例と，
+   外側`matchFirst`証明書の一般的な自動構成は未完である．
+4. 多相`let`の残存検査を実elaboration導出に沿って分解する構造的certificateは，applicationと
+   非nullary constructor／primitive／`ifE`まで到達し，固定導出・代入に対する実行可能checkerも得た．
+   literal／lambdaを引数位置に置く明示的なsource断片では，構文だけを読むBoolean判定器と
+   構文certificateが正確に対応する．この回帰では，判定成功と公開`infer`成功からruntime typing／no-stuckまで接続した．
+   次はこの引数形を安全に広げ，same-closure
+   certificateを現在のidentityとclosed tuple以外の値へ拡張し，matcher構文を含む対象fragmentへ接続する．
+   syntaxだけから作る誤った一般化は行わず，実際のvalue elaborationとprincipal closureを保つ．
+5. MNodeのnested applicationと証明付きconstructorをprivate binding用の二frame compilerへ統合した．
+   constructorは，具体的なnil atomの空分解に加え，固定した`cons [.var,.wild]`の非空branch，private
+   binding追加，実評価器の全callback／search fuel探索まで到達した．次は任意constructor／targetへ一般化
+   する．lookup成功と`Checked`だけでは呼出し時の安全性が足りないため，resolverが実行証明を渡す現在の
+   境界を保ち，全user matcher branchと一般checked evaluatorへ接続する．
 6. 以上を合成し，Paper 1 inventoryのL01／L02／L04／L05について，sourceの型付けから得られる
    任意fuel no-stuckを完成させる．
 
@@ -581,6 +685,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | M4 fuelとsupport | [M4ElaborationFuelMonotonicity.lean](TypePM/Source/M4ElaborationFuelMonotonicity.lean)，[M4SupplySupport.lean](TypePM/Source/M4SupplySupport.lean) |
 | M4完全性の境界と公開系 | [M4CompletenessArchitecture.lean](TypePM/Source/M4CompletenessArchitecture.lean)，[M4StructuralReplay.lean](TypePM/Source/M4StructuralReplay.lean)，[M4PatternReplay.lean](TypePM/Source/M4PatternReplay.lean)，[M4MatchAllReplay.lean](TypePM/Source/M4MatchAllReplay.lean)，[M4MatchFirstReplay.lean](TypePM/Source/M4MatchFirstReplay.lean)，[M4CompletionConsequences.lean](TypePM/Source/M4CompletionConsequences.lean)，[FullM4Completion.lean](TypePM/Source/FullM4Completion.lean) |
 | M4からruntimeへの橋 | [M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[M4UserMatcherRuntimeBridge.lean](TypePM/Source/M4UserMatcherRuntimeBridge.lean) |
+| M4 user matcherの`matchFirst`具体回帰 | [M4RecursiveMatcherRuntimeInputBridge.lean](TypePM/Source/M4RecursiveMatcherRuntimeInputBridge.lean)，[M4UserMatcherMatchFirstRegression.lean](TypePM/Source/M4UserMatcherMatchFirstRegression.lean)，[M4UserMatcherMatchFirstConsRegression.lean](TypePM/Source/M4UserMatcherMatchFirstConsRegression.lean) |
 | M4 renaming／coherence | [M4FreshRenamingTransport.lean](TypePM/Source/M4FreshRenamingTransport.lean)，[M4OrdinaryCoherence.lean](TypePM/Source/M4OrdinaryCoherence.lean)，[M4PatternCoherence.lean](TypePM/Source/M4PatternCoherence.lean)，[M4MatcherCoherence.lean](TypePM/Source/M4MatcherCoherence.lean)，[M4MatchAllCoherence.lean](TypePM/Source/M4MatchAllCoherence.lean)，[M4MatchFirstCoherence.lean](TypePM/Source/M4MatchFirstCoherence.lean)，[M4FixCoherence.lean](TypePM/Source/M4FixCoherence.lean)，[M4LetCoherence.lean](TypePM/Source/M4LetCoherence.lean) |
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
@@ -592,11 +697,13 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | 再帰matcherを捕捉する通常lambdaの安全性 | [TotalPlainClosureSafety.lean](TypePM/TotalPlainClosureSafety.lean)，[TotalPlainClosureSafetyRegression.lean](TypePM/TotalPlainClosureSafetyRegression.lean) |
 | total再帰closureの値・環境型付け | [RecursiveTotalClosureSafety.lean](TypePM/RecursiveTotalClosureSafety.lean)，[M4Paper1RecursiveClosureTotalTyping.lean](TypePM/Source/M4Paper1RecursiveClosureTotalTyping.lean)，[M4Paper1RecursiveClosureTypingBoundary.lean](TypePM/Source/M4Paper1RecursiveClosureTypingBoundary.lean) |
 | fuelごとの再帰closure適用安全性 | [StepIndexedClosureSafety.lean](TypePM/StepIndexedClosureSafety.lean)，[StepIndexedPaper1ListSafetyRegression.lean](TypePM/StepIndexedPaper1ListSafetyRegression.lean) |
-| 値に固定した`matchAll`安全性 | [ValueIndexedMatchAllSafety.lean](TypePM/ValueIndexedMatchAllSafety.lean)，[ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean](TypePM/ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean)，[ValueIndexedStableFirstOrderSafety.lean](TypePM/ValueIndexedStableFirstOrderSafety.lean)，[ValueIndexedPaper1ListClauseBodySafety.lean](TypePM/ValueIndexedPaper1ListClauseBodySafety.lean)，[ValueIndexedPaper1MultisetTopLevelSafety.lean](TypePM/ValueIndexedPaper1MultisetTopLevelSafety.lean) |
-| source多相`let`のruntime由来証明 | [PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[PolymorphicLetProtectedClosureRegression.lean](TypePM/Source/PolymorphicLetProtectedClosureRegression.lean)，[PolymorphicLetProtectedSyntaxRegression.lean](TypePM/Source/PolymorphicLetProtectedSyntaxRegression.lean)，[PolymorphicLetInferenceOrdinary.lean](TypePM/Source/PolymorphicLetInferenceOrdinary.lean) |
+| `matchAll`とmultiset節の探索安全性 | [ValueIndexedMatchAllSafety.lean](TypePM/ValueIndexedMatchAllSafety.lean)，[ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean](TypePM/ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean)，[ValueIndexedStableFirstOrderSafety.lean](TypePM/ValueIndexedStableFirstOrderSafety.lean)，[ValueIndexedPaper1ListClauseBodySafety.lean](TypePM/ValueIndexedPaper1ListClauseBodySafety.lean)，[ValueIndexedPaper1MultisetTopLevelSafety.lean](TypePM/ValueIndexedPaper1MultisetTopLevelSafety.lean)，[ValueIndexedPaper1MultisetHeadConsSafety.lean](TypePM/ValueIndexedPaper1MultisetHeadConsSafety.lean)，[ValueIndexedPaper1MultisetHeadConsGeneralSafety.lean](TypePM/ValueIndexedPaper1MultisetHeadConsGeneralSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsSafety.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsAllCallbackSafety.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsAllCallbackSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression.lean) |
+| source多相`let`のruntime由来証明 | [PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[PolymorphicLetProtectedClosureRegression.lean](TypePM/Source/PolymorphicLetProtectedClosureRegression.lean)，[PolymorphicLetProtectedSyntaxRegression.lean](TypePM/Source/PolymorphicLetProtectedSyntaxRegression.lean)，[PolymorphicLetInferenceOrdinary.lean](TypePM/Source/PolymorphicLetInferenceOrdinary.lean)，[PolymorphicLetInferenceOrdinaryStructural.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructural.lean)，[PolymorphicLetInferenceOrdinaryStructuralChecker.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralChecker.lean)，[PolymorphicLetInferenceOrdinaryStructuralCheckerRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralCheckerRegression.lean)，[PolymorphicLetInferenceOrdinaryStructuralAutomation.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralAutomation.lean)，[PolymorphicLetInferenceOrdinaryStructuralAutomationRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralAutomationRegression.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragment.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragment.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragmentRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentRegression.lean) |
+| source断片の構文判定 | [PolymorphicLetInferenceOrdinaryStructuralFragmentChecker.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentChecker.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragmentCheckerRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentCheckerRegression.lean) |
 | user matcherの型付けと条件付き安全性 | [UserMatcherSafety.lean](TypePM/UserMatcherSafety.lean)，[UserMatcherGeneralSafety.lean](TypePM/UserMatcherGeneralSafety.lean) |
-| pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean)，[PatternFunctionSafety.lean](TypePM/PatternFunctionSafety.lean)，[PatternFunctionSafetyRegression.lean](TypePM/PatternFunctionSafetyRegression.lean)，[PatternFunctionBodyPlanAutomation.lean](TypePM/PatternFunctionBodyPlanAutomation.lean)，[PatternFunctionBodyPlanAutomationRegression.lean](TypePM/PatternFunctionBodyPlanAutomationRegression.lean)，[PatternFunctionNestedBodyPlanAutomation.lean](TypePM/PatternFunctionNestedBodyPlanAutomation.lean)，[PatternFunctionNestedBodyPlanAutomationRegression.lean](TypePM/PatternFunctionNestedBodyPlanAutomationRegression.lean)，[PatternFunctionPrivateBodyPlanAutomation.lean](TypePM/PatternFunctionPrivateBodyPlanAutomation.lean)，[PatternFunctionPrivateBodyPlanAutomationRegression.lean](TypePM/PatternFunctionPrivateBodyPlanAutomationRegression.lean) |
-| 再帰user matcherの探索安全性 | [TotalUserMatcherSafety.lean](TypePM/TotalUserMatcherSafety.lean)，[RecursiveTotalMatchingSafety.lean](TypePM/RecursiveTotalMatchingSafety.lean)，[PatternIndexedRecursiveScopedSafety.lean](TypePM/Source/PatternIndexedRecursiveScopedSafety.lean)，[M4Paper1RecursiveSafetyBoundaryRegression.lean](TypePM/Source/M4Paper1RecursiveSafetyBoundaryRegression.lean) |
+| pattern function freeze／MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean)，[PatternFunctionSafety.lean](TypePM/PatternFunctionSafety.lean)，[PatternFunctionSafetyRegression.lean](TypePM/PatternFunctionSafetyRegression.lean)，[PatternFunctionBodyPlanAutomation.lean](TypePM/PatternFunctionBodyPlanAutomation.lean)，[PatternFunctionBodyPlanAutomationRegression.lean](TypePM/PatternFunctionBodyPlanAutomationRegression.lean)，[PatternFunctionNestedBodyPlanAutomation.lean](TypePM/PatternFunctionNestedBodyPlanAutomation.lean)，[PatternFunctionNestedBodyPlanAutomationRegression.lean](TypePM/PatternFunctionNestedBodyPlanAutomationRegression.lean)，[PatternFunctionPrivateBodyPlanAutomation.lean](TypePM/PatternFunctionPrivateBodyPlanAutomation.lean)，[PatternFunctionPrivateBodyPlanAutomationRegression.lean](TypePM/PatternFunctionPrivateBodyPlanAutomationRegression.lean)，[PatternFunctionPrivateSuccessfulConstructorActualEvaluationRegression.lean](TypePM/PatternFunctionPrivateSuccessfulConstructorActualEvaluationRegression.lean)，[PatternFunctionPrivateSuccessfulConstructorAllCallbackEvaluationRegression.lean](TypePM/PatternFunctionPrivateSuccessfulConstructorAllCallbackEvaluationRegression.lean) |
+| 再帰user matcherの探索安全性 | [TotalUserMatcherSafety.lean](TypePM/TotalUserMatcherSafety.lean)，[RecursiveTotalMatchingSafety.lean](TypePM/RecursiveTotalMatchingSafety.lean)，[PatternIndexedRecursiveScopedSafety.lean](TypePM/Source/PatternIndexedRecursiveScopedSafety.lean)，[M4PatternIndexedRecursiveDispatchBridge.lean](TypePM/Source/M4PatternIndexedRecursiveDispatchBridge.lean)，[M4PatternIndexedRecursiveDispatchBridgeRegression.lean](TypePM/Source/M4PatternIndexedRecursiveDispatchBridgeRegression.lean)，[M4Paper1RecursiveSafetyBoundaryRegression.lean](TypePM/Source/M4Paper1RecursiveSafetyBoundaryRegression.lean) |
+| 再帰closure環境の探索安全性 | [M4EnvironmentIndexedRecursiveSearchBridge.lean](TypePM/Source/M4EnvironmentIndexedRecursiveSearchBridge.lean)，[M4EnvironmentIndexedFuelRecursiveProducer.lean](TypePM/Source/M4EnvironmentIndexedFuelRecursiveProducer.lean)，[M4Paper1ListJoinEnvironmentIndexedSearchRegression.lean](TypePM/Source/M4Paper1ListJoinEnvironmentIndexedSearchRegression.lean) |
 | 公理監査 | [AxiomAuditCommand.lean](TypePM/AxiomAuditCommand.lean)，[AxiomAudit.lean](TypePM/AxiomAudit.lean) |
 
 ## Buildと監査

@@ -89,8 +89,8 @@
 \title{\Huge type-pm-mech2 入門\\[4mm]
   \Large 制約生成，\code{let}の完全性，matcherまで}
 \author{type-pm-mech2 project}
-\date{2026年8月20日版\\
-  基準実装：\code{main}（本文作成開始時のcommit \code{7fe112f}）}
+\date{2026年8月21日版\\
+  基準実装：現行\code{type-pm-mech2}実装と\code{README.md}}
 
 \begin{document}
 
@@ -219,7 +219,7 @@ checkingという別の処理が必要になる．これが後で\code{pending}�
 
 \section{M0からM5まで}
 
-実装は段階に分けられている．2026年8月20日時点の要点は表\ref{tab:milestones}のとおりである．
+実装は段階に分けられている．2026年8月21日時点の要点は表\ref{tab:milestones}のとおりである．
 
 \begin{longtable}{>{\bfseries}p{9mm}p{42mm}p{18mm}p{70mm}}
 \caption{実装段階の要約}\label{tab:milestones}\\
@@ -234,9 +234,9 @@ checkingという別の処理が必要になる．これが後で\code{pending}�
 M0 & 型，代入，局所checking & 完了 & matcherを含む基礎的な型合成とcheckingを検証済み．\\
 M1 & lambda，application，制約block & 完了 & 独立した型付け，停止する単一化，推論の健全性・完全性・主要性を検証済み．\\
 M2 & 型scheme，多相\code{let} & 完了 & 一般の入れ子\code{letE}を含むM2--M3のsource式で完全性・受理同値・主要性を検証済み．\\
-M3 & data，primitive，signature & 一部 & Bool/List，値を作るconstructor，組込み演算primitive，\code{ifE}，有限signatureを実装済み．M4と結ぶ掲載例全体の回帰が残る．\\
-M4 & pattern，matcher，\code{fix} & 一部 & 最終構文と統合推論に加え，pattern function本体の照合を外側から隔離する実行時nodeであるMNodeとPaper 2の\code{pair}回帰を実装済み．source宣言とruntime本体表の双方向対応も\code{pair}で証明した．各runtime本体は保存schemeの標準的な一つの具体化について検査証拠を持つが，全具体化に対する主要性までは未証明である．生成変数の由来を追う証明は，公開M4 elaborationまで完了した．大きい検証例の正確な公開推論とM4全域の完全性・主要性が残る．\\
-M5 & 評価と型安全性 & 一部 & 順序付き探索，型付き環境，通常・再帰closure，任意の型付き関数位置を持つapplication，\code{map}まで実装済み．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．source/runtime定義表の整合性証明を必須にするMNode全式評価器と，Paper 2の全式回帰も実装済みだが，評価器全体の関係的意味論と型安全性は未証明である．source多相\code{let}から実行時型付けへの橋とuser-defined matcherの型安全性も残る．\\
+M3 & data，primitive，signature & 完了 & Bool/List，値を作るconstructor，組込み演算primitive，\code{ifE}，有限signatureと，M2--M3全域の公開静的定理を検証済み．\\
+M4 & pattern，matcher，\code{fix} & 完了 & 必須\code{else}付き\code{matchFirst}を含む全M4構文で，公開推論の健全性・完全性・受理同値・決定可能性・主要性・主要型の一意性を検証済み．Paper 1の大規模な正確計算回帰も現仕様へ固定した．\\
+M5 & 評価と型安全性 & 進行中 & core評価，順序付きmatching探索，runtime typing，\code{matchAll}／必須\code{else}付き\code{matchFirst}を含む共通fuel安全性まで進んだ．ここで型安全性とは，型の付いた実行が型の不整合で停止しない性質である．一般のM4静的型付けからruntime typingへの橋，多相\code{let}，任意のuser matcher branchとMNodeを覆う一般証明は残っている．\\
 \bottomrule
 \end{longtable}
 
@@ -772,15 +772,19 @@ constructorとprimitiveの引数処理は，通常の関数適用\code{Generated
 \code{add}，\code{append}，\code{member}，\code{deleteFirst}，\code{map}について，
 実装が正しいものとして固定する標準の型scheme（canonical scheme），
 \code{ifE}，名前・引数数・型不一致の正負回帰は実装済みである．
-M3が表で「一部」なのは，M4のpattern/matcherと合わせた論文listing全体の静的回帰が残るためである．
+M3固有の宣言・elaborationとM2--M3全域の公開静的定理は完了している．pattern/matcherを使う
+論文listingはM4の回帰として分けて検証し，そちらも現行の必須\code{else}構文へ同期済みである．
 
 \section{M4：patternとmatcher}
 
-source構文は\code{fixE}，\code{matcher}，\code{matchAll}，\code{matchFirst}，
+source構文は\code{fixE}，\code{matcher}，\code{matchAll}，必須の\code{else}を持つ
+\code{matchFirst}，
 value pattern，pattern constructor，conjunction pattern，pattern function applicationまで持つ．
 conjunction patternとは，同じ対象へ二つのpatternを左から右の順に適用するpatternである．
 M4の実行可能elaborationと関係的elaborationは同じ構文を再帰的に処理し，
-成功から\code{M4.Typing}を得る健全性を証明済みである．
+成功から\code{M4.Typing}を得る健全性を証明済みである．\code{matchFirst}では通常armを
+1本以上要求し，どのarmも結果を返さなければ，通常armが導入する変数を含まない元contextで
+型付けした必須\code{else}式を使う．
 ここでelaborationはsource式から型制約を生成する処理である．実行可能版はLeanの関数として
 結果を計算し，関係版は「この生成結果が規則から導ける」という命題として同じ処理を表す．
 
@@ -790,11 +794,13 @@ fresh変数の由来を追うsupport provenanceも証明している．support�
 well-formed signature，つまり同じ名前の宣言が重複せず，各schemeが正しく閉じている宣言表の下では，
 最終的な相互再帰関係\code{ElaboratesFuel}と，公開関係\code{M4.Elaborates}を含む全M4構文について
 この性質を証明済みである．公開されたsupply増加と由来証明をまとめた\code{M4.supplyAndSupport}も完成した．
-これは生成変数の管理が正しいという結果であり，M4全域の完全性が得られたという意味ではない．
-
-一方，M2--M3で完了した「型が付くなら必ず推論成功」と「返却型の主要性」はM4全域では未証明である．
-matcher literalを構文だけから検査する処理（static check），\code{fix}直下matcherの型形状，clause内部のslot要求，
-および\code{let}での任意closure選択を同時に扱う必要があるため，独立した大きな課題である．
+さらに，異なる正しいelaboration導出を比較するcoherenceと，関係的導出を公開推論器の計算へ
+対応付けるreplayを，全M4構文の帰納法へ接続した．その結果，\code{M4.Typing.infer\_isSome}による
+完全性，\code{M4.typable\_iff\_infer\_isSome}による受理同値，\code{M4.typableDecidable}による
+決定可能性，\code{M4.infer\_success\_principalResult}による主要性，および主要型の有限な変数名変更を
+除いた一意性まで証明済みである．これらの公開入口は\path{TypePM/Source/FullM4Completion.lean}に
+集約している．pattern functionの全具体化に対するinterface主要性は，このM4本体の完了とは別の
+追加課題であり，ここでは完了を主張しない．
 
 \section{M5：評価と型安全性}
 
@@ -979,15 +985,16 @@ M1の最小境界の大規模な実例である．「完全に具体化すれば
 
 \section{別問題：kernelで大きな推論を計算すること}
 
-大きいmatcherの検証例（fixture）では\code{M4.infer}の実行結果を\code{\#eval}で確認できても，
-Lean kernelの定義簡約だけで同じ等式を\code{rfl}により証明することが難しい．Lean kernelとは，
-作られた証明がLeanの規則に従うかを最後に確認する，小さな検査器である．
-測度に基づく再帰で定義したpattern検査や単一化が簡約を遮るためである．
+大きいmatcherの検証例（fixture）では，\code{M4.infer}の実行結果を\code{\#eval}で確認するだけでなく，
+Lean kernelが検査する等式として期待結果を固定する必要がある．Lean kernelとは，作られた証明が
+Leanの規則に従うかを最後に確認する，小さな検査器である．測度に基づく再帰で定義したpattern検査や
+単一化は，単純な定義簡約だけでは大きな計算を止めることがある．
 
-これは前節のbranch-stable拒否とは別問題である．改善するなら，既存のfuel構造再帰
-\code{M4.elaborateFuel}をsolverまで引数化し，pattern検査・direct-self検査・単一化にも
-計算可能なfuel版を用意する．その成功を公開版へ輸送する定理を証明した後，
-小さいcatch-all，list matcher，closed multisetの順でkernel回帰を固定するのが自然である．
+現行実装では，fuel付きelaborationをsolverまで引数化し，その成功を公開版へ移す定理を整備した．
+これによりPaper 1のlist matcherとclosed multisetについて，正確な公開\code{M4.infer}結果と
+\code{M4.Typing}をkernel回帰として固定し，依存先を与えないopen multisetの拒否も証明した．
+したがってこれはM4の残作業ではない．前節のbranch-stable拒否は，計算量ではなく，公開推論が
+hard制約にない型の外形を推測しないという別の仕様境界である．
 
 \chapter{コードを読むための案内}
 
@@ -1056,17 +1063,15 @@ make
 
 この四層をwell-formed supplyによるfreshnessが支え，公開推論の完全性・受理同値・主要性へつながる．
 
-\section{次の作業はM2ではなくM4/M5}
+\section{M4の静的定理の次はM5}
 
 M2のill-formed開始supplyは仕様外であり，完了のために追加証明する項目ではない．
-次の静的な主作業は，大きいPaper 1の検証例をLean kernelで計算可能な形にし，正例の正確な
-\code{M4.infer}結果と\code{M4.Typing}，負例の非型付けを固定することである．
-
-fresh変数の由来証明は公開\code{M4.Elaborates}まで完成したため，次はM4全域の完全性・主要性を
-別計画として調べる．M5ではsourceの多相\code{let}から，すでに
-任意の型付き関数位置と\code{map}を扱える実行時型付けへの橋を作り，user-defined matcher clauseと
-pattern functionのMNodeを一般の実行時型付けと，型の不整合による停止が決して起きないという性質
-（no-stuck）へ接続する．
+M4は，Paper 1の大規模な正確計算回帰と，全構文の完全性・受理同値・決定可能性・主要性まで
+完了している．次の主作業はM5である．sourceの多相\code{let}，一般のM4 matcher導出，
+user-defined matcher clause，pattern functionのMNodeをruntime typingへ構造的に接続し，
+個別の値や一度の正確な実行結果に依存しない型保存と，型の不整合による停止が決して起きない性質
+（no-stuck）を得る必要がある．core断片と具体的なPaper 1回帰では既に多くの安全性を証明しているが，
+任意のM4 source導出から必要なruntime証明を自動構成する一般定理は未完である．
 
 \appendix
 
@@ -1351,7 +1356,9 @@ bodyが構文上matcher literalなら，$d$をmatcher slot，$r$をmatcher produ
 
 $\alpha_s$はmatcherが調べる対象値の型，$\kappa_s$はmatcher全体のcapabilityである．
 \code{staticChecks}は，constructorのarity，変数の重複禁止，catch-allの位置，data armの網羅性など，
-型等式を解く前に判定できる構文条件をまとめた検査である．$E$は各clauseが示した分解能力の証拠で，
+型等式を解く前に判定できる構文条件をまとめた検査である．ここでcatch-all最後尾という条件は
+matcher literalのclause列に対するものであり，\code{matchFirst}の通常arm列に対する条件ではない．
+$E$は各clauseが示した分解能力の証拠で，
 $\mathsf{evidenceEq}$がそれらを全体capabilityへhard等式として接続する．
 
 一つのclauseは次の順で調べる．
@@ -1422,26 +1429,56 @@ matcher式はそのpatternが要求するslotとして使えるかを後でcheck
 
 \subsection{最初の結果を返す\code{matchFirst}}
 
+表面構文は次のように，1本以上の通常armと，そのarmのbindingを受け取らず元contextで型付けする
+必須\code{else}式を持つ．意味上の形は
+\code{matchFirst target matcher nonemptyArms elseExpr}である．core/source ASTのconstructorは
+\code{.matchFirst target matcher arms elseExpr}という四引数であり，静的規則が\code{arms}の非空性を課す．
+
+\begin{lstlisting}
+matchFirst target as matcher with
+  | pattern1 -> body1
+  | pattern2 -> body2
+else elseExpr
+\end{lstlisting}
+
+制約生成規則の要点は次のとおりである．$F$は\code{else}式の生成結果，$A$は通常arm列の
+生成結果である．
+
 \[
 \frac{
   \begin{gathered}
-  \mathsf{armsExhaustive}(\mathit{arms})=\mathsf{true},\\
+  \mathit{arms}=a_0::\mathit{rest},\\
   \Sigma;\Gamma;s\vdash e_t\Longrightarrow T;s_1,\qquad
   \Sigma;\Gamma;s_1\vdash e_m\Longrightarrow M;s_2,\\
-  \Sigma;\Gamma;t_T;t_M;s_2\vdash_{arms}\mathit{arms}
+  \Sigma;\Gamma;s_2\vdash e_{else}\Longrightarrow F;s_3,\\
+  \Sigma;\Gamma;t_T;t_M;t_F;s_3\vdash_{tail}\mathit{arms}
     \Longrightarrow A;s'
   \end{gathered}
 }{
+  \begin{gathered}
   \Sigma;\Gamma;s\vdash
-  \mathsf{matchFirst}\ e_t\ \mathsf{as}\ e_m\ \mathsf{with}\ \mathit{arms}
-  \Longrightarrow\mathsf{fromMatchFirst}(T,M,A);s'
+    \mathsf{matchFirst}(e_t,e_m,\mathit{arms},e_{else})
+      \Longrightarrow G;s',\\
+  G=\mathsf{fromMatchFirst}(T,M,\mathsf{fromFallback}(F,A))
+  \end{gathered}
 }\;\textsc{MatchFirst}
 \]
 
-arm列は空であってはならず，最後のpatternは必ず一致すると構文的に分かる形でなければならない．
-各armではpattern targetを$t_T$へhard等式でそろえ，matcher $t_M$をpattern capabilityのslotとして
-pending checkingする．最初のarm bodyのtargetを全体結果型とし，後続bodyのtargetはその型へhard等式で
-そろえる．\code{matchAll}と違い，結果へ\code{List}を付けない．
+通常arm列は空であってはならないが，最後をwildcardにする必要はない．各armではpattern targetを
+$t_T$へhard等式でそろえ，matcher $t_M$をpattern capabilityのslotとしてpending checkingする．
+\code{else}は通常armのpattern bindingを追加しない元のcontext $\Gamma$で調べ，そのtarget $t_F$を
+全体結果型とする．全通常arm bodyのtargetは$t_F$へhard等式でそろえる．したがって\code{else}から
+その時点のarm bindingを参照することはできない．ただし\code{else}も通常の式なので，その内部に別の
+\code{matchAll}や\code{matchFirst}を書き，そこで新しく導入したbindingを対応するbodyから使うことはできる．
+\code{matchAll}と違い，全体結果型へ\code{List}を付けない．
+
+実行時にはtarget，matcherをこの順で一度ずつ先に評価し，通常armをsource順に試す．あるarmの探索が
+非空なら，その先頭のbinding列を元の実行環境の前へ追加してbodyを評価する．空なら次のarmへ進み，
+すべての通常armが空結果なら，\code{else}を元の実行環境で評価する．user matcherはwildcardに対しても
+分解結果を0件返せるため，wildcard armは\code{else}の代用にならない．静的に受理されたsource式の
+実行では，runtime helperが受け取る空arm列は，sourceで最初からarmを省略する構文ではなく，
+全通常armを試し終えた後の内部終端だけを表す．targetまたは
+matcherの評価が\code{stuck}または\code{timeout}なら，\code{else}を先に実行せず，その結果を伝える．
 
 \section{最終的な\code{Typing}規則}
 
@@ -1476,9 +1513,10 @@ M4では\code{Source.M4.Typing}がこの同じ二段階の形を持つ．
 \begin{warningbox}{一覧の範囲}
 ここに載せたのは現行source ASTの型付け・制約生成規則である．hardの単一化，pendingのpromotionと
 residual checking，closureの主要性を証明する規則群は，生成されたblockを解く側の関係であり，
-source構文の型規則とは分けている．またM4の健全性は実装済みだが，M4全体について
-「宣言的に型が付けば公開推論が必ず成功する」という完全性と，すべての導出間の主要性は未完である．
-この一覧は未証明の完全性を仮定しない．
+source構文の型規則とは分けている．M4については，この生成規則の健全性に加え，全構文のcoherenceと
+replayを通して，公開推論の完全性・受理同値・決定可能性・主要性・主要型の一意性まで証明済みである．
+一方，この静的な完了から，任意のM4式に対する一般のruntime型安全性が自動的に従うわけではない．
+source導出からruntime typingとmatching証明書を構成するM5の一般橋は未完である．
 \end{warningbox}
 
 \chapter{用語集}
@@ -1556,8 +1594,8 @@ source構文の型規則とは分けている．またM4の健全性は実装済
 \chapter*{版の基準}
 \addcontentsline{toc}{chapter}{版の基準}
 
-本書は2026年8月20日に，\code{type-pm-mech2}の現行\code{main}の
-実装と公開監査項目を基準に更新した．
+本書は2026年8月21日に，\code{type-pm-mech2}の現行実装，\code{README.md}，
+および公開監査項目を基準に更新した．
 文書追加以外の実装変更が入った場合は，設計と進捗を統合した\code{README.md}，
 \code{TypePM/AxiomAudit.lean}と照合して更新する．
 

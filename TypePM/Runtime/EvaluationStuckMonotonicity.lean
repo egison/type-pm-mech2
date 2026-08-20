@@ -217,6 +217,24 @@ private theorem dispatchMatcherClauses_approximates
     (fun clause => tryMatcherClause_approximates evaluation atomEnvironment
       matcherEnvironment pattern target clause) clauses
 
+/-- Pointwise approximation of the evaluator callback lifts to ordered
+matcher-clause dispatch.  This public wrapper exposes only the dispatch result;
+the implementation lemmas for individual clauses and arms remain private. -/
+theorem dispatchMatcherClauses_approximates_of_eval
+    (evaluation : ∀ environment expression,
+      Approximates (before environment expression)
+        (after environment expression))
+    (atomEnvironment matcherEnvironment : ValueEnvironment)
+    (clauses : List Source.MatcherClause) (pattern : Source.Pattern)
+    (target : Value) :
+    Approximates
+      (dispatchMatcherClauses before atomEnvironment matcherEnvironment clauses
+        pattern target)
+      (dispatchMatcherClauses after atomEnvironment matcherEnvironment clauses
+        pattern target) :=
+  dispatchMatcherClauses_approximates evaluation atomEnvironment
+    matcherEnvironment clauses pattern target
+
 private theorem reduceMatcherAtom_approximates
     (evaluation : ∀ environment expression,
       Approximates (before environment expression)
@@ -457,6 +475,20 @@ theorem evalFuel_approximates_succ :
     Approximates (evalFuel fuel environment expression)
       (evalFuel (fuel + 1) environment expression) :=
   (fuel_approximates_succ fuel).1 environment expression
+
+/-- Increasing the evaluator callback bound by one approximates the result of
+ordered matcher-clause dispatch.  In particular, a completed dispatch result
+cannot change at the successor bound. -/
+theorem dispatchMatcherClauses_evalFuel_approximates_succ :
+    Approximates
+      (dispatchMatcherClauses (evalFuel fuel) atomEnvironment
+        matcherEnvironment clauses pattern target)
+      (dispatchMatcherClauses (evalFuel (fuel + 1)) atomEnvironment
+        matcherEnvironment clauses pattern target) :=
+  dispatchMatcherClauses_approximates_of_eval
+    (fun environment expression => evalFuel_approximates_succ
+      (fuel := fuel) (environment := environment) (expression := expression))
+    atomEnvironment matcherEnvironment clauses pattern target
 
 theorem applyFuel_approximates_succ :
     Approximates (applyFuel fuel function argument)

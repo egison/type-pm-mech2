@@ -3,9 +3,9 @@ import TypePM.Source.M4PatternCoherence
 /-!
 # Coherence for M4 ordered single-result matching
 
-The target and matcher are elaborated once.  Each arm then contributes a
-pattern block followed by its body block, and later bodies are constrained to
-the first body's result type.  This file records the constructor-local
+The target and matcher are elaborated once.  The mandatory fallback fixes the
+result type, and every arm contributes a pattern block followed by a body block
+whose result is constrained to that type.  This file records the constructor-local
 coherence proof in the same supported-certificate form as the other M4
 constructors.
 -/
@@ -2538,7 +2538,7 @@ private def supportedFinishFallbackArmState
         List.append_assoc] using certificate.aligned.pendingAligned
 
 /-- Supported coherence for ordered single-result matching with a mandatory
-matcher-independent fallback. -/
+fallback typed in the original context, independently of arm-local bindings. -/
 theorem matchFirstSupportedFuelPair
     (target matcher : Expr) (arms : List MatchFirstArm) (fallback : Expr)
     (induction : ∀ smaller : Expr,

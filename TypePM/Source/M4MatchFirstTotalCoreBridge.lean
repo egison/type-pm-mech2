@@ -422,4 +422,88 @@ theorem m4FuelSomethingMatchFirstToTotalCoreTyping
         (.core (.something (generatedTarget.target.apply solution)))
         armsTyping fallbackTyping
 
+/-- Compatibility of an explicit runtime context with the exact principal
+closure selected from a proof of `M4.PrincipalTyping`.  The closure
+substitution is intentionally retained in this certificate: the inferred
+result type alone does not determine how free source variables are
+instantiated. -/
+structure PrincipalRuntimeContextSupport
+    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature context
+      expression principal)
+    (runtimeContext : List Ty) : Prop where
+  compatible : MonomorphicContextCompatible context runtimeContext
+    (Classical.choice typing).closure.substitution
+
+/-- Open-context principal endpoint for the direct-pattern `something`
+fragment.  `contextSupport` ties the explicit runtime context to the hidden
+principal closure selected from `typing`; no equality between source and
+runtime contexts is guessed from the public result type. -/
+theorem principalSomethingMatchFirstToTotalCoreTypingInContext
+    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature context
+      (.matchFirst target .something arms fallback) principal)
+    (targetSupported : RuntimeSupported target)
+    (armsSupported : DirectArmsRuntimeSupported .something arms)
+    (fallbackSupported : RuntimeSupported fallback)
+    (contextSupport : PrincipalRuntimeContextSupport typing runtimeContext) :
+    TotalCoreTyping (.matchFirst target .something arms fallback)
+      principal runtimeContext := by
+  let derivation := Classical.choice typing
+  rcases derivation.elaboration with ⟨fuel, elaboration⟩
+  cases fuel with
+  | zero => simp [M4.ElaboratesFuel] at elaboration
+  | succ fuel =>
+      let solution := derivation.closure.substitution
+      have semantic : derivation.generated.SemanticSolution solution :=
+        TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
+          derivation.closure
+      have bridged := m4FuelSomethingMatchFirstToTotalCoreTyping
+        elaboration targetSupported armsSupported fallbackSupported semantic
+          (by simpa [derivation] using contextSupport.compatible)
+      rw [derivation.target_eq]
+      simpa [PrincipalBlockClosure.target, solution] using bridged
+
+/-- Closed-context specialization.  Its compatibility certificate is
+canonical and therefore remains premise-free. -/
+theorem principalSomethingMatchFirstToTotalCoreTyping
+    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature []
+      (.matchFirst target .something arms fallback) principal)
+    (targetSupported : RuntimeSupported target)
+    (armsSupported : DirectArmsRuntimeSupported .something arms)
+    (fallbackSupported : RuntimeSupported fallback) :
+    TotalCoreTyping (.matchFirst target .something arms fallback)
+      principal [] :=
+  principalSomethingMatchFirstToTotalCoreTypingInContext typing
+    targetSupported armsSupported fallbackSupported
+    ⟨MonomorphicContextCompatible.nil⟩
+
+/-- Public-inference endpoint with an explicit runtime context.  The support
+premise refers to the precise principal proof produced by infer soundness, so
+its hidden closure substitution cannot silently drift. -/
+theorem inferSomethingMatchFirstToTotalCoreTypingInContext
+    (success : M4.infer Paper1FrozenSignature.signature context
+      (.matchFirst target .something arms fallback) = some principal)
+    (targetSupported : RuntimeSupported target)
+    (armsSupported : DirectArmsRuntimeSupported .something arms)
+    (fallbackSupported : RuntimeSupported fallback)
+    (contextSupport : PrincipalRuntimeContextSupport
+      (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed
+        success) runtimeContext) :
+    TotalCoreTyping (.matchFirst target .something arms fallback)
+      principal runtimeContext :=
+  principalSomethingMatchFirstToTotalCoreTypingInContext
+    (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed success)
+    targetSupported armsSupported fallbackSupported contextSupport
+
+/-- Closed-context public-inference specialization. -/
+theorem inferSomethingMatchFirstToTotalCoreTyping
+    (success : M4.infer Paper1FrozenSignature.signature []
+      (.matchFirst target .something arms fallback) = some principal)
+    (targetSupported : RuntimeSupported target)
+    (armsSupported : DirectArmsRuntimeSupported .something arms)
+    (fallbackSupported : RuntimeSupported fallback) :
+    TotalCoreTyping (.matchFirst target .something arms fallback)
+      principal [] :=
+  inferSomethingMatchFirstToTotalCoreTypingInContext success targetSupported
+    armsSupported fallbackSupported ⟨MonomorphicContextCompatible.nil⟩
+
 end TypePM.Source.MatchFirstTyping

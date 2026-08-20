@@ -1,4 +1,4 @@
-import TypePM.PatternFunctionBodyPlanAutomation
+import TypePM.PatternFunctionNestedBodyPlanAutomation
 
 /-!
 # Automatic plans with private pattern-function bindings
@@ -11,9 +11,10 @@ to the MNode.
 This module keeps both frames in the plan index.  Structural composition
 threads the outer and private type lists independently.  Variables and
 wildcards are constructed from typing evidence for the concrete target value.
-Value patterns and disjunctions are accepted only through an exact ordinary
-atom certificate; in particular, no user-matcher branch is reconstructed from
-an erased lookup result.
+Nested applications reuse proof-bearing application resolutions and preserve
+the current private frame.  Value patterns and disjunctions are accepted only
+through an exact ordinary atom certificate; in particular, no user-matcher
+branch is reconstructed from an erased lookup result.
 -/
 
 namespace TypePM.Runtime
@@ -93,6 +94,20 @@ def var
       (privateBindingTypes ++ [targetType]) :=
   ordinary (CheckedOrdinaryAtomTyping.ofBuiltin (.somethingVar targetTyped))
 
+/-- A checked nested application changes only the outer frame.  Its callee
+certificate is already a `CheckedBodyExecution`, whose continuation is
+polymorphic in the surrounding private frame; consequently private bindings
+created earlier in the caller are preserved exactly. -/
+def application
+    (resolved : CheckedBodyResolvedApplication signature definitions
+      environmentTypes arguments outerBindingTypes name nestedArguments matcher
+      target) :
+    CheckedPrivateBodyExecution signature definitions environmentTypes
+      arguments outerBindingTypes privateEnvironmentTypes privateBindingTypes
+      ⟨.app name nestedArguments, matcher, target⟩ resolved.answerTypes
+      privateBindingTypes where
+  prepend tail := resolved.execution.plan.prepend tail
+
 /-- Compile a conjunction after independently compiling its two children. -/
 def and
     (left : CheckedPrivateBodyExecution signature definitions environmentTypes
@@ -163,7 +178,13 @@ structure CheckedPrivateBodyOrdinaryLeaf
 /-- Evidence that cannot be manufactured from a checked definition alone.
 `targets` types the actual runtime target used by private variables and
 wildcards.  `ordinary` is queried only for value patterns and disjunctions;
-its exact atom certificate retains expression typing and every branch. -/
+its exact atom certificate retains expression typing and every branch.
+`constructors` is a separate proof-bearing boundary for constructor patterns:
+the compiler does not infer a user matcher's decomposition from its erased
+runtime value, but accepts an exact ordinary-atom certificate for the concrete
+constructor, matcher, and target.
+`applications` supplies the checked frozen lookup and concrete execution for
+a nested call, using the same proof-bearing boundary as the nested compiler. -/
 structure CheckedPrivateBodyResolver
     (signature : FrozenSignature)
     (definitions : PatternFunctionDefinitions)
@@ -175,6 +196,16 @@ structure CheckedPrivateBodyResolver
     (atom : MatchingAtom) →
     Option (CheckedPrivateBodyOrdinaryLeaf privateEnvironmentTypes
       privateBindingTypes atom)
+  constructors : (privateEnvironmentTypes privateBindingTypes : List Ty) →
+    (constructor : PatternCtor) → (fields : List Pattern) →
+    (matcher target : Value) →
+    Option (CheckedPrivateBodyOrdinaryLeaf privateEnvironmentTypes
+      privateBindingTypes ⟨.ctor constructor fields, matcher, target⟩)
+  applications : (outerBindingTypes : List Ty) → (name : PatternFunName) →
+    (nestedArguments : List Pattern) → (matcher target : Value) →
+    Option (CheckedBodyResolvedApplication signature definitions
+      environmentTypes arguments outerBindingTypes name nestedArguments matcher
+      target)
 
 /-- The dependent result of compiling one body atom with both frame outputs. -/
 abbrev CheckedPrivateBodyCompileResult
@@ -189,8 +220,8 @@ abbrev CheckedPrivateBodyCompileResult
       answerTypes answerPrivateBindingTypes
 
 /-- Recursive compilation for embedded arguments, private variables and
-wildcards, structural conjunctions and tuples, and explicitly certified value
-or disjunction atoms. -/
+wildcards, proof-bearing nested applications, structural conjunctions and
+tuples, and explicitly certified value or disjunction atoms. -/
 def CheckedPrivateBodyExecution.compileFuel
     (resolver : CheckedPrivateBodyResolver signature definitions
       environmentTypes arguments) :
@@ -232,6 +263,19 @@ def CheckedPrivateBodyExecution.compileFuel
       pure ⟨outerBindingTypes,
         privateBindingTypes ++ resolved.newPrivateBindings,
         CheckedPrivateBodyExecution.ordinary resolved.typed⟩
+  | _ + 1, outerBindingTypes, privateEnvironmentTypes, privateBindingTypes,
+      ⟨.ctor constructor fields, matcher, target⟩ => do
+      let resolved ← resolver.constructors privateEnvironmentTypes
+        privateBindingTypes constructor fields matcher target
+      pure ⟨outerBindingTypes,
+        privateBindingTypes ++ resolved.newPrivateBindings,
+        CheckedPrivateBodyExecution.ordinary resolved.typed⟩
+  | _ + 1, outerBindingTypes, privateEnvironmentTypes, privateBindingTypes,
+      ⟨.app name nestedArguments, matcher, target⟩ => do
+      let resolved ← resolver.applications outerBindingTypes name
+        nestedArguments matcher target
+      pure ⟨resolved.answerTypes, privateBindingTypes,
+        CheckedPrivateBodyExecution.application resolved⟩
   | fuel + 1, outerBindingTypes, privateEnvironmentTypes, privateBindingTypes,
       ⟨.and left right, .something, target⟩ => do
       let ⟨middleTypes, middlePrivateBindingTypes, leftExecution⟩ ←

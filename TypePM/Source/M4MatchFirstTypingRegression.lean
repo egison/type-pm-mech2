@@ -5,9 +5,9 @@ import TypePM.Source.M4FrozenSignatureRegression
 # M4 single-result match regressions
 
 `matchFirst` has ordinary matcher-driven arms and a separate mandatory
-matcher-independent fallback.  At least one ordinary arm is required; a
-zero-arm form has no matching behavior and should be written as its fallback
-expression instead.
+fallback, typed in the original context and independent of arm-local bindings.
+At least one ordinary arm is required; a zero-arm form has no matching behavior
+and should be written as its fallback expression instead.
 -/
 
 namespace TypePM.Source.M4MatchFirstTypingRegression

@@ -7,7 +7,8 @@ Paper 1 uses a single-result `match` in the whole-value multiset clause.
 Unlike `matchAll`, this form returns one expression result directly rather
 than wrapping results in a list.  The target and matcher are elaborated once;
 ordinary arms are checked from left to right against the type of a separate,
-mandatory matcher-independent fallback expression.
+mandatory fallback expression.  The fallback is typed in the original context
+and is therefore independent of bindings introduced by any ordinary arm.
 
 The executable rules are parameterized by the expression elaborator used for
 subexpressions.  The M3-specialized public wrapper is useful immediately, and
@@ -24,7 +25,8 @@ abbrev ExpressionElaborator :=
   Context → Expr → Supply → Option (Generated × Supply)
 
 /-- Constraints contributed by the source-ordered ordinary arm list and the
-mandatory matcher-independent fallback expression. -/
+mandatory fallback expression, typed in the original context without
+arm-local bindings. -/
 structure GeneratedArms where
   target : Ty
   hard : List Equation
