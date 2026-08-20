@@ -75,7 +75,7 @@ def valueExpressionMismatchProgram : Expr :=
 required by a cons pattern. -/
 def somethingConsProgram : Expr :=
   .matchAll (sourceList [.lit 1, .lit 2, .lit 3]) .something
-    (.ctor PatternCtor.cons [.var, .wild])
+    (.ctor PatternCtor.cons [.var, .var])
     (.tuple [.var 0, .var 1])
 
 private theorem no_any_matcher_to_list_slot
@@ -372,7 +372,7 @@ theorem value_expression_int_list_mismatch_infer_none :
   infer_none_of_not_typable Paper1FrozenSignature.wellFormed
     value_expression_int_list_mismatch_not_typable
 
-/-- P1-L13 has no independent M4 typing derivation. -/
+/-- P1-L13's listed cons expression has no M4 typing derivation. -/
 theorem something_cons_not_typable (target : Ty) :
     ¬ M4.Typing Paper1FrozenSignature.signature []
       somethingConsProgram target := by
@@ -388,7 +388,7 @@ theorem something_cons_not_typable (target : Ty) :
         (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
         Paper1FrozenSignature.signature []
         (sourceList [.lit 1, .lit 2, .lit 3]) .something
-        (.ctor PatternCtor.cons [.var, .wild])
+        (.ctor PatternCtor.cons [.var, .var])
         (.tuple [.var 0, .var 1]) (Context.initialSupply []) generated next
         at elaboration
       cases elaboration with

@@ -13,7 +13,21 @@ namespace TypePM.Source.M4Paper1SafetyRegression
 
 open TypePM.Runtime
 
-/-! ## P1-L13: `something` with a variable pattern -/
+local macro "compute_unification" : tactic =>
+  `(tactic|
+    repeat
+      rw [unifyLoop.eq_def]
+      simp [reduce, tyEquations, capEquations, eliminatedVariable?,
+        unificationVars, Equation.unificationVars, Ty.unificationVars,
+        Ty.unificationVarsList, Cap.unificationVars,
+        Cap.unificationVarsList, rawNodeCount, solvedNodeCount,
+        Equation.solvedNodeCount, Ty.nodeCount, Ty.nodeCountList,
+        Cap.nodeCount, Cap.nodeCountList,
+        Ty.occursTy, Ty.occursTyList, Cap.occurs, Cap.occursList,
+        Equation.apply, Ty.apply, Ty.applyList, Cap.apply, Cap.applyList,
+        Subst.singleTy, Subst.singleCap, Subst.compose, Subst.id])
+
+/-! ## Independent baseline: `something` with an integer target -/
 
 def variablePatternGenerated : GeneratedPattern :=
   { dual := ⟨.var ⟨0⟩, .var ⟨0⟩⟩
@@ -24,6 +38,58 @@ def variablePatternGenerated : GeneratedPattern :=
 def variablePatternSolution : Subst :=
   { cap := fun _ => .any
     ty := fun _ => .int }
+
+def somethingVariableGenerated : Generated :=
+  { target := DataTypes.list (.var ⟨0⟩)
+    hard := [.ty (.var ⟨0⟩) .int]
+    pending :=
+      [⟨.matcher .any (.var ⟨1⟩), .slot (.var ⟨0⟩) .int⟩] }
+
+theorem somethingVariable_elaborate_exact :
+    M4.elaborate Paper1FrozenSignature.signature []
+      Runtime.MatchAllRegression.somethingVariable ⟨0, 0⟩ =
+        some (somethingVariableGenerated, ⟨2, 1⟩) := by
+  unfold M4.elaborate Runtime.MatchAllRegression.somethingVariable
+  rfl'
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 2000000 in
+theorem somethingVariable_close_exact :
+    (inferGeneratedUsing unify somethingVariableGenerated).bind
+        (fun closed => some closed.target) =
+      some (DataTypes.list .int) := by
+  unfold inferGeneratedUsing saturateUsing saturateLoop unify
+  simp only [somethingVariableGenerated, DataTypes.list]
+  compute_unification
+  simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
+    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
+    Ty.mayBecomeExpectedSlot, Ty.apply, Cap.apply, Subst.compose]
+  have resolutionTrace :
+      resolve (.matcher .any (.var ⟨1⟩)) (.slot (.var ⟨0⟩) .int) =
+        .matcherToSlot .any (.var ⟨0⟩) (.var ⟨1⟩) .int .equal := by
+    rfl
+  simp only [residualEquations, CheckObligation.residualEquations,
+    CheckObligation.resolutionUnder]
+  simp [Ty.apply, Cap.apply]
+  rw [resolutionTrace]
+  simp [Resolution.equations, CapabilityResolution.equations]
+  compute_unification
+
+theorem somethingVariable_infer_exact :
+    M4.infer Paper1FrozenSignature.signature []
+      Runtime.MatchAllRegression.somethingVariable =
+        some (DataTypes.list .int) := by
+  unfold M4.infer
+  rw [show Context.initialSupply [] = ⟨0, 0⟩ by rfl,
+    somethingVariable_elaborate_exact]
+  exact somethingVariable_close_exact
+
+theorem somethingVariable_typing :
+    M4.Typing Paper1FrozenSignature.signature []
+      Runtime.MatchAllRegression.somethingVariable
+        (DataTypes.list .int) :=
+  M4.infer_success_typing Paper1FrozenSignature.wellFormed
+    somethingVariable_infer_exact
 
 theorem variablePattern_elaborates :
     PatternElaborates Paper1FrozenSignature.signature [] [] .var []
@@ -70,14 +136,218 @@ theorem somethingVariable_totalCoreTyping :
   exact .matchAll (.core (.lit 7)) (.core (.something .int))
     somethingVariable_initialAtom (.core (.var rfl))
 
-theorem somethingVariable_exact :
+theorem somethingVariable_staticAndRuntimeTyping :
+    M4.Typing Paper1FrozenSignature.signature []
+        Runtime.MatchAllRegression.somethingVariable
+        (DataTypes.list .int) ∧
+      TotalCoreTyping Runtime.MatchAllRegression.somethingVariable
+        (DataTypes.list .int) [] :=
+  ⟨somethingVariable_typing, somethingVariable_totalCoreTyping⟩
+
+theorem somethingVariable_eval_exact :
     evalFuel 3 [] Runtime.MatchAllRegression.somethingVariable =
       .ok (Value.buildList [.int 7]) :=
   Runtime.MatchAllRegression.something_variable_evaluates_body_under_binding
 
+theorem somethingVariable_eval_relational :
+    Eval [] Runtime.MatchAllRegression.somethingVariable
+      (Value.buildList [.int 7]) :=
+  evalFuel_sound somethingVariable_eval_exact
+
 theorem somethingVariable_neverStuck (fuel : Nat) :
     (evalFuel fuel [] Runtime.MatchAllRegression.somethingVariable).NotStuck :=
   somethingVariable_totalCoreTyping.neverStuck fuel [] .nil
+
+/-! ## P1-L13: the exact listed `something` variable expression -/
+
+/-- The exact positive expression printed in Paper 1, P1-L13:
+`matchAll [1, 2, 3] as something with $x -> x`. -/
+def paperSomethingVariable : Expr :=
+  .matchAll (Paper1Programs.sourceList [.lit 1, .lit 2, .lit 3])
+    .something .var (.var 0)
+
+private def paperSomethingVariableTargetGenerated : Generated :=
+  { target := .var ⟨15⟩
+    hard :=
+      [ .ty
+          (.fn (.var ⟨0⟩)
+            (.fn (DataTypes.list (.var ⟨0⟩))
+              (DataTypes.list (.var ⟨0⟩))))
+          (.fn (.var ⟨1⟩) (.var ⟨2⟩)),
+        .ty
+          (.fn (.var ⟨3⟩)
+            (.fn (DataTypes.list (.var ⟨3⟩))
+              (DataTypes.list (.var ⟨3⟩))))
+          (.fn (.var ⟨4⟩) (.var ⟨5⟩)),
+        .ty
+          (.fn (.var ⟨6⟩)
+            (.fn (DataTypes.list (.var ⟨6⟩))
+              (DataTypes.list (.var ⟨6⟩))))
+          (.fn (.var ⟨7⟩) (.var ⟨8⟩)),
+        .ty (.var ⟨8⟩) (.fn (.var ⟨10⟩) (.var ⟨11⟩)),
+        .ty (.var ⟨5⟩) (.fn (.var ⟨12⟩) (.var ⟨13⟩)),
+        .ty (.var ⟨2⟩) (.fn (.var ⟨14⟩) (.var ⟨15⟩)) ]
+    pending :=
+      [ ⟨.int, .var ⟨1⟩⟩,
+        ⟨.int, .var ⟨4⟩⟩,
+        ⟨.int, .var ⟨7⟩⟩,
+        ⟨DataTypes.list (.var ⟨9⟩), .var ⟨10⟩⟩,
+        ⟨.var ⟨11⟩, .var ⟨12⟩⟩,
+        ⟨.var ⟨13⟩, .var ⟨14⟩⟩ ] }
+
+private def paperSomethingVariablePatternGenerated : GeneratedPattern :=
+  { dual := ⟨.var ⟨0⟩, .var ⟨16⟩⟩
+    bindings := [.var ⟨16⟩]
+    hard := []
+    pending := [] }
+
+private def paperSomethingVariableMatcherGenerated : Generated :=
+  { target := .matcher .any (.var ⟨17⟩)
+    hard := []
+    pending := [] }
+
+private def paperSomethingVariableBodyGenerated : Generated :=
+  { target := .var ⟨16⟩
+    hard := []
+    pending := [] }
+
+def paperSomethingVariableGenerated : Generated :=
+  Generated.fromMatchAll paperSomethingVariableTargetGenerated
+    paperSomethingVariablePatternGenerated
+    paperSomethingVariableMatcherGenerated
+    paperSomethingVariableBodyGenerated
+
+theorem paperSomethingVariable_elaborate_exact :
+    M4.elaborate Paper1FrozenSignature.signature [] paperSomethingVariable
+      ⟨0, 0⟩ = some (paperSomethingVariableGenerated, ⟨18, 1⟩) := by
+  unfold M4.elaborate paperSomethingVariable
+    paperSomethingVariableGenerated paperSomethingVariableTargetGenerated
+    paperSomethingVariablePatternGenerated
+    paperSomethingVariableMatcherGenerated
+    paperSomethingVariableBodyGenerated Paper1Programs.sourceList
+  rfl'
+
+private theorem paperSomethingVariable_close_fuel_exact :
+    (inferGeneratedUsing (unifyWithFuel 2000)
+      paperSomethingVariableGenerated).bind
+        (fun closed => some closed.target) =
+      some (DataTypes.list (DataTypes.list .int)) := by
+  simp only [paperSomethingVariableGenerated,
+    paperSomethingVariableTargetGenerated,
+    paperSomethingVariablePatternGenerated,
+    paperSomethingVariableMatcherGenerated,
+    paperSomethingVariableBodyGenerated, Generated.fromMatchAll,
+    DataTypes.list]
+  rfl'
+
+theorem paperSomethingVariable_close_exact :
+    (inferGeneratedUsing unify paperSomethingVariableGenerated).bind
+        (fun closed => some closed.target) =
+      some (DataTypes.list (DataTypes.list .int)) := by
+  cases closureEquality : inferGeneratedUsing (unifyWithFuel 2000)
+      paperSomethingVariableGenerated with
+  | none =>
+      have impossible := paperSomethingVariable_close_fuel_exact
+      simp [closureEquality] at impossible
+  | some closed =>
+      have publicClosure :=
+        inferGeneratedUsing_unify_of_fuel_success closureEquality
+      rw [publicClosure]
+      simpa [closureEquality] using paperSomethingVariable_close_fuel_exact
+
+theorem paperSomethingVariable_infer_exact :
+    M4.infer Paper1FrozenSignature.signature [] paperSomethingVariable =
+      some (DataTypes.list (DataTypes.list .int)) := by
+  unfold M4.infer
+  rw [show Context.initialSupply [] = ⟨0, 0⟩ by rfl,
+    paperSomethingVariable_elaborate_exact]
+  exact paperSomethingVariable_close_exact
+
+theorem paperSomethingVariable_typing :
+    M4.Typing Paper1FrozenSignature.signature [] paperSomethingVariable
+      (DataTypes.list (DataTypes.list .int)) :=
+  M4.infer_success_typing Paper1FrozenSignature.wellFormed
+    paperSomethingVariable_infer_exact
+
+def paperSomethingVariablePatternSolution : Subst :=
+  { cap := fun _ => .any
+    ty := fun _ => DataTypes.list .int }
+
+theorem paperSomethingVariable_pattern_elaborates :
+    PatternElaborates Paper1FrozenSignature.signature [] [] .var []
+      ⟨16, 0⟩ paperSomethingVariablePatternGenerated ⟨17, 1⟩ := by
+  exact .var
+
+theorem paperSomethingVariable_pattern_semantic :
+    MatcherTyping.GeneratedPatternRuntimeSolution
+      paperSomethingVariablePatternGenerated
+      paperSomethingVariablePatternSolution := by
+  simp [MatcherTyping.GeneratedPatternRuntimeSolution,
+    paperSomethingVariablePatternGenerated,
+    paperSomethingVariablePatternSolution, Solves]
+
+private theorem paperSomethingVariable_initialAtom
+    {fuel : Nat} {environment : ValueEnvironment}
+    {targetValue matcherValue : Value}
+    (environmentTyped : EnvironmentTyping environment [])
+    (targetSuccess : evalFuel fuel environment
+      (Paper1Programs.sourceList [.lit 1, .lit 2, .lit 3]) =
+        .ok targetValue)
+    (matcherSuccess : evalFuel fuel environment .something = .ok matcherValue)
+    (targetTyped : ValueTyping targetValue (DataTypes.list .int))
+    (matcherTyped : ValueTyping matcherValue
+      (.matcher .any (DataTypes.list .int))) :
+    TotalMatchingAtomTyping [] [] ⟨.var, matcherValue, targetValue⟩
+      [DataTypes.list .int] := by
+  cases environmentTyped
+  cases fuel with
+  | zero => simp [evalFuel] at targetSuccess
+  | succ fuel =>
+      simp [evalFuel] at matcherSuccess
+      subst matcherValue
+      obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
+        MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
+          paperSomethingVariable_pattern_elaborates .var
+          paperSomethingVariable_pattern_semantic
+          MonomorphicContextCompatible.nil matcherTyped .somethingVar
+          targetTyped
+      have newBindingsEq : newBindings = [DataTypes.list .int] := by
+        simpa [paperSomethingVariablePatternGenerated,
+          paperSomethingVariablePatternSolution, Ty.applyList, Ty.apply]
+          using bindingsEq.symm
+      subst newBindings
+      exact atomTyped
+
+theorem paperSomethingVariable_totalCoreTyping :
+    TotalCoreTyping paperSomethingVariable
+      (DataTypes.list (DataTypes.list .int)) [] := by
+  unfold paperSomethingVariable Paper1Programs.sourceList
+  exact .matchAll
+    (.core (.listCons (.lit 1)
+      (.listCons (.lit 2) (.listCons (.lit 3) (.listNil .int)))))
+    (.core (.something (DataTypes.list .int)))
+    paperSomethingVariable_initialAtom (.core (.var rfl))
+
+theorem paperSomethingVariable_staticAndRuntimeTyping :
+    M4.Typing Paper1FrozenSignature.signature [] paperSomethingVariable
+        (DataTypes.list (DataTypes.list .int)) ∧
+      TotalCoreTyping paperSomethingVariable
+        (DataTypes.list (DataTypes.list .int)) [] :=
+  ⟨paperSomethingVariable_typing, paperSomethingVariable_totalCoreTyping⟩
+
+theorem paperSomethingVariable_eval_exact :
+    evalFuel 5 [] paperSomethingVariable =
+      .ok (Value.buildList [Value.buildList [.int 1, .int 2, .int 3]]) := by
+  with_unfolding_all rfl
+
+theorem paperSomethingVariable_eval_relational :
+    Eval [] paperSomethingVariable
+      (Value.buildList [Value.buildList [.int 1, .int 2, .int 3]]) :=
+  evalFuel_sound paperSomethingVariable_eval_exact
+
+theorem paperSomethingVariable_neverStuck (fuel : Nat) :
+    (evalFuel fuel [] paperSomethingVariable).NotStuck :=
+  paperSomethingVariable_totalCoreTyping.neverStuck fuel [] .nil
 
 /-! ## P1-L14: normal value-pattern mismatch -/
 
@@ -144,7 +414,7 @@ theorem paperIntegerValueMismatch_totalCoreTyping :
       (DataTypes.list .int) [] := by
   unfold Runtime.MatchAllRegression.paperIntegerValueMismatch
   exact .matchAll (.core (.lit 5)) (.core (.something .int))
-    paperIntegerValueMismatch_initialAtom (.core (.lit 0))
+    paperIntegerValueMismatch_initialAtom (.core (.lit 1))
 
 theorem paperIntegerValueMismatch_staticAndRuntimeTyping :
     M4.Typing Paper1FrozenSignature.signature []
@@ -155,10 +425,15 @@ theorem paperIntegerValueMismatch_staticAndRuntimeTyping :
   ⟨M4Paper1IntegratedPositiveRegression.normal_mismatch_typing,
     paperIntegerValueMismatch_totalCoreTyping⟩
 
-theorem paperIntegerValueMismatch_exact :
+theorem paperIntegerValueMismatch_eval_exact :
     evalFuel 3 [] Runtime.MatchAllRegression.paperIntegerValueMismatch =
       .ok Value.nilValue :=
   Runtime.MatchAllRegression.paper_integer_value_mismatch_is_empty_not_stuck
+
+theorem paperIntegerValueMismatch_eval_relational :
+    Eval [] Runtime.MatchAllRegression.paperIntegerValueMismatch
+      Value.nilValue :=
+  evalFuel_sound paperIntegerValueMismatch_eval_exact
 
 theorem paperIntegerValueMismatch_neverStuck (fuel : Nat) :
     (evalFuel fuel []

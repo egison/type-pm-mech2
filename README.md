@@ -579,8 +579,8 @@ callback単調性と後続atomの局所遷移から，全callback／探索fuel�
 | P1-L10 | value pattern内の`x ++ [1]` | done | done | Integer/List不一致による宣言的拒否 |
 | P1-L11 | `$x :: #x` | done | done | occurs checkによる宣言的拒否 |
 | P1-L12 | `#x :: $x :: _` | done | done | 左で未束縛の参照を宣言的に拒否 |
-| P1-L13 | `something`のvariable／cons | done | done | variable成功とcons capability不足拒否を確認済み |
-| P1-L14 | `matchAll 5 ... #1` | done | done | 実行回帰と同一の式を`List Int`としてexact推論し，`M4.Typing`へ接続済み |
+| P1-L13 | `something`のvariable／cons | done | done | 掲載AST `[1,2,3] / $x -> x`を`List (List Int)`として公開`infer` exact結果と`M4.Typing`へ接続し，掲載cons AST `$x :: $xs -> (x,xs)`はcapability不足として宣言的に拒否 |
+| P1-L14 | `matchAll 5 ... #1 -> 1` | done | done | 掲載ASTそのものを`List Int`としてexact推論し，`M4.Typing`へ接続済み |
 | P1-L15 | Bool対象とinteger matcher | done | done | target型不一致による宣言的拒否 |
 
 実行を主張するlistingだけを次に分ける．「実行」はexact `evalFuel`，「関係」は`Eval`または
@@ -592,8 +592,8 @@ callback単調性と後続atomの局所遷移から，全callback／探索fuel�
 | P1-L02 | done | done | in progress | `[1,2,5,6] → [1,5]`と，実7-clause dispatchが完全な`$x :: #(x+1) :: _` patternを保持することを固定した．M4由来の再帰matcher本体証明と値に固定した`matchAll`規則により，掲載式全体の全fuel型保存・no-stuckも証明済み．target／matcher値の同定と探索はexact実行から作るため，一般のsource-to-runtime橋は未完 |
 | P1-L04 | done | done | in progress | `listMatcherDefinition`，closed multiset constructor，`multiset something`の実matcher値生成を一つの実行pipelineとして固定した．公開M4主要導出から，exactに具体化されたlist／multiset matcher本体の証明書と実closed matcher値の全fuel型付けも構成済み．pipeline全体はなお具体的なexact実行に依存する．nil constructorは実dispatchが返す唯一の枝`[[]]`を固定し，全callback／search fuelで無条件にno-stuck．実第2節`$ :: _`は，`Value.buildList values`で作られた任意の有限runtime listについて，空入力なら探索が正常終了して回答0件，非空入力なら入力順・重複を保ち，各回答が1要素だけを含む回答列になることを，全callback／search fuelで直接証明した．固定fuelの成功やfuel単調性には依存しないが，実第2節に固定した証明であり，任意constructor節と再帰tailの一般橋は残る |
 | P1-L05 | done | done | in progress | 三要素consの3結果をsource順で確認し，実7-clause dispatchが各候補で元の二つの`.var` patternを保持することを固定した．M4由来の再帰matcher本体証明と値に固定した`matchAll`規則により，掲載式全体の全fuel型保存・no-stuckも証明済み．さらに同じ固定targetと三branchでは，callback fuel 0--25のtimeoutと26の最初のhitを直接計算し，26以上はdispatchだけのcallback-fuel単調性で同じbranchを保つ．各branchの再帰atom型付けと組み合わせ，全callback／search fuelの型保存・no-stuckを得た．whole-searchのexact成功やsearch fuel単調性は使わないが，任意targetやM4 clauseに対する一般定理ではない |
-| P1-L13 | done | done | done | M4のvariable-pattern導出から`TotalCoreTyping`を構成し，exact評価・型付き結果・任意fuel no-stuckを証明済み |
-| P1-L14 | done | done | done | M4のvalue-pattern導出から`TotalCoreTyping`を構成し，正常な不一致として空Listを返すexact評価と任意fuel no-stuckを証明済み |
+| P1-L13 | done | done | done | `paperSomethingVariable`が掲載AST `[1,2,3] / $x -> x`そのものであることを固定し，公開`infer` exact結果`List (List Int)`，`M4.Typing`，同じM4 variable-pattern導出からの`TotalCoreTyping`を構成した．exact評価`[[1,2,3]]`を独立`Eval`へ接続し，任意fuel no-stuckも証明済み |
+| P1-L14 | done | done | done | `paperIntegerValueMismatch`を掲載AST `5 / #1 -> 1`そのものに揃え，M4のvalue-pattern導出から`TotalCoreTyping`を構成した．正常な不一致として空Listを返すexact評価を独立`Eval`へ接続し，任意fuel no-stuckも証明済み |
 
 論文listingを追加・削除・変更するときは，このinventoryと対応するsource／runtime回帰を同じ変更で
 更新する．正確な結果の順序と重複も等式の一部として扱う．

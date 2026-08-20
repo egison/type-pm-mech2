@@ -33,10 +33,10 @@ def somethingConjunctionMismatch : Expr :=
   .matchAll (.lit 7) .something
     (.and .var (.value (.lit 8))) (.var 0)
 
-/-- Paper 1, P1-L14: `matchAll 5 as something with #1` is well formed at
+/-- Paper 1, P1-L14: `matchAll 5 as something with #1 -> 1` is well formed at
 runtime and produces no result, rather than getting stuck. -/
 def paperIntegerValueMismatch : Expr :=
-  .matchAll (.lit 5) .something (.value (.lit 1)) (.lit 0)
+  .matchAll (.lit 5) .something (.value (.lit 1)) (.lit 1)
 
 /-- Both or-pattern alternatives bind one positional variable.  On `(1, 2)`,
 the left alternative binds `2` and the right alternative binds `1`, exposing
