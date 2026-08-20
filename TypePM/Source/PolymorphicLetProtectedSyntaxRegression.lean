@@ -51,6 +51,175 @@ def nestedProtectedBody : Expr :=
       .app (.var 1) (.lit 5),
       .app (.var 1) .something])
 
+/-- A second nested-let fixture whose value is a closed product rather than
+the identity function.  The surrounding generalized identity is still used
+at both `Int` and matcher types below the new binding. -/
+def nestedTupleValue : Expr :=
+  .tuple [.lit 1, .lit 2]
+
+def nestedTupleValueBody : Expr :=
+  .letE nestedTupleValue
+    (.tuple [
+      .var 0,
+      .app (.var 1) (.lit 3),
+      .app (.var 1) .something])
+
+private theorem nestedTupleValue_sameClosureCertificate
+    {supply afterValue : Supply} {generatedValue : Generated}
+    (valueElaboration : Elaborates Paper1Signature.signature [identityScheme]
+      nestedTupleValue supply generatedValue afterValue)
+    (closure : PrincipalBlockClosure generatedValue)
+    (_absorbing : closure.Absorbing) :
+    ProtectedNestedLetValueAtClosure valueElaboration closure [true]
+      [(identityScheme.instantiate ⟨0, 0⟩).1] := by
+  unfold nestedTupleValue at valueElaboration
+  cases valueElaboration with
+  | tuple itemsElaboration =>
+      cases itemsElaboration with
+      | cons firstElaboration restElaboration =>
+          cases firstElaboration
+          cases restElaboration with
+          | cons secondElaboration nilElaboration =>
+              cases secondElaboration
+              cases nilElaboration
+              constructor
+              · intro obligation membership
+                have finalPending :=
+                  TypePM.Runtime.PromotionClosure.finalPending_eq_nil_of_initial_nil
+                    closure.saturation.closure rfl
+                rw [finalPending] at membership
+                contradiction
+              · simpa [nestedTupleValue, PrincipalBlockClosure.target, Context.generalize,
+                  Context.generalizedTyVars, Context.generalizedCapVars,
+                  Context.freeTyVars, Context.freeCapVars, Scheme.freeTyVars,
+                  Scheme.freeCapVars, PolyTy.freeTyVars, PolyTy.freeCapVars,
+                  PolyTy.close, PolyTy.closeList, PolyTy.openBound,
+                  PolyTy.openBoundList, Scheme.instantiate, Ty.tyVars,
+                  Ty.tyVarsList, Ty.capVars, Ty.capVarsList, Cap.capVars,
+                  Cap.capVarsList, Ty.apply, Ty.applyList, dedupFirst, dedup] using
+                  (ProtectedRuntimeTyping.runtime
+                    (RuntimeTyping.tuple
+                      (RuntimeTypings.cons (.lit 1)
+                        (RuntimeTypings.cons (.lit 2) .nil))))
+
+theorem nestedTupleValueBody_bodySupported :
+    ProtectedClosureBodySupported
+      (.tuple [
+        .var 0,
+        .app (.var 1) (.lit 3),
+        .app (.var 1) .something]) := by
+  exact .firstOrder (.tuple
+    (.cons .var
+      (.cons (.app .var .lit)
+        (.cons (.app .var .something) .nil))))
+
+private theorem closeNestedTupleValue :
+    inferGeneratedUsing unify
+      { target := .prod [.int, .int]
+        hard := []
+        pending := [] } =
+      some
+        { substitution := Subst.id
+          target := .prod [.int, .int] } := by
+  have emptyUnify : unify [] = some Subst.id := by
+    unfold unify
+    rw [unifyLoop.eq_def]
+  simp [inferGeneratedUsing, saturateUsing, saturateLoop, emptyUnify,
+    promoteUnder, residualEquations]
+
+/-- The executable elaborator supplies a genuine relational derivation for
+the non-identity nested value fixture. -/
+theorem nestedTupleValueBody_elaboration_exists :
+    ∃ generated next,
+      Elaborates Paper1Signature.signature [identityScheme]
+        nestedTupleValueBody (Context.initialSupply [identityScheme])
+        generated next := by
+  have succeeds :
+      (elaborate Paper1Signature.signature [identityScheme]
+        nestedTupleValueBody
+        (Context.initialSupply [identityScheme])).isSome = true := by
+    simp [nestedTupleValueBody, nestedTupleValue, elaborate, elaborateItems,
+      closeNestedTupleValue]
+  cases equation : elaborate Paper1Signature.signature [identityScheme]
+      nestedTupleValueBody (Context.initialSupply [identityScheme]) with
+  | none => simp [equation] at succeeds
+  | some output =>
+      rcases output with ⟨generated, next⟩
+      exact ⟨generated, next,
+        elaborate_sound Paper1Signature.wellFormed equation⟩
+
+/-- Relational source elaboration reconstructs the nested runtime derivation.
+The tuple value is typed through the exact inner closure certificate above;
+the regression does not provide a hand-written typing tree for the whole
+program. -/
+theorem nestedTupleValueBody_runtimeTyping
+    (elaboration : Elaborates Paper1Signature.signature [identityScheme]
+      nestedTupleValueBody supply generated next)
+    (semantic : StrictGeneratedSemanticSolution generated solution) :
+    ProtectedClosureRuntimeTyping [true] nestedTupleValueBody
+      (generated.target.apply solution)
+      [(identityScheme.instantiate ⟨0, 0⟩).1] := by
+  unfold nestedTupleValueBody at elaboration ⊢
+  have contextCompatible : ProtectedContextCompatible [identityScheme]
+      [(identityScheme.instantiate ⟨0, 0⟩).1] [true] solution := by
+    apply ProtectedContextCompatible.pushCanonical
+        (canonicalSupply := (⟨0, 0⟩ : Supply))
+    · intro index membership
+      simp [identityScheme, Scheme.freeTyVars, PolyTy.freeTyVars,
+        dedupFirst, dedup] at membership
+    · intro index membership
+      simp [identityScheme, Scheme.freeCapVars, PolyTy.freeCapVars,
+        dedupFirst, dedup] at membership
+    · exact ProtectedContextCompatible.nil
+  exact nestedTupleValueBody_bodySupported.elaboration_typing_letValue
+    paper1SignatureCompatible elaboration semantic
+      contextCompatible
+      nestedTupleValue_sameClosureCertificate
+
+/-- Every evaluator fuel is non-stuck for the automatically reconstructed
+nested tuple-value program. -/
+theorem nestedTupleValueBody_neverStuck
+    (elaboration : Elaborates Paper1Signature.signature [identityScheme]
+      nestedTupleValueBody supply generated next)
+    (semantic : StrictGeneratedSemanticSolution generated solution)
+    (fuel : Nat) :
+    (evalFuel fuel [Value.plainClosure [] (.var 0)]
+      nestedTupleValueBody).NotStuck := by
+  apply (nestedTupleValueBody_runtimeTyping elaboration semantic).neverStuck
+  apply EnvironmentTyping.cons
+  · change ValueTyping (Value.plainClosure [] (.var 0)) identityType
+    exact .plainClosure .nil (.var rfl)
+  · exact .nil
+
+/-- The principal source derivation supplies the root semantic solution;
+only its already-public ordinary residual-check boundary remains explicit. -/
+theorem nestedTupleValueBody_runtimeTypingFromSource
+    (derivation : PrincipalTypingDerivation Paper1Signature.signature
+      [identityScheme] nestedTupleValueBody target)
+    (ordinary : ClosureRemainingChecksOrdinary derivation.closure) :
+    ProtectedClosureRuntimeTyping [true] nestedTupleValueBody target
+      [(identityScheme.instantiate ⟨0, 0⟩).1] := by
+  have typing := nestedTupleValueBody_runtimeTyping derivation.elaboration
+    (strictSemanticSolution_of_closure derivation.closure ordinary)
+  rw [derivation.target_eq]
+  exact typing
+
+/-- Source principal typing therefore rules out evaluator `stuck` for the
+non-identity nested value, without a separately supplied runtime derivation. -/
+theorem nestedTupleValueBody_neverStuckFromSource
+    (derivation : PrincipalTypingDerivation Paper1Signature.signature
+      [identityScheme] nestedTupleValueBody target)
+    (ordinary : ClosureRemainingChecksOrdinary derivation.closure)
+    (fuel : Nat) :
+    (evalFuel fuel [Value.plainClosure [] (.var 0)]
+      nestedTupleValueBody).NotStuck := by
+  apply (nestedTupleValueBody_runtimeTypingFromSource
+    derivation ordinary).neverStuck
+  apply EnvironmentTyping.cons
+  · change ValueTyping (Value.plainClosure [] (.var 0)) identityType
+    exact .plainClosure .nil (.var rfl)
+  · exact .nil
+
 private def nestedGenerated : Generated :=
   { target := .prod [.var ⟨3⟩, .var ⟨7⟩, .var ⟨10⟩, .var ⟨14⟩]
     hard := [

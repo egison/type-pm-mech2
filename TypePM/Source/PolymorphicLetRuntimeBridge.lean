@@ -1769,6 +1769,45 @@ private theorem identityElaboration_closure_target_shape
             simp [PrincipalBlockClosure.target, Source.Scheme.instantiate_mono,
               Ty.apply]⟩
 
+/-- The value side of a nested principal `let`, anchored to the exact
+relational elaboration and the exact representative closure stored in the
+`Elaborates.letE` constructor.  The ordinary-check field keeps the remaining
+M2 boundary visible; the runtime field must type the value at the canonical
+instance of the scheme produced from this very closure.
+
+This certificate is deliberately indexed by the actual elaboration and
+closure.  A syntax-only claim would be unsound: runtime typing at
+`closure.target` cannot in general be strengthened to its generalized
+canonical instance. -/
+structure ProtectedNestedLetValueAtClosure
+    {signature : Source.Signature} {sourceContext : Source.Context}
+    {valueExpression : Source.Expr} {supply : Source.Supply}
+    {generated : Generated} {next : Source.Supply}
+    (valueElaboration : Source.Elaborates signature sourceContext
+      valueExpression supply generated next)
+    (closure : PrincipalBlockClosure generated)
+    (provenance : List Bool) (runtimeContext : List Ty) : Prop where
+  remainingChecksOrdinary : ClosureRemainingChecksOrdinary closure
+  runtimeTyping : ProtectedRuntimeTyping provenance valueExpression
+    ((((sourceContext.applyFree closure.substitution).generalize closure.target).instantiate
+      (sourceContext.applyFree closure.substitution).initialSupply).1)
+    runtimeContext
+
+/-- Saturation cannot create a delayed checking obligation when the initial
+block has none.  This makes the ordinary-check component of a nested-value
+certificate vacuous for literal and tuple-literal values. -/
+theorem PromotionClosure.finalPending_eq_nil_of_initial_nil
+    (closure : PromotionClosure hard pending finalHard finalPending)
+    (initialPending : pending = []) : finalPending = [] := by
+  induction closure with
+  | refl => exact initialPending
+  | @step _ _ substitution promoted _ _ principal promotedEq progress rest ih =>
+      have promotedPending : promoted.pending = [] := by
+        rw [initialPending] at promotedEq
+        have fields := congrArg Promotion.pending promotedEq
+        simpa [promoteUnder] using fields.symm
+      exact ih promotedPending
+
 /-- Relational elaboration constructs the complete surrounding
 `ProtectedClosureRuntimeTyping` derivation for the single-closure fragment.
 `StrictGeneratedSemanticSolution` states the precise remaining boundary:
@@ -1847,6 +1886,58 @@ theorem ProtectedClosureBodySupported.elaboration_typing
             rw [generalEq]
             exact .runtime (.lam (.var rfl))
           exact .letPoly valueTyping bodyTyping
+
+/-- General nested-`let` bridge.  Unlike the older identity-only constructor,
+the value may have any syntax for which the caller can construct the
+same-closure certificate above.  No representative equality is assumed:
+both the canonical scheme used for the runtime binding and the body source
+context are computed from the `PrincipalBlockClosure` carried by the actual
+`Elaborates.letE` derivation. -/
+theorem ProtectedClosureBodySupported.elaboration_typing_letValue
+    (bodySupported : ProtectedClosureBodySupported bodyExpression)
+    (compatible : SignatureCompatible signature)
+    (elaboration : Source.Elaborates signature sourceContext
+      (.letE valueExpression bodyExpression) supply generated next)
+    (semantic : StrictGeneratedSemanticSolution generated solution)
+    (contextCompatible : ProtectedContextCompatible sourceContext
+      runtimeContext provenance solution)
+    (valueCertificate :
+      ∀ {generatedValue : Generated} {afterValue : Source.Supply}
+        (valueElaboration : Source.Elaborates signature sourceContext
+          valueExpression supply generatedValue afterValue)
+        (closure : PrincipalBlockClosure generatedValue)
+        (_absorbing : closure.Absorbing),
+        ProtectedNestedLetValueAtClosure valueElaboration closure
+          provenance runtimeContext) :
+    ProtectedClosureRuntimeTyping provenance
+      (.letE valueExpression bodyExpression)
+      (generated.target.apply solution) runtimeContext := by
+  cases elaboration with
+  | letE valueElaboration closure absorbing bodyElaboration =>
+      obtain ⟨interfaceSolved, bodySemantic⟩ := strict_fromLet semantic
+      let closedContext := sourceContext.applyFree closure.substitution
+      let generalizedScheme := closedContext.generalize closure.target
+      let canonicalSupply := closedContext.initialSupply
+      let general := (generalizedScheme.instantiate canonicalSupply).1
+      have closedCompatible : ProtectedContextCompatible closedContext
+          runtimeContext provenance solution := by
+        exact contextCompatible.ofApplyFreeInterface interfaceSolved
+      have bodyCompatible : ProtectedContextCompatible
+          (generalizedScheme :: closedContext)
+          (general :: runtimeContext) (true :: provenance) solution := by
+        apply ProtectedContextCompatible.pushCanonical
+            (canonicalSupply := canonicalSupply)
+        · intro index membership
+          exact Source.Context.freeTyVar_lt_initialSupply
+            ((Source.Context.mem_generalize_freeTyVars.mp membership).2)
+        · intro index membership
+          exact Source.Context.freeCapVar_lt_initialSupply
+            ((Source.Context.mem_generalize_freeCapVars.mp membership).2)
+        · exact closedCompatible
+      have bodyTyping := bodySupported.elaboration_typing compatible
+        bodyElaboration bodySemantic bodyCompatible
+      have certificate := valueCertificate valueElaboration closure absorbing
+      exact .letPoly certificate.runtimeTyping bodyTyping
 
 namespace ProtectedClosureValueTyping
 

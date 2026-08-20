@@ -1,6 +1,7 @@
 import TypePM.Runtime.EvaluationStuckMonotonicity
 import TypePM.Runtime.MultisetClauseExecutionRegression
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
+import TypePM.Source.M4Paper1RecursiveSafetyBoundaryRegression
 
 /-!
 # Paper 1 operational non-stuck regressions
@@ -22,7 +23,53 @@ open FuelResult
 
 open Paper1ExecutionRegression
 open MultisetClauseExecutionRegression
+open Source.Paper1Programs
 open Source.M4Paper1IntegratedPositiveRegression
+open Source.MatcherTyping.M4Paper1RecursiveSafetyBoundaryRegression
+
+/-! ## P1-L04 library construction
+
+These three stages only record evaluation of the actual Paper 1 source
+definitions.  As above, their all-fuel conclusions come from one exact run
+and completed-result monotonicity, not from the general source-to-runtime
+type-safety bridge.
+-/
+
+theorem list_matcher_definition_exact :
+    evalFuel 1 [] listMatcherDefinition = .ok listRecursiveClosure := by
+  rfl
+
+theorem closed_multiset_definition_exact :
+    evalFuel 3 [] closedMultisetDefinition = .ok multisetRecursiveClosure := by
+  rfl
+
+theorem multiset_something_exact :
+    evalFuel 20 [] multisetSomething = .ok closedMultisetMatcherValue :=
+  closedMultisetMatcher_eval_exact
+
+theorem list_matcher_definition_never_stuck (fuel : Nat) :
+    (evalFuel fuel [] listMatcherDefinition).NotStuck :=
+  evalFuel_neverStuck_of_eventual_success list_matcher_definition_exact fuel
+
+theorem closed_multiset_definition_never_stuck (fuel : Nat) :
+    (evalFuel fuel [] closedMultisetDefinition).NotStuck :=
+  evalFuel_neverStuck_of_eventual_success
+    closed_multiset_definition_exact fuel
+
+theorem multiset_something_never_stuck (fuel : Nat) :
+    (evalFuel fuel [] multisetSomething).NotStuck :=
+  evalFuel_neverStuck_of_eventual_success multiset_something_exact fuel
+
+/-- The list dependency, the closed multiset constructor, and its actual
+`something` specialization all avoid `stuck` at every fuel.  This endpoint is
+operational evidence only; it does not discharge the general runtime bridge. -/
+theorem p1_l04_library_pipeline_never_stuck :
+    (∀ fuel, (evalFuel fuel [] listMatcherDefinition).NotStuck) ∧
+      (∀ fuel, (evalFuel fuel [] closedMultisetDefinition).NotStuck) ∧
+      (∀ fuel, (evalFuel fuel [] multisetSomething).NotStuck) :=
+  ⟨list_matcher_definition_never_stuck,
+    closed_multiset_definition_never_stuck,
+    multiset_something_never_stuck⟩
 
 /-! ## Integrated Paper 1 programs -/
 
