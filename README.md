@@ -316,7 +316,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 | T6 | source多相`let`の橋 | **design decision** | bareなgeneric `Ty` lookupは代入で保存されない．量化bindingの由来またはfreshness-aware transportを追加する |
 | T7 | M4を出発点にするruntime橋 | **not started** | M2 `Source.Typing`にない`fixE`／matcher構文をM4 `Typing`から移す |
 | T8 | built-in matching safety | **done** | binding／atom／state／有限DFSの型保存，局所progress，no-stuck |
-| T9 | matcher closureの型付け部品 | **in progress** | cursor（未試行clauseの現在位置）の不変条件，product/list/slot canonical forms，復号，環境連結順，単一hole clauseの保存は完了 |
+| T9 | matcher closureの型付け部品 | **in progress** | cursor（未試行clauseの現在位置）の不変条件，product/list/slot canonical forms，0／1／複数holeの復号，環境連結順，単一hole clauseの保存は完了 |
 | T10 | 一般user matcher safety | **in progress** | 単一hole／variable armの保存は実証済み．全clause／armと静的網羅性を接続し，正常な`.miss`と復号成功を証明する |
 | T11 | 共通fuelの強帰納 | **not started** | 式評価とmatcher探索を同じbudgetで帰納し，embedded evaluatorの条件付き仮定を放電する |
 | T12 | `matchFirst` no-stuck | **not started** | 宣言的`Exhaustive`から実行時の空arm到達を排除する |

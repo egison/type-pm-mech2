@@ -224,6 +224,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentityAt_sourceTyping_for
 #assert_allowed_axioms TypePM.Source.DamasMilner.polymorphicIdentity_dm_and_source
 #assert_allowed_axioms TypePM.Runtime.reduceMatcherAtom_singleHole_typedSafe
+#assert_allowed_axioms TypePM.Runtime.ValueTyping.decodeHoleProduct
+#assert_allowed_axioms TypePM.Runtime.ListValueTypings.decodeHoleProducts
+#assert_allowed_axioms TypePM.Runtime.ValueTyping.decodeDecompositions_typed
 #assert_allowed_axioms TypePM.UserMatcherSafetyRegression.concrete_user_clause_reduction_typed
 #assert_allowed_axioms TypePM.UserMatcherSafetyRegression.concrete_user_clause_reduction_exact
 #assert_allowed_axioms TypePM.BlockAccepts.iff_of_hardEquivalent

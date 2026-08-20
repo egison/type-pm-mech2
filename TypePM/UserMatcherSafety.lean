@@ -147,6 +147,73 @@ theorem ValueTyping.decodeProduct_many
     decodeProduct_many_exact atLeastTwo values valuesTyped.length_eq,
     valuesTyped⟩
 
+/-- A value with the statically selected zero/one/many hole-product type
+passes the corresponding runtime decoder.  The decoded values retain the
+source-ordered hole target types. -/
+theorem ValueTyping.decodeHoleProduct
+    (typing : ValueTyping value (runtimeHoleProductTarget holes)) :
+    ∃ values,
+      decodeProduct holes.length value = some values ∧
+      ValueTypings values (Dual.targets holes) := by
+  cases holes with
+  | nil =>
+      obtain ⟨values, rfl, valuesTyped⟩ := typing.product_canonical
+      cases valuesTyped
+      exact ⟨[], rfl, .nil⟩
+  | cons first rest =>
+      cases rest with
+      | nil =>
+          exact ⟨[value], rfl, .cons typing .nil⟩
+      | cons second rest =>
+          obtain ⟨values, rfl, valuesTyped⟩ := typing.product_canonical
+          refine ⟨values, ?_, valuesTyped⟩
+          have length : values.length = (first :: second :: rest).length := by
+            simpa [Dual.targets] using valuesTyped.length_eq
+          exact decodeProduct_many_exact (by simp) values
+            length
+
+/-- Pointwise typing for a decoded list of matcher decompositions. -/
+inductive HoleDecompositionsTyping (holes : List Dual) :
+    List (List Value) → Prop where
+  | nil : HoleDecompositionsTyping holes []
+  | cons
+      (head : ValueTypings values (Dual.targets holes))
+      (tail : HoleDecompositionsTyping holes decompositions) :
+      HoleDecompositionsTyping holes (values :: decompositions)
+
+/-- Pointwise decoding of a host list of typed hole products. -/
+theorem ListValueTypings.decodeHoleProducts
+    (typing : ListValueTypings values (runtimeHoleProductTarget holes)) :
+    ∃ decompositions,
+      List.mapM (decodeProduct holes.length) values = some decompositions ∧
+      HoleDecompositionsTyping holes decompositions := by
+  cases values with
+  | nil =>
+      cases typing
+      exact ⟨[], rfl, .nil⟩
+  | cons headValue tailValues =>
+      cases typing with
+      | cons headTyped tailTyped =>
+          obtain ⟨head, headDecoded, headTyping⟩ :=
+            headTyped.decodeHoleProduct
+          obtain ⟨tail, tailDecoded, tailTyping⟩ :=
+            tailTyped.decodeHoleProducts
+          refine ⟨head :: tail, ?_, .cons headTyping tailTyping⟩
+          simp [List.mapM_cons, headDecoded, tailDecoded]
+
+/-- A canonical typed list of hole products always passes the full
+decomposition decoder, for zero, one, and many holes. -/
+theorem ValueTyping.decodeDecompositions_typed
+    (typing : ValueTyping value
+      (TypePM.DataTypes.list (runtimeHoleProductTarget holes))) :
+    ∃ decompositions,
+      decodeDecompositions holes.length value = some decompositions ∧
+      HoleDecompositionsTyping holes decompositions := by
+  obtain ⟨values, rfl, valuesTyped⟩ := typing.list_canonical
+  simp only [TypePM.Runtime.decodeDecompositions,
+    Value.viewList_buildList]
+  exact valuesTyped.decodeHoleProducts
+
 /-- A typed canonical list always passes one-hole decomposition decoding; the
 decoder preserves source list order and wraps each element as one product. -/
 theorem ValueTyping.decodeDecompositions_one
