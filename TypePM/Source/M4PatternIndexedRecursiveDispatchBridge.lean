@@ -5,8 +5,8 @@ import TypePM.ValueIndexedMatchAllSafety
 # Fuel-indexed M4 pattern dispatch into recursive matching
 
 `PatternIndexedMatcherClauseResultTyping` retains the exact source patterns
-placed in every branch returned by one real matcher dispatch.  The older
-recursive search certificate, however, asks for a finite proof that every
+placed in every branch returned by one real matcher dispatch.  The existing
+unbounded recursive search certificate, however, asks for a proof that every
 recursive atom is safe at every later search bound.  A recursive matcher can
 recreate the same atom, so that unbounded certificate is intentionally too
 strong for a bounded search.
@@ -18,9 +18,10 @@ patterns (`var`, `wild`, value, tuple, conjunction, and disjunction) are
 lowered automatically through the existing solved-M4 `PatternBinds` theorem.
 Only a user-matcher atom supplies a strictly-smaller dispatch certificate.
 
-The matcher closure's captured environment is never coerced to the old
-`EnvironmentTyping` judgment.  That premise occurs only in the final
-non-recursive corollary which invokes the pre-existing M4 dispatch theorem.
+The matcher closure's captured environment is never coerced to the structural
+`EnvironmentTyping` judgment defined in this repository. That premise occurs
+only in the final non-recursive corollary which invokes the existing M4
+dispatch theorem.
 -/
 
 namespace TypePM.Runtime
@@ -94,7 +95,7 @@ mutual
   /-- Exact successful branch list with its M4-preserved source patterns and
   a bounded recursive certificate for each branch.  This main recursive
   relation deliberately does not retain `ValueTyping` for delegated matcher
-  values: that older judgment cannot type a self-capturing matcher closure. -/
+  values: that structural judgment cannot type a self-capturing matcher closure. -/
   inductive FuelIndexedPatternBranchesTyping
       (expressionTyping : EmbeddedExpressionTyping)
       (eval : ValueEnvironment → Source.Expr → FuelResult Value) :
@@ -878,7 +879,8 @@ theorem PatternIndexedDelegatedMatchingAtomsTyping.toDirectMatchingAtomsTyping
 
 /-- Direct M4 branches also inhabit the existing unbounded recursive dispatch
 judgment.  This endpoint is intentionally limited to built-in matcher shapes;
-it does not assign old environment typing to a recursive matcher closure. -/
+it does not assign structural environment typing to a recursive matcher
+closure. -/
 theorem PatternIndexedDelegatedMatchingBranchesTyping.toDirectPatternIndexedRecursiveDispatch
     (binds : PatternsBind
       (fun runtimeContext expression target =>
@@ -900,7 +902,7 @@ theorem PatternIndexedDelegatedMatchingBranchesTyping.toDirectPatternIndexedRecu
           binds (shapes.member branch member)))
 
 /-- Exact source-indexed branches used only at the non-recursive M4 boundary.
-The main fuel-indexed runtime relation erases the old delegated `ValueTyping`
+The main fuel-indexed runtime relation erases structural delegated `ValueTyping`
 evidence after extracting source-pattern equality. -/
 inductive M4FuelIndexedRecursiveBranchesTyping
     (expressionTyping : EmbeddedExpressionTyping)
@@ -930,7 +932,7 @@ end PatternIndexedDelegatedMatchingAtomsTyping
 
 namespace M4FuelIndexedRecursiveBranchesTyping
 
-/-- Erase old delegated value typing after retaining the exact source pattern
+/-- Erase structural delegated value typing after retaining the exact source pattern
 list and bounded recursive work. -/
 theorem toFuelIndexedPatternBranches
     (indexed : PatternIndexedDelegatedMatchingBranchesTyping
@@ -996,8 +998,9 @@ theorem PatternIndexedDelegatedMatchingBranchesTyping.toDirectFuelIndexed
 work for a dispatch whose returned patterns all lie in the direct built-in
 fragment. -/
 theorem PatternsElaborate.toDirectFuelIndexedBranches
-    (elaboration : PatternsElaborate Paper1FrozenSignature.signature context
+    (elaboration : PatternsElaborate signature context
       arguments patterns bindings supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectRuntimePatternsSupported patterns)
     (semantic : GeneratedPatternsRuntimeSolution generated solution)
     (contextCompatible :
@@ -1015,7 +1018,7 @@ theorem PatternsElaborate.toDirectFuelIndexedBranches
         Ty.applyList solution bindings ++ newBindings := by
   obtain ⟨newBindings, binds, bindingsEq⟩ :=
     TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
-      elaboration supported semantic contextCompatible
+      elaboration compatible supported semantic contextCompatible
   have binds' : PatternsBind
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
@@ -1031,8 +1034,9 @@ theorem PatternsElaborate.toDirectFuelIndexedBranches
 the exact successful branch evidence construct `RecursiveTotalMatchingAtomsTyping`
 and hence the existing `PatternIndexedRecursiveDispatchTyping` judgment. -/
 theorem PatternsElaborate.toDirectPatternIndexedRecursiveDispatch
-    (elaboration : PatternsElaborate Paper1FrozenSignature.signature context
+    (elaboration : PatternsElaborate signature context
       arguments patterns bindings supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectRuntimePatternsSupported patterns)
     (semantic : GeneratedPatternsRuntimeSolution generated solution)
     (contextCompatible :
@@ -1050,7 +1054,7 @@ theorem PatternsElaborate.toDirectPatternIndexedRecursiveDispatch
         Ty.applyList solution bindings ++ newBindings := by
   obtain ⟨newBindings, binds, bindingsEq⟩ :=
     TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
-      elaboration supported semantic contextCompatible
+      elaboration compatible supported semantic contextCompatible
   have binds' : PatternsBind
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
@@ -1065,15 +1069,15 @@ theorem PatternsElaborate.toDirectPatternIndexedRecursiveDispatch
 /-- Non-recursive M4 corollary.  The pre-existing dispatcher supplies timeout
 or exact source-indexed branches; the remaining premise certifies recursive
 work only for a branch list returned by that same dispatch.  This theorem
-retains the old matcher-environment premise because the invoked M4 dispatcher
+retains the structural matcher-environment premise because the invoked M4 dispatcher
 does.  Recursive closures should use `FuelIndexedRecursiveMatchingAtomTyping.user`
 directly and do not pass through this corollary. -/
 theorem MatcherLiteralTotalInputElaboratesUsing.dispatchFuelIndexedSafe_of_m4Fuel
     (input : MatcherLiteralTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature elaborationFuel)
-      expressionTyping solution atomEnvironmentTypes pattern context clauses
-      supply generated next)
-    (bridge : SolvedM4CheckedExpressionBridge expressionTyping)
+      (M4.ElaboratesFuel signature elaborationFuel) signature expressionTyping
+      solution atomEnvironmentTypes pattern context clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (bridge : SolvedM4CheckedExpressionBridge signature expressionTyping)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
       MonomorphicContextCompatible context definitionTypes solution)
@@ -1096,7 +1100,7 @@ theorem MatcherLiteralTotalInputElaboratesUsing.dispatchFuelIndexedSafe_of_m4Fue
   have finalCatchAll : FinalCatchAll clauses := by
     cases input with
     | mk checked clausesElaboration => exact checked.finalCatchAll
-  rcases input.dispatchPatternIndexedSafe_of_m4Fuel bridge semantic
+  rcases input.dispatchPatternIndexedSafe_of_m4Fuel compatible bridge semantic
       contextCompatible evalSafe atomEnvironmentTyped matcherEnvironmentTyped
       targetTyped with timeout | ⟨result, dispatched, source⟩
   · rw [timeout]

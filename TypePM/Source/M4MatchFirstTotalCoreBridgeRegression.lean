@@ -1,5 +1,6 @@
 import TypePM.Source.M4MatchFirstTotalCoreBridge
 import TypePM.Source.M4RecursiveElaborationRegression
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.Runtime.EvaluationAdequacy
 
 /-!
@@ -38,8 +39,9 @@ that static M4 typing intentionally does not encode. -/
 theorem totalCoreTyping_from_solved_m4 :
     TotalCoreTyping M4RecursiveElaborationRegression.firstMatch .int [] := by
   exact inferSomethingMatchFirstToTotalCoreTyping
-    M4RecursiveElaborationRegression.infer_match_first_exact (.lit)
-      armsSupported (.lit)
+    M4RecursiveElaborationRegression.infer_match_first_exact
+    Paper1FrozenSignature.wellFormed
+    Paper1FrozenSignature.runtimeCompatible (.lit) armsSupported (.lit)
 
 /-- Static acceptance remains anchored at the public M4 inference endpoint. -/
 theorem publicInferAndRuntimeTyping :
@@ -106,18 +108,20 @@ private theorem openArmsSupported :
     .nil
 
 private theorem openRuntimeContextSupport :
-    PrincipalRuntimeContextSupport
+    PrincipalRuntimeContextSupport Paper1FrozenSignature.signature
       (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed
         infer_open_first_exact) [.int] := by
   exact ⟨MonomorphicContextCompatible.cons MonomorphicContextCompatible.nil⟩
 
-/-- Public inference plus a compatibility certificate for its exact hidden
-principal closure yields total runtime typing in an explicit open context. -/
+/-- Public inference plus a source/runtime context-support certificate for its
+exact hidden principal closure yields total runtime typing in an explicit open
+context. -/
 theorem totalCoreTyping_from_open_solved_m4 :
     TotalCoreTyping openFirst .int [.int] := by
   exact inferSomethingMatchFirstToTotalCoreTypingInContext
-    infer_open_first_exact (.var) openArmsSupported (.var)
-      openRuntimeContextSupport
+    infer_open_first_exact Paper1FrozenSignature.wellFormed
+    Paper1FrozenSignature.runtimeCompatible (.var) openArmsSupported (.var)
+    openRuntimeContextSupport
 
 theorem publicOpenInferAndRuntimeTyping :
     M4.infer Paper1FrozenSignature.signature [.mono .int] openFirst =

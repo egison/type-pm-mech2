@@ -1,4 +1,5 @@
 import TypePM.Source.M4MatchingAtomRuntimeBridge
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Regressions for the pattern-preserving runtime bridge
@@ -45,8 +46,9 @@ theorem tuplePattern_runtimeBinds :
       newBindings = [.var ⟨0⟩] := by
   obtain ⟨newBindings, typing, equality⟩ :=
     TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      tuplePattern_elaborates tuplePattern_supported tuplePattern_semantic
-      (MonomorphicContextCompatible.nil)
+      tuplePattern_elaborates Paper1FrozenSignature.runtimeCompatible
+      tuplePattern_supported tuplePattern_semantic
+      MonomorphicContextCompatible.nil
   refine ⟨newBindings, by simpa [tupleGenerated, Ty.apply, Ty.applyList] using typing,
     ?_⟩
   simpa [tupleGenerated, Ty.applyList] using equality.symm
@@ -77,7 +79,8 @@ theorem tuplePattern_productTotalAtom :
       newBindings = [.int] := by
   obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
     PatternElaborates.toBuiltinTotalMatchingAtomTyping
-      tuplePattern_elaborates tuplePattern_supported
+      tuplePattern_elaborates Paper1FrozenSignature.runtimeCompatible
+      tuplePattern_supported
       tuplePattern_semantic_bridge MonomorphicContextCompatible.nil
       tupleMatcher_typed
       (.tuple (.cons .somethingVar (.cons .somethingWild .nil)))
@@ -121,7 +124,8 @@ theorem conjunctionPattern_runtimeBinds :
       newBindings = [.int] := by
   obtain ⟨newBindings, typing, equality⟩ :=
     TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      conjunctionPattern_elaborates (.and .var .wild)
+      conjunctionPattern_elaborates Paper1FrozenSignature.runtimeCompatible
+      (.and .var .wild)
       conjunctionPattern_semantic MonomorphicContextCompatible.nil
   refine ⟨newBindings, by
     simpa [conjunctionGenerated, bridgeSolution, Ty.apply, Ty.applyList] using typing,
@@ -161,7 +165,8 @@ theorem disjunctionPattern_runtimeBinds :
       newBindings = [.int] := by
   obtain ⟨newBindings, typing, equality⟩ :=
     TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      disjunctionPattern_elaborates (.or .var .var)
+      disjunctionPattern_elaborates Paper1FrozenSignature.runtimeCompatible
+      (.or .var .var)
       disjunctionPattern_semantic MonomorphicContextCompatible.nil
   refine ⟨newBindings, by
     simpa [disjunctionGenerated, bridgeSolution, Ty.apply, Ty.applyList] using typing,
@@ -191,7 +196,8 @@ private theorem conjunctionMatchAll_initialAtom
       subst matcherValue
       obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
         PatternElaborates.toBuiltinTotalMatchingAtomTyping
-          conjunctionPattern_elaborates conjunctionPattern_supported
+          conjunctionPattern_elaborates Paper1FrozenSignature.runtimeCompatible
+          conjunctionPattern_supported
           conjunctionPattern_semantic MonomorphicContextCompatible.nil
           matcherTyped (.and .somethingVar .somethingWild) targetTyped
       have newBindingsEq : newBindings = [.int] := by

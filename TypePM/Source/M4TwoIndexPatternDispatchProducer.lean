@@ -139,8 +139,9 @@ delegates one pattern position per branch.  It is the direct connection from
 one solved M4 `PatternElaborates` derivation to caller-selected two-index
 branch work. -/
 theorem PatternElaborates.toSingletonTwoIndexDispatch
-    (elaboration : PatternElaborates Paper1FrozenSignature.signature context
+    (elaboration : PatternElaborates signature context
       arguments pattern bindings supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectRuntimePatternSupported pattern)
     (semantic : GeneratedPatternRuntimeSolution generated solution)
     (contextCompatible :
@@ -167,7 +168,7 @@ theorem PatternElaborates.toSingletonTwoIndexDispatch
         Ty.applyList solution bindings ++ newBindings := by
   obtain ⟨newBindings, patternTyped, bindingsEq⟩ :=
     TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      elaboration supported semantic contextCompatible
+      elaboration compatible supported semantic contextCompatible
   exact ⟨newBindings,
     TwoIndexPatternDispatchCertificate.hitOfM4BranchObligations
       (atomsSafe patternTyped),
@@ -205,8 +206,9 @@ structural M4 runtime dispatcher in this repository, so recursive-closure
 callers need not manufacture structural typing for their runtime environment,
 matcher, target, or answer. -/
 theorem PatternsElaborate.toTwoIndexDispatch
-    (elaboration : PatternsElaborate Paper1FrozenSignature.signature context
+    (elaboration : PatternsElaborate signature context
       arguments patterns bindings supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectRuntimePatternsSupported patterns)
     (semantic : GeneratedPatternsRuntimeSolution generated solution)
     (contextCompatible :
@@ -234,7 +236,7 @@ theorem PatternsElaborate.toTwoIndexDispatch
         Ty.applyList solution bindings ++ newBindings := by
   obtain ⟨newBindings, patternsTyped, bindingsEq⟩ :=
     TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
-      elaboration supported semantic contextCompatible
+      elaboration compatible supported semantic contextCompatible
   exact ⟨newBindings,
     TwoIndexPatternDispatchCertificate.hitOfM4BranchObligations
       (atomsSafe patternsTyped),

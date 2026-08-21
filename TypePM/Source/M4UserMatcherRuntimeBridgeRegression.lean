@@ -1,4 +1,5 @@
 import TypePM.Source.M4UserMatcherRuntimeBridge
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Regression: solved M4 matcher headers at the runtime boundary
@@ -71,7 +72,8 @@ theorem nested_constructor_tuple_runtime :
     RuntimeDPatTyping nestedPattern (.prod [DataTypes.bool, .int]) [.int] := by
   simpa [nestedPattern, nestedExpected, nestedGenerated, tupleSolution,
     Ty.apply, Ty.applyList, DataTypes.bool] using
-    nestedPattern_elaborates.toRuntimeDPatTyping nestedPattern_solved
+    nestedPattern_elaborates.toRuntimeDPatTyping
+      Paper1FrozenSignature.runtimeCompatible nestedPattern_solved
 
 def headerExpected : List Dual :=
   [⟨.var ⟨0⟩, .int⟩, ⟨.any, DataTypes.bool⟩]

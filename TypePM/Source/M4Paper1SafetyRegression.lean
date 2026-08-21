@@ -1,5 +1,6 @@
 import TypePM.Source.M4Paper1IntegratedPositiveRegression
 import TypePM.Source.M4MatchingAtomRuntimeBridge
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Paper 1 safety regressions
@@ -120,7 +121,8 @@ private theorem somethingVariable_initialAtom
       subst matcherValue
       obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
-          variablePattern_elaborates .var variablePattern_semantic
+          variablePattern_elaborates Paper1FrozenSignature.runtimeCompatible
+          .var variablePattern_semantic
           MonomorphicContextCompatible.nil matcherTyped .somethingVar
           targetTyped
       have newBindingsEq : newBindings = [.int] := by
@@ -307,7 +309,8 @@ private theorem paperSomethingVariable_initialAtom
       subst matcherValue
       obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
-          paperSomethingVariable_pattern_elaborates .var
+          paperSomethingVariable_pattern_elaborates
+          Paper1FrozenSignature.runtimeCompatible .var
           paperSomethingVariable_pattern_semantic
           MonomorphicContextCompatible.nil matcherTyped .somethingVar
           targetTyped
@@ -398,7 +401,8 @@ private theorem paperIntegerValueMismatch_initialAtom
       subst matcherValue
       obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
-          integerValuePattern_elaborates integerValuePattern_supported
+          integerValuePattern_elaborates Paper1FrozenSignature.runtimeCompatible
+          integerValuePattern_supported
           integerValuePattern_semantic MonomorphicContextCompatible.nil
           matcherTyped .somethingValue targetTyped
       have newBindingsEq : newBindings = [] := by
@@ -481,7 +485,8 @@ private theorem firstMatch_initialAtom
       subst matcherValue
       obtain ⟨newBindings, atomTyped, bindingsEq⟩ :=
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
-          wildcardPattern_elaborates .wild wildcardPattern_semantic
+          wildcardPattern_elaborates Paper1FrozenSignature.runtimeCompatible
+          .wild wildcardPattern_semantic
           MonomorphicContextCompatible.nil matcherTyped .somethingWild
           targetTyped
       have newBindingsEq : newBindings = [] := by

@@ -1,11 +1,13 @@
 import TypePM.Source.M4RecursiveMatcherTotalBridge
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Regression for the fuel-indexed M4 matcher-literal bridge
 
 The final catch-all clause delegates its one hole to `something` and returns
 an empty decomposition list.  Both stored expressions are elaborated through
-the recursive `M4.ElaboratesFuel` callback, not the older M3 matcher relation.
+the recursive `M4.ElaboratesFuel` callback, not the existing non-recursive M3
+matcher relation in this repository.
 -/
 
 namespace TypePM.Source.MatcherTyping.M4RecursiveMatcherTotalBridgeRegression
@@ -136,7 +138,8 @@ theorem matcher_totalCoreTyping :
     TotalCoreTyping (.matcher [clause]) (.matcher .any .int) [] := by
   simpa [solved, Ty.apply] using
     matcher_m4FuelElaborates.toTotalCoreTyping_of_m4Fuel
-      clause_runtimeSupported matcher_semantic
+      Paper1FrozenSignature.runtimeCompatible clause_runtimeSupported
+      matcher_semantic
       MonomorphicContextCompatible.nil
 
 theorem matcher_neverStuck (fuel : Nat) :

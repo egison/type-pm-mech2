@@ -1,5 +1,6 @@
 import TypePM.Source.M4RecursiveMatcherInputBridge
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.Source.Paper1Programs
 
 /-!
@@ -227,9 +228,11 @@ structure ClosedMultisetNilM4Boundary
     (next : Supply) (solution : Subst) : Prop where
   input : MatcherLiteralTotalInputElaboratesUsing
     (M4.ElaboratesFuel Paper1FrozenSignature.signature callbackFuel)
-    expressionTyping solution [] (.ctor PatternCtor.nil []) context
+    Paper1FrozenSignature.signature expressionTyping solution []
+    (.ctor PatternCtor.nil []) context
     multisetClauses supply generated next
-  bridge : SolvedM4CheckedExpressionBridge expressionTyping
+  bridge : SolvedM4CheckedExpressionBridge Paper1FrozenSignature.signature
+    expressionTyping
   semantic : generated.SemanticSolution solution
   contextCompatible :
     MonomorphicContextCompatible context definitionTypes solution
@@ -247,8 +250,9 @@ theorem ClosedMultisetNilM4Boundary.toRuntimeBoundary
       matcherEnvironment definitionTypes
       ((Ty.var ⟨supply.ty⟩).apply solution) := by
   refine ⟨boundary.matcherEnvironmentTyped, boundary.targetTyped, ?_⟩
-  exact boundary.input.toTotalInputTyping_of_m4Fuel boundary.bridge
-    boundary.semantic boundary.contextCompatible
+  exact boundary.input.toTotalInputTyping_of_m4Fuel
+    Paper1FrozenSignature.runtimeCompatible boundary.bridge boundary.semantic
+    boundary.contextCompatible
 
 theorem ClosedMultisetNilM4Boundary.toRecursiveAtom
     (boundary : ClosedMultisetNilM4Boundary expressionTyping callbackFuel

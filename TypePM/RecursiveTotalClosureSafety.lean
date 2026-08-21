@@ -3,8 +3,9 @@ import TypePM.Source.M4RecursiveMatcherTotalBridge
 /-!
 # Proof-only typing for recursive closures with total-core bodies
 
-`ValueTyping.recursiveClosure` intentionally stores an old `RuntimeTyping`
-body.  This parallel layer leaves that stable judgment unchanged and adds the
+`ValueTyping.recursiveClosure` intentionally stores the structural
+`RuntimeTyping` judgment defined in this repository. This parallel layer
+leaves that stable judgment unchanged and adds the
 recursive closure needed when the body is typed only by `TotalCoreTyping`, for
 example because it contains a matcher literal or a recursive match.
 
@@ -27,8 +28,9 @@ mutual
         (typing : TotalCoreTyping expression target context) :
         TotalRecursiveExpressionTyping context expression target
     | solvedM4
+        {signature : Source.FrozenSignature}
         (elaboration : Source.MatcherTyping.CheckedExpressionElaboratesUsing
-          (Source.M4.ElaboratesFuel Source.Paper1FrozenSignature.signature fuel)
+          (Source.M4.ElaboratesFuel signature fuel)
           sourceContext expression expected supply generated next)
         (semantic : generated.RuntimeSolution solution)
         (contextCompatible : MonomorphicContextCompatible
@@ -71,10 +73,11 @@ inductive TotalRecursiveClosureBodyTyping : EmbeddedExpressionTyping where
   This constructor is a typing certificate only: it does not assert that arm
   evaluation or recursive dispatch is safe. -/
   | solvedMatcher
+      {signature : Source.FrozenSignature}
       (elaboration : Source.MatcherTyping.MatcherLiteralElaboratesUsing
-        (Source.M4.ElaboratesFuel Source.Paper1FrozenSignature.signature fuel)
+        (Source.M4.ElaboratesFuel signature fuel)
         Source.MatcherTyping.PPatElaborates Source.MatcherTyping.DPatElaborates
-        Source.Paper1FrozenSignature.signature sourceContext sourceClauses
+        signature sourceContext sourceClauses
         supply generated next)
       (semantic : generated.SemanticSolution solution)
       (contextCompatible : MonomorphicContextCompatible
@@ -112,11 +115,12 @@ mutual
     keeps the value-type index constructor-shaped; this certificate still
     contains no dispatch-safety claim. -/
     | solvedMatcherClosure
+        {signature : Source.FrozenSignature}
         (environment : TotalValueTypings values definitionTypes)
         (elaboration : Source.MatcherTyping.MatcherLiteralElaboratesUsing
-          (Source.M4.ElaboratesFuel Source.Paper1FrozenSignature.signature fuel)
+          (Source.M4.ElaboratesFuel signature fuel)
           Source.MatcherTyping.PPatElaborates Source.MatcherTyping.DPatElaborates
-          Source.Paper1FrozenSignature.signature sourceContext original
+          signature sourceContext original
           supply generated next)
         (semantic : generated.SemanticSolution solution)
         (contextCompatible : MonomorphicContextCompatible
@@ -300,8 +304,8 @@ end RuntimeCaptureExpressionsTyping
 /-- Static solved-M4 bridge for recursive matcher-clause expressions.  The
 result is a typing certificate only; it contains no environment-safety or
 no-stuck conclusion. -/
-def totalRecursiveExpressionBridge :
-    Source.MatcherTyping.SolvedM4CheckedExpressionBridge
+def totalRecursiveExpressionBridge (signature : Source.FrozenSignature) :
+    Source.MatcherTyping.SolvedM4CheckedExpressionBridge signature
       TotalRecursiveExpressionTyping where
   checked := by
     intro fuel context expression expected supply generated next solution
@@ -313,8 +317,8 @@ def totalRecursiveExpressionBridge :
 
 namespace RuntimeNextMatchersTyping
 
-/-- Old next-matcher typing embeds into the callback-parametric total clause
-family. -/
+/-- Structural next-matcher typing embeds into the callback-parametric total
+clause family. -/
 theorem toTotalCore
     (typing : RuntimeNextMatchersTyping context expression holes) :
     TotalRuntimeNextMatchersTyping
@@ -366,7 +370,7 @@ end RuntimeMatcherClauseTyping
 
 namespace RuntimeMatcherClausesTyping
 
-/-- Pointwise lifting of an old clause certificate. -/
+/-- Pointwise lifting of a structural clause certificate. -/
 theorem toTotalCore
     (typing : RuntimeMatcherClausesTyping definitionTypes matcherTarget clauses) :
     TotalRuntimeMatcherClausesTyping
@@ -432,10 +436,11 @@ precise source capability is retained by `solvedMatcherClosure`; this theorem
 does not execute clause dispatch and therefore makes no claim about the
 safety of next-matcher expressions or arm bodies. -/
 theorem totalEnvironmentSafe_solvedMatcher
+    {signature : Source.FrozenSignature}
     (elaboration : Source.MatcherTyping.MatcherLiteralElaboratesUsing
-      (Source.M4.ElaboratesFuel Source.Paper1FrozenSignature.signature fuel)
+      (Source.M4.ElaboratesFuel signature fuel)
       Source.MatcherTyping.PPatElaborates Source.MatcherTyping.DPatElaborates
-      Source.Paper1FrozenSignature.signature sourceContext clauses supply
+      signature sourceContext clauses supply
       generated next)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible : MonomorphicContextCompatible

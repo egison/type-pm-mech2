@@ -1,5 +1,6 @@
 import TypePM.Source.M4TwoIndexPatternDispatchProducer
 import TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression
 
 /-!
@@ -167,6 +168,7 @@ theorem recursiveClosure_variable_dispatch_twoIndex :
       (environmentTypes := [recursiveClosureType])
       (branches := variableBranches listRecursiveClosure)
       recursiveClosureVariable_elaborates
+      Paper1FrozenSignature.runtimeCompatible
       recursiveClosureVariable_supported
       recursiveClosureVariable_semantic
       (MonomorphicContextCompatible.cons MonomorphicContextCompatible.nil)

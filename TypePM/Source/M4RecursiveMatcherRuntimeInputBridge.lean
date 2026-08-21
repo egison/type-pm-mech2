@@ -20,11 +20,12 @@ open TypePM.Runtime
 
 theorem MatcherClauseTotalInputElaboratesUsing.toRuntimeInputTyping_of_m4Fuel
     (input : MatcherClauseTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
+      (M4.ElaboratesFuel signature fuel) signature
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
       solution atomEnvironmentTypes pattern context
       matcherTarget clause supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClauseRuntimeExpressionsSupported clause)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -57,21 +58,22 @@ theorem MatcherClauseTotalInputElaboratesUsing.toRuntimeInputTyping_of_m4Fuel
               (bindings := generatedHeader.captures) contextCompatible
           exact .mk
             (headerElaboration.toRuntimePPatTyping headerSolved)
-            (nextElaboration.toRuntimeNextMatchersTyping_of_m4Fuel nextSupported
-              nextSemantic nextContextCompatible)
-            (armsElaboration.toRuntimeMatcherArmsTyping_of_m4Fuel armsSupported
-              armsSemantic contextCompatible)
+            (nextElaboration.toRuntimeNextMatchersTyping_of_m4Fuel compatible
+              nextSupported nextSemantic nextContextCompatible)
+            (armsElaboration.toRuntimeMatcherArmsTyping_of_m4Fuel compatible
+              armsSupported armsSemantic contextCompatible)
             (by
               intro dispatch inspected
               exact captures inspected)
 
 theorem MatcherClausesTotalInputElaborateUsing.toRuntimeInputTyping_of_m4Fuel
     (input : MatcherClausesTotalInputElaborateUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
+      (M4.ElaboratesFuel signature fuel) signature
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
       solution atomEnvironmentTypes pattern context
       matcherTarget clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -85,19 +87,20 @@ theorem MatcherClausesTotalInputElaborateUsing.toRuntimeInputTyping_of_m4Fuel
       | cons headSupported tailSupported =>
           simp only [GeneratedChecks.runtimeSolution_append] at semantic
           exact .cons
-            (head.toRuntimeInputTyping_of_m4Fuel headSupported semantic.1
-              contextCompatible)
+            (head.toRuntimeInputTyping_of_m4Fuel compatible headSupported
+              semantic.1 contextCompatible)
             (induction tailSupported semantic.2)
 
 /-- Exact recursive-M4 literal input derivations with runtime-supported leaves
 feed the non-parametric common-fuel user-matcher certificate. -/
 theorem MatcherLiteralTotalInputElaboratesUsing.toRuntimeInputTyping_of_m4Fuel
     (input : MatcherLiteralTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
+      (M4.ElaboratesFuel signature fuel) signature
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
       solution atomEnvironmentTypes pattern context clauses
       supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
@@ -112,7 +115,7 @@ theorem MatcherLiteralTotalInputElaboratesUsing.toRuntimeInputTyping_of_m4Fuel
         · intro equation member
           exact semantic.1 equation (by simp [member])
         · exact semantic.2
-      exact clauses.toRuntimeInputTyping_of_m4Fuel supported clausesSemantic
-        contextCompatible
+      exact clauses.toRuntimeInputTyping_of_m4Fuel compatible supported
+        clausesSemantic contextCompatible
 
 end TypePM.Source.MatcherTyping

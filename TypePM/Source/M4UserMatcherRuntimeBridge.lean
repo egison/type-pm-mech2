@@ -1,11 +1,12 @@
 import TypePM.Source.M4MatcherTyping
+import TypePM.Source.FrozenSignatureRuntimeCompatibility
 import TypePM.UserMatcherGeneralSafety
 
 /-!
 # M4 user-matcher certificates at the runtime boundary
 
 This module translates solved relational M4 matcher-pattern elaborations under
-the fixed Paper-1 signature into the evaluator-facing runtime certificates.
+a runtime-compatible frozen signature into evaluator-facing certificates.
 It does not infer runtime expression typing from arbitrary M4 expressions;
 arm and clause bridges below keep that premise explicit.
 -/
@@ -14,102 +15,14 @@ namespace TypePM.Source.MatcherTyping
 
 open TypePM.Runtime
 
-/-- A successful lookup in the fixed M4 signature is one of the four data
-constructors implemented by runtime value typing. -/
-theorem paper1DataConstructor_lookup_cases
-    {constructor : DataCtor} {scheme : Scheme}
-    (lookup : Paper1FrozenSignature.signature.lookupDataConstructor constructor =
-      some scheme) :
-    (constructor = DataCtor.true ∧ scheme = ConstructorSchemes.boolTrue) ∨
-    (constructor = DataCtor.false ∧ scheme = ConstructorSchemes.boolFalse) ∨
-    (constructor = DataCtor.nil ∧ scheme = ConstructorSchemes.listNil) ∨
-    (constructor = DataCtor.cons ∧ scheme = ConstructorSchemes.listCons) := by
-  by_cases isTrue : DataCtor.true = constructor
-  · subst constructor
-    simp [Paper1FrozenSignature.lookup_true] at lookup
-    exact .inl ⟨rfl, lookup.symm⟩
-  · by_cases isFalse : DataCtor.false = constructor
-    · subst constructor
-      simp [Paper1FrozenSignature.lookup_false] at lookup
-      exact .inr (.inl ⟨rfl, lookup.symm⟩)
-    · by_cases isNil : DataCtor.nil = constructor
-      · subst constructor
-        simp [Paper1FrozenSignature.lookup_data_nil] at lookup
-        exact .inr (.inr (.inl ⟨rfl, lookup.symm⟩))
-      · have isCons : DataCtor.cons = constructor := by
-          by_cases isCons : DataCtor.cons = constructor
-          · exact isCons
-          · have impossible : False := by
-              unfold FrozenSignature.lookupDataConstructor at lookup
-              unfold Signature.lookupDataConstructor at lookup
-              simp [Paper1FrozenSignature.signature,
-                Paper1Signature.signature, Paper1Signature.dataConstructors,
-                isTrue, isFalse, isNil, isCons] at lookup
-            exact impossible.elim
-        subst constructor
-        simp [Paper1FrozenSignature.lookup_data_cons] at lookup
-        exact .inr (.inr (.inr ⟨rfl, lookup.symm⟩))
-
-/-- Solving the result equation of an M4 data-pattern constructor produces
-the corresponding canonical runtime constructor certificate. -/
-theorem runtimeDataConstructorTyping_of_m4
-    {constructor : DataCtor} {scheme : Scheme} {supply : Supply}
-    {arity : Nat} {fieldTypes : List Ty} {resultType expected : Ty}
-    (lookup : Paper1FrozenSignature.signature.lookupDataConstructor constructor =
-      some scheme)
-    (fieldArity : arity = scheme.callArity)
-    (peel : peelFunctionExact arity (scheme.instantiate supply).1 =
-      some (fieldTypes, resultType))
-    (resultSolved :
-      (Equation.ty resultType expected).Holds solution) :
-    RuntimeDataConstructorTyping constructor
-      (Ty.applyList solution fieldTypes) (expected.apply solution) := by
-  rcases paper1DataConstructor_lookup_cases lookup with
-    ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · simp [Scheme.callArity, ConstructorSchemes.boolTrue] at fieldArity
-    subst arity
-    simp [ConstructorSchemes.instantiate_boolTrue] at peel
-    rcases peel with ⟨rfl, rfl⟩
-    simp only [Equation.Holds] at resultSolved
-    rw [← resultSolved]
-    simpa [Ty.apply, Ty.applyList, DataTypes.bool] using
-      (RuntimeDataConstructorTyping.boolTrue :
-        RuntimeDataConstructorTyping DataCtor.true [] DataTypes.bool)
-  · simp [Scheme.callArity, ConstructorSchemes.boolFalse] at fieldArity
-    subst arity
-    simp [ConstructorSchemes.instantiate_boolFalse] at peel
-    rcases peel with ⟨rfl, rfl⟩
-    simp only [Equation.Holds] at resultSolved
-    rw [← resultSolved]
-    simpa [Ty.apply, Ty.applyList, DataTypes.bool] using
-      (RuntimeDataConstructorTyping.boolFalse :
-        RuntimeDataConstructorTyping DataCtor.false [] DataTypes.bool)
-  · simp [Scheme.callArity, ConstructorSchemes.listNil] at fieldArity
-    subst arity
-    simp [ConstructorSchemes.instantiate_listNil] at peel
-    rcases peel with ⟨rfl, rfl⟩
-    simp only [Equation.Holds] at resultSolved
-    rw [← resultSolved]
-    simpa [Ty.apply, Ty.applyList, DataTypes.list] using
-      (RuntimeDataConstructorTyping.listNil
-        ((Ty.var ⟨supply.ty⟩).apply solution))
-  · simp [Scheme.callArity, ConstructorSchemes.listCons] at fieldArity
-    subst arity
-    simp [ConstructorSchemes.instantiate_listCons] at peel
-    rcases peel with ⟨rfl, rfl⟩
-    simp only [Equation.Holds] at resultSolved
-    rw [← resultSolved]
-    simpa [Ty.apply, Ty.applyList, DataTypes.list] using
-      (RuntimeDataConstructorTyping.listCons
-        ((Ty.var ⟨supply.ty⟩).apply solution))
-
 /-- The same M4 lookup/opening evidence in the public scheme-instance shape
 used by later static bridges. -/
 theorem runtimeDataConstructorSchemeInstance_of_m4
+    {signature : FrozenSignature}
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     {constructor : DataCtor} {scheme : Scheme} {supply : Supply}
     {arity : Nat} {fieldTypes : List Ty} {resultType expected : Ty}
-    (lookup : Paper1FrozenSignature.signature.lookupDataConstructor constructor =
-      some scheme)
+    (lookup : signature.lookupDataConstructor constructor = some scheme)
     (fieldArity : arity = scheme.callArity)
     (peel : peelFunctionExact arity (scheme.instantiate supply).1 =
       some (fieldTypes, resultType))
@@ -117,7 +30,8 @@ theorem runtimeDataConstructorSchemeInstance_of_m4
       (Equation.ty resultType expected).Holds solution) :
     RuntimeDataConstructorSchemeInstance constructor
       (Ty.applyList solution fieldTypes) (expected.apply solution) :=
-  (runtimeDataConstructorTyping_of_m4 lookup fieldArity peel resultSolved).schemeInstance
+  (compatible.dataConstructorTyping_of_m4 lookup fieldArity peel
+    resultSolved).schemeInstance
 
 private theorem tyApplyList_append (left right : List Ty) :
     Ty.applyList solution (left ++ right) =
@@ -132,7 +46,7 @@ mutual
   /-- A solved M4 pattern-pattern elaboration is an evaluator-facing header
   certificate.  Mapping preserves the left-to-right hole and capture order. -/
   theorem PPatElaborates.toRuntimePPatTyping
-      (elaboration : PPatElaborates Paper1FrozenSignature.signature pattern
+      (elaboration : PPatElaborates signature pattern
         expectedTarget expectedCapability supply generated next)
       (solved : Solves solution generated.hard) :
       RuntimePPatTyping pattern (expectedTarget.apply solution)
@@ -164,7 +78,7 @@ mutual
   /-- List counterpart of `PPatElaborates.toRuntimePPatTyping`; field targets,
   holes, and captures all retain source order. -/
   theorem PPatsElaborate.toRuntimePPatsTyping
-      (elaboration : PPatsElaborate Paper1FrozenSignature.signature patterns
+      (elaboration : PPatsElaborate signature patterns
         expected supply generated next)
       (solved : Solves solution generated.hard) :
       RuntimePPatsTyping patterns
@@ -191,8 +105,9 @@ mutual
   /-- A solved M4 data-pattern elaboration yields the runtime pattern
   certificate, including an explicit canonical constructor certificate. -/
   theorem DPatElaborates.toRuntimeDPatTyping
-      (elaboration : DPatElaborates Paper1FrozenSignature.signature pattern
+      (elaboration : DPatElaborates signature pattern
         expected supply generated next)
+      (compatible : FrozenSignatureRuntimeCompatible signature)
       (solved : Solves solution generated.hard) :
       RuntimeDPatTyping pattern (expected.apply solution)
         (Ty.applyList solution generated.bindings) := by
@@ -208,12 +123,13 @@ mutual
     | ctor lookup arity peel fieldsElaboration =>
         simp only [List.singleton_append, solves_cons] at solved
         exact RuntimeDPatTyping.ctor
-          (runtimeDataConstructorTyping_of_m4 lookup arity peel solved.1)
-          (DPatsElaborate.toRuntimeDPatsTyping fieldsElaboration solved.2)
+          (compatible.dataConstructorTyping_of_m4 lookup arity peel solved.1)
+          (DPatsElaborate.toRuntimeDPatsTyping fieldsElaboration compatible
+            solved.2)
     | tuple fieldsEquality itemsElaboration =>
         simp only [List.singleton_append, solves_cons] at solved
         have itemsTyping :=
-          DPatsElaborate.toRuntimeDPatsTyping itemsElaboration solved.2
+          DPatsElaborate.toRuntimeDPatsTyping itemsElaboration compatible solved.2
         simp only [Equation.Holds] at solved
         rw [solved.1]
         simpa [Ty.apply, Ty.applyList] using
@@ -222,8 +138,9 @@ mutual
   /-- List counterpart of `DPatElaborates.toRuntimeDPatTyping`; constructor
   fields and synthesized bindings stay left-to-right. -/
   theorem DPatsElaborate.toRuntimeDPatsTyping
-      (elaboration : DPatsElaborate Paper1FrozenSignature.signature patterns
+      (elaboration : DPatsElaborate signature patterns
         expected supply generated next)
+      (compatible : FrozenSignatureRuntimeCompatible signature)
       (solved : Solves solution generated.hard) :
       RuntimeDPatsTyping patterns (Ty.applyList solution expected)
         (Ty.applyList solution generated.bindings) := by
@@ -235,8 +152,8 @@ mutual
         simp only [solves_append] at solved
         exact (by
           simpa [Ty.applyList, tyApplyList_append] using RuntimeDPatsTyping.cons
-            (DPatElaborates.toRuntimeDPatTyping head solved.1)
-            (DPatsElaborate.toRuntimeDPatsTyping tail solved.2))
+            (DPatElaborates.toRuntimeDPatTyping head compatible solved.1)
+            (DPatsElaborate.toRuntimeDPatsTyping tail compatible solved.2))
 
 end
 
@@ -304,8 +221,8 @@ theorem runtimeContextCompatible_extendPatternContext
 typing once its hard and delayed checks are semantically discharged. -/
 theorem CheckedExpressionElaborates.toRuntimeTyping
     (elaboration : CheckedExpressionElaborates
-      Paper1FrozenSignature.signature context expression expected supply
-      generated next)
+      signature context expression expected supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : RuntimeSupported expression)
     (semantic : generated.RuntimeSolution solution)
     (contextCompatible :
@@ -320,8 +237,8 @@ theorem CheckedExpressionElaborates.toRuntimeTyping
           exact semantic.2 obligation (by
             simp [GeneratedChecks.checked, member])
       have sourceTyping := supported.elaboration_typing
-        (signature := Paper1Signature.signature)
-        paper1SignatureCompatible sourceElaboration sourceSemantic
+        (signature := signature.base)
+        compatible.toSignatureCompatible sourceElaboration sourceSemantic
         contextCompatible
       obtain ⟨conversionClass, conversion⟩ := semantic.2
         ⟨sourceGenerated.target, expected⟩ (by
@@ -352,8 +269,8 @@ def solvedHoleSlotTypes (solution : Subst) (holes : List Dual) : List Ty :=
 and become pointwise runtime typings at the solved slot types. -/
 theorem NextMatcherItemsElaborate.toRuntimeTypings
     (elaboration : NextMatcherItemsElaborate
-      Paper1FrozenSignature.signature context expressions holes supply
-      generated next)
+      signature context expressions holes supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : RuntimeSupporteds expressions)
     (semantic : generated.RuntimeSolution solution)
     (contextCompatible :
@@ -368,8 +285,8 @@ theorem NextMatcherItemsElaborate.toRuntimeTypings
       cases supported with
       | cons headSupported tailSupported =>
           simp only [GeneratedChecks.runtimeSolution_append] at semantic
-          have headTyping := head.toRuntimeTyping headSupported semantic.1
-            contextCompatible
+          have headTyping := head.toRuntimeTyping compatible headSupported
+            semantic.1 contextCompatible
           have tailTyping := tailInduction tailSupported semantic.2
           simpa [solvedHoleSlotTypes, RuntimeDual.apply, Ty.apply] using
             RuntimeTypings.cons headTyping tailTyping
@@ -378,8 +295,8 @@ theorem NextMatcherItemsElaborate.toRuntimeTypings
 runtime decoder certificate after solving. -/
 theorem NextMatchersElaborate.toRuntimeNextMatchersTyping
     (elaboration : NextMatchersElaborate
-      Paper1FrozenSignature.signature context expression holes supply
-      generated next)
+      signature context expression holes supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : RuntimeSupported expression)
     (semantic : generated.RuntimeSolution solution)
     (contextCompatible :
@@ -392,13 +309,14 @@ theorem NextMatchersElaborate.toRuntimeNextMatchersTyping
   | one checked =>
       apply RuntimeNextMatchersTyping.one
       simpa [RuntimeDual.apply, Ty.apply] using
-        checked.toRuntimeTyping supported semantic contextCompatible
+        checked.toRuntimeTyping compatible supported semantic contextCompatible
   | many components =>
       cases supported with
       | tuple itemsSupported =>
           apply RuntimeNextMatchersTyping.many
           simpa [solvedHoleSlotTypes] using
-            components.toRuntimeTypings itemsSupported semantic contextCompatible
+            components.toRuntimeTypings compatible itemsSupported semantic
+              contextCompatible
 
 /-- Runtime syntax coverage for source-ordered matcher-arm bodies. -/
 inductive MatcherArmBodiesRuntimeSupported : List MatcherArm → Prop where
@@ -430,8 +348,9 @@ inductive MatcherClausesRuntimeExpressionsSupported :
 is checked under bindings, captures, and the definition context in precisely
 that order. -/
 theorem MatcherArmElaborates.toRuntimeMatcherArmTyping
-    (elaboration : MatcherArmElaborates Paper1FrozenSignature.signature
+    (elaboration : MatcherArmElaborates signature
       context captures matcherTarget holes arm supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : RuntimeSupported arm.body)
     (semantic : generated.RuntimeSolution solution)
     (contextCompatible :
@@ -456,17 +375,18 @@ theorem MatcherArmElaborates.toRuntimeMatcherArmTyping
       have bodyContextCompatible :=
         runtimeContextCompatible_extendPatternContext
           (bindings := generatedHeader.bindings) captureContextCompatible
-      have bodyTyping := bodyElaboration.toRuntimeTyping supported bodySemantic
-        bodyContextCompatible
+      have bodyTyping := bodyElaboration.toRuntimeTyping compatible supported
+        bodySemantic bodyContextCompatible
       apply RuntimeMatcherArmTyping.mk
-        (headerElaboration.toRuntimeDPatTyping headerSolved)
+        (headerElaboration.toRuntimeDPatTyping compatible headerSolved)
       simpa [DataTypes.list, Ty.apply, Ty.applyList, List.append_assoc] using
         bodyTyping
 
 /-- Source-ordered list lifting for M4 matcher arms. -/
 theorem MatcherArmsElaborate.toRuntimeMatcherArmsTyping
-    (elaboration : MatcherArmsElaborate Paper1FrozenSignature.signature
+    (elaboration : MatcherArmsElaborate signature
       context captures matcherTarget holes arms supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherArmBodiesRuntimeSupported arms)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -481,7 +401,7 @@ theorem MatcherArmsElaborate.toRuntimeMatcherArmsTyping
       | cons headSupported tailSupported =>
           simp only [GeneratedChecks.runtimeSolution_append] at semantic
           exact .cons
-            (head.toRuntimeMatcherArmTyping headSupported semantic.1
+            (head.toRuntimeMatcherArmTyping compatible headSupported semantic.1
               contextCompatible)
             (tailInduction tailSupported semantic.2)
 
@@ -489,8 +409,9 @@ theorem MatcherArmsElaborate.toRuntimeMatcherArmsTyping
 preservation and progress.  Header captures are placed before definition
 types for the next matcher, while arm bindings precede both. -/
 theorem MatcherClauseElaborates.toRuntimeMatcherClauseTyping
-    (elaboration : MatcherClauseElaborates Paper1FrozenSignature.signature
+    (elaboration : MatcherClauseElaborates signature
       context matcherTarget clause supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClauseRuntimeExpressionsSupported clause)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -523,15 +444,16 @@ theorem MatcherClauseElaborates.toRuntimeMatcherClauseTyping
               (bindings := generatedHeader.captures) contextCompatible
           exact RuntimeMatcherClauseTyping.mk
             (headerElaboration.toRuntimePPatTyping headerSolved)
-            (nextElaboration.toRuntimeNextMatchersTyping nextSupported
+            (nextElaboration.toRuntimeNextMatchersTyping compatible nextSupported
               nextSemantic nextContextCompatible)
-            (armsElaboration.toRuntimeMatcherArmsTyping armsSupported
+            (armsElaboration.toRuntimeMatcherArmsTyping compatible armsSupported
               armsSemantic contextCompatible)
 
 /-- Source-ordered clause-list lifting. -/
 theorem MatcherClausesElaborate.toRuntimeMatcherClausesTyping
-    (elaboration : MatcherClausesElaborate Paper1FrozenSignature.signature
+    (elaboration : MatcherClausesElaborate signature
       context matcherTarget clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -545,8 +467,8 @@ theorem MatcherClausesElaborate.toRuntimeMatcherClausesTyping
       | cons headSupported tailSupported =>
           simp only [GeneratedChecks.runtimeSolution_append] at semantic
           exact .cons
-            (head.toRuntimeMatcherClauseTyping headSupported semantic.1
-              contextCompatible)
+            (head.toRuntimeMatcherClauseTyping compatible headSupported
+              semantic.1 contextCompatible)
             (tailInduction tailSupported semantic.2)
 
 /-- Literal-level bridge: the solved M4 matcher target determines the target
@@ -554,8 +476,9 @@ shared by the runtime clause list.  Runtime expression typing has no matcher
 literal constructor yet, so the honest conclusion is the complete clause
 certificate rather than a `RuntimeTyping (.matcher ...)` claim. -/
 theorem MatcherLiteralElaborates.toRuntimeMatcherClausesTyping
-    (elaboration : MatcherLiteralElaborates Paper1FrozenSignature.signature
+    (elaboration : MatcherLiteralElaborates signature
       context clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
@@ -571,8 +494,8 @@ theorem MatcherLiteralElaborates.toRuntimeMatcherClausesTyping
         · intro equation member
           exact semantic.1 equation (by simp [member])
         · exact semantic.2
-      exact clausesElaboration.toRuntimeMatcherClausesTyping supported
-        clausesSemantic contextCompatible
+      exact clausesElaboration.toRuntimeMatcherClausesTyping compatible
+        supported clausesSemantic contextCompatible
 
 /-! ## Capture-aware input certificates
 
@@ -586,20 +509,21 @@ constructor rule: every constructor contains the original M4 derivations.
 /-- One M4 clause elaboration plus the exact runtime typing of capture
 expressions exposed by header inspection for a particular input pattern. -/
 inductive MatcherClauseRuntimeInputElaborates
-    (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
+    (signature : FrozenSignature) (solution : Subst)
+    (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) (matcherTarget : Ty) :
     MatcherClause → Supply → GeneratedMatcherClause → Supply → Prop where
   | mk {header nextMatchers arms supply generatedHeader afterHeader generatedNext
       afterNext generatedArms next}
       (shape : (MatcherClause.mk header nextMatchers arms).toShape.check
-        Paper1FrozenSignature.signature = true)
-      (headerElaboration : PPatElaborates Paper1FrozenSignature.signature
+        signature = true)
+      (headerElaboration : PPatElaborates signature
         header matcherTarget none supply generatedHeader afterHeader)
-      (nextElaboration : NextMatchersElaborate Paper1FrozenSignature.signature
+      (nextElaboration : NextMatchersElaborate signature
         (Pattern.extendContext generatedHeader.captures context)
         nextMatchers generatedHeader.holes afterHeader generatedNext afterNext)
       (armsElaboration : MatcherArmsElaborate
-        Paper1FrozenSignature.signature context generatedHeader.captures
+        signature context generatedHeader.captures
         matcherTarget generatedHeader.holes arms afterNext generatedArms next)
       (captures : ∀ {dispatch},
         inspectPatternPattern header pattern = some dispatch →
@@ -608,8 +532,9 @@ inductive MatcherClauseRuntimeInputElaborates
             RuntimeTyping expression target runtimeContext)
           atomEnvironmentTypes dispatch.captures
           (Ty.applyList solution generatedHeader.captures)) :
-      MatcherClauseRuntimeInputElaborates solution atomEnvironmentTypes pattern
-        context matcherTarget (.mk header nextMatchers arms) supply
+      MatcherClauseRuntimeInputElaborates signature solution
+        atomEnvironmentTypes pattern context matcherTarget
+        (.mk header nextMatchers arms) supply
         ⟨generatedHeader.holes, generatedHeader.evidence,
           ⟨generatedHeader.hard ++ generatedNext.hard ++
               generatedArms.checks.hard,
@@ -617,19 +542,23 @@ inductive MatcherClauseRuntimeInputElaborates
 
 /-- Source-order list form of the capture-aware M4 relation. -/
 inductive MatcherClausesRuntimeInputElaborate
-    (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
+    (signature : FrozenSignature) (solution : Subst)
+    (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) (matcherTarget : Ty) :
     List MatcherClause → Supply → GeneratedMatcherClauses → Supply → Prop where
   | nil {supply} :
-      MatcherClausesRuntimeInputElaborate solution atomEnvironmentTypes pattern
-        context matcherTarget [] supply ⟨[], GeneratedChecks.empty⟩ supply
+      MatcherClausesRuntimeInputElaborate signature solution
+        atomEnvironmentTypes pattern context matcherTarget [] supply
+        ⟨[], GeneratedChecks.empty⟩ supply
   | cons {clause clauses supply generatedClause afterClause generatedClauses next}
-      (head : MatcherClauseRuntimeInputElaborates solution atomEnvironmentTypes
-        pattern context matcherTarget clause supply generatedClause afterClause)
-      (tail : MatcherClausesRuntimeInputElaborate solution atomEnvironmentTypes
-        pattern context matcherTarget clauses afterClause generatedClauses next) :
-      MatcherClausesRuntimeInputElaborate solution atomEnvironmentTypes pattern
-        context matcherTarget (clause :: clauses) supply
+      (head : MatcherClauseRuntimeInputElaborates signature solution
+        atomEnvironmentTypes pattern context matcherTarget clause supply
+        generatedClause afterClause)
+      (tail : MatcherClausesRuntimeInputElaborate signature solution
+        atomEnvironmentTypes pattern context matcherTarget clauses afterClause
+        generatedClauses next) :
+      MatcherClausesRuntimeInputElaborate signature solution
+        atomEnvironmentTypes pattern context matcherTarget (clause :: clauses) supply
         ⟨match generatedClause.evidence with
           | some evidence => evidence :: generatedClauses.evidences
           | none => generatedClauses.evidences,
@@ -637,25 +566,27 @@ inductive MatcherClausesRuntimeInputElaborate
 
 /-- Matcher-literal form of the capture-aware relation. -/
 inductive MatcherLiteralRuntimeInputElaborates
-    (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
+    (signature : FrozenSignature) (solution : Subst)
+    (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) :
     List MatcherClause → Supply → Generated → Supply → Prop where
   | mk {clauses supply generatedClauses next}
-      (checked : StaticChecksHold Paper1FrozenSignature.signature clauses)
-      (clausesElaboration : MatcherClausesRuntimeInputElaborate solution
-        atomEnvironmentTypes pattern context (.var ⟨supply.ty⟩) clauses
+      (checked : StaticChecksHold signature clauses)
+      (clausesElaboration : MatcherClausesRuntimeInputElaborate signature
+        solution atomEnvironmentTypes pattern context (.var ⟨supply.ty⟩) clauses
         ⟨supply.ty + 1, supply.cap + 1⟩ generatedClauses next) :
-      MatcherLiteralRuntimeInputElaborates solution atomEnvironmentTypes pattern
-        context clauses supply
+      MatcherLiteralRuntimeInputElaborates signature solution
+        atomEnvironmentTypes pattern context clauses supply
         ⟨.matcher (.var ⟨supply.cap⟩) (.var ⟨supply.ty⟩),
           evidenceEquations (.var ⟨supply.cap⟩) generatedClauses.evidences ++
             generatedClauses.checks.hard,
           generatedClauses.checks.pending⟩ next
 
 theorem MatcherClauseRuntimeInputElaborates.elaboration
-    (input : MatcherClauseRuntimeInputElaborates solution atomEnvironmentTypes
-      pattern context matcherTarget clause supply generated next) :
-    MatcherClauseElaborates Paper1FrozenSignature.signature context matcherTarget
+    (input : MatcherClauseRuntimeInputElaborates signature solution
+      atomEnvironmentTypes pattern context matcherTarget clause supply generated
+      next) :
+    MatcherClauseElaborates signature context matcherTarget
       clause supply generated next := by
   cases input with
   | mk shape header nextMatchers arms captures =>
@@ -663,9 +594,10 @@ theorem MatcherClauseRuntimeInputElaborates.elaboration
         header nextMatchers arms
 
 theorem MatcherClausesRuntimeInputElaborate.elaboration
-    (input : MatcherClausesRuntimeInputElaborate solution atomEnvironmentTypes
-      pattern context matcherTarget clauses supply generated next) :
-    MatcherClausesElaborate Paper1FrozenSignature.signature context matcherTarget
+    (input : MatcherClausesRuntimeInputElaborate signature solution
+      atomEnvironmentTypes pattern context matcherTarget clauses supply generated
+      next) :
+    MatcherClausesElaborate signature context matcherTarget
       clauses supply generated next := by
   induction input with
   | nil => exact .nil
@@ -673,9 +605,9 @@ theorem MatcherClausesRuntimeInputElaborate.elaboration
       exact .cons head.elaboration tailInduction
 
 theorem MatcherLiteralRuntimeInputElaborates.elaboration
-    (input : MatcherLiteralRuntimeInputElaborates solution atomEnvironmentTypes
-      pattern context clauses supply generated next) :
-    MatcherLiteralElaborates Paper1FrozenSignature.signature context clauses
+    (input : MatcherLiteralRuntimeInputElaborates signature solution
+      atomEnvironmentTypes pattern context clauses supply generated next) :
+    MatcherLiteralElaborates signature context clauses
       supply generated next := by
   cases input with
   | mk checked clauses => exact .mk checked clauses.elaboration
@@ -683,8 +615,10 @@ theorem MatcherLiteralRuntimeInputElaborates.elaboration
 /-- Capture-aware one-clause bridge to the exact input certificate consumed
 by general dispatch safety. -/
 theorem MatcherClauseRuntimeInputElaborates.toRuntimeMatcherClauseInputTyping
-    (input : MatcherClauseRuntimeInputElaborates solution atomEnvironmentTypes
-      pattern context matcherTarget clause supply generated next)
+    (input : MatcherClauseRuntimeInputElaborates signature solution
+      atomEnvironmentTypes pattern context matcherTarget clause supply generated
+      next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClauseRuntimeExpressionsSupported clause)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -717,16 +651,18 @@ theorem MatcherClauseRuntimeInputElaborates.toRuntimeMatcherClauseInputTyping
               (bindings := generatedHeader.captures) contextCompatible
           exact .mk
             (headerElaboration.toRuntimePPatTyping headerSolved)
-            (nextElaboration.toRuntimeNextMatchersTyping nextSupported
+            (nextElaboration.toRuntimeNextMatchersTyping compatible nextSupported
               nextSemantic nextContextCompatible)
-            (armsElaboration.toRuntimeMatcherArmsTyping armsSupported
+            (armsElaboration.toRuntimeMatcherArmsTyping compatible armsSupported
               armsSemantic contextCompatible)
             captures
 
 /-- Capture-aware source-order clause-list bridge. -/
 theorem MatcherClausesRuntimeInputElaborate.toRuntimeMatcherClausesInputTyping
-    (input : MatcherClausesRuntimeInputElaborate solution atomEnvironmentTypes
-      pattern context matcherTarget clauses supply generated next)
+    (input : MatcherClausesRuntimeInputElaborate signature solution
+      atomEnvironmentTypes pattern context matcherTarget clauses supply generated
+      next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
@@ -740,15 +676,16 @@ theorem MatcherClausesRuntimeInputElaborate.toRuntimeMatcherClausesInputTyping
       | cons headSupported tailSupported =>
           simp only [GeneratedChecks.runtimeSolution_append] at semantic
           exact .cons
-            (head.toRuntimeMatcherClauseInputTyping headSupported semantic.1
-              contextCompatible)
+            (head.toRuntimeMatcherClauseInputTyping compatible headSupported
+              semantic.1 contextCompatible)
             (tailInduction tailSupported semantic.2)
 
 /-- Capture-aware literal-level bridge.  This is the direct input certificate
 for ordered runtime dispatch at one enclosing source pattern. -/
 theorem MatcherLiteralRuntimeInputElaborates.toRuntimeMatcherClausesInputTyping
-    (input : MatcherLiteralRuntimeInputElaborates solution atomEnvironmentTypes
-      pattern context clauses supply generated next)
+    (input : MatcherLiteralRuntimeInputElaborates signature solution
+      atomEnvironmentTypes pattern context clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : MatcherClausesRuntimeExpressionsSupported clauses)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
@@ -764,7 +701,7 @@ theorem MatcherLiteralRuntimeInputElaborates.toRuntimeMatcherClausesInputTyping
         · intro equation member
           exact semantic.1 equation (by simp [member])
         · exact semantic.2
-      exact clausesElaboration.toRuntimeMatcherClausesInputTyping supported
-        clausesSemantic contextCompatible
+      exact clausesElaboration.toRuntimeMatcherClausesInputTyping compatible
+        supported clausesSemantic contextCompatible
 
 end TypePM.Source.MatcherTyping

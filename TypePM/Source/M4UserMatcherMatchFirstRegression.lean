@@ -2,6 +2,7 @@ import TypePM.Source.M4MatchFirstTotalCoreBridge
 import TypePM.Source.M4ElaborationFuelTransport
 import TypePM.Source.M4RecursiveMatcherRuntimeInputBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridgeRegression
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.Runtime.EvaluationAdequacy
 
 /-!
@@ -242,6 +243,7 @@ private theorem wildcardInput_of_singleHoleClause
       [.mk .hole nextMatchers arms] supply generated next) :
     MatcherLiteralTotalInputElaboratesUsing
       (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
+      Paper1FrozenSignature.signature
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
       solution atomEnvironmentTypes .wild context
@@ -267,6 +269,7 @@ private theorem wildcardInput_of_singleHoleClause
 private theorem matcherInput :
     MatcherLiteralTotalInputElaboratesUsing
       (M4.ElaboratesFuel Paper1FrozenSignature.signature 9)
+      Paper1FrozenSignature.signature
       (fun runtimeContext expression target =>
         RuntimeTyping expression target runtimeContext)
       MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.solved [] .wild []
@@ -285,6 +288,7 @@ private theorem clausesInput :
     RuntimeMatcherClausesInputTyping [] [] .int .wild [emptyClause] := by
   simpa [MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.solved,
     Ty.apply] using matcherInput.toRuntimeInputTyping_of_m4Fuel
+      Paper1FrozenSignature.runtimeCompatible
       MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.clause_runtimeSupported
       MatcherTyping.M4RecursiveMatcherTotalBridgeRegression.matcher_semantic
       MonomorphicContextCompatible.nil

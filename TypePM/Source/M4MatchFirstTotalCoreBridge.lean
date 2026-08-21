@@ -62,11 +62,12 @@ def GeneratedArms.SemanticSolution (generated : GeneratedArms)
           (obligation.source.apply solution)
           (obligation.expected.apply solution)
 
-/-- An M4 leaf in the old runtime fragment has its solved raw target as a
-runtime type. -/
+/-- An M4 leaf in the existing structural runtime fragment has its solved raw
+target as a runtime type. -/
 theorem m4FuelRuntimeTyping
-    (elaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature fuel
+    (elaboration : M4.ElaboratesFuel signature fuel
       context expression supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : RuntimeSupported expression)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
@@ -74,8 +75,8 @@ theorem m4FuelRuntimeTyping
     RuntimeTyping expression (generated.target.apply solution) runtimeContext := by
   have sourceElaboration := elaboratesFuel_toM2_of_m2Fragment
     supported.toM2Fragment elaboration
-  exact supported.elaboration_typing paper1SignatureCompatible sourceElaboration
-    semantic contextCompatible
+  exact supported.elaboration_typing compatible.toSignatureCompatible
+    sourceElaboration semantic contextCompatible
 
 mutual
 
@@ -84,11 +85,11 @@ mutual
   by the existing executable atom bridge. -/
   theorem patternElaborationToM2Direct
       (elaboration : PatternElaboratesUsing
-        (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-        Paper1FrozenSignature.signature context arguments pattern bindings
+        (M4.ElaboratesFuel signature fuel)
+        signature context arguments pattern bindings
         supply generated next)
       (supported : MatcherTyping.DirectRuntimePatternSupported pattern) :
-      PatternElaborates Paper1FrozenSignature.signature context arguments
+      PatternElaborates signature context arguments
         pattern bindings supply generated next := by
     cases elaboration with
     | var =>
@@ -124,11 +125,11 @@ mutual
   /-- List counterpart of `patternElaborationToM2Direct`. -/
   theorem patternsElaborationToM2Direct
       (elaboration : PatternsElaborateUsing
-        (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-        Paper1FrozenSignature.signature context arguments patterns bindings
+        (M4.ElaboratesFuel signature fuel)
+        signature context arguments patterns bindings
         supply generated next)
       (supported : MatcherTyping.DirectRuntimePatternsSupported patterns) :
-      PatternsElaborate Paper1FrozenSignature.signature context arguments
+      PatternsElaborate signature context arguments
         patterns bindings supply generated next := by
     cases elaboration with
     | nil =>
@@ -199,9 +200,10 @@ private theorem restSemantic_of_tail
 runtime arm certificate. -/
 theorem TailElaboratesUsing.toTotalMatchFirstArmsTyping
     (elaboration : TailElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      Paper1FrozenSignature.signature context targetType matcherType
+      (M4.ElaboratesFuel signature fuel)
+      signature context targetType matcherType
       expectedResult arms supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectArmsRuntimeSupported matcherExpression arms)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
@@ -226,8 +228,8 @@ theorem TailElaboratesUsing.toTotalMatchFirstArmsTyping
               headSupported.pattern
           obtain ⟨bindingTypes, patternBinds, bindingsEq⟩ :=
             MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-              patternElaborationM2 headSupported.pattern patternSemantic
-              contextCompatible
+              patternElaborationM2 compatible headSupported.pattern
+              patternSemantic contextCompatible
           have patternTargetEq :
               generatedPattern.dual.target.apply solution =
                 targetType.apply solution := by
@@ -242,7 +244,7 @@ theorem TailElaboratesUsing.toTotalMatchFirstArmsTyping
           have bodyContextCompatible :=
             MatcherTyping.runtimeContextCompatible_extendPatternContext
               (bindings := generatedPattern.bindings) contextCompatible
-          have bodyTyping := m4FuelRuntimeTyping bodyElaboration
+          have bodyTyping := m4FuelRuntimeTyping bodyElaboration compatible
             headSupported.body bodySemantic bodyContextCompatible
           rw [bindingsEq] at bodyTyping
           rw [bodyTargetEq] at bodyTyping
@@ -286,9 +288,10 @@ private theorem tailSemantic_of_arms
 fallback typing under the unchanged runtime context. -/
 theorem ArmsElaborateUsing.toTotalMatchFirstParts
     (elaboration : ArmsElaborateUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      Paper1FrozenSignature.signature context targetType matcherType fallback
+      (M4.ElaboratesFuel signature fuel)
+      signature context targetType matcherType fallback
       arms supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectArmsRuntimeSupported matcherExpression arms)
     (fallbackSupported : RuntimeSupported fallback)
     (semantic : generated.SemanticSolution solution)
@@ -304,24 +307,25 @@ theorem ArmsElaborateUsing.toTotalMatchFirstParts
       have fallbackSemantic := fallbackSemantic_of_arms semantic
       have tailSemantic := tailSemantic_of_arms semantic
       exact ⟨
-        armsElaboration.toTotalMatchFirstArmsTyping supported tailSemantic
-          contextCompatible,
-        .core (m4FuelRuntimeTyping fallbackElaboration fallbackSupported
-          fallbackSemantic contextCompatible)⟩
+        armsElaboration.toTotalMatchFirstArmsTyping compatible supported
+          tailSemantic contextCompatible,
+        .core (m4FuelRuntimeTyping fallbackElaboration compatible
+          fallbackSupported fallbackSemantic contextCompatible)⟩
 
 /-- Component form of the built-in `matchFirst` bridge.  `matcherConversion`
 is the producer view of the solved matcher expression: source elaboration
 checks a matcher against slots, whereas common-fuel safety types the once-only
 matcher expression at its matcher type. -/
 theorem toTotalCoreTyping
-    (targetElaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature fuel
+    (targetElaboration : M4.ElaboratesFuel signature fuel
       context target supply generatedTarget afterTarget)
-    (matcherElaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature fuel
+    (matcherElaboration : M4.ElaboratesFuel signature fuel
       context matcher afterTarget generatedMatcher afterMatcher)
     (armsElaboration : ArmsElaborateUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      Paper1FrozenSignature.signature context generatedTarget.target
+      (M4.ElaboratesFuel signature fuel)
+      signature context generatedTarget.target
       generatedMatcher.target fallback arms afterMatcher generatedArms next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (matcherSupported : RuntimeSupported matcher)
     (armsSupported : DirectArmsRuntimeSupported matcher arms)
@@ -359,17 +363,17 @@ theorem toTotalCoreTyping
     · intro obligation member
       exact semantic.2 obligation (by
         simp [Generated.fromMatchFirst, member])
-  have targetTyping := m4FuelRuntimeTyping targetElaboration targetSupported
-    targetSemantic contextCompatible
-  have matcherRawTyping := m4FuelRuntimeTyping matcherElaboration
+  have targetTyping := m4FuelRuntimeTyping targetElaboration compatible
+    targetSupported targetSemantic contextCompatible
+  have matcherRawTyping := m4FuelRuntimeTyping matcherElaboration compatible
     matcherSupported matcherSemantic contextCompatible
   have matcherTyping : RuntimeTyping matcher
       (.matcher capability (generatedTarget.target.apply solution))
       runtimeContext :=
     .checked matcherRawTyping matcherConversion
   obtain ⟨armsTyping, fallbackTyping⟩ :=
-    armsElaboration.toTotalMatchFirstParts armsSupported fallbackSupported
-      armsSemantic contextCompatible
+    armsElaboration.toTotalMatchFirstParts compatible armsSupported
+      fallbackSupported armsSemantic contextCompatible
   exact .matchFirst (.core targetTyping) (.core matcherTyping) armsTyping
     fallbackTyping
 
@@ -378,9 +382,10 @@ type is polymorphic in the target, so no separate producer conversion premise
 is needed.  The relational `ArmsElaborateUsing.fromFallback` constructor makes
 the source arm list nonempty. -/
 theorem m4FuelSomethingMatchFirstToTotalCoreTyping
-    (elaboration : M4.ElaboratesFuel Paper1FrozenSignature.signature (fuel + 1)
+    (elaboration : M4.ElaboratesFuel signature (fuel + 1)
       context (.matchFirst target .something arms fallback) supply generated
       next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (armsSupported : DirectArmsRuntimeSupported .something arms)
     (fallbackSupported : RuntimeSupported fallback)
@@ -390,8 +395,8 @@ theorem m4FuelSomethingMatchFirstToTotalCoreTyping
     TotalCoreTyping (.matchFirst target .something arms fallback)
       (generated.target.apply solution) runtimeContext := by
   change ElaboratesUsing
-    (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-    Paper1FrozenSignature.signature context
+    (M4.ElaboratesFuel signature fuel)
+    signature context
     (.matchFirst target .something arms fallback) supply generated next at elaboration
   cases elaboration with
   | matchFirst targetElaboration matcherElaboration armsElaboration =>
@@ -413,11 +418,11 @@ theorem m4FuelSomethingMatchFirstToTotalCoreTyping
         · intro obligation member
           exact semantic.2 obligation (by
             simp [Generated.fromMatchFirst, member])
-      have targetTyping := m4FuelRuntimeTyping targetElaboration
+      have targetTyping := m4FuelRuntimeTyping targetElaboration compatible
         targetSupported targetSemantic contextCompatible
       obtain ⟨armsTyping, fallbackTyping⟩ :=
-        armsElaboration.toTotalMatchFirstParts armsSupported fallbackSupported
-          armsSemantic contextCompatible
+        armsElaboration.toTotalMatchFirstParts compatible armsSupported
+          fallbackSupported armsSemantic contextCompatible
       exact .matchFirst (.core targetTyping)
         (.core (.something (generatedTarget.target.apply solution)))
         armsTyping fallbackTyping
@@ -428,7 +433,8 @@ substitution is intentionally retained in this certificate: the inferred
 result type alone does not determine how free source variables are
 instantiated. -/
 structure PrincipalRuntimeContextSupport
-    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature context
+    (signature : FrozenSignature)
+    (typing : M4.PrincipalTyping signature context
       expression principal)
     (runtimeContext : List Ty) : Prop where
   compatible : MonomorphicContextCompatible context runtimeContext
@@ -439,12 +445,14 @@ fragment.  `contextSupport` ties the explicit runtime context to the hidden
 principal closure selected from `typing`; no equality between source and
 runtime contexts is guessed from the public result type. -/
 theorem principalSomethingMatchFirstToTotalCoreTypingInContext
-    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature context
+    (typing : M4.PrincipalTyping signature context
       (.matchFirst target .something arms fallback) principal)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (armsSupported : DirectArmsRuntimeSupported .something arms)
     (fallbackSupported : RuntimeSupported fallback)
-    (contextSupport : PrincipalRuntimeContextSupport typing runtimeContext) :
+    (contextSupport : PrincipalRuntimeContextSupport signature typing
+      runtimeContext) :
     TotalCoreTyping (.matchFirst target .something arms fallback)
       principal runtimeContext := by
   let derivation := Classical.choice typing
@@ -457,22 +465,24 @@ theorem principalSomethingMatchFirstToTotalCoreTypingInContext
         TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
           derivation.closure
       have bridged := m4FuelSomethingMatchFirstToTotalCoreTyping
-        elaboration targetSupported armsSupported fallbackSupported semantic
-          (by simpa [derivation] using contextSupport.compatible)
+        elaboration compatible targetSupported armsSupported fallbackSupported
+          semantic (by simpa [derivation] using contextSupport.compatible)
       rw [derivation.target_eq]
       simpa [PrincipalBlockClosure.target, solution] using bridged
 
-/-- Closed-context specialization.  Its compatibility certificate is
-canonical and therefore remains premise-free. -/
+/-- Closed-context specialization.  Source/runtime context correspondence is
+canonical and therefore needs no separate premise; frozen-signature runtime
+compatibility remains explicit. -/
 theorem principalSomethingMatchFirstToTotalCoreTyping
-    (typing : M4.PrincipalTyping Paper1FrozenSignature.signature []
+    (typing : M4.PrincipalTyping signature []
       (.matchFirst target .something arms fallback) principal)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (armsSupported : DirectArmsRuntimeSupported .something arms)
     (fallbackSupported : RuntimeSupported fallback) :
     TotalCoreTyping (.matchFirst target .something arms fallback)
       principal [] :=
-  principalSomethingMatchFirstToTotalCoreTypingInContext typing
+  principalSomethingMatchFirstToTotalCoreTypingInContext typing compatible
     targetSupported armsSupported fallbackSupported
     ⟨MonomorphicContextCompatible.nil⟩
 
@@ -480,30 +490,34 @@ theorem principalSomethingMatchFirstToTotalCoreTyping
 premise refers to the precise principal proof produced by infer soundness, so
 its hidden closure substitution cannot silently drift. -/
 theorem inferSomethingMatchFirstToTotalCoreTypingInContext
-    (success : M4.infer Paper1FrozenSignature.signature context
+    (success : M4.infer signature context
       (.matchFirst target .something arms fallback) = some principal)
+    (wellFormed : signature.WellFormed)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (armsSupported : DirectArmsRuntimeSupported .something arms)
     (fallbackSupported : RuntimeSupported fallback)
-    (contextSupport : PrincipalRuntimeContextSupport
-      (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed
-        success) runtimeContext) :
+    (contextSupport : PrincipalRuntimeContextSupport signature
+      (M4.infer_success_principalTyping wellFormed success) runtimeContext) :
     TotalCoreTyping (.matchFirst target .something arms fallback)
       principal runtimeContext :=
   principalSomethingMatchFirstToTotalCoreTypingInContext
-    (M4.infer_success_principalTyping Paper1FrozenSignature.wellFormed success)
+    (M4.infer_success_principalTyping wellFormed success) compatible
     targetSupported armsSupported fallbackSupported contextSupport
 
 /-- Closed-context public-inference specialization. -/
 theorem inferSomethingMatchFirstToTotalCoreTyping
-    (success : M4.infer Paper1FrozenSignature.signature []
+    (success : M4.infer signature []
       (.matchFirst target .something arms fallback) = some principal)
+    (wellFormed : signature.WellFormed)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (targetSupported : RuntimeSupported target)
     (armsSupported : DirectArmsRuntimeSupported .something arms)
     (fallbackSupported : RuntimeSupported fallback) :
     TotalCoreTyping (.matchFirst target .something arms fallback)
       principal [] :=
-  inferSomethingMatchFirstToTotalCoreTypingInContext success targetSupported
-    armsSupported fallbackSupported ⟨MonomorphicContextCompatible.nil⟩
+  inferSomethingMatchFirstToTotalCoreTypingInContext success wellFormed
+    compatible targetSupported armsSupported fallbackSupported
+    ⟨MonomorphicContextCompatible.nil⟩
 
 end TypePM.Source.MatchFirstTyping

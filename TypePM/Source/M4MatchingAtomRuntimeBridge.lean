@@ -224,8 +224,9 @@ mutual
   `PatternBinds`.  The equality records precisely how many solved binding
   types were appended to the incoming source-ordered prefix. -/
   theorem PatternElaborates.toDirectRuntimePatternBinds
-      (elaboration : PatternElaborates Paper1FrozenSignature.signature context
+      (elaboration : PatternElaborates signature context
         arguments pattern bindings supply generated next)
+      (compatible : FrozenSignatureRuntimeCompatible signature)
       (supported : DirectRuntimePatternSupported pattern)
       (semantic : GeneratedPatternRuntimeSolution generated solution)
       (contextCompatible :
@@ -255,7 +256,7 @@ mutual
               runtimeContextCompatible_extendPatternContext
                 (bindings := bindings) contextCompatible
             have expressionTyping := expressionSupported.elaboration_typing
-              paper1SignatureCompatible expressionElaboration
+              compatible.toSignatureCompatible expressionElaboration
               expressionSemantic extendedCompatible
             exact ⟨[], .value expressionTyping, by simp⟩
     | ctor lookup arity fieldsElaboration => cases supported
@@ -264,7 +265,7 @@ mutual
         | tuple itemsSupported =>
             obtain ⟨newBindings, itemsTyping, bindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
-                itemsElaboration itemsSupported
+                itemsElaboration compatible itemsSupported
                 ⟨semantic.1, semantic.2⟩ contextCompatible
             refine ⟨newBindings, ?_, bindingsEq⟩
             simpa [Ty.apply, Ty.applyList] using PatternBinds.tuple itemsTyping
@@ -300,11 +301,11 @@ mutual
               · exact semantic.2 obligation (by simp [member])
             obtain ⟨leftBindings, leftTyping, leftBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-                left leftSupported ⟨hardParts.1, pendingParts.1⟩
+                left compatible leftSupported ⟨hardParts.1, pendingParts.1⟩
                   contextCompatible
             obtain ⟨rightBindings, rightTyping, rightBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-                right rightSupported ⟨hardParts.2.1, pendingParts.2⟩
+                right compatible rightSupported ⟨hardParts.2.1, pendingParts.2⟩
                   contextCompatible
             have targetEq :
                 generatedLeft.dual.target.apply solution =
@@ -354,11 +355,11 @@ mutual
               · exact semantic.2 obligation (by simp [member])
             obtain ⟨leftBindings, leftTyping, leftBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-                left leftSupported ⟨hardParts.1, pendingParts.1⟩
+                left compatible leftSupported ⟨hardParts.1, pendingParts.1⟩
                   contextCompatible
             obtain ⟨rightBindings, rightTyping, rightBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-                right rightSupported ⟨hardParts.2.1, pendingParts.2⟩
+                right compatible rightSupported ⟨hardParts.2.1, pendingParts.2⟩
                   contextCompatible
             have targetEq :
                 generatedLeft.dual.target.apply solution =
@@ -384,8 +385,9 @@ mutual
 
   /-- Source-ordered list lifting for the direct runtime pattern fragment. -/
   theorem PatternsElaborate.toDirectRuntimePatternsBind
-      (elaboration : PatternsElaborate Paper1FrozenSignature.signature context
+      (elaboration : PatternsElaborate signature context
         arguments patterns bindings supply generated next)
+      (compatible : FrozenSignatureRuntimeCompatible signature)
       (supported : DirectRuntimePatternsSupported patterns)
       (semantic : GeneratedPatternsRuntimeSolution generated solution)
       (contextCompatible :
@@ -422,10 +424,10 @@ mutual
                 exact semantic.2 obligation (by simp [member])
             obtain ⟨headBindings, headTyping, headBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-                head headSupported headSemantic contextCompatible
+                head compatible headSupported headSemantic contextCompatible
             obtain ⟨tailBindings, tailTyping, tailBindingsEq⟩ :=
               TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
-                tail tailSupported tailSemantic contextCompatible
+                tail compatible tailSupported tailSemantic contextCompatible
             rw [headBindingsEq] at tailTyping tailBindingsEq
             refine ⟨headBindings ++ tailBindings, ?_, ?_⟩
             · simpa [Ty.applyList, Dual.targets, RuntimeDual.apply] using
@@ -582,8 +584,9 @@ the total initial-atom certificate used by `matchAll` and `matchFirst`.
 `matcherTyped` is the outer expression's matcher-type evidence; the sharper
 `matcherShape` premise identifies the concrete built-in reduction path. -/
 theorem PatternElaborates.toBuiltinTotalMatchingAtomTyping
-    (elaboration : PatternElaborates Paper1FrozenSignature.signature context
+    (elaboration : PatternElaborates signature context
       arguments pattern bindings supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
     (supported : DirectRuntimePatternSupported pattern)
     (semantic : GeneratedPatternRuntimeSolution generated solution)
     (contextCompatible :
@@ -601,7 +604,7 @@ theorem PatternElaborates.toBuiltinTotalMatchingAtomTyping
         Ty.applyList solution bindings ++ newBindings := by
   obtain ⟨newBindings, patternBinds, bindingsEq⟩ :=
     TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      elaboration supported semantic contextCompatible
+      elaboration compatible supported semantic contextCompatible
   exact ⟨newBindings,
     .builtin
       (TypePM.Source.MatcherTyping.PatternBinds.toDirectMatchingAtomTyping

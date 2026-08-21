@@ -244,10 +244,10 @@ through `DelegatedMatchingBranchesTyping`.  Thus a successful result retains
 the concrete patterns extracted from the source input. -/
 theorem MatcherLiteralTotalInputElaboratesUsing.dispatchPatternIndexedSafe_of_m4Fuel
     (input : MatcherLiteralTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature elaborationFuel)
-      expressionTyping solution atomEnvironmentTypes pattern context clauses
-      supply generated next)
-    (bridge : SolvedM4CheckedExpressionBridge expressionTyping)
+      (M4.ElaboratesFuel signature elaborationFuel) signature expressionTyping
+      solution atomEnvironmentTypes pattern context clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (bridge : SolvedM4CheckedExpressionBridge signature expressionTyping)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
       MonomorphicContextCompatible context definitionTypes solution)
@@ -266,7 +266,8 @@ theorem MatcherLiteralTotalInputElaboratesUsing.dispatchPatternIndexedSafe_of_m4
         PatternIndexedMatcherClauseResultTyping result := by
   exact dispatchMatcherClauses_patternIndexedTotalTypedSafe evalSafe
     atomEnvironmentTyped matcherEnvironmentTyped targetTyped
-    (input.toTotalInputTyping_of_m4Fuel bridge semantic contextCompatible)
+    (input.toTotalInputTyping_of_m4Fuel compatible bridge semantic
+      contextCompatible)
 
 end TypePM.Source.MatcherTyping
 

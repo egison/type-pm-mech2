@@ -26,6 +26,7 @@ open TypePM.Runtime
 concrete source pattern. -/
 inductive MatcherClauseTotalInputElaboratesUsing
     (expressionRelation : ExpressionElaborationRelation)
+    (signature : FrozenSignature)
     (expressionTyping : EmbeddedExpressionTyping)
     (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) (matcherTarget : Ty) :
@@ -33,22 +34,22 @@ inductive MatcherClauseTotalInputElaboratesUsing
   | mk {header nextMatchers arms supply generatedHeader afterHeader generatedNext
       afterNext generatedArms next}
       (shape : (MatcherClause.mk header nextMatchers arms).toShape.check
-        Paper1FrozenSignature.signature = true)
-      (headerElaboration : PPatElaborates Paper1FrozenSignature.signature
+        signature = true)
+      (headerElaboration : PPatElaborates signature
         header matcherTarget none supply generatedHeader afterHeader)
       (nextElaboration : NextMatchersElaborateUsing expressionRelation
         (Pattern.extendContext generatedHeader.captures context)
         nextMatchers generatedHeader.holes afterHeader generatedNext afterNext)
       (armsElaboration : MatcherArmsElaborateUsing expressionRelation
-        DPatElaborates Paper1FrozenSignature.signature context
+        DPatElaborates signature context
         generatedHeader.captures matcherTarget generatedHeader.holes arms
         afterNext generatedArms next)
       (captures : ∀ {dispatch},
         inspectPatternPattern header pattern = some dispatch →
         RuntimeCaptureExpressionsTyping expressionTyping atomEnvironmentTypes
           dispatch.captures (Ty.applyList solution generatedHeader.captures)) :
-      MatcherClauseTotalInputElaboratesUsing expressionRelation expressionTyping
-        solution atomEnvironmentTypes pattern context matcherTarget
+      MatcherClauseTotalInputElaboratesUsing expressionRelation signature
+        expressionTyping solution atomEnvironmentTypes pattern context matcherTarget
         (.mk header nextMatchers arms) supply
         ⟨generatedHeader.holes, generatedHeader.evidence,
           ⟨generatedHeader.hard ++ generatedNext.hard ++
@@ -58,23 +59,25 @@ inductive MatcherClauseTotalInputElaboratesUsing
 /-- Source-order list form of the capture-aware recursive-M4 relation. -/
 inductive MatcherClausesTotalInputElaborateUsing
     (expressionRelation : ExpressionElaborationRelation)
+    (signature : FrozenSignature)
     (expressionTyping : EmbeddedExpressionTyping)
     (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) (matcherTarget : Ty) :
     List MatcherClause → Supply → GeneratedMatcherClauses → Supply → Prop where
   | nil {supply} :
-      MatcherClausesTotalInputElaborateUsing expressionRelation expressionTyping
-        solution atomEnvironmentTypes pattern context matcherTarget [] supply
+      MatcherClausesTotalInputElaborateUsing expressionRelation signature
+        expressionTyping solution atomEnvironmentTypes pattern context
+        matcherTarget [] supply
         ⟨[], GeneratedChecks.empty⟩ supply
   | cons {clause clauses supply generatedClause afterClause generatedClauses next}
       (head : MatcherClauseTotalInputElaboratesUsing expressionRelation
-        expressionTyping solution atomEnvironmentTypes pattern context
+        signature expressionTyping solution atomEnvironmentTypes pattern context
         matcherTarget clause supply generatedClause afterClause)
       (tail : MatcherClausesTotalInputElaborateUsing expressionRelation
-        expressionTyping solution atomEnvironmentTypes pattern context
+        signature expressionTyping solution atomEnvironmentTypes pattern context
         matcherTarget clauses afterClause generatedClauses next) :
-      MatcherClausesTotalInputElaborateUsing expressionRelation expressionTyping
-        solution atomEnvironmentTypes pattern context matcherTarget
+      MatcherClausesTotalInputElaborateUsing expressionRelation signature
+        expressionTyping solution atomEnvironmentTypes pattern context matcherTarget
         (clause :: clauses) supply
         ⟨match generatedClause.evidence with
           | some evidence => evidence :: generatedClauses.evidences
@@ -84,18 +87,19 @@ inductive MatcherClausesTotalInputElaborateUsing
 /-- Literal form of the capture-aware recursive-M4 relation. -/
 inductive MatcherLiteralTotalInputElaboratesUsing
     (expressionRelation : ExpressionElaborationRelation)
+    (signature : FrozenSignature)
     (expressionTyping : EmbeddedExpressionTyping)
     (solution : Subst) (atomEnvironmentTypes : List Ty) (pattern : Pattern)
     (context : Context) :
     List MatcherClause → Supply → Generated → Supply → Prop where
   | mk {clauses supply generatedClauses next}
-      (checked : StaticChecksHold Paper1FrozenSignature.signature clauses)
+      (checked : StaticChecksHold signature clauses)
       (clausesElaboration : MatcherClausesTotalInputElaborateUsing
-        expressionRelation expressionTyping solution atomEnvironmentTypes
+        expressionRelation signature expressionTyping solution atomEnvironmentTypes
         pattern context (.var ⟨supply.ty⟩) clauses
         ⟨supply.ty + 1, supply.cap + 1⟩ generatedClauses next) :
-      MatcherLiteralTotalInputElaboratesUsing expressionRelation expressionTyping
-        solution atomEnvironmentTypes pattern context clauses supply
+      MatcherLiteralTotalInputElaboratesUsing expressionRelation signature
+        expressionTyping solution atomEnvironmentTypes pattern context clauses supply
         ⟨.matcher (.var ⟨supply.cap⟩) (.var ⟨supply.ty⟩),
           evidenceEquations (.var ⟨supply.cap⟩) generatedClauses.evidences ++
             generatedClauses.checks.hard,
@@ -103,10 +107,10 @@ inductive MatcherLiteralTotalInputElaboratesUsing
 
 theorem MatcherClauseTotalInputElaboratesUsing.elaboration
     (input : MatcherClauseTotalInputElaboratesUsing expressionRelation
-      expressionTyping solution atomEnvironmentTypes pattern context
+      signature expressionTyping solution atomEnvironmentTypes pattern context
       matcherTarget clause supply generated next) :
     MatcherClauseElaboratesUsing expressionRelation PPatElaborates DPatElaborates
-      Paper1FrozenSignature.signature context matcherTarget clause supply
+      signature context matcherTarget clause supply
       generated next := by
   cases input with
   | mk shape header nextMatchers arms captures =>
@@ -115,10 +119,10 @@ theorem MatcherClauseTotalInputElaboratesUsing.elaboration
 
 theorem MatcherClausesTotalInputElaborateUsing.elaboration
     (input : MatcherClausesTotalInputElaborateUsing expressionRelation
-      expressionTyping solution atomEnvironmentTypes pattern context
+      signature expressionTyping solution atomEnvironmentTypes pattern context
       matcherTarget clauses supply generated next) :
     MatcherClausesElaborateUsing expressionRelation PPatElaborates DPatElaborates
-      Paper1FrozenSignature.signature context matcherTarget clauses supply
+      signature context matcherTarget clauses supply
       generated next := by
   induction input with
   | nil => exact .nil
@@ -128,19 +132,20 @@ theorem MatcherClausesTotalInputElaborateUsing.elaboration
 recursive-M4 matcher-literal derivation. -/
 theorem MatcherLiteralTotalInputElaboratesUsing.elaboration
     (input : MatcherLiteralTotalInputElaboratesUsing expressionRelation
-      expressionTyping solution atomEnvironmentTypes pattern context clauses
-      supply generated next) :
+      signature expressionTyping solution atomEnvironmentTypes pattern context
+      clauses supply generated next) :
     MatcherLiteralElaboratesUsing expressionRelation PPatElaborates DPatElaborates
-      Paper1FrozenSignature.signature context clauses supply generated next := by
+      signature context clauses supply generated next := by
   cases input with
   | mk checked clauses => exact .mk checked clauses.elaboration
 
 theorem MatcherClauseTotalInputElaboratesUsing.toTotalInputTyping_of_m4Fuel
     (input : MatcherClauseTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      expressionTyping solution atomEnvironmentTypes pattern context
+      (M4.ElaboratesFuel signature fuel) signature expressionTyping
+      solution atomEnvironmentTypes pattern context
       matcherTarget clause supply generated next)
-    (bridge : SolvedM4CheckedExpressionBridge expressionTyping)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (bridge : SolvedM4CheckedExpressionBridge signature expressionTyping)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
       MonomorphicContextCompatible context definitionTypes solution) :
@@ -172,16 +177,17 @@ theorem MatcherClauseTotalInputElaboratesUsing.toTotalInputTyping_of_m4Fuel
         (header.toRuntimePPatTyping headerSolved)
         (nextMatchers.toTotalRuntimeNextMatchersTyping_of_m4Fuel bridge
           nextSemantic nextContextCompatible)
-        (arms.toTotalRuntimeMatcherArmsTyping_of_m4Fuel bridge armsSemantic
-          contextCompatible)
+        (arms.toTotalRuntimeMatcherArmsTyping_of_m4Fuel compatible bridge
+          armsSemantic contextCompatible)
         captures
 
 theorem MatcherClausesTotalInputElaborateUsing.toTotalInputTyping_of_m4Fuel
     (input : MatcherClausesTotalInputElaborateUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      expressionTyping solution atomEnvironmentTypes pattern context
+      (M4.ElaboratesFuel signature fuel) signature expressionTyping
+      solution atomEnvironmentTypes pattern context
       matcherTarget clauses supply generated next)
-    (bridge : SolvedM4CheckedExpressionBridge expressionTyping)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (bridge : SolvedM4CheckedExpressionBridge signature expressionTyping)
     (semantic : generated.checks.RuntimeSolution solution)
     (contextCompatible :
       MonomorphicContextCompatible context definitionTypes solution) :
@@ -192,17 +198,18 @@ theorem MatcherClausesTotalInputElaborateUsing.toTotalInputTyping_of_m4Fuel
   | cons head tail induction =>
       simp only [GeneratedChecks.runtimeSolution_append] at semantic
       exact .cons
-        (head.toTotalInputTyping_of_m4Fuel bridge semantic.1 contextCompatible)
+        (head.toTotalInputTyping_of_m4Fuel compatible bridge semantic.1
+          contextCompatible)
         (induction semantic.2)
 
 /-- The enriched M4 literal directly produces the input-indexed certificate
 used by recursive runtime dispatch. -/
 theorem MatcherLiteralTotalInputElaboratesUsing.toTotalInputTyping_of_m4Fuel
     (input : MatcherLiteralTotalInputElaboratesUsing
-      (M4.ElaboratesFuel Paper1FrozenSignature.signature fuel)
-      expressionTyping solution atomEnvironmentTypes pattern context clauses
-      supply generated next)
-    (bridge : SolvedM4CheckedExpressionBridge expressionTyping)
+      (M4.ElaboratesFuel signature fuel) signature expressionTyping
+      solution atomEnvironmentTypes pattern context clauses supply generated next)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (bridge : SolvedM4CheckedExpressionBridge signature expressionTyping)
     (semantic : generated.SemanticSolution solution)
     (contextCompatible :
       MonomorphicContextCompatible context definitionTypes solution) :
@@ -216,8 +223,8 @@ theorem MatcherLiteralTotalInputElaboratesUsing.toTotalInputTyping_of_m4Fuel
         · intro equation member
           exact semantic.1 equation (by simp [member])
         · exact semantic.2
-      exact clauses.toTotalInputTyping_of_m4Fuel bridge clausesSemantic
-        contextCompatible
+      exact clauses.toTotalInputTyping_of_m4Fuel compatible bridge
+        clausesSemantic contextCompatible
 
 end TypePM.Source.MatcherTyping
 

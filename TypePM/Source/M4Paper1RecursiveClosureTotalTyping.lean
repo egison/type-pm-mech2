@@ -2,13 +2,15 @@ import TypePM.RecursiveTotalClosureSafety
 import TypePM.Source.M4Paper1ListExactRegression
 import TypePM.Source.M4Paper1ClosedMultisetExactRegression
 import TypePM.Source.M4Paper1RecursiveClosureTypingBoundary
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Total value typing for the Paper 1 recursive matcher closures
 
 This module extracts the runtime clause certificate from a solved public M4
 principal derivation.  It types the concrete recursive closure value without
-pretending that the older `ValueTyping` judgment supports matcher bodies.
+pretending that the repository's structural `ValueTyping` judgment supports
+matcher bodies.
 Dynamic safety remains a separate `TotalEnvironmentSafe` premise.
 -/
 
@@ -155,8 +157,9 @@ theorem matcherFixElaboration_totalValueTyping
             exact .cons (.cons contextCompatible)
           have clausesTyped :=
             bodyElaboration.toTotalMatcherClausesTyping_of_m4Fuel
-              totalRecursiveExpressionBridge bodySemantic
-              bodyContextCompatible
+              Paper1FrozenSignature.runtimeCompatible
+              (totalRecursiveExpressionBridge Paper1FrozenSignature.signature)
+              bodySemantic bodyContextCompatible
           simp only [Generated.fromFix, Ty.apply]
           simp only [Equation.Holds] at bodyEquation
           apply TotalValueTyping.recursiveClosure environmentTyped
@@ -207,8 +210,9 @@ theorem matcherFixElaboration_totalRecursiveClosureBodyTyping
             exact .cons (.cons contextCompatible)
           have clausesTyped :=
             bodyElaboration.toTotalMatcherClausesTyping_of_m4Fuel
-              totalRecursiveExpressionBridge bodySemantic
-              bodyContextCompatible
+              Paper1FrozenSignature.runtimeCompatible
+              (totalRecursiveExpressionBridge Paper1FrozenSignature.signature)
+              bodySemantic bodyContextCompatible
           simp only [Equation.Holds] at bodyEquation
           simpa [Ty.apply, bodyEquation] using
             (TotalRecursiveClosureBodyTyping.solvedMatcher
@@ -337,7 +341,10 @@ theorem principalMatcherFix_totalValueTyping
                 exact .cons (.cons .nil)
               have clausesTyped :=
                 bodyElaboration.toTotalMatcherClausesTyping_of_m4Fuel
-                  totalRecursiveExpressionBridge bodySemantic compatible
+                  Paper1FrozenSignature.runtimeCompatible
+                  (totalRecursiveExpressionBridge
+                    Paper1FrozenSignature.signature)
+                  bodySemantic compatible
               have closureTyped : TotalValueTyping
                   (Value.recursiveClosure [] (.matcher clauses))
                   (.fn
