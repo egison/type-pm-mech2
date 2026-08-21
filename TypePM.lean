@@ -332,6 +332,8 @@ import TypePM.Source.M5ClosedLiteralMatchAllCertificate
 import TypePM.Source.M5ClosedLiteralMatchAllCertificateRegression
 import TypePM.Source.M4LetRuntimeWorldStep
 import TypePM.Source.M4LetRuntimeWorldStepRegression
+import TypePM.Source.GeneralizedOccurrenceSolution
+import TypePM.Source.GeneralizedOccurrenceSolutionRegression
 import TypePM.Source.M4ProtectedFuelContextBridge
 import TypePM.Source.M4ProtectedFuelContextBridgeRegression
 import TypePM.AxiomAudit
