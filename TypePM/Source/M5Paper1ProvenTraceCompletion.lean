@@ -254,16 +254,26 @@ theorem noSearchTraceEventCertificateProducer :
     answerTypes resultDemand certificate annotation
   exact False.elim annotation
 
-theorem evaluationTraceOriginComplete :
-    EvaluationTraceOriginComplete ProvenRuntimeScope Certificate
+theorem typedTracedEvaluation :
+    TypedTracedEvaluation ProvenRuntimeScope Certificate
       originDemandSafetyRelations evaluationInputDemand
       NoSearchTraceAnnotation := by
   intro signature context expression principal target derivation runtimeContext
     inScope certificate instantiation evaluationFuel outputDemand environment
-    applicable environmentSafe event member
-  rw [provenRuntimeScope_evalFuelTrace_eq_nil inScope evaluationFuel
-    environment] at member
-  exact False.elim (by simp at member)
+    applicable environmentSafe
+  constructor
+  · exact M5PrincipalOriginCertificate.typedEvaluation certificate instantiation
+      evaluationFuel outputDemand environment applicable environmentSafe
+  · intro event member
+    rw [provenRuntimeScope_evalFuelTrace_eq_nil inScope evaluationFuel
+      environment] at member
+    exact False.elim (by simp at member)
+
+theorem evaluationTraceOriginComplete :
+    EvaluationTraceOriginComplete ProvenRuntimeScope Certificate
+      originDemandSafetyRelations evaluationInputDemand
+      NoSearchTraceAnnotation :=
+  typedTracedEvaluation.traceOriginComplete
 
 /-- End-to-end 5.6--5.8 schema for the current proved search-free fragment,
 including explicit trace-origin completeness. -/

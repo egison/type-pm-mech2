@@ -101,6 +101,73 @@ theorem EvaluationTraceOriginComplete.origin
   exact ⟨answerTypes, resultDemand,
     .issued evaluationFuel environment member annotation⟩
 
+/-- The intended conclusion of the integrated source induction.  One proof
+returns both evaluator preservation and an annotation for every event emitted
+by that same evaluation.  Keeping these conjuncts together is essential at
+application and closure-body boundaries, where a result-only child theorem
+would discard the nested search trace. -/
+def TypedTracedEvaluation
+    (scope : RuntimeScope)
+    (Certificate : RuntimeCertificateFamily)
+    (relations : RuntimeSafetyRelations)
+    (inputDemand : EvaluationInputDemandFamily Certificate relations)
+    (Annotation : TraceTaskAnnotationFamily relations.SearchDemand) : Prop :=
+  ∀ {signature context expression principal target}
+      {derivation : M4.PrincipalTypingDerivation signature context expression
+        principal}
+      {runtimeContext : List Ty}
+      (_inScope : scope derivation)
+      (certificate : Certificate derivation runtimeContext)
+      (_instantiation : IsInstance principal target)
+      (evaluationFuel : Nat) (outputDemand : relations.EvaluationDemand)
+      (environment : ValueEnvironment),
+    relations.demandApplicable outputDemand target →
+      relations.environmentSafe
+          (inputDemand certificate evaluationFuel outputDemand)
+          environment runtimeContext →
+        relations.resultSafe outputDemand target
+            (evalFuel evaluationFuel environment expression) ∧
+          ∀ event,
+            event ∈ evalFuelTrace evaluationFuel environment expression →
+              ∃ answerTypes resultDemand,
+                Annotation derivation runtimeContext event answerTypes
+                  resultDemand
+
+/-- Scope-indexed evaluator preservation projected from the combined
+judgment. -/
+theorem TypedTracedEvaluation.typedEvaluationInScope
+    {signature : FrozenSignature} {context : Context} {expression : Expr}
+    {principal target : Ty}
+    {derivation : M4.PrincipalTypingDerivation signature context expression
+      principal}
+    {runtimeContext : List Ty}
+    (traced : TypedTracedEvaluation scope Certificate relations inputDemand
+      Annotation)
+    (inScope : scope derivation)
+    (certificate : Certificate derivation runtimeContext)
+    (instantiation : IsInstance principal target)
+    (evaluationFuel : Nat) (outputDemand : relations.EvaluationDemand)
+    (environment : ValueEnvironment)
+    (applicable : relations.demandApplicable outputDemand target)
+    (environmentSafe : relations.environmentSafe
+      (inputDemand certificate evaluationFuel outputDemand)
+      environment runtimeContext) :
+    relations.resultSafe outputDemand target
+      (evalFuel evaluationFuel environment expression) :=
+  (traced inScope certificate instantiation evaluationFuel outputDemand
+    environment applicable environmentSafe).1
+
+theorem TypedTracedEvaluation.traceOriginComplete
+    (traced : TypedTracedEvaluation scope Certificate relations inputDemand
+      Annotation) :
+    EvaluationTraceOriginComplete scope Certificate relations inputDemand
+      Annotation := by
+  intro signature context expression principal target derivation runtimeContext
+    inScope certificate instantiation evaluationFuel outputDemand environment
+    applicable environmentSafe event member
+  exact (traced inScope certificate instantiation evaluationFuel outputDemand
+    environment applicable environmentSafe).2 event member
+
 /-- Execute a raw trace event.  M-node freedom is retained by the certificate,
 not fabricated by runtime tracing. -/
 def runTraceEventBoundedDfs
