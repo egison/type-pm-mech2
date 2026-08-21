@@ -605,6 +605,13 @@ pattern functionを含む全M4には，frozen runtime定義と
 構成する具体的な帰納的certificateは未完である．したがってこのschema自体を5.6--5.8の完成証拠とは
 数えず，今後の一般定理が満たす型と依存関係を固定する回帰として使う．
 
+`M4CanonicalCertificateTransport.lean`では，closed programについて，任意に選んだ
+`M4.PrincipalTypingDerivation`を，公開`infer`の成功から選んだ代表導出へ，
+`FullM2PairCoherence`とclosureの対応証拠を保ったまま結び付ける．runtime certificateの輸送は
+無条件ではなく，certificate familyがこの対応を尊重する
+`ClosedRuntimeCertificateRespectsCoherence`を明示的な前提とする．open contextではruntime型列の
+輸送，多相contextではより強いcontext関係が別に必要であり，ここでは主張しない．
+
 既存の`TotalCoreTyping.commonFuelSafety`は，現在の`type-pm-mech2`内で先に定義した構造的な
 `EnvironmentTyping`を入力に取り，成功結果も`ValueTyping`を使う`TypedResult`で返す．これは別の
 リポジトリ`type-pm-mech`を参照するという意味ではない．入力だけを`FuelEnvironmentSafe`へ替えても
@@ -693,10 +700,12 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    bounded branch-workを生成するproducerを追加し，同回帰の手組みdispatch certificateを置換した．次は，fixture固有に
    与えているatom関係・一段のevaluator／dispatcher保存・実dispatch等式を完全なM4 matcher-clause導出から生成し，
    この探索定理を式評価全体へ接続する．
-3. 存在量化された任意のM4主要導出を，`FullM4Coherence`／`FullM4ExecutableReplay`で公開`infer`が選ぶ
-   canonicalな導出へ対応付け，certificateを輸送する．この経路を，多相`letE`，matcherを返す`fixE`，
-   matcher literal，`matchAll`，user matcher／constructorを含む`matchFirst`へ広げる．多相`letE`では
-   syntaxだけから一般化せず，実value elaborationと同じprincipal closureを保持する．
+3. closed contextでは，任意に選んだM4主要導出を，`FullM4Coherence`／`FullM4ExecutableReplay`で
+   公開`infer`から選んだ代表導出へ対応付ける定理と，coherenceを尊重するcertificate familyをその導出へ
+   輸送する条件付き定理を`M4CanonicalCertificateTransport`に追加済みである．次は具体的な帰納的
+   certificateについて`ClosedRuntimeCertificateRespectsCoherence`を証明する．open contextではruntime型列，
+   多相contextではcontext関係も同時に輸送し，多相`letE`，matcherを返す`fixE`，matcher literal，
+   `matchAll`，user matcher／constructorを含む`matchFirst`へ広げる．
 4. 一般APIのうち`Paper1FrozenSignature`へ不要に固定されている定義を`FrozenSignature`でparameter化する．
    Paper 1固有の回帰定数はfixtureとして残し，一般定理と具体例を名前・module境界で区別する．P1-L02／L05の
    head-only／general-cons探索で得たbranch型付けを，field，capture，再帰tailを持つ任意のM4 constructor
@@ -757,6 +766,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 multisetの実dispatchと型付き探索 | [M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) |
 | runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
 | M5の条件付き完成interface | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean) |
+| M4主要導出から公開推論の代表導出へのclosed certificate輸送 | [M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean) |
 | 再帰matcherを捕捉する通常lambdaの安全性 | [TotalPlainClosureSafety.lean](TypePM/TotalPlainClosureSafety.lean)，[TotalPlainClosureSafetyRegression.lean](TypePM/TotalPlainClosureSafetyRegression.lean) |
 | total再帰closureの値・環境型付け | [RecursiveTotalClosureSafety.lean](TypePM/RecursiveTotalClosureSafety.lean)，[M4Paper1RecursiveClosureTotalTyping.lean](TypePM/Source/M4Paper1RecursiveClosureTotalTyping.lean)，[M4Paper1RecursiveClosureTypingBoundary.lean](TypePM/Source/M4Paper1RecursiveClosureTypingBoundary.lean) |
 | fuelごとの再帰closure適用安全性 | [StepIndexedClosureSafety.lean](TypePM/StepIndexedClosureSafety.lean)，[StepIndexedPaper1ListSafetyRegression.lean](TypePM/StepIndexedPaper1ListSafetyRegression.lean) |

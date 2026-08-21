@@ -305,6 +305,7 @@ import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.FullM4Completion
 import TypePM.Source.M5CompletionArchitecture
+import TypePM.Source.M4CanonicalCertificateTransport
 import TypePM.AxiomAudit
 
 /-!
