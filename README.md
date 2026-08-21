@@ -230,7 +230,7 @@ inventoryで追跡する．
     実際のsource ASTとして静的・動的回帰で共有する．最適化primitiveを追加する場合は，先に
     source定義との結果列の一致を証明する．
 11. **分岐の順序と重複を保存する．** matching分岐は値ではなく入力中の出現位置で区別する．
-    深さ優先探索はsource順を保ち，同じ値になる別分岐を重複除去しない．
+    現在のfuel付き深さ優先探索はsource順を保ち，同じ値になる別分岐を重複除去しない．
 12. **追加公理や高速な外部判定に依存しない．** 公開証明で`sorry`，`admit`，追加`axiom`，
     `native_decide`，`unsafe`，`partial def`を使わない．exact回帰もkernelが検査する定義展開と
     equation lemmaだけで閉じる．
@@ -288,8 +288,27 @@ source多相`let`をruntime typingへ接続するT6は，ユーザーの対象�
 freshnessを外部の証明関係で記録して接続する方針で進める．別方式へ変える判断は，この方針で
 矛盾が見つかった場合にだけ改めて求める．
 
-相互`letrec`，幅優先探索，旧実装との後方互換性などは「判断待ち」ではなく，現行仕様では
+相互`letrec`，完全なEgison処理系との後方互換性などは「判断待ち」ではなく，現行仕様では
 明示的に対象外である．対象へ戻す場合は新しい機能追加として，完了条件とロードマップを先に更新する．
+
+### `matchAllDFS`と公平な`matchAll`
+
+現行の`depthFirstFuel`／`searchPatternFuel`／`evalFuel`にある`.matchAll` caseは，後続の状態より
+先頭branchを優先するfuel付き深さ優先探索であり，探索完了後に有限なanswer列を一括して返す．
+探索部分はAPLAS 2018論文の付録にある`match-all-dfs`に対応し，同論文で既定とされる
+`match-all`の意味論ではない．型保存とno-stuckはこのbounded DFS laneについて有効だが，公平な
+列挙完全性は含まない．`timeout`は探索未完了を表し，正常な不一致`[]`や`stuck`ではない．
+
+たとえば左branchが自分自身を無限に展開し，右branchが直ちに成功する探索では，右の成功は
+有限深さに存在していてもDFSの任意fuelで観測できない．この境界は
+`left_recursive_branch_starves_later_success`で実行可能な回帰として固定する．
+
+APLAS 2018の既定`match-all`は，状態列をnodeとする二分の簡約木を幅優先に走査し，各有限位置の
+nodeへ有限回で探索機会を与える．無限個の結果を扱うには，単に探索順を幅優先へ変えるだけでなく，
+完成した有限リストではなく遅延列または有限prefixとして結果を観測する必要がある．そのためLean側でも，
+現在のbounded `matchAllDFS`を残したまま，有限prefixと未探索frontierを返す公平な`matchAll` laneを
+別に追加し，両方について型安全性を証明する．公平性の正確な主張は「各局所stepが完了し，有限個の
+局所stepで到達できる成功は，ある有限roundのprefixに現れる」であり，一般停止性は要求しない．
 
 `matchFirst`の通常armに結果があるかを型推論で判定しないことも固定済みである．user matcherは
 型の正しい空decomposition列を返せるため，wildcard armでも照合結果がない場合がある．この場合は
@@ -749,9 +768,11 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 - このREADMEのPaper 1 inventoryで必要とした各段階．
 - `TypePM/AxiomAudit.lean`の強制監査とCIを含む全build．
 
-一般の停止性，幅優先探索の完全性，相互`letrec`，旧実装との後方互換性は現行の完了条件に
-含めない．DM一般対応と全具体化のpattern-function主要性は，論文の最終主張へ含めると決めた場合に
-完了条件へ昇格する．
+一般の停止性，相互`letrec`，旧実装との後方互換性は現行の完了条件に含めない．bounded DFSの
+5.6--5.8と，公平な`matchAll`の有限prefixに対する型安全性・有限到達可能な成功の公平性は別の
+完了条件として管理する．後者を式評価の遅延collectionへ統合することはPaper 3の対象とし，現行の
+有限DFS定理をその完成証拠とは数えない．DM一般対応と全具体化のpattern-function主要性は，論文の
+最終主張へ含めると決めた場合に完了条件へ昇格する．
 
 ## 主なファイル
 
