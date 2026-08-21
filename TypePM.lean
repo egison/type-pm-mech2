@@ -322,6 +322,8 @@ import TypePM.Source.M5ClosedPairProjectionCertificate
 import TypePM.Source.M5ClosedPairProjectionCertificateRegression
 import TypePM.Source.M5ClosedLiteralMatchAllCertificate
 import TypePM.Source.M5ClosedLiteralMatchAllCertificateRegression
+import TypePM.Source.M4LetRuntimeWorldStep
+import TypePM.Source.M4LetRuntimeWorldStepRegression
 import TypePM.AxiomAudit
 
 /-!
