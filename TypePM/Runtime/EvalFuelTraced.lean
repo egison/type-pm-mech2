@@ -23,6 +23,7 @@ namespace TypePM.Runtime
 
 /-- Runtime data present at every direct `searchPatternFuel` invocation. -/
 structure MatchingSearchTraceEvent where
+  fuel : Nat
   environment : ValueEnvironment
   pattern : Source.Pattern
   matcher : Value
@@ -67,7 +68,7 @@ def evalMatchFirstArmsFuelTrace
   | [], fallback => trace environment fallback
   | arm :: rest, fallback =>
       let event : MatchingSearchTraceEvent :=
-        ⟨environment, arm.pattern, matcher, target⟩
+        ⟨fuel, environment, arm.pattern, matcher, target⟩
       event ::
         match searchPatternFuel evaluate fuel environment arm.pattern matcher
             target with
@@ -136,7 +137,7 @@ mutual
                 match evalFuel fuel environment matcher with
                 | .ok matcherValue =>
                     let event : MatchingSearchTraceEvent :=
-                      ⟨environment, pattern, matcherValue, targetValue⟩
+                      ⟨fuel, environment, pattern, matcherValue, targetValue⟩
                     let tracePrefix := targetTrace ++ matcherTrace ++ [event]
                     match searchPatternFuel (evalFuel fuel) fuel environment
                         pattern matcherValue targetValue with

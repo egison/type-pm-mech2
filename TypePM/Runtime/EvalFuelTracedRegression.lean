@@ -21,7 +21,7 @@ theorem directMatch_result_projection :
 
 theorem directMatch_trace :
     evalFuelTrace 2 [] directMatch =
-      [⟨[], .wild, .something, .int 1⟩] := by
+      [⟨1, [], .wild, .something, .int 1⟩] := by
   rfl
 
 def firstMatch : Expr :=
@@ -31,7 +31,7 @@ def firstMatch : Expr :=
 /-- The second arm is not recorded after the first arm succeeds. -/
 theorem firstMatch_trace_stops_at_selected_arm :
     evalFuelTrace 2 [] firstMatch =
-      [⟨[], .wild, .something, .int 1⟩] := by
+      [⟨1, [], .wild, .something, .int 1⟩] := by
   rfl
 
 def closureBodyMatch : Expr :=
@@ -41,7 +41,7 @@ def closureBodyMatch : Expr :=
 runtime environment, including the evaluated argument. -/
 theorem closureBodyMatch_trace_environment :
     evalFuelTrace 4 [] closureBodyMatch =
-      [⟨[.int 7], .wild, .something, .int 7⟩] := by
+      [⟨1, [.int 7], .wild, .something, .int 7⟩] := by
   rfl
 
 end TypePM.Runtime.EvalFuelTracedRegression
