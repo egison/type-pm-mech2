@@ -1,4 +1,4 @@
-import TypePM.Source.M4TwoIndexUserMatcherReducerBridge
+import TypePM.Source.M4TwoIndexPatternDispatchProducer
 import TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression
 import TypePM.ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression
 
@@ -14,9 +14,10 @@ relation and is provably outside the traditional structural
 
 The caller-selected atom relation classifies exactly the delegated built-in
 variable atom.  Its local reducer law types the recursive closure binding with
-`FuelEnvironmentSafe`; no structural `ValueTyping` is involved.  The actual
-dispatch certificate retains singleton-branch membership and its preserved
-source variable pattern.  It passes through
+`FuelEnvironmentSafe`; no structural `ValueTyping` is involved.  An independent
+M4 elaboration of the delegated variable pattern fixes its source-ordered
+binding type, and a finite atom obligation converts the actual singleton
+dispatch to the two-index certificate.  It passes through
 `toTwoIndexUserMatcherStateTyping` and then `searchPatternFuel_twoIndexSafe`
 for all three required state visits without a complete-search equation or a
 whole-evaluator safety premise.
@@ -33,6 +34,7 @@ namespace TypePM.Source.M4TwoIndexUserMatcherReducerBridgeRegression
 
 open TypePM.Runtime
 open TypePM.Source.Paper1Programs
+open TypePM.Source.MatcherTyping
 open TypePM.Source.MatcherTyping.M4Paper1RecursiveSafetyBoundaryRegression
 open TypePM.Source.MatcherTyping.M4Paper1RecursiveClosureTypingBoundary
 open TypePM.ValueIndexedPaper1MultisetGeneralConsSafety
@@ -52,6 +54,34 @@ def recursiveClosureVariableAtom : MatchingAtom :=
 
 def recursiveClosurePrimitiveAtom : MatchingAtom :=
   ⟨.var, .something, listRecursiveClosure⟩
+
+/-- The independent M4 synthesis result for the variable pattern delegated by
+the successful catch-all clause. -/
+def recursiveClosureVariableGenerated : GeneratedPattern :=
+  { dual := ⟨.var ⟨0⟩, .var ⟨0⟩⟩
+    bindings := [.var ⟨0⟩]
+    hard := []
+    pending := [] }
+
+def recursiveClosureVariableSolution : Subst :=
+  { cap := fun _ => .any
+    ty := fun _ => recursiveClosureType }
+
+theorem recursiveClosureVariable_elaborates :
+    PatternElaborates Paper1FrozenSignature.signature
+      [Scheme.mono recursiveClosureType] [] .var []
+      ⟨0, 0⟩ recursiveClosureVariableGenerated ⟨1, 1⟩ := by
+  exact .var
+
+theorem recursiveClosureVariable_supported :
+    DirectRuntimePatternSupported .var :=
+  .var
+
+theorem recursiveClosureVariable_semantic :
+    GeneratedPatternRuntimeSolution recursiveClosureVariableGenerated
+      recursiveClosureVariableSolution := by
+  simp [GeneratedPatternRuntimeSolution, recursiveClosureVariableGenerated,
+    Solves]
 
 set_option maxRecDepth 100000 in
 /-- Callback fuel two executes the real catch-all variable clause. -/
@@ -118,8 +148,9 @@ theorem recursiveClosureAtomReducer_twoIndexSafe :
             subst branch
             exact ⟨[], .nil, rfl⟩)
 
-/-- The exact actual dispatch carries source-pattern and caller-selected
-branch-work evidence at predecessor search index two. -/
+/-- M4 variable-pattern elaboration plus one bounded local atom obligation
+generate the branch-work certificate for the exact actual dispatch at
+predecessor search index two. -/
 theorem recursiveClosure_variable_dispatch_twoIndex :
     TwoIndexPatternDispatchCertificate
       (relationalTwoIndexMatchingBranchRelation
@@ -129,15 +160,39 @@ theorem recursiveClosure_variable_dispatch_twoIndex :
         closedMultisetMatcherEnvironment multisetClauses .var
         listRecursiveClosure) := by
   rw [recursiveClosure_variable_dispatch_exact]
-  apply TwoIndexPatternDispatchCertificate.hit (patterns := [.var])
-  · intro branch member
-    simp [variableBranches] at member
-    subst branch
-    rfl
-  · intro branch member
-    simp [variableBranches] at member
-    subst branch
-    exact .cons RecursiveClosureAtomRelation.primitive .nil
+  obtain ⟨newBindings, dispatchTyped, bindingsEq⟩ :=
+    PatternElaborates.toSingletonTwoIndexDispatch
+      (atomRelation := RecursiveClosureAtomRelation)
+      (searchFuel := 2) (residual := 1)
+      (environmentTypes := [recursiveClosureType])
+      (branches := variableBranches listRecursiveClosure)
+      recursiveClosureVariable_elaborates
+      recursiveClosureVariable_supported
+      recursiveClosureVariable_semantic
+      (MonomorphicContextCompatible.cons MonomorphicContextCompatible.nil)
+      (by
+        intro newBindings patternTyped branch member
+        simp [variableBranches] at member
+        subst branch
+        cases patternTyped
+        exact M4TwoIndexMatchingBranchObligations.cons
+          { patternTyped := PatternBinds.var
+            atomSafe := ⟨rfl, by
+              simpa [recursiveClosureVariableGenerated,
+                recursiveClosureVariableSolution, Ty.apply,
+                Ty.applyList,
+                recursiveClosurePrimitiveAtom] using
+                (RecursiveClosureAtomRelation.primitive
+                  (searchFuel := 1) (residual := 1)
+                  (environmentTypes := [recursiveClosureType])
+                  (bindingTypes := []))⟩ }
+          .nil)
+  have newBindingsEq : newBindings = [recursiveClosureType] := by
+    simpa [recursiveClosureVariableGenerated,
+      recursiveClosureVariableSolution, Ty.applyList, Ty.apply] using
+        bindingsEq.symm
+  subst newBindings
+  exact dispatchTyped
 
 /-- The actual user atom is safe for all three required state visits.  The
 dispatch branch and empty remaining work are combined structurally before

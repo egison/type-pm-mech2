@@ -560,8 +560,11 @@ Paper 1の実multiset variable節では，再帰list closureをatom環境・targ
 委譲された`.something` atom，yieldの三状態をこのbridgeから型付けした．成功answerはfuel付き関係で型付けできる一方，
 従来の構造的`EnvironmentTyping`／`ValueTypings`では型付けできない．探索のexact結果は独立した回帰であり，
 二index安全性証明には使わない．従来の構造的M4 branch-workでは同じdelegated atomを正の探索indexで型付けできないことも
-残している．ただしcallerのatom関係，一段のreducer保存則，実dispatch証明はこの具体例では手動構成であり，
-任意のM4 clause導出から自動生成する一般producerは未完である．
+残している．さらに，M4のpattern elaborationが決めたbinding型とpattern順を，有限のatom義務を介して二index branch-workへ
+運ぶproducerを追加した．この回帰では独立した`.var` elaborationとその解から，再帰list closureの関数型
+`recursiveClosureType`をbinding型として導出し，手組みのdispatch certificateを置き換えた．ただしcallerのatom関係，
+一段のreducer保存則，実dispatch等式は具体例ごとの証明であり，
+完全なM4 matcher-clause導出からそれらを自動生成する一般producerは未完である．
 
 `MatcherSafety`のembedded evaluator契約は「必ず収束する」仮定ではない．型付き式の評価が
 `timeout`になるか，型の付いた値を返すことを要求する．T11はこの契約を`TotalCoreTyping`について
@@ -686,8 +689,10 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    関係とindex遷移を同時にparameter化した companion theoremを作る．探索についてはcaller指定の環境・answer
    関係と二つのindexを持つDFS定理，caller指定のatom関係からbranch-workを構造的に組み立てる定理，実M4 dispatchを
    その局所certificateへ変換するbridgeまで追加済みである．実multiset variable節は，再帰closureを環境・target・
-   成功answerに置く三状態探索までこの経路で型付けした．次は，fixture固有に与えているatom関係・一段の
-   evaluator／dispatcher保存・dispatch証明をM4 clause導出から生成し，この探索定理を式評価全体へ接続する．
+   成功answerに置く三状態探索までこの経路で型付けした．さらにM4のpattern elaborationからbinding型・pattern順・
+   bounded branch-workを生成するproducerを追加し，同回帰の手組みdispatch certificateを置換した．次は，fixture固有に
+   与えているatom関係・一段のevaluator／dispatcher保存・実dispatch等式を完全なM4 matcher-clause導出から生成し，
+   この探索定理を式評価全体へ接続する．
 3. 存在量化された任意のM4主要導出を，`FullM4Coherence`／`FullM4ExecutableReplay`で公開`infer`が選ぶ
    canonicalな導出へ対応付け，certificateを輸送する．この経路を，多相`letE`，matcherを返す`fixE`，
    matcher literal，`matchAll`，user matcher／constructorを含む`matchFirst`へ広げる．多相`letE`では
@@ -756,7 +761,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | total再帰closureの値・環境型付け | [RecursiveTotalClosureSafety.lean](TypePM/RecursiveTotalClosureSafety.lean)，[M4Paper1RecursiveClosureTotalTyping.lean](TypePM/Source/M4Paper1RecursiveClosureTotalTyping.lean)，[M4Paper1RecursiveClosureTypingBoundary.lean](TypePM/Source/M4Paper1RecursiveClosureTypingBoundary.lean) |
 | fuelごとの再帰closure適用安全性 | [StepIndexedClosureSafety.lean](TypePM/StepIndexedClosureSafety.lean)，[StepIndexedPaper1ListSafetyRegression.lean](TypePM/StepIndexedPaper1ListSafetyRegression.lean) |
 | fuel付き探索answerと二index DFS | [ValueIndexedMatchingSearchSafety.lean](TypePM/ValueIndexedMatchingSearchSafety.lean)，[TwoIndexMatchingSearchSafety.lean](TypePM/TwoIndexMatchingSearchSafety.lean)，[M4TwoIndexRecursiveClosureSearchRegression.lean](TypePM/Source/M4TwoIndexRecursiveClosureSearchRegression.lean) |
-| M4 user dispatchからcaller指定関係の二index DFSへのbridge | [M4TwoIndexUserMatcherReducerBridge.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridge.lean)，[M4TwoIndexUserMatcherReducerBridgeRegression.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridgeRegression.lean) |
+| M4 user dispatchからcaller指定関係の二index DFSへのbridge | [M4TwoIndexUserMatcherReducerBridge.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridge.lean)，[M4TwoIndexPatternDispatchProducer.lean](TypePM/Source/M4TwoIndexPatternDispatchProducer.lean)，[M4TwoIndexUserMatcherReducerBridgeRegression.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridgeRegression.lean) |
 | `matchAll`とmultiset節の探索安全性 | [ValueIndexedMatchAllSafety.lean](TypePM/ValueIndexedMatchAllSafety.lean)，[ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean](TypePM/ValueIndexedPaper1ListJoinMatchAllSafetyRegression.lean)，[ValueIndexedStableFirstOrderSafety.lean](TypePM/ValueIndexedStableFirstOrderSafety.lean)，[ValueIndexedPaper1ListClauseBodySafety.lean](TypePM/ValueIndexedPaper1ListClauseBodySafety.lean)，[ValueIndexedPaper1MultisetTopLevelSafety.lean](TypePM/ValueIndexedPaper1MultisetTopLevelSafety.lean)，[ValueIndexedPaper1MultisetHeadConsSafety.lean](TypePM/ValueIndexedPaper1MultisetHeadConsSafety.lean)，[ValueIndexedPaper1MultisetHeadConsGeneralSafety.lean](TypePM/ValueIndexedPaper1MultisetHeadConsGeneralSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsSafety.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsAllCallbackSafety.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsAllCallbackSafety.lean)，[ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression.lean](TypePM/ValueIndexedPaper1MultisetGeneralConsFuelIndexedRegression.lean) |
 | source多相`let`のruntime由来証明 | [PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[PolymorphicLetProtectedClosureRegression.lean](TypePM/Source/PolymorphicLetProtectedClosureRegression.lean)，[PolymorphicLetProtectedSyntaxRegression.lean](TypePM/Source/PolymorphicLetProtectedSyntaxRegression.lean)，[PolymorphicLetInferenceOrdinary.lean](TypePM/Source/PolymorphicLetInferenceOrdinary.lean)，[PolymorphicLetInferenceOrdinaryStructural.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructural.lean)，[PolymorphicLetInferenceOrdinaryStructuralChecker.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralChecker.lean)，[PolymorphicLetInferenceOrdinaryStructuralCheckerRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralCheckerRegression.lean)，[PolymorphicLetInferenceOrdinaryStructuralAutomation.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralAutomation.lean)，[PolymorphicLetInferenceOrdinaryStructuralAutomationRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralAutomationRegression.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragment.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragment.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragmentRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentRegression.lean) |
 | source断片の構文判定 | [PolymorphicLetInferenceOrdinaryStructuralFragmentChecker.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentChecker.lean)，[PolymorphicLetInferenceOrdinaryStructuralFragmentCheckerRegression.lean](TypePM/Source/PolymorphicLetInferenceOrdinaryStructuralFragmentCheckerRegression.lean) |
