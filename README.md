@@ -430,6 +430,20 @@ runtime monotype，provenance，`IsInstance`を経由せず，任意の評価fue
 lambda引数やpattern bindingは一般に有限indexしか持たないためである．任意のM4右辺からgeneralized schemeの
 全出現証拠を作るproducer，式ごとの入力需要を持つ有限indexの帰納法，open M5の環境interfaceへの統合は未完である．
 
+`FiniteInputDemandSafety`は，その有限index帰納法で`letE`と関数適用が要求する算術条件を分離する．
+`letE`では，親の入力需要からbody-tailの需要と，bodyへ加える右辺値を証明するための入れ子の需要の両方へ
+indexを下げられることを要求する．関数適用では，要求結果indexに関する単調性と，関数を正の論理layerで
+適用するための呼出し需要を要求する．従来の線形な`evaluationFuel + resultIndex`は，評価fuel 2・結果index 0で
+すでに`letE`の入れ子条件を満たさないことを証明した．この二種類の法則を満たす加算型の自然数reserveの中では，
+`0, 1, 2, 4, 8, ...`が点ごとに最小である．
+
+この候補indexを使い，`SchemeFuelEnvironmentSafe`の一つの有限な親indexから，右辺とbodyへ別々の需要を渡す
+条件付き`letE`規則と，関数・引数・`applyFuel`の需要を分ける条件付きapplication規則を証明した．closedな
+identity `letE`とidentityの整数適用は，成功する正確なfuel，正の結果indexでの安全性，任意fuel no-stuckを
+回帰として持つ．ただし，これは記載した法則を満たす**`letE`／application断片の加算型候補**である．matcher，
+bounded DFS，公平探索，ほかのM4構文の需要法則をまだ統合していないため，全M4の既定入力indexとはしない．
+また，規則は子導出の安全性を帰納仮定として受ける合成部品であり，source-wide certificate producerではない．
+
 `M5ClosedPairProjectionCertificate`は，整数，二要素の整数pair，入れ子のpair projectionからなる
 closedかつsearch-freeな具体断片について，`ConditionalCompletionSchema`の連言全体を満たす．
 certificateが保持するのは，実際のM4主要導出に対応するfragment証拠と`RuntimeTyping`だけであり，
@@ -578,7 +592,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 
 | クラス／軸 | 状態 | 次に必要な一般結果 |
 |---|---|---|
-| Paper 1／5.6 | **in progress** | 一般M4 `letE`の静的body world，全`IsInstance`版とsource scheme＋固定solution版の動的環境関係，interface輸送，raw M4変数caseは完了．次は式ごとの入力需要を持つ有限indexの内部certificateから右辺のscheme出現証拠，body評価，MNodeを含まないmatching taskの由来を構成し，rootの公開主要導出へ一度だけ包む |
+| Paper 1／5.6 | **in progress** | 一般M4 `letE`の静的body world，全`IsInstance`版とsource scheme＋固定solution版の動的環境関係，interface輸送，raw M4変数case，`letE`／application断片の有限入力需要法則は完了．次はこの需要を持つ内部certificateから右辺のscheme出現証拠，body評価，MNodeを含まないmatching taskの由来を構成し，ほかの構文の需要法則と統合してrootの公開主要導出へ一度だけ包む |
 | Paper 1／5.6 | **in progress** | 上の具体certificateがcoherenceを尊重することを証明し，公開`infer`が選ぶ代表導出へclosed certificateを輸送する．多相`letE`ではscheme bindingの由来とfreshnessを保存する |
 | Paper 1／5.7 | **in progress** | 任意のM4 matcher-clause導出から，actual dispatchの各branch，atom関係，局所evaluator／reducer保存則，二添字初期stateを生成する．具体例固有の有限branch証拠を一般定理の外部前提に残さず，complete-search等式にも依存しない |
 | Paper 1／5.8 | **in progress** | 5.6のsource certificateと5.7のbounded DFS安全性を合成し，任意の全域的Paper 1 closed式について`ClosedNoStuck`を得る |
@@ -641,7 +655,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 | Paper 1 source／静的回帰 | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean)，[M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) | listing inventoryのsourceと5.1--5.5 |
 | 評価・matching基盤 | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) | 関係的評価，実行可能評価，matching state |
 | Paper 1 bounded DFS実行時層 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) | 既に実行時型付けされた項の型保存・no-stuck |
-| 5.6目標interface／部分橋 | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[M4LetRuntimeWorldStepRegression.lean](TypePM/Source/M4LetRuntimeWorldStepRegression.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[ProtectedPolymorphicLetFuelSafetyRegression.lean](TypePM/ProtectedPolymorphicLetFuelSafetyRegression.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[M4ProtectedFuelContextBridgeRegression.lean](TypePM/Source/M4ProtectedFuelContextBridgeRegression.lean)，[SchemeIndexedFuelSafety.lean](TypePM/SchemeIndexedFuelSafety.lean)，[SchemeIndexedFuelSafetyRegression.lean](TypePM/SchemeIndexedFuelSafetyRegression.lean) | interface，限定したsource-to-runtime接続，一般`letE`の静的body world，全`IsInstance`版とsource scheme＋固定solution版の動的環境，interface輸送，条件付きclosed-first `letE`，raw M4変数case．多相右辺を一般source導出からscheme環境へ入れるproducerとクラス全体は未完 |
+| 5.6目標interface／部分橋 | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[M4LetRuntimeWorldStepRegression.lean](TypePM/Source/M4LetRuntimeWorldStepRegression.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[ProtectedPolymorphicLetFuelSafetyRegression.lean](TypePM/ProtectedPolymorphicLetFuelSafetyRegression.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[M4ProtectedFuelContextBridgeRegression.lean](TypePM/Source/M4ProtectedFuelContextBridgeRegression.lean)，[SchemeIndexedFuelSafety.lean](TypePM/SchemeIndexedFuelSafety.lean)，[SchemeIndexedFuelSafetyRegression.lean](TypePM/SchemeIndexedFuelSafetyRegression.lean)，[FiniteInputDemandSafety.lean](TypePM/FiniteInputDemandSafety.lean)，[FiniteInputDemandSafetyRegression.lean](TypePM/FiniteInputDemandSafetyRegression.lean) | interface，限定したsource-to-runtime接続，一般`letE`の静的body world，二種類の動的環境，interface輸送，raw M4変数case，`letE`／application断片の有限入力需要と条件付き合成．多相右辺を一般source導出からscheme環境へ入れるproducer，ほかの構文の需要法則，クラス全体は未完 |
 | closed pair certificate | [M5ClosedPairProjectionCertificate.lean](TypePM/Source/M5ClosedPairProjectionCertificate.lean)，[M5ClosedPairProjectionCertificateRegression.lean](TypePM/Source/M5ClosedPairProjectionCertificateRegression.lean) | 5.6--5.8とcoherence輸送を満たす完了したsearch-free具体断片．Paper 1クラス全体ではない |
 | closed literal `matchAllDFS` certificate | [M5ClosedLiteralMatchAllCertificate.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificate.lean)，[M5ClosedLiteralMatchAllCertificateRegression.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificateRegression.lean) | 5.6--5.8を実際に発行された空でないbounded-DFS taskとともに満たす完了した具体断片．user matcherを含むクラス全体ではない |
 | 二添字bounded DFS | [TwoIndexMatchingSearchSafety.lean](TypePM/TwoIndexMatchingSearchSafety.lean)，[TwoIndexMatchAllSafety.lean](TypePM/TwoIndexMatchAllSafety.lean) | caller指定の環境・answer関係と局所保存則を合成する実行時層 |
