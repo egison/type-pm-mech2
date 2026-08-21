@@ -278,6 +278,8 @@ import TypePM.Source.M4Paper1ListJoinEnvironmentIndexedSearchRegression
 import TypePM.Source.M4Paper1ListJoinRelationalProducerRegression
 import TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression
 import TypePM.Source.M4TwoIndexMatchAllSafetyRegression
+import TypePM.Source.M4TwoIndexMatchAllInitialProducer
+import TypePM.Source.M4TwoIndexMatchAllInitialProducerRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
