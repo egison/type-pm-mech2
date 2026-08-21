@@ -357,6 +357,7 @@ import TypePM.Source.M5Paper1MapCallbackAdapter
 import TypePM.Source.M5TracedSearchOrigin
 import TypePM.Source.M5TracedOriginSafety
 import TypePM.Source.M5TracedMatchingEvaluationSafety
+import TypePM.Source.M5TracedRecursiveClosureSafety
 import TypePM.Source.M4CanonicalCertificateTransport
 import TypePM.Source.M4RawOriginCoherenceTransport
 import TypePM.Source.M5ClosedPairProjectionCertificate

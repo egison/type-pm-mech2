@@ -161,8 +161,14 @@ theorem recursiveClosure
     (environmentTyped : TotalEnvironmentTyping environment context)
     (bodyTyped : TotalRecursiveClosureBodyTyping
       (domain :: .fn domain codomain :: context) body codomain)
-    (bodySafe : ∀ argument,
+    (ordinaryBodySafe : ∀ argument,
       OriginValueSafe argumentDemand argument domain →
+        OriginResultSafe resultDemand codomain
+          (evalFuel bodyFuel
+            (argument :: Value.recursiveClosure environment body :: environment)
+            body))
+    (tracedBodySafe : ∀ argument,
+      TracedOriginValueSafe eventSafe argumentDemand argument domain →
         TracedOriginResultSafe eventSafe resultDemand codomain
           (evalFuel bodyFuel
             (argument :: Value.recursiveClosure environment body :: environment)
@@ -174,15 +180,11 @@ theorem recursiveClosure
       (.plainCall (bodyFuel + 1) argumentDemand resultDemand)
       (Value.recursiveClosure environment body) (.fn domain codomain) := by
   simp only [TracedOriginValueSafe]
-  refine ⟨OriginValueSafe.recursiveClosure environmentTyped bodyTyped ?_,
+  refine ⟨OriginValueSafe.recursiveClosure environmentTyped bodyTyped
+      ordinaryBodySafe,
     domain, codomain, rfl, ?_⟩
-  · intro argument argumentSafe
-    rcases (bodySafe argument argumentSafe).1 with timeout |
-      ⟨result, success, resultSafe⟩
-    · exact .inl timeout
-    · exact .inr ⟨result, success, resultSafe.forget⟩
-  · intro argument argumentSafe
-    exact bodySafe argument argumentSafe.forget
+  intro argument argumentSafe
+  exact tracedBodySafe argument argumentSafe
 
 end TracedOriginValueSafe
 

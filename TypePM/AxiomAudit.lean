@@ -2,6 +2,7 @@ import TypePM.AxiomAuditCommand
 import TypePM.Runtime.EvalFuelTraced
 import TypePM.Runtime.EvalFuelTracedRegression
 import TypePM.Source.M5TracedMatchingEvaluationSafety
+import TypePM.Source.M5TracedRecursiveClosureSafety
 import TypePM.Names
 import TypePM.Primitive
 import TypePM.InferenceExactness
@@ -1601,6 +1602,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.TracedOriginTwoIndexMatchFirstArmsSafe
 #assert_allowed_axioms TypePM.Runtime.TracedOriginTwoIndexMatchFirstArmsSafe.eval_safe
 #assert_allowed_axioms TypePM.Runtime.matchFirstFuel_twoIndexTracedOriginSafe
+#assert_allowed_axioms TypePM.Runtime.OriginDemand.rank
+#assert_allowed_axioms TypePM.Runtime.RecursiveSelfDemandGuarded
+#assert_allowed_axioms TypePM.Runtime.recursiveClosure_tracedSafe_of_guardedSelf
 #assert_allowed_axioms TypePM.Source.M4.canonicalPrincipalTypingDerivation
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTypingDerivation.coherentWithCanonical_of_coherence_and_replay
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTypingDerivation.coherentWithCanonical
