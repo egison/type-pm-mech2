@@ -393,6 +393,20 @@ certificateが保持するのは，実際のM4主要導出に対応するfragmen
 したがってこれは**完了した具体断片**だが，`matchAllDFS`を含むPaper 1クラス全体の5.6--5.8を
 完了した証拠ではない．
 
+`M5ClosedLiteralMatchAllCertificate`は，closedな整数literal族
+`matchAll literal as something with $x -> x`について，同じ連言全体を**空でない探索証拠**とともに
+満たす．certificateは実際のM4主要導出とgroundな結果型だけを保持し，targetとmatcherの評価が
+成功した時点で，その値から発行されるbuilt-in variableのbounded-DFS taskを`SearchOrigin`へ記録する．
+`MatchingStateErasure`はその起点をgroundな探索taskのcertificateへ変換し，`TypedMatchingSearch`が
+二添字初期state証拠を任意の三添字について再構成する．式全体の`TypedEvaluation`も同じ探索経路を
+消費する．探索定理ではcallback fuel，探索fuel，結果の論理indexを任意かつ別々に量化する．式評価との
+合成では，実行意味論どおりcallbackと探索へ同じoperational fuelを渡し，結果の論理indexだけを独立に
+保つ．公開`infer`から選んだ主要導出を用いる回帰では，実search origin，探索の
+型安全性，公開`Typing`，任意fuel no-stuckを接続した．完成した探索結果や最終評価結果の等式は
+安全性証明とは独立した回帰としてだけ置く．これはsearch-bearingな最初の**完了した具体断片**だが，
+recursive closure，非空runtime環境，user matcher，callback評価を使うpattern，任意pattern，外側の
+多相`letE`を含むPaper 1クラス全体の一般certificateではない．
+
 #### 5.7：評価・matching・bounded DFS
 
 `Source.Typing.coreSafety`，built-in matching，user matcherの条件付き安全性，
@@ -582,6 +596,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 | Paper 1 bounded DFS実行時層 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) | 既に実行時型付けされた項の型保存・no-stuck |
 | 5.6目標interface／部分橋 | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean) | interfaceと限定したsource-to-runtime接続．クラス全体は未完 |
 | closed pair certificate | [M5ClosedPairProjectionCertificate.lean](TypePM/Source/M5ClosedPairProjectionCertificate.lean)，[M5ClosedPairProjectionCertificateRegression.lean](TypePM/Source/M5ClosedPairProjectionCertificateRegression.lean) | 5.6--5.8とcoherence輸送を満たす完了したsearch-free具体断片．Paper 1クラス全体ではない |
+| closed literal `matchAllDFS` certificate | [M5ClosedLiteralMatchAllCertificate.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificate.lean)，[M5ClosedLiteralMatchAllCertificateRegression.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificateRegression.lean) | 5.6--5.8を実際に発行された空でないbounded-DFS taskとともに満たす完了した具体断片．user matcherを含むクラス全体ではない |
 | 二添字bounded DFS | [TwoIndexMatchingSearchSafety.lean](TypePM/TwoIndexMatchingSearchSafety.lean)，[TwoIndexMatchAllSafety.lean](TypePM/TwoIndexMatchAllSafety.lean) | caller指定の環境・answer関係と局所保存則を合成する実行時層 |
 | M4から二添字DFSへの局所bridge | [M4TwoIndexMatchAllInitialProducer.lean](TypePM/Source/M4TwoIndexMatchAllInitialProducer.lean)，[M4TwoIndexPatternDispatchProducer.lean](TypePM/Source/M4TwoIndexPatternDispatchProducer.lean)，[M4TwoIndexUserMatcherReducerBridge.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridge.lean) | bounded DFSの限定的な局所合成．dispatch no-stuck，hit時のbranch証拠，局所reducer保存則が残る |
 | Paper 1実行回帰 | [Paper1NeverStuckRegression.lean](TypePM/Runtime/Paper1NeverStuckRegression.lean)，[M4Paper1ListJoinSearchSafety.lean](TypePM/Source/M4Paper1ListJoinSearchSafety.lean)，[M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) | inventoryに列挙した具体listing |

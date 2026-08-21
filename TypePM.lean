@@ -320,6 +320,8 @@ import TypePM.Source.M5CompletionArchitecture
 import TypePM.Source.M4CanonicalCertificateTransport
 import TypePM.Source.M5ClosedPairProjectionCertificate
 import TypePM.Source.M5ClosedPairProjectionCertificateRegression
+import TypePM.Source.M5ClosedLiteralMatchAllCertificate
+import TypePM.Source.M5ClosedLiteralMatchAllCertificateRegression
 import TypePM.AxiomAudit
 
 /-!
