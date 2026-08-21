@@ -196,6 +196,14 @@ theorem OriginValueSafe.ofCheckConversion
           obtain ⟨finalClass, finalConversion⟩ :=
             CheckConversion.trans firstConversion conversion
           exact .pair leftSafe rightSafe finalConversion
+  | .bool, _, safe => by
+      simp only [OriginValueSafe] at safe ⊢
+      cases safe <;> cases conversion <;> constructor
+  | .int, _, safe => by
+      simp only [OriginValueSafe] at safe ⊢
+      cases safe
+      cases conversion
+      constructor
   | .plainCall operationalFuel argument result, _, safe => by
       simp only [OriginValueSafe] at safe ⊢
       cases safe with
@@ -205,6 +213,9 @@ theorem OriginValueSafe.ofCheckConversion
       | closure bodySafe =>
           cases conversion
           exact .closure bodySafe
+      | recursiveClosure environmentTyped bodyTyped bodySafe =>
+          cases conversion
+          exact .recursiveClosure environmentTyped bodyTyped bodySafe
 
 theorem OriginResultSafe.ofCheckConversion
     (conversion : CheckConversion conversionClass source expected)
@@ -220,6 +231,42 @@ end TypePM.Runtime
 namespace TypePM.Source.M4
 
 open TypePM.Runtime
+
+/-- Decompose the semantic solution of one normalized curried-application
+step.  This public form is shared by the source application rule and the
+n-argument call companion used by constructors and primitives. -/
+theorem semanticSolution_fromApp_parts
+    {function argument : Generated} {domain target : Ty}
+    (semantic :
+      (Generated.fromApp function argument domain target).SemanticSolution
+        solution) :
+    function.SemanticSolution solution ∧
+      argument.SemanticSolution solution ∧
+      Equation.Holds solution (.ty function.target (.fn domain target)) ∧
+      ∃ conversionClass,
+        CheckConversion conversionClass
+          (argument.target.apply solution) (domain.apply solution) := by
+  refine ⟨⟨?_, ?_⟩, ⟨?_, ?_⟩, ?_, ?_⟩
+  · intro equation membership
+    exact semantic.1 equation (by
+      simp only [Generated.fromApp, List.mem_append]
+      exact .inl (.inl membership))
+  · intro obligation membership
+    exact semantic.2 obligation (by
+      simp only [Generated.fromApp, List.mem_append, List.mem_cons,
+        List.not_mem_nil, or_false]
+      exact .inl (.inl membership))
+  · intro equation membership
+    exact semantic.1 equation (by
+      simp only [Generated.fromApp, List.mem_append]
+      exact .inl (.inr membership))
+  · intro obligation membership
+    exact semantic.2 obligation (by
+      simp only [Generated.fromApp, List.mem_append, List.mem_cons,
+        List.not_mem_nil, or_false]
+      exact .inl (.inr membership))
+  · exact semantic.1 _ (by simp [Generated.fromApp])
+  · exact semantic.2 ⟨argument.target, domain⟩ (by simp [Generated.fromApp])
 
 /-- A proof-producing certificate for one exact raw M4 derivation, one fixed
 evaluator fuel, and one finite output observation.  `inputDemand` is selected

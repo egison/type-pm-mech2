@@ -77,7 +77,7 @@ theorem concreteSearchSafe :
     FuelMatchingSearchResultSafe 1 [.int]
       (runBoundedDfsMatchingSearch 2 2 (literalVariableTask 7)) := by
   exact matchingSearchSafe_of_erasure
-    (scope := Supported)
+    (scope := DerivationSupported)
     (Certificate := Certificate)
     (contextRelation := ClosedRuntimeContextRelation)
     (relations := fuelIndexedSafetyRelations)
@@ -98,7 +98,8 @@ theorem concreteSearchNeverStuck :
 /-- Every fuel amount yields timeout or a value; `stuck` is impossible. -/
 theorem expression_neverStuck (fuel : Nat) :
     (evalFuel fuel [] expression).NotStuck :=
-  closedNoStuck signatureReady expression_supported expression_typing fuel
+  closedNoStuck (target := DataTypes.list .int) canonicalDerivation
+    signatureReady expression_supported ⟨Subst.id, by simp⟩ fuel
 
 /-- Public static acceptance, a genuine typed matching search, and the
 arbitrary-fuel runtime endpoint are visible together. -/

@@ -107,9 +107,11 @@ private theorem signatureReady :
 
 /-- Every fuel amount yields timeout or a value; `stuck` is impossible. -/
 theorem nestedProjection_neverStuck (fuel : Nat) :
-    (evalFuel fuel [] nestedProjection).NotStuck :=
-  closedNoStuck signatureReady nestedProjection_supported
-    nestedProjection_typing fuel
+    (evalFuel fuel [] nestedProjection).NotStuck := by
+  rcases nestedProjection_typing with
+    ⟨principal, ⟨derivation⟩, instantiation⟩
+  exact closedNoStuck derivation signatureReady nestedProjection_supported
+    instantiation fuel
 
 /-- The regression keeps both public static endpoints and the arbitrary-fuel
 runtime endpoint visible in one statement. -/

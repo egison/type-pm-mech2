@@ -62,6 +62,10 @@ inductive OriginDemand where
   | listOf (element : OriginDemand)
   /-- Observe both fields of one binary runtime tuple. -/
   | pairOf (left right : OriginDemand)
+  /-- Observe one canonical Boolean constructor. -/
+  | bool
+  /-- Observe one canonical integer value. -/
+  | int
   | plainCall (operationalFuel : Nat)
       (argument result : OriginDemand)
 
@@ -131,6 +135,8 @@ inductive Le : OriginDemand → OriginDemand → Prop where
       (right : Le requestedRight availableRight) :
       Le (.pairOf requestedLeft requestedRight)
         (.pairOf availableLeft availableRight)
+  | bool : Le .bool .bool
+  | int : Le .int .int
   | plainCall
       (operational : requestedFuel ≤ availableFuel)
       (argument : Le availableArgument requestedArgument)
@@ -144,6 +150,8 @@ def Le.refl : ∀ demand, Le demand demand
   | .both left right => .both (Le.refl left) (Le.refl right)
   | .listOf element => .listOf (Le.refl element)
   | .pairOf left right => .pairOf (Le.refl left) (Le.refl right)
+  | .bool => .bool
+  | .int => .int
   | .plainCall _ argument result =>
       .plainCall (Nat.le_refl _) (Le.refl argument) (Le.refl result)
 
@@ -165,6 +173,24 @@ inductive PlainCallValueSafe
                 resultSafe result codomain) :
       PlainCallValueSafe argumentSafe resultSafe (bodyFuel + 1)
         (Value.plainClosure environment body) (.fn domain codomain)
+  | recursiveClosure
+      (environmentTyped : TotalEnvironmentTyping environment context)
+      (bodyTyped : TotalRecursiveClosureBodyTyping
+        (domain :: .fn domain codomain :: context) body codomain)
+      (bodySafe : ∀ argument,
+        argumentSafe argument domain →
+          evalFuel bodyFuel
+              (argument :: Value.recursiveClosure environment body ::
+                environment)
+              body = .timeout ∨
+            ∃ result,
+              evalFuel bodyFuel
+                  (argument :: Value.recursiveClosure environment body ::
+                    environment)
+                  body = .ok result ∧
+                resultSafe result codomain) :
+      PlainCallValueSafe argumentSafe resultSafe (bodyFuel + 1)
+        (Value.recursiveClosure environment body) (.fn domain codomain)
 
 /-- A strictly positive list layer.  The element predicate has already been
 fixed to the structurally smaller child demand. -/
@@ -178,6 +204,39 @@ inductive ListOfValueSafe (elementSafe : Value → Ty → Prop) :
         (DataTypes.list elementType)) :
       ListOfValueSafe elementSafe (Value.buildList (value :: values))
         (DataTypes.list elementType)
+
+namespace ListOfValueSafe
+
+theorem existsViewList
+    (safe : ListOfValueSafe elementSafe value target) :
+    ∃ values, Value.viewList value = some values := by
+  cases safe with
+  | nil => exact ⟨[], Value.viewList_buildList []⟩
+  | @cons value elementType values head tail =>
+      exact ⟨value :: values, Value.viewList_buildList _⟩
+
+theorem deleteFirstStructural
+    (safe : ListOfValueSafe elementSafe value target)
+    (encoding : Value.viewList value = some values) (needle : Value) :
+    ListOfValueSafe elementSafe
+      (Value.buildList (Value.deleteFirstStructural needle values)) target := by
+  induction safe generalizing values with
+  | nil =>
+      have valuesEq : values = [] := by
+        simpa using encoding.symm
+      subst values
+      exact .nil
+  | @cons value elementType storedValues head tail tailIH =>
+      have valuesEq : values = value :: storedValues := by
+        simpa using encoding.symm
+      subst values
+      simp only [Value.deleteFirstStructural]
+      split
+      · exact tail
+      · exact .cons head
+          (tailIH (Value.viewList_buildList storedValues))
+
+end ListOfValueSafe
 
 /-- Compose two normalized checking conversions.  The only nontrivial chain
 is product-matcher followed by matcher-to-slot, represented directly by the
@@ -213,6 +272,15 @@ inductive PairOfValueSafe
       PairOfValueSafe leftSafe rightSafe
         (.tuple [leftValue, rightValue]) target
 
+/-- Canonical Boolean values, retaining which constructor occurred. -/
+inductive BoolValueSafe : Value → Ty → Prop where
+  | true : BoolValueSafe (.data DataCtor.true []) DataTypes.bool
+  | false : BoolValueSafe (.data DataCtor.false []) DataTypes.bool
+
+/-- Canonical integer values. -/
+inductive IntValueSafe : Value → Ty → Prop where
+  | int : IntValueSafe (.int value) .int
+
 /-- Interpret a finite source-origin observation tree.  The recursive calls
 in the call case are on the two strict subtrees. -/
 def OriginValueSafe : OriginDemand → Value → Ty → Prop
@@ -229,12 +297,24 @@ def OriginValueSafe : OriginDemand → Value → Ty → Prop
         (fun item itemType => OriginValueSafe left item itemType)
         (fun item itemType => OriginValueSafe right item itemType)
         value target
+  | .bool, value, target => BoolValueSafe value target
+  | .int, value, target => IntValueSafe value target
   | .plainCall operationalFuel argumentDemand resultDemand, value, target =>
       PlainCallValueSafe
         (fun argument domain => OriginValueSafe argumentDemand argument domain)
         (fun result codomain => OriginValueSafe resultDemand result codomain)
         operationalFuel value target
 termination_by demand => demand
+
+/-- Pointwise interpretation of a demand list over runtime argument values
+and the corresponding solved domain types. -/
+inductive OriginValueSafes : List OriginDemand → List Value → List Ty → Prop where
+  | nil : OriginValueSafes [] [] []
+  | cons
+      (head : OriginValueSafe demand value target)
+      (tail : OriginValueSafes demands values targets) :
+      OriginValueSafes (demand :: demands) (value :: values)
+        (target :: targets)
 
 /-- Timeout or a value satisfying one finite source-origin demand. -/
 def OriginResultSafe (demand : OriginDemand) (target : Ty)
@@ -394,6 +474,25 @@ theorem pair
   simp only [OriginValueSafe]
   exact .pair left right .ordinary
 
+theorem boolTrue :
+    OriginValueSafe .bool (.data DataCtor.true []) DataTypes.bool := by
+  simp only [OriginValueSafe]
+  exact .true
+
+theorem boolFalse :
+    OriginValueSafe .bool (.data DataCtor.false []) DataTypes.bool := by
+  simp only [OriginValueSafe]
+  exact .false
+
+theorem boolValue (value : Bool) :
+    OriginValueSafe .bool (Value.boolValue value) DataTypes.bool := by
+  cases value <;> simp [Value.boolValue, boolTrue, boolFalse]
+
+theorem int (value : Int) :
+    OriginValueSafe .int (.int value) .int := by
+  simp only [OriginValueSafe]
+  exact .int
+
 /-- Construct the exact structural call contract of one plain closure. -/
 theorem plainClosure
     (bodySafe : ∀ argument,
@@ -404,6 +503,24 @@ theorem plainClosure
       (.plainCall (bodyFuel + 1) argumentDemand resultDemand)
       (Value.plainClosure environment body) (.fn domain codomain) := by
   simpa only [OriginValueSafe] using PlainCallValueSafe.closure bodySafe
+
+/-- Construct the exact structural call contract of one recursive closure.
+The runtime self value is inserted at environment position one. -/
+theorem recursiveClosure
+    (environmentTyped : TotalEnvironmentTyping environment context)
+    (bodyTyped : TotalRecursiveClosureBodyTyping
+      (domain :: .fn domain codomain :: context) body codomain)
+    (bodySafe : ∀ argument,
+      OriginValueSafe argumentDemand argument domain →
+        OriginResultSafe resultDemand codomain
+          (evalFuel bodyFuel
+            (argument :: Value.recursiveClosure environment body :: environment)
+            body)) :
+    OriginValueSafe
+      (.plainCall (bodyFuel + 1) argumentDemand resultDemand)
+      (Value.recursiveClosure environment body) (.fn domain codomain) := by
+  simpa only [OriginValueSafe] using
+    PlainCallValueSafe.recursiveClosure environmentTyped bodyTyped bodySafe
 
 theorem apply
     (functionSafe : OriginValueSafe
@@ -417,6 +534,9 @@ theorem apply
   | zero => exact .inl rfl
   | closure bodySafe =>
       change OriginResultSafe _ _ (evalFuel _ (_ :: _) _)
+      exact bodySafe argumentValue argumentSafe
+  | recursiveClosure _environmentTyped _bodyTyped bodySafe =>
+      change OriginResultSafe _ _ (evalFuel _ (_ :: _ :: _) _)
       exact bodySafe argumentValue argumentSafe
 
 private theorem applyFuel_originResultSafe_mono
@@ -475,6 +595,8 @@ theorem mono
       cases safe with
       | pair leftSafe rightSafe conversion =>
           exact .pair (leftIH leftSafe) (rightIH rightSafe) conversion
+  | bool => exact safe
+  | int => exact safe
   | @plainCall requestedFuel availableFuel availableArgument
       requestedArgument requestedResult availableResult operational
       argument result argumentIH resultIH =>
@@ -505,6 +627,33 @@ theorem mono
               change OriginResultSafe requestedResult codomain
                 (evalFuel requestedBodyFuel
                   (actualArgument :: environment) body)
+              exact lowered
+      | @recursiveClosure environment context domain codomain body
+          availableBodyFuel environmentTyped bodyTyped bodySafe =>
+          cases requestedFuel with
+          | zero => exact .zero
+          | succ requestedBodyFuel =>
+              apply PlainCallValueSafe.recursiveClosure environmentTyped bodyTyped
+              intro actualArgument actualArgumentSafe
+              have availableArgumentSafe := argumentIH actualArgumentSafe
+              have availableApplication : OriginResultSafe availableResult
+                  codomain
+                  (applyFuel (availableBodyFuel + 1)
+                    (.recursiveClosure environment body) actualArgument) := by
+                change OriginResultSafe availableResult codomain
+                  (evalFuel availableBodyFuel
+                    (actualArgument :: .recursiveClosure environment body ::
+                      environment)
+                    body)
+                exact bodySafe actualArgument availableArgumentSafe
+              have lowered := applyFuel_originResultSafe_mono operational
+                availableApplication (fun resultValue resultSafe =>
+                  resultIH resultSafe)
+              change OriginResultSafe requestedResult codomain
+                (evalFuel requestedBodyFuel
+                  (actualArgument :: .recursiveClosure environment body ::
+                    environment)
+                  body)
               exact lowered
 
 theorem plainCallFuelMono

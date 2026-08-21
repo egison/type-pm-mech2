@@ -56,6 +56,10 @@ inductive Fragments : List Expr → List Ty → Prop where
 def Supported (expression : Expr) : Prop :=
   ∃ target, Fragment expression target
 
+def DerivationSupported : M5CompletionArchitecture.RuntimeScope :=
+  fun {_signature} {_context} {expression} {_principal} _derivation =>
+    Supported expression
+
 namespace Fragment
 
 theorem runtimeSupported : Fragment expression target →
@@ -334,7 +338,7 @@ theorem closedRuntimeContext_realizable :
   exact ⟨rfl, rfl⟩
 
 /-- M4 state erasure for the explicit stable fragment. -/
-theorem principalStateErasure : PrincipalStateErasure Supported Certificate
+theorem principalStateErasure : PrincipalStateErasure DerivationSupported Certificate
     ClosedRuntimeContextRelation := by
   intro signature context expression principal derivation runtimeContext
     signatureReady supported contextCompatible
@@ -373,7 +377,7 @@ theorem typedEvaluation : TypedEvaluation Certificate
     fuelIndexedSafetyRelations evaluationInputDemand evalFuel := by
   intro signature context expression principal target derivation runtimeContext
     certificate instantiation evaluationFuel resultIndex environment
-    _environmentSafe
+    _demandApplicable _environmentSafe
   cases certificate with
   | ordinary fragment runtimeTyping =>
       rcases instantiation with ⟨substitution, targetEquation⟩
@@ -385,7 +389,7 @@ theorem typedEvaluation : TypedEvaluation Certificate
 
 /-- Closed source typings in the fragment never evaluate to `stuck`, at any
 fuel. -/
-theorem closedNoStuck : ClosedNoStuck Supported evalFuel :=
+theorem closedNoStuck : ClosedNoStuck DerivationSupported evalFuel :=
   closedNoStuck_of_principalStateErasure_and_typedEvaluation
     closedRuntimeContext_realizable principalStateErasure typedEvaluation
 
@@ -435,7 +439,7 @@ theorem typedMatchingSearch : TypedMatchingSearch fuelIndexedSafetyRelations
 two search fields are consequently vacuous.  This theorem is not evidence for
 any fragment containing `matchAll` or another search-bearing expression. -/
 theorem conditionalCompletionSchema :
-    ConditionalCompletionSchema Supported Certificate
+    ConditionalCompletionSchema DerivationSupported Certificate
       ClosedRuntimeContextRelation fuelIndexedSafetyRelations
       evaluationInputDemand evalFuel SearchOrigin SearchCertificate
       runBoundedDfsMatchingSearch :=

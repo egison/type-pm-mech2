@@ -96,6 +96,10 @@ inductive Fragment : Expr → Ty → Prop where
 def Supported (expression : Expr) : Prop :=
   ∃ target, Fragment expression target
 
+def DerivationSupported : M5CompletionArchitecture.RuntimeScope :=
+  fun {_signature} {_context} {expression} {_principal} _derivation =>
+    Supported expression
+
 namespace Fragment
 
 theorem mnodeFree (fragment : Fragment expression target) :
@@ -216,7 +220,7 @@ theorem closedRuntimeContext_realizable :
   intro signature expression principal derivation
   exact ⟨rfl, rfl⟩
 
-theorem principalStateErasure : PrincipalStateErasure Supported Certificate
+theorem principalStateErasure : PrincipalStateErasure DerivationSupported Certificate
     ClosedRuntimeContextRelation := by
   intro signature context expression principal derivation runtimeContext
     signatureReady supported contextCompatible
@@ -359,7 +363,7 @@ theorem typedEvaluation : TypedEvaluation Certificate
     fuelIndexedSafetyRelations evaluationInputDemand evalFuel := by
   intro signature context expression principal target derivation runtimeContext
     certificate instantiation evaluationFuel resultIndex environment
-    environmentSafe
+    _demandApplicable environmentSafe
   cases certificate with
   | literal contextEq fragment =>
       subst context
@@ -389,7 +393,7 @@ theorem typedEvaluation : TypedEvaluation Certificate
                     operationalFuel resultIndex)
                   (literalVariable_body_safe operationalFuel resultIndex))
 
-theorem closedNoStuck : ClosedNoStuck Supported evalFuel :=
+theorem closedNoStuck : ClosedNoStuck DerivationSupported evalFuel :=
   closedNoStuck_of_principalStateErasure_and_typedEvaluation
     closedRuntimeContext_realizable principalStateErasure typedEvaluation
 
@@ -411,7 +415,7 @@ theorem closedRuntimeCertificateRespectsCoherence :
 inhabited and whose typed evaluation consumes the same bounded-DFS search
 certificate. -/
 theorem conditionalCompletionSchema :
-    ConditionalCompletionSchema Supported Certificate
+    ConditionalCompletionSchema DerivationSupported Certificate
       ClosedRuntimeContextRelation fuelIndexedSafetyRelations
       evaluationInputDemand evalFuel SearchOrigin SearchCertificate
       runBoundedDfsMatchingSearch :=

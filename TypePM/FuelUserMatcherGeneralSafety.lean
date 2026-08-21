@@ -1,5 +1,6 @@
 import TypePM.OriginDemandSafety
 import TypePM.UserMatcherGeneralSafety
+import TypePM.UserMatcherExhaustiveness
 
 /-!
 # Demand-indexed safety for user-matcher clause steps
@@ -499,5 +500,295 @@ theorem tryMatcherClause_singleArm_fuelSafe
               armSuccess, FuelResult.map]
             cases armResult <;> rfl,
             closeMatcherArmsResult_fuelSafe armSafe⟩
+
+/-! ## Ordered arm and clause dispatch -/
+
+/-- Demand certificates for a source-ordered arm suffix, after capture
+evaluation has supplied its concrete values.  Each arm may synthesize a
+different data-pattern binding context and select a different body input
+demand. -/
+inductive FuelMatcherArmsCertificates
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (operationalFuel resultFuel : Nat)
+    (definitionTypes captureTypes : List Ty) (matcherTarget : Ty)
+    (holes : List Dual) (matcherEnvironment captureValues : ValueEnvironment)
+    (target : Value) : List MatcherArm → Prop where
+  | nil : FuelMatcherArmsCertificates Certificate operationalFuel resultFuel
+      definitionTypes captureTypes matcherTarget holes matcherEnvironment
+      captureValues target []
+  | cons
+      (header : RuntimeDPatTyping dataPattern matcherTarget bindingTypes)
+      (bodyCertificate : Certificate operationalFuel bindingTypes
+        (captureTypes ++ definitionTypes) bodyExpression
+        (DataTypes.list (runtimeHoleProductTarget holes))
+        (.fuel (resultFuel + 1)) bodyInput)
+      (bodyEnvironmentSafe : ∀ dataValues,
+        matchValueDataPattern dataPattern target = some dataValues →
+        OriginEnvironmentSafe bodyInput
+          (dataValues ++ (captureValues ++ matcherEnvironment))
+          (bindingTypes ++ (captureTypes ++ definitionTypes)))
+      (tail : FuelMatcherArmsCertificates Certificate operationalFuel resultFuel
+        definitionTypes captureTypes matcherTarget holes matcherEnvironment
+        captureValues target arms) :
+      FuelMatcherArmsCertificates Certificate operationalFuel resultFuel
+        definitionTypes captureTypes matcherTarget holes matcherEnvironment
+        captureValues target (.mk dataPattern bodyExpression :: arms)
+
+/-- Ordered arm dispatch preserves the fuel-indexed delegated-branch
+certificate.  A timeout stops the suffix, a hit stops at the first matching
+arm, and only a normal miss advances to the tail. -/
+theorem FuelMatcherArmsCertificates.firstHit_fuelSafe
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evaluate)
+    (targetTyped : ValueTyping target matcherTarget)
+    (nextCertificate : Certificate operationalFuel captureTypes definitionTypes
+      nextMatchers (runtimeMatcherProductTarget holes)
+      (.fuel (resultFuel + 1)) nextInput)
+    (nextEnvironmentSafe : OriginEnvironmentSafe nextInput
+      (captureValues ++ matcherEnvironment) (captureTypes ++ definitionTypes))
+    (patternsLength : patterns.length = holes.length)
+    (certificates : FuelMatcherArmsCertificates Certificate operationalFuel
+      resultFuel definitionTypes captureTypes matcherTarget holes
+      matcherEnvironment captureValues target arms) :
+    firstHit
+        (tryMatcherArm (evaluate operationalFuel) matcherEnvironment
+          captureValues patterns nextMatchers target) arms = .timeout ∨
+      ∃ result,
+        firstHit
+          (tryMatcherArm (evaluate operationalFuel) matcherEnvironment
+            captureValues patterns nextMatchers target) arms = .ok result ∧
+        FuelMatcherArmResultSafe (resultFuel + 1) holes result := by
+  induction certificates with
+  | nil => exact .inr ⟨.miss, rfl, .miss⟩
+  | cons header bodyCertificate bodyEnvironmentSafe tail ih =>
+      rcases tryMatcherArm_fuelSafe
+          (Certificate := Certificate) (evaluate := evaluate)
+          (operationalFuel := operationalFuel) (resultFuel := resultFuel)
+          (evalSafe := evalSafe) (targetTyped := targetTyped)
+          (header := header) (bodyCertificate := bodyCertificate)
+          (nextCertificate := nextCertificate)
+          (bodyEnvironmentSafe := bodyEnvironmentSafe)
+          (nextEnvironmentSafe := nextEnvironmentSafe)
+          (patternsLength := patternsLength) with
+        headTimeout | ⟨headResult, headSuccess, headSafe⟩
+      · exact .inl (by simp [firstHit, headTimeout])
+      · cases headSafe with
+        | hit branchesSafe =>
+            exact .inr ⟨_, by simp [firstHit, headSuccess], .hit branchesSafe⟩
+        | miss =>
+            rcases ih with tailTimeout |
+              ⟨tailResult, tailSuccess, tailSafe⟩
+            · exact .inl (by
+                simp [firstHit, headSuccess, tailTimeout])
+            · exact .inr ⟨tailResult, by
+                simp [firstHit, headSuccess, tailSuccess], tailSafe⟩
+
+/-- A demand-indexed certificate for one concrete matcher clause input.  The
+header determines the hole and capture types.  Capture certificates are
+selected from the inspected source pattern; after traversal, the remaining
+fields supply the next-matcher and ordered-arm demand proofs for the actual
+capture values. -/
+inductive FuelMatcherClauseCertificate
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (operationalFuel resultFuel : Nat)
+    (atomEnvironmentTypes definitionTypes : List Ty) (matcherTarget : Ty)
+    (atomEnvironment matcherEnvironment : ValueEnvironment)
+    (pattern : Pattern) (target : Value) : MatcherClause → Prop where
+  | mk
+      (header : RuntimePPatTyping patternPattern matcherTarget holes captureTypes)
+      (captureInput : PatternDispatch → OriginEnvironmentDemand)
+      (captureCertificates : ∀ {dispatch},
+        inspectPatternPattern patternPattern pattern = some dispatch →
+        FuelCaptureCertificates Certificate operationalFuel resultFuel
+          atomEnvironmentTypes [] dispatch.captures captureTypes
+          (captureInput dispatch))
+      (captureEnvironmentSafe : ∀ {dispatch},
+        inspectPatternPattern patternPattern pattern = some dispatch →
+        OriginEnvironmentSafe (captureInput dispatch) atomEnvironment
+          atomEnvironmentTypes)
+      (nextCertificate : Certificate operationalFuel captureTypes definitionTypes
+        nextMatchers (runtimeMatcherProductTarget holes)
+        (.fuel (resultFuel + 1)) nextInput)
+      (nextEnvironmentSafe : ∀ captureValues,
+        FuelEnvironmentSafe (resultFuel + 1) captureValues captureTypes →
+        OriginEnvironmentSafe nextInput (captureValues ++ matcherEnvironment)
+          (captureTypes ++ definitionTypes))
+      (armsCertificates : ∀ captureValues,
+        FuelEnvironmentSafe (resultFuel + 1) captureValues captureTypes →
+        FuelMatcherArmsCertificates Certificate operationalFuel resultFuel
+          definitionTypes captureTypes matcherTarget holes matcherEnvironment
+          captureValues target arms) :
+      FuelMatcherClauseCertificate Certificate operationalFuel resultFuel
+        atomEnvironmentTypes definitionTypes matcherTarget atomEnvironment
+        matcherEnvironment pattern target (.mk patternPattern nextMatchers arms)
+
+/-- One arbitrary ordered-arm clause step. -/
+theorem FuelMatcherClauseCertificate.try_fuelSafe
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evaluate)
+    (targetTyped : ValueTyping target matcherTarget)
+    (certificate : FuelMatcherClauseCertificate Certificate operationalFuel
+      resultFuel atomEnvironmentTypes definitionTypes matcherTarget
+      atomEnvironment matcherEnvironment pattern target clause) :
+    tryMatcherClause (evaluate operationalFuel) atomEnvironment
+        matcherEnvironment pattern target clause = .timeout ∨
+      ∃ result,
+        tryMatcherClause (evaluate operationalFuel) atomEnvironment
+          matcherEnvironment pattern target clause = .ok result ∧
+        FuelMatcherClauseResultSafe (resultFuel + 1) result := by
+  cases certificate with
+  | @mk patternPattern holes captureTypes nextMatchers arms nextInput header
+      captureInput captureCertificates captureEnvironmentSafe nextCertificate
+      nextEnvironmentSafe armsCertificates =>
+      cases inspected : inspectPatternPattern patternPattern pattern with
+      | none =>
+          exact .inr ⟨.miss, by simp [tryMatcherClause, inspected], .miss⟩
+      | some dispatch =>
+          have runtimeCounts := (inspectPatternPattern_sound inspected).counts
+          have staticCounts := header.counts
+          have patternsLength : dispatch.holes.length = holes.length := by omega
+          rcases FuelCaptureCertificates.traverse_fuelSafe
+              (Certificate := Certificate) (evaluate := evaluate)
+              (evalSafe := evalSafe)
+              (bindingTypes := atomEnvironmentTypes) (environmentTypes := [])
+              (bindings := atomEnvironment) (environment := [])
+              (environmentSafe := by
+                simpa using captureEnvironmentSafe inspected)
+              (certificates := captureCertificates inspected) with
+            captureTimeout |
+              ⟨captureValues, captureSuccess, captureValuesSafe⟩
+          · have captureTimeout' :
+                FuelResult.traverse
+                    (evaluate operationalFuel atomEnvironment)
+                    dispatch.captures = .timeout := by
+                simpa using captureTimeout
+            exact .inl (by
+              simp [tryMatcherClause, inspected, captureTimeout'])
+          · rcases (armsCertificates captureValues captureValuesSafe).firstHit_fuelSafe
+                (evaluate := evaluate) (evalSafe := evalSafe)
+                (targetTyped := targetTyped)
+                (nextCertificate := nextCertificate)
+                (nextEnvironmentSafe :=
+                  nextEnvironmentSafe captureValues captureValuesSafe)
+                (patternsLength := patternsLength) with
+              armsTimeout | ⟨armsResult, armsSuccess, armsSafe⟩
+            · have captureSuccess' :
+                  FuelResult.traverse
+                      (evaluate operationalFuel atomEnvironment)
+                      dispatch.captures = .ok captureValues := by
+                  simpa using captureSuccess
+              exact .inl (by
+                simp [tryMatcherClause, inspected, captureSuccess', armsTimeout,
+                  FuelResult.map])
+            · have captureSuccess' :
+                  FuelResult.traverse
+                      (evaluate operationalFuel atomEnvironment)
+                      dispatch.captures = .ok captureValues := by
+                  simpa using captureSuccess
+              exact .inr ⟨closeMatcherArmsResult armsResult, by
+                simp [tryMatcherClause, inspected, captureSuccess', armsSuccess,
+                  FuelResult.map],
+                closeMatcherArmsResult_fuelSafe armsSafe⟩
+
+/-- Pointwise certificates for a source-ordered clause suffix. -/
+inductive FuelMatcherClausesCertificates
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (operationalFuel resultFuel : Nat)
+    (atomEnvironmentTypes definitionTypes : List Ty) (matcherTarget : Ty)
+    (atomEnvironment matcherEnvironment : ValueEnvironment)
+    (pattern : Pattern) (target : Value) : List MatcherClause → Prop where
+  | nil : FuelMatcherClausesCertificates Certificate operationalFuel resultFuel
+      atomEnvironmentTypes definitionTypes matcherTarget atomEnvironment
+      matcherEnvironment pattern target []
+  | cons
+      (head : FuelMatcherClauseCertificate Certificate operationalFuel resultFuel
+        atomEnvironmentTypes definitionTypes matcherTarget atomEnvironment
+        matcherEnvironment pattern target clause)
+      (tail : FuelMatcherClausesCertificates Certificate operationalFuel resultFuel
+        atomEnvironmentTypes definitionTypes matcherTarget atomEnvironment
+        matcherEnvironment pattern target clauses) :
+      FuelMatcherClausesCertificates Certificate operationalFuel resultFuel
+        atomEnvironmentTypes definitionTypes matcherTarget atomEnvironment
+        matcherEnvironment pattern target (clause :: clauses)
+
+/-- Ordered clause dispatch preserves fuel safety.  Different clauses may
+produce different solved hole lists, existentially recorded by the common
+clause-result certificate. -/
+theorem FuelMatcherClausesCertificates.dispatch_fuelSafe
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evaluate)
+    (targetTyped : ValueTyping target matcherTarget)
+    (certificates : FuelMatcherClausesCertificates Certificate operationalFuel
+      resultFuel atomEnvironmentTypes definitionTypes matcherTarget
+      atomEnvironment matcherEnvironment pattern target clauses) :
+    dispatchMatcherClauses (evaluate operationalFuel) atomEnvironment
+        matcherEnvironment clauses pattern target = .timeout ∨
+      ∃ result,
+        dispatchMatcherClauses (evaluate operationalFuel) atomEnvironment
+          matcherEnvironment clauses pattern target = .ok result ∧
+        FuelMatcherClauseResultSafe (resultFuel + 1) result := by
+  induction certificates with
+  | nil => exact .inr ⟨.miss, rfl, .miss⟩
+  | cons head tail ih =>
+      rcases head.try_fuelSafe (evaluate := evaluate) evalSafe targetTyped with
+        headTimeout | ⟨headResult, headSuccess, headSafe⟩
+      · exact .inl (by
+          simp [dispatchMatcherClauses, firstHit, headTimeout])
+      · cases headSafe with
+        | hit branchesSafe =>
+            exact .inr ⟨_, by
+              simp [dispatchMatcherClauses, firstHit, headSuccess],
+              .hit branchesSafe⟩
+        | miss =>
+            rcases ih with tailTimeout |
+              ⟨tailResult, tailSuccess, tailSafe⟩
+            · exact .inl (by
+                simp [dispatchMatcherClauses, firstHit, headSuccess]
+                simpa [dispatchMatcherClauses] using tailTimeout)
+            · exact .inr ⟨tailResult, by
+                simp [dispatchMatcherClauses, firstHit, headSuccess]
+                simpa [dispatchMatcherClauses] using tailSuccess,
+                tailSafe⟩
+
+/-- With the declarative final catch-all, ordered fuel-safe dispatch cannot
+finish with a normal miss: it either times out or returns fuel-safe recursive
+matching branches. -/
+theorem FuelMatcherClausesCertificates.dispatch_fuelSafe_of_finalCatchAll
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evaluate)
+    (targetTyped : ValueTyping target matcherTarget)
+    (certificates : FuelMatcherClausesCertificates Certificate operationalFuel
+      resultFuel atomEnvironmentTypes definitionTypes matcherTarget
+      atomEnvironment matcherEnvironment pattern target clauses)
+    (finalCatchAll : MatcherTyping.FinalCatchAll clauses) :
+    dispatchMatcherClauses (evaluate operationalFuel) atomEnvironment
+        matcherEnvironment clauses pattern target = .timeout ∨
+      ∃ branches holes,
+        dispatchMatcherClauses (evaluate operationalFuel) atomEnvironment
+            matcherEnvironment clauses pattern target = .ok (.hit branches) ∧
+          FuelDelegatedMatchingBranchesSafe (resultFuel + 1) holes branches := by
+  rcases certificates.dispatch_fuelSafe (evaluate := evaluate) evalSafe
+      targetTyped with timeout | ⟨result, success, resultSafe⟩
+  · exact .inl timeout
+  · cases resultSafe with
+    | miss =>
+        exact False.elim (finalCatchAll_dispatch_ne_miss finalCatchAll success)
+    | @hit holes branches branchesSafe =>
+        exact .inr ⟨branches, holes, success, branchesSafe⟩
+
+/-- The final-catch-all endpoint rules out the runtime `stuck` result without
+requiring an evaluator equation or a fixed operational-fuel value. -/
+theorem FuelMatcherClausesCertificates.dispatch_notStuck_of_finalCatchAll
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evaluate)
+    (targetTyped : ValueTyping target matcherTarget)
+    (certificates : FuelMatcherClausesCertificates Certificate operationalFuel
+      resultFuel atomEnvironmentTypes definitionTypes matcherTarget
+      atomEnvironment matcherEnvironment pattern target clauses)
+    (finalCatchAll : MatcherTyping.FinalCatchAll clauses) :
+    (dispatchMatcherClauses (evaluate operationalFuel) atomEnvironment
+      matcherEnvironment clauses pattern target).NotStuck := by
+  rcases certificates.dispatch_fuelSafe_of_finalCatchAll
+      (evaluate := evaluate) evalSafe targetTyped finalCatchAll with
+    timeout | ⟨branches, holes, success, branchesSafe⟩
+  · rw [timeout]
+    trivial
+  · rw [success]
+    trivial
 
 end TypePM.Runtime

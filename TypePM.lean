@@ -277,6 +277,11 @@ import TypePM.Source.M4RecursiveMatcherTotalBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridgeRegression
 import TypePM.Source.M4RecursiveMatcherInputBridge
 import TypePM.Source.M4StepIndexedMatcherClosureSafety
+import TypePM.Source.M4OriginMatcherProducer
+import TypePM.Source.M4OriginPlainFixProducer
+import TypePM.Source.M4OriginMapProducer
+import TypePM.Source.M4FuelEmbeddedCertificateBridge
+import TypePM.Source.M4OriginMatchingEvaluationBridge
 import TypePM.Source.M4RecursiveMatcherRuntimeInputBridge
 import TypePM.Source.M4UserMatcherMatchFirstRegression
 import TypePM.Source.M4UserMatcherMatchFirstConsRegression
@@ -292,6 +297,7 @@ import TypePM.Source.M4EnvironmentIndexedRelationalProducer
 import TypePM.Source.M4TwoIndexUserMatcherReducerBridge
 import TypePM.Source.M4TwoIndexPatternDispatchProducer
 import TypePM.Source.M4TwoIndexBuiltinAtomProducer
+import TypePM.Source.M4TwoIndexCanonicalAtomReducerBridge
 import TypePM.Source.M4TwoIndexUserMatcherReducerBridgeRegression
 import TypePM.Source.M4Paper1ListJoinEnvironmentIndexedSearchRegression
 import TypePM.Source.M4Paper1ListJoinRelationalProducerRegression
@@ -336,7 +342,11 @@ import TypePM.Source.M4MatchAllReplay
 import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.FullM4Completion
 import TypePM.Source.M5CompletionArchitecture
+import TypePM.Source.M5TwoIndexBoundedDfsSearchBridge
+import TypePM.Source.M5PrincipalOriginCertificate
+import TypePM.Source.M5Paper1RuntimeProducer
 import TypePM.Source.M4CanonicalCertificateTransport
+import TypePM.Source.M4RawOriginCoherenceTransport
 import TypePM.Source.M5ClosedPairProjectionCertificate
 import TypePM.Source.M5ClosedPairProjectionCertificateRegression
 import TypePM.Source.M5ClosedLiteralMatchAllCertificate

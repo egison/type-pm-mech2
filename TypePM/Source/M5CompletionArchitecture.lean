@@ -58,6 +58,18 @@ abbrev RuntimeContextRelation :=
           M4.PrincipalTypingDerivation signature context expression principal →
             List Ty → Prop
 
+/-- A source-fragment judgment indexed by the exact principal derivation.
+Unlike an expression-only predicate, this judgment can retain honest static
+side conditions involving the source context or the selected elaboration,
+such as the arity-zero context premise of the polymorphic-`let` runtime rule. -/
+abbrev RuntimeScope :=
+  {signature : FrozenSignature} →
+    {context : Context} →
+      {expression : Expr} →
+        {principal : Ty} →
+          M4.PrincipalTypingDerivation signature context expression principal →
+            Prop
+
 /-- Current concrete context relation for monomorphic source contexts.  It is
 useful for closed expressions, but does not by itself represent a polymorphic
 `let` body context. -/
@@ -96,8 +108,15 @@ structure RuntimeSafetyRelations where
   resultSafe : EvaluationDemand → Ty → FuelResult Value → Prop
   searchResultSafe : SearchDemand → List Ty →
     FuelResult (List (List Value)) → Prop
+  /-- A result observation may only be requested at a compatible result type.
+  This prevents, for example, asking an integer result to satisfy a function
+  call observation. -/
+  demandApplicable : EvaluationDemand → Ty → Prop
   /-- The weakest result observation used by the closed no-stuck endpoint. -/
   noStuckDemand : EvaluationDemand
+  /-- The no-stuck observation is meaningful at every result type. -/
+  noStuckDemandApplicable : ∀ target,
+    demandApplicable noStuckDemand target
   emptyEnvironment : ∀ demand, environmentSafe demand [] []
   resultNotStuck : ∀ {demand target result},
     resultSafe demand target result → result.NotStuck
@@ -137,6 +156,88 @@ theorem FuelMatchingSearchResultSafe.notStuck
     result.NotStuck :=
   MatchingSearchResultSafeWith.notStuck safe
 
+/- Type-shaped applicability of an ordinary fuel observation.  Index zero
+is parametric.  A positive observation is admitted only for canonical scalar,
+list, product, matcher, and matcher-slot shapes.  Function values require a
+structural `plainCall` observation instead: M4 typing alone does not supply the
+total body certificate required by positive `FuelValueSafe`. -/
+mutual
+
+  /-- Applicability of one fuel observation to one result type. -/
+  inductive FuelDemandApplicable : Nat → Ty → Prop where
+    | zero (target : Ty) : FuelDemandApplicable 0 target
+    | int (index : Nat) : FuelDemandApplicable (index + 1) .int
+    | bool (index : Nat) :
+        FuelDemandApplicable (index + 1) DataTypes.bool
+    | list
+        (element : FuelDemandApplicable (index + 1) elementType) :
+        FuelDemandApplicable (index + 1) (DataTypes.list elementType)
+    | prod
+        (items : FuelDemandsApplicable (index + 1) itemTypes) :
+        FuelDemandApplicable (index + 1) (.prod itemTypes)
+    | matcher (index : Nat) (capability : Cap) (target : Ty) :
+        FuelDemandApplicable (index + 1) (.matcher capability target)
+    | slot (index : Nat) (capability : Cap) (target : Ty) :
+        FuelDemandApplicable (index + 1) (.slot capability target)
+
+  /-- Pointwise applicability of one fuel observation to product fields. -/
+  inductive FuelDemandsApplicable : Nat → List Ty → Prop where
+    | nil : FuelDemandsApplicable index []
+    | cons
+        (head : FuelDemandApplicable index target)
+        (tail : FuelDemandsApplicable index targets) :
+        FuelDemandsApplicable index (target :: targets)
+
+end
+
+/-- Structural applicability of an origin observation to a result type.
+`none` is type-independent.  Structural observations follow
+the corresponding type shape recursively.  Pair observations retain the same
+normalized product conversion admitted by `PairOfValueSafe`, so matcher and
+slot targets reached from a binary matcher product are not spuriously
+excluded. -/
+def OriginDemandApplicable : OriginDemand → Ty → Prop
+  | .none, _ => True
+  | .fuel index, target => FuelDemandApplicable index target
+  | .both left right, target =>
+      OriginDemandApplicable left target ∧
+        OriginDemandApplicable right target
+  | .listOf element, target =>
+      ∃ elementType,
+        target = DataTypes.list elementType ∧
+          OriginDemandApplicable element elementType
+  | .pairOf left right, target =>
+      ∃ leftType rightType conversionClass,
+        CheckConversion conversionClass (.prod [leftType, rightType]) target ∧
+          OriginDemandApplicable left leftType ∧
+          OriginDemandApplicable right rightType
+  | .bool, target => target = DataTypes.bool
+  | .int, target => target = .int
+  | .plainCall _ argument result, target =>
+      ∃ domain codomain,
+        target = .fn domain codomain ∧
+          OriginDemandApplicable argument domain ∧
+          OriginDemandApplicable result codomain
+termination_by demand => demand
+
+/-- The motivating ill-shaped request is rejected: an integer result cannot
+be observed through a function-call demand. -/
+theorem originDemandApplicable_plainCall_int_false :
+    ¬ OriginDemandApplicable (.plainCall operationalFuel argument result)
+      .int := by
+  simp [OriginDemandApplicable]
+
+/-- Ordinary fuel observations are applicable exactly when their type-shaped
+side condition is available. -/
+theorem originDemandApplicable_fuel
+    (applicable : FuelDemandApplicable index target) :
+    OriginDemandApplicable (.fuel index) target := by
+  simpa [OriginDemandApplicable] using applicable
+
+theorem originDemandApplicable_fuel_zero (target : Ty) :
+    OriginDemandApplicable (.fuel 0) target := by
+  simpa [OriginDemandApplicable] using FuelDemandApplicable.zero target
+
 /-- Existing fuel-indexed value/environment relations form one coherent
 safety package.  This declaration does not claim the full M4 preservation
 property for that package. -/
@@ -147,7 +248,9 @@ def fuelIndexedSafetyRelations : RuntimeSafetyRelations where
   environmentSafe := FuelEnvironmentSafe
   resultSafe := FuelResultSafe
   searchResultSafe := FuelMatchingSearchResultSafe
+  demandApplicable := fun _ _ => True
   noStuckDemand := 0
+  noStuckDemandApplicable := by intro _; trivial
   emptyEnvironment := FuelEnvironmentSafe.nil
   resultNotStuck := FuelResultSafe.notStuck
   searchResultNotStuck := FuelMatchingSearchResultSafe.notStuck
@@ -186,7 +289,9 @@ def originDemandSafetyRelations : RuntimeSafetyRelations where
   environmentSafe := OriginEnvironmentSafe
   resultSafe := OriginResultSafe
   searchResultSafe := OriginMatchingSearchResultSafe
+  demandApplicable := OriginDemandApplicable
   noStuckDemand := .none
+  noStuckDemandApplicable := by intro target; simp [OriginDemandApplicable]
   emptyEnvironment := OriginEnvironmentSafe.nil
   resultNotStuck := OriginResultSafe.notStuck
   searchResultNotStuck := OriginMatchingSearchResultSafe.notStuck
@@ -195,7 +300,7 @@ def originDemandSafetyRelations : RuntimeSafetyRelations where
 derivation in the selected source fragment and an explicit context
 realization construct the chosen proof-bearing runtime certificate. -/
 def PrincipalStateErasure
-    (scope : Expr → Prop)
+    (scope : RuntimeScope)
     (Certificate : RuntimeCertificateFamily)
     (contextRelation : RuntimeContextRelation) : Prop :=
   ∀ {signature context expression principal}
@@ -203,7 +308,7 @@ def PrincipalStateErasure
         principal)
       (runtimeContext : List Ty),
     RuntimeSignatureReady signature →
-      scope expression →
+      scope derivation →
         contextRelation derivation runtimeContext →
           Certificate derivation runtimeContext
 
@@ -226,11 +331,12 @@ def TypedEvaluation
       (_instantiation : IsInstance principal target)
       (evaluationFuel : Nat) (resultDemand : relations.EvaluationDemand)
       (environment : ValueEnvironment),
-    relations.environmentSafe
-        (inputDemand _certificate evaluationFuel resultDemand)
-        environment runtimeContext →
-      relations.resultSafe resultDemand target
-        (evaluate evaluationFuel environment expression)
+    relations.demandApplicable resultDemand target →
+      relations.environmentSafe
+          (inputDemand _certificate evaluationFuel resultDemand)
+          environment runtimeContext →
+        relations.resultSafe resultDemand target
+          (evaluate evaluationFuel environment expression)
 
 /-- A proof-bearing certificate for one concrete matching-search task and its
 answer binding types.  The task type may retain patterns, matcher values,
@@ -294,7 +400,7 @@ the runtime certificate, matching-state erasure turns an originating search
 obligation into a bounded search certificate, and typed search establishes
 the result invariant. -/
 theorem matchingSearchSafe_of_erasure
-    {scope : Expr → Prop}
+    {scope : RuntimeScope}
     {Certificate : RuntimeCertificateFamily}
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
@@ -316,7 +422,7 @@ theorem matchingSearchSafe_of_erasure
       principal)
     (runtimeContext : List Ty)
     (signatureReady : RuntimeSignatureReady signature)
-    (inScope : scope expression)
+    (inScope : scope derivation)
     (contextRealization : contextRelation derivation runtimeContext)
     {task : SearchTask} {answerTypes : List Ty}
     (callbackFuel searchFuel : Nat) (resultDemand : relations.SearchDemand)
@@ -346,26 +452,29 @@ theorem monomorphicRuntimeContext_closed :
   change MonomorphicContextCompatible [] [] derivation.closure.substitution
   exact .nil
 
-/-- **Target statement 5.8 (closed no-stuck).**  Every closed expression in
-the selected source fragment that has an M4 typing avoids `stuck` for every
-fuel amount.  Timeout remains an ordinary bounded-evaluation result. -/
+/-- **Target statement 5.8 (closed no-stuck).**  Every closed principal
+derivation admitted by the derivation-indexed source scope avoids `stuck` at
+each public instance type and every fuel amount.  Timeout remains an ordinary
+bounded-evaluation result. -/
 def ClosedNoStuck
-    (scope : Expr → Prop)
+    (scope : RuntimeScope)
     (evaluate : Nat → ValueEnvironment → Expr → FuelResult Value) : Prop :=
-  ∀ {signature expression target},
+  ∀ {signature expression principal target}
+      (derivation : M4.PrincipalTypingDerivation signature [] expression
+        principal),
     RuntimeSignatureReady signature →
-      scope expression →
-        M4.Typing signature [] expression target →
+      scope derivation →
+        IsInstance principal target →
           ∀ fuel, (evaluate fuel [] expression).NotStuck
 
 /-- State erasure and typed evaluation imply the closed no-stuck statement.
-An arbitrary M4 typing contains a principal witness and an instance proof for
-the requested result type.  Typed evaluation retains that proof and certifies
-the result at the requested type, rather than silently replacing it by the
-principal representative.
+The exact principal derivation and the instance proof remain explicit, so the
+derivation-indexed scope can retain context-sensitive static conditions and
+typed evaluation certifies the requested instance rather than silently
+replacing it by the principal representative.
 -/
 theorem closedNoStuck_of_principalStateErasure_and_typedEvaluation
-    {scope : Expr → Prop}
+    {scope : RuntimeScope}
     {Certificate : RuntimeCertificateFamily}
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
@@ -377,16 +486,16 @@ theorem closedNoStuck_of_principalStateErasure_and_typedEvaluation
       TypedEvaluation Certificate relations inputDemand evaluate) :
     ClosedNoStuck scope evaluate := by
   unfold ClosedNoStuck
-  intro signature expression target signatureReady inScope sourceTyping fuel
-  rcases sourceTyping with ⟨principal, principalTyping, instantiation⟩
-  let selectedDerivation := Classical.choice principalTyping
-  have contextRealization : contextRelation selectedDerivation [] :=
-    closedContext selectedDerivation
-  have certificate : Certificate selectedDerivation [] :=
-    stateErasure selectedDerivation [] signatureReady inScope
+  intro signature expression principal target derivation signatureReady
+    inScope instantiation fuel
+  have contextRealization : contextRelation derivation [] :=
+    closedContext derivation
+  have certificate : Certificate derivation [] :=
+    stateErasure derivation [] signatureReady inScope
       contextRealization
   exact relations.resultNotStuck
     (typedEvaluation certificate instantiation fuel relations.noStuckDemand []
+      (relations.noStuckDemandApplicable target)
       (relations.emptyEnvironment
         (inputDemand certificate fuel relations.noStuckDemand)))
 
@@ -395,7 +504,7 @@ no-stuck conjunct is retained explicitly because it is the user-facing result,
 although it follows from the preceding fields and closed-context realization.
 -/
 def ConditionalCompletionSchema
-    (scope : Expr → Prop)
+    (scope : RuntimeScope)
     (Certificate : RuntimeCertificateFamily)
     (contextRelation : RuntimeContextRelation)
     (relations : RuntimeSafetyRelations)
@@ -417,7 +526,7 @@ def ConditionalCompletionSchema
 
 /-- Packaging theorem for a future concrete certificate family. -/
 theorem conditionalCompletionSchema_of_components
-    {scope : Expr → Prop}
+    {scope : RuntimeScope}
     {Certificate : RuntimeCertificateFamily}
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
@@ -460,7 +569,7 @@ def runBoundedDfsMatchingSearch
   searchPatternFuel (evalFuel callbackFuel) searchFuel task.environment
     task.pattern task.matcher task.target
 
-/-- MNode-free bounded-DFS specialization of the architecture.  Its
+/- MNode-free bounded-DFS specialization of the architecture.  Its
 expression scope is exactly the recursively MNode-free fragment evaluated by
 `evalFuel`.  Its search lane is the current `searchPatternFuel` callback above;
 `SearchOrigin` must identify the concrete DFS tasks issued by that evaluation.
@@ -472,6 +581,11 @@ relabeling this finite-list result.  MNode-bearing patterns instead require the 
 pattern-function evaluator together with frozen definitions and agreement
 evidence, and are not hidden in this schema.  The certificate families remain
 parameters until their full M4 instances are proved. -/
+/-- Derivation-indexed M-node-free scope used by the bounded DFS schema. -/
+def MNodeFreeRuntimeScope : RuntimeScope :=
+  fun {_signature} {_context} {expression} {_principal} _derivation =>
+    expression.MNodeFree
+
 def MNodeFreeBoundedDfsCompletionSchema
     (Certificate : RuntimeCertificateFamily)
     (inputDemand : EvaluationInputDemandFamily Certificate
@@ -481,7 +595,7 @@ def MNodeFreeBoundedDfsCompletionSchema
     (SearchCertificate :
       MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask
         originDemandSafetyRelations.SearchDemand) : Prop :=
-  ConditionalCompletionSchema Expr.MNodeFree Certificate
+  ConditionalCompletionSchema MNodeFreeRuntimeScope Certificate
     MonomorphicRuntimeContextRelation originDemandSafetyRelations inputDemand
       evalFuel SearchOrigin SearchCertificate runBoundedDfsMatchingSearch
 
