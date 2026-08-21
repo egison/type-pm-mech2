@@ -12,19 +12,21 @@ the actual recursive List closure.  The environment is safe in the indexed
 relation and is provably outside the traditional structural
 `EnvironmentTyping` relation defined in this repository.
 
-At predecessor search index zero, the M4 branch-work certificate is
-unconditional.  It therefore passes through
-`toTwoIndexUserMatcherStateTyping` and then
-`searchPatternFuel_twoIndexSafe` without a complete-search equation or a
+The caller-selected atom relation classifies exactly the delegated built-in
+variable atom.  Its local reducer law types the recursive closure binding with
+`FuelEnvironmentSafe`; no structural `ValueTyping` is involved.  The actual
+dispatch certificate retains singleton-branch membership and its preserved
+source variable pattern.  It passes through
+`toTwoIndexUserMatcherStateTyping` and then `searchPatternFuel_twoIndexSafe`
+for all three required state visits without a complete-search equation or a
 whole-evaluator safety premise.
 
 The same executable search succeeds with the recursive closure as its answer
 when given three state visits.  That exact equation is kept in a separate
 regression theorem; it is not used by the two-index safety proof.  The answer
 has `FuelEnvironmentSafe` evidence but no structural `ValueTypings` evidence.
-The current imported M4 branch-work relation still needs structural
-`ValueTyping` for the delegated positive-index `something` atom, so lifting
-the bridge proof itself from one to three visits remains a separate boundary.
+A separate negative theorem records that the replaced M4 branch-work relation
+could not express this positive-index branch.
 -/
 
 namespace TypePM.Source.M4TwoIndexUserMatcherReducerBridgeRegression
@@ -60,17 +62,6 @@ theorem recursiveClosure_variable_dispatch_exact :
         .ok (.hit (variableBranches listRecursiveClosure)) := by
   with_unfolding_all rfl
 
-/-- At predecessor search index zero, the exact returned nonempty branch needs
-no structural value-typing premise: DFS will time out before inspecting it. -/
-theorem recursiveClosure_variable_dispatch_zeroIndexed :
-    FuelIndexedPatternDispatchTyping CoreExpressionTyping (evalFuel 2) 0
-      [recursiveClosureType] [] [recursiveClosureType]
-      (dispatchMatcherClauses (evalFuel 2) recursiveClosureEnvironment
-        closedMultisetMatcherEnvironment multisetClauses .var
-        listRecursiveClosure) := by
-  rw [recursiveClosure_variable_dispatch_exact]
-  exact .hit (.cons rfl (.zero (by simp)) .nil)
-
 theorem recursiveClosureEnvironment_fuelSafe (index : Nat) :
     FuelEnvironmentSafe index recursiveClosureEnvironment
       [recursiveClosureType] := by
@@ -78,20 +69,114 @@ theorem recursiveClosureEnvironment_fuelSafe (index : Nat) :
     TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression.recursiveClosureEnvironment_fuelSafe
       index
 
-/-- The actual user atom is a safe two-index state for one DFS visit.  The
-dispatch successor sits at index zero and is supplied by the bridge's base
-producer. -/
+/-- Fixture atom relation for the delegated built-in variable atom.  It is
+available at every positive search index and leaves the retained logical
+index independent. -/
+inductive RecursiveClosureAtomRelation : TwoIndexMatchingAtomRelation where
+  | primitive :
+      RecursiveClosureAtomRelation (searchFuel + 1) residual environmentTypes
+        bindingTypes recursiveClosurePrimitiveAtom [recursiveClosureType]
+
+theorem recursiveClosureAtomRelation_downwardClosed :
+    TwoIndexMatchingAtomRelation.DownwardClosed
+      RecursiveClosureAtomRelation := by
+  intro searchFuel residual environmentTypes bindingTypes atom newBindings
+    typed
+  cases typed
+  exact .primitive
+
+/-- The delegated built-in atom has the same exact reduction in every runtime
+atom environment. -/
+theorem recursiveClosure_primitive_reducer_exact_any
+    (atomEnvironment : ValueEnvironment) :
+    evaluationAtomReducer (evalFuel 2) atomEnvironment
+      recursiveClosurePrimitiveAtom =
+        .ok (.hit ⟨[[]], [listRecursiveClosure]⟩) := by
+  rfl
+
+/-- Local reducer preservation for the fixture relation.  Its immediate
+binding is checked directly in the caller-selected indexed relation. -/
+theorem recursiveClosureAtomReducer_twoIndexSafe :
+    TwoIndexRelationalAtomReducerTypedSafe FuelEnvironmentSafe
+      FuelEnvironmentSafe RecursiveClosureAtomRelation
+      (evaluationAtomReducer (evalFuel 2)) := by
+  intro searchFuel residual environmentTypes bindingTypes environment bindings
+    atom newBindings environmentTyped bindingsTyped atomTyped
+  cases atomTyped with
+  | primitive =>
+      let reduction : AtomReduction := ⟨[[]], [listRecursiveClosure]⟩
+      refine .inr ⟨reduction, ?_, ?_⟩
+      · simpa [reduction] using
+          recursiveClosure_primitive_reducer_exact_any
+            (bindings ++ environment)
+      · exact .intro [recursiveClosureType]
+          (by simpa [reduction, recursiveClosureEnvironment] using
+            recursiveClosureEnvironment_fuelSafe (searchFuel + residual))
+          (by
+            intro branch member
+            simp [reduction] at member
+            subst branch
+            exact ⟨[], .nil, rfl⟩)
+
+/-- The exact actual dispatch carries source-pattern and caller-selected
+branch-work evidence at predecessor search index two. -/
+theorem recursiveClosure_variable_dispatch_twoIndex :
+    TwoIndexPatternDispatchCertificate
+      (relationalTwoIndexMatchingBranchRelation
+        RecursiveClosureAtomRelation)
+      2 1 [recursiveClosureType] [] [recursiveClosureType]
+      (dispatchMatcherClauses (evalFuel 2) recursiveClosureEnvironment
+        closedMultisetMatcherEnvironment multisetClauses .var
+        listRecursiveClosure) := by
+  rw [recursiveClosure_variable_dispatch_exact]
+  apply TwoIndexPatternDispatchCertificate.hit (patterns := [.var])
+  · intro branch member
+    simp [variableBranches] at member
+    subst branch
+    rfl
+  · intro branch member
+    simp [variableBranches] at member
+    subst branch
+    exact .cons RecursiveClosureAtomRelation.primitive .nil
+
+/-- The actual user atom is safe for all three required state visits.  The
+dispatch branch and empty remaining work are combined structurally before
+the generic producer builds successor states. -/
 theorem recursiveClosure_variable_initial_twoIndex :
     TwoIndexMatchingStateTyping FuelEnvironmentSafe FuelEnvironmentSafe
-      (evaluationAtomReducer (evalFuel 2)) 1 1
+      (evaluationAtomReducer (evalFuel 2)) 3 1
       ⟨[recursiveClosureVariableAtom], recursiveClosureEnvironment, []⟩
       [recursiveClosureType] := by
-  apply
-    recursiveClosure_variable_dispatch_zeroIndexed.toTwoIndexUserMatcherStateTyping
-  · exact recursiveClosureEnvironment_fuelSafe 2
-  · exact FuelEnvironmentSafe.nil 2
-  · simp [reduceBuiltinAtom]
-  · exact TwoIndexUserMatcherBranchProducer.zero
+  have stateTyped :=
+    recursiveClosure_variable_dispatch_twoIndex.toTwoIndexUserMatcherStateTyping
+      (environmentInvariant := FuelEnvironmentSafe)
+      (bindingsInvariant := FuelEnvironmentSafe)
+      (atomRelation := RecursiveClosureAtomRelation)
+      (eval := evalFuel 2)
+      (environment := recursiveClosureEnvironment)
+      (bindings := [])
+      (matcherEnvironment := closedMultisetMatcherEnvironment)
+      (original := multisetClauses)
+      (remainingClauses := multisetClauses)
+      (pattern := .var)
+      (target := listRecursiveClosure)
+      (remaining := [])
+      (tailBindings := [])
+      IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+      IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+      IndexedMatchingInvariant.fuelEnvironmentSafe_appendClosed
+      recursiveClosureAtomRelation_downwardClosed
+      recursiveClosureAtomReducer_twoIndexSafe
+      (recursiveClosureEnvironment_fuelSafe 4)
+      (FuelEnvironmentSafe.nil 4)
+      (by simp [reduceBuiltinAtom])
+      (RelationalTwoIndexMatchingBranchTyping.nil
+        (atomRelation := RecursiveClosureAtomRelation)
+        (searchFuel := 2) (residual := 1)
+        (environmentTypes := [recursiveClosureType])
+        (bindingTypes := [recursiveClosureType]))
+  simpa [recursiveClosureVariableAtom, closedMultisetMatcherValue] using
+    stateTyped
 
 /-- End-to-end use of the generic two-index search theorem.  This proof uses
 only the initial local state certificate above; no equation for the complete
@@ -99,7 +184,7 @@ search appears among its premises. -/
 theorem recursiveClosure_variable_search_twoIndexSafe :
     MatchingSearchResultSafeWith (FuelEnvironmentSafe 1)
       [recursiveClosureType]
-      (searchPatternFuel (evalFuel 2) 1 recursiveClosureEnvironment .var
+      (searchPatternFuel (evalFuel 2) 3 recursiveClosureEnvironment .var
         closedMultisetMatcherValue listRecursiveClosure) := by
   exact searchPatternFuel_twoIndexSafe
     IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
@@ -107,7 +192,7 @@ theorem recursiveClosure_variable_search_twoIndexSafe :
     recursiveClosure_variable_initial_twoIndex
 
 theorem recursiveClosure_variable_search_neverStuck :
-    (searchPatternFuel (evalFuel 2) 1 recursiveClosureEnvironment .var
+    (searchPatternFuel (evalFuel 2) 3 recursiveClosureEnvironment .var
       closedMultisetMatcherValue listRecursiveClosure).NotStuck :=
   recursiveClosure_variable_search_twoIndexSafe.notStuck
 
