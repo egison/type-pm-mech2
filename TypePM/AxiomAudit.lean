@@ -1,4 +1,6 @@
 import TypePM.AxiomAuditCommand
+import TypePM.Runtime.EvalFuelTraced
+import TypePM.Runtime.EvalFuelTracedRegression
 import TypePM.Names
 import TypePM.Primitive
 import TypePM.InferenceExactness
@@ -279,6 +281,14 @@ These commands enforce that selected public results depend only on `propext`,
 -/
 
 #assert_allowed_axioms TypePM.DataCtor.canonical_pairwise_distinct
+#assert_allowed_axioms TypePM.Runtime.MatchingSearchTraceEvent
+#assert_allowed_axioms TypePM.Runtime.evalFuelTrace
+#assert_allowed_axioms TypePM.Runtime.applyFuelTrace
+#assert_allowed_axioms TypePM.Runtime.evalFuelTraced
+#assert_allowed_axioms TypePM.Runtime.evalFuelTraced_result
+#assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.directMatch_trace
+#assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.firstMatch_trace_stops_at_selected_arm
+#assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.closureBodyMatch_trace_environment
 #assert_allowed_axioms TypePM.PatternCtor.canonical_pairwise_distinct
 #assert_allowed_axioms TypePM.NamesRegression.nil_spellings_agree
 #assert_allowed_axioms TypePM.PrimOp.all_pairwise_distinct

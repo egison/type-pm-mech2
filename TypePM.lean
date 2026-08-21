@@ -152,6 +152,8 @@ import TypePM.Runtime.CombinedAtomReducer
 import TypePM.Runtime.CombinedAtomReducerRegression
 import TypePM.Runtime.Evaluation
 import TypePM.Runtime.EvalFuel
+import TypePM.Runtime.EvalFuelTraced
+import TypePM.Runtime.EvalFuelTracedRegression
 import TypePM.Runtime.EvaluationAdequacy
 import TypePM.Runtime.EvaluationCompleteness
 import TypePM.Runtime.EvaluationStuckMonotonicity

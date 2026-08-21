@@ -568,6 +568,11 @@ lambda callbackも，同じ直前fuelを保持したまま`map`のexact certific
 到達しない枝は注入できない．残る中心は，これらをmatcher clause bodyとmatching構文まで閉じる統合帰納，
 および`let`／`matchFirst`／closure内部を含む全探索taskの発行証拠である．
 
+探索taskの由来を空虚でない形に固定する新しい入口として，`evalFuelTraced`は既存`evalFuel`の結果と，
+式評価器が直接発行したbounded-DFS呼出しの実行順traceを返す．結果射影は定義上`evalFuel`と一致し，
+`letE`／closure body／`matchFirst`の選択枝では実際のruntime環境をtraceへ記録する．現段階では探索器内部の
+評価callbackは結果射影だけを使うため，callback内部でさらに発行される探索を同じtraceへ集約する一般化は未完である．
+
 構造需要には，canonicalなruntime listの各要素を同じ子需要で観測する`listOf`と，binary tupleの
 左右を別々の子需要で観測する`pairOf`も含める．公開の適用条件では`pairOf`を実際の二要素積型に限定し，
 matcher／slot型は通常の`fuel`需要で観測する．内部の値安全性では，producerが由来を保持する局所的な
