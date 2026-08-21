@@ -264,6 +264,26 @@ theorem originDemandApplicable_pairOf_slot_false :
       (.slot capability target) := by
   simp [OriginDemandApplicable]
 
+/-- Applicability is intentionally separate from semantic demand weakening.
+It is not downward closed under `OriginDemand.Le`: call arguments are
+contravariant, so an applicable `none` argument may be replaced by a stronger
+observation that is ill-shaped at the domain type. -/
+theorem originDemandApplicable_not_downwardClosed :
+    ¬ (∀ {requested available target},
+      OriginDemand.Le requested available →
+        OriginDemandApplicable available target →
+          OriginDemandApplicable requested target) := by
+  intro downward
+  let requested : OriginDemand :=
+    .plainCall 0 (.plainCall 0 .none .none) .none
+  let available : OriginDemand := .plainCall 0 .none .none
+  have demandLe : OriginDemand.Le requested available := by
+    exact .plainCall (Nat.le_refl _) .none .none
+  have availableApplicable : OriginDemandApplicable available (.fn .int .int) := by
+    simp [available, OriginDemandApplicable]
+  have impossible := downward demandLe availableApplicable
+  simp [requested, OriginDemandApplicable] at impossible
+
 /-- Existing fuel-indexed value/environment relations form one coherent
 safety package.  This declaration does not claim the full M4 preservation
 property for that package. -/

@@ -259,14 +259,6 @@ abbrev FunctionInstances
   ∀ target, IsInstance principal target →
     ∃ domain codomain, target = .fn domain codomain
 
-/-- Every public instance has one fixed outer function type.  Ground Paper-1
-closures satisfy this boundary; polymorphic closures instead require a
-codomain-indexed certificate family. -/
-abbrev FixedFunctionInstances
-    (_derivation : M4.PrincipalTypingDerivation signature [] expression
-      principal) (domain codomain : Ty) : Prop :=
-  ∀ target, IsInstance principal target → target = .fn domain codomain
-
 theorem functionInstances_of_generatedTarget
     (derivation : M4.PrincipalTypingDerivation signature [] expression
       principal)
@@ -433,17 +425,114 @@ theorem applicableCertificate
           argumentApplicable resultApplicable elaboration
 termination_by demand => demand
 
+end ClosedFunctionDemandCertificates
+
+/-! ## Solution-parametric function certificates -/
+
+/-- One certificate family selected before a semantic solution is supplied.
+Positive call certificates must be valid for every solution of the retained
+elaboration; no domain or codomain is fixed at this boundary. -/
+structure SolutionParametricFunctionCertificates
+    (signature : FrozenSignature) (expression : Expr) where
+  atomicInput : OriginDemand → OriginEnvironmentDemand
+  call : ∀ constructionFuel callFuel argumentDemand resultDemand
+      {staticFuel supply generated next},
+    (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
+      supply generated next) →
+      Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+        constructionFuel (.plainCall callFuel argumentDemand resultDemand)
+        (atomicInput (.plainCall callFuel argumentDemand resultDemand)))
+  none : ∀ constructionFuel {staticFuel supply generated next},
+    (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
+      supply generated next) →
+      Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+        constructionFuel .none (atomicInput .none))
+  zeroFuel : ∀ constructionFuel {staticFuel supply generated next},
+    (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
+      supply generated next) →
+      Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+        constructionFuel (.fuel 0) (atomicInput (.fuel 0)))
+
+namespace SolutionParametricFunctionCertificates
+
+def inputDemand
+    (certificates : SolutionParametricFunctionCertificates signature
+      expression) : OriginDemand → OriginEnvironmentDemand
+  | .both left right => OriginEnvironmentDemand.both
+      (certificates.inputDemand left) (certificates.inputDemand right)
+  | demand => certificates.atomicInput demand
+termination_by demand => demand
+
+theorem applicableCertificate
+    (certificates : SolutionParametricFunctionCertificates signature
+      expression)
+    (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
+      supply generated next)
+    (operationalFuel : Nat) :
+    ∀ demand,
+      OriginDemandApplicable demand (.fn domain codomain) →
+        Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+          operationalFuel demand (certificates.inputDemand demand))
+  | .none, _ => by
+      simpa only [inputDemand] using
+        certificates.none operationalFuel elaboration
+  | .fuel index, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      cases applicable with
+      | zero =>
+          simpa only [inputDemand] using
+            certificates.zeroFuel operationalFuel elaboration
+  | .both left right, applicable => by
+      have applicable' : OriginDemandApplicable left (.fn domain codomain) ∧
+          OriginDemandApplicable right (.fn domain codomain) := by
+        simpa only [OriginDemandApplicable] using applicable
+      obtain ⟨leftCertificate⟩ :=
+        certificates.applicableCertificate elaboration operationalFuel left
+          applicable'.1
+      obtain ⟨rightCertificate⟩ :=
+        certificates.applicableCertificate elaboration operationalFuel right
+          applicable'.2
+      simpa only [inputDemand] using
+        (show Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+            operationalFuel (.both left right)
+            (OriginEnvironmentDemand.both
+              (certificates.inputDemand left)
+              (certificates.inputDemand right))) from
+          ⟨M4.ExactRawOriginRequestCertificate.both leftCertificate
+            rightCertificate⟩)
+  | .listOf element, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      rcases applicable with ⟨elementType, impossible, _⟩
+      cases impossible
+  | .pairOf left right, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      rcases applicable with ⟨leftType, rightType, impossible, _left, _right⟩
+      cases impossible
+  | .bool, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      cases applicable
+  | .int, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      cases applicable
+  | .plainCall callFuel argument result, _ => by
+      simpa only [inputDemand] using
+        certificates.call operationalFuel callFuel argument result elaboration
+termination_by demand => demand
+
+/-- Public instances may choose different function domains and codomains.
+The exact certificate remains the same because its preservation field is
+already universally quantified over semantic solutions. -/
 def requestProducer
-    (certificates : ClosedFunctionDemandCertificates signature expression
-      domain codomain)
+    (certificates : SolutionParametricFunctionCertificates signature
+      expression)
     (derivation : M4.PrincipalTypingDerivation signature [] expression
       principal)
-    (instances : FixedFunctionInstances derivation domain codomain) :
+    (instances : FunctionInstances derivation) :
     PrincipalOriginRequestProducer derivation [] where
   inputDemand := fun _ outputDemand => certificates.inputDemand outputDemand
   request := by
     intro operationalFuel outputDemand target instantiation applicable
-    have targetEq := instances target instantiation
+    obtain ⟨domain, codomain, targetEq⟩ := instances target instantiation
     subst target
     refine ⟨.elaboration
       (fun elaboration => certificates.applicableCertificate elaboration
@@ -453,7 +542,7 @@ def requestProducer
     subst environment
     exact SchemeOriginEnvironmentSafe.nil _ _
 
-end ClosedFunctionDemandCertificates
+end SolutionParametricFunctionCertificates
 
 /-! ## Lambda -/
 
@@ -535,14 +624,87 @@ def lambdaFunctionCertificates
               constructionFuel (.fuel 0) OriginEnvironmentDemand.none) from
             ⟨zeroCall.reobserveUniversal .zero⟩)
 
+/-- Lambda body certificates selected independently of a later public
+function instance.  The same certificate is checked at every semantic
+solution retained by the exact M4 elaboration. -/
+structure SolutionParametricLambdaCallBodyFamily
+    (signature : FrozenSignature) (body : Expr) where
+  bodyInput : Nat → OriginDemand → OriginDemand → OriginEnvironmentDemand
+  certificate : ∀ bodyFuel argumentDemand resultDemand
+      {staticFuel : Nat} {supply : Supply} {generatedBody : Generated}
+      {next : Supply},
+    (bodyElaboration : M4.ElaboratesFuel signature staticFuel
+      [Scheme.mono (Ty.var ⟨supply.ty⟩)] body (supply.nextTy 1)
+      generatedBody next) →
+      Nonempty (M4.ExactRawOriginRequestCertificate bodyElaboration bodyFuel
+        resultDemand (bodyInput bodyFuel argumentDemand resultDemand))
+  argumentCovers : ∀ bodyFuel argumentDemand resultDemand,
+    OriginDemand.Le ((bodyInput bodyFuel argumentDemand resultDemand) 0)
+      argumentDemand
+
+def solutionParametricLambdaAtomicInput
+    (calls : SolutionParametricLambdaCallBodyFamily signature body) :
+    OriginDemand → OriginEnvironmentDemand
+  | .plainCall (bodyFuel + 1) argumentDemand resultDemand =>
+      OriginEnvironmentDemand.tail
+        (calls.bodyInput bodyFuel argumentDemand resultDemand)
+  | _ => OriginEnvironmentDemand.none
+
+def solutionParametricLambdaFunctionCertificates
+    (calls : SolutionParametricLambdaCallBodyFamily signature body) :
+    SolutionParametricFunctionCertificates signature (.lam body) where
+  atomicInput := solutionParametricLambdaAtomicInput calls
+  call := by
+    intro constructionFuel callFuel argumentDemand resultDemand staticFuel
+      supply generated next elaboration
+    cases staticFuel with
+    | zero => exact False.elim elaboration
+    | succ childStaticFuel =>
+        cases callFuel with
+        | zero =>
+            simpa [solutionParametricLambdaAtomicInput] using
+              (M4.ExactRawOriginRequestCertificate.lamZeroCall elaboration
+                constructionFuel argumentDemand resultDemand)
+        | succ bodyFuel =>
+            simpa only [solutionParametricLambdaAtomicInput] using
+              (M4.ExactRawOriginRequestCertificate.lamPlainCall elaboration
+                (calls.bodyInput bodyFuel argumentDemand resultDemand)
+                (fun generatedBody bodyElaboration =>
+                  calls.certificate bodyFuel argumentDemand resultDemand
+                    bodyElaboration)
+                (calls.argumentCovers bodyFuel argumentDemand resultDemand))
+  none := by
+    intro constructionFuel staticFuel supply generated next elaboration
+    cases staticFuel with
+    | zero => exact False.elim elaboration
+    | succ childStaticFuel =>
+        obtain ⟨zeroCall⟩ :=
+          M4.ExactRawOriginRequestCertificate.lamZeroCall elaboration
+            constructionFuel .none .none
+        simpa [solutionParametricLambdaAtomicInput] using
+          (show Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+              constructionFuel .none OriginEnvironmentDemand.none) from
+            ⟨zeroCall.reobserveUniversal .none⟩)
+  zeroFuel := by
+    intro constructionFuel staticFuel supply generated next elaboration
+    cases staticFuel with
+    | zero => exact False.elim elaboration
+    | succ childStaticFuel =>
+        obtain ⟨zeroCall⟩ :=
+          M4.ExactRawOriginRequestCertificate.lamZeroCall elaboration
+            constructionFuel .none .none
+        simpa [solutionParametricLambdaAtomicInput] using
+          (show Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+              constructionFuel (.fuel 0) OriginEnvironmentDemand.none) from
+            ⟨zeroCall.reobserveUniversal .zero⟩)
+
 theorem lambda_derivationRequestProducer_total
-    (calls : LambdaCallBodyFamily signature body domain codomain)
+    (calls : SolutionParametricLambdaCallBodyFamily signature body)
     (derivation : M4.PrincipalTypingDerivation signature [] (.lam body)
-      principal)
-    (instances : FixedFunctionInstances derivation domain codomain) :
+      principal) :
     DerivationRequestProducer derivation [] :=
-  ⟨(lambdaFunctionCertificates calls).requestProducer derivation
-    instances⟩
+  ⟨(solutionParametricLambdaFunctionCertificates calls).requestProducer
+    derivation (lambdaFunctionInstances derivation)⟩
 
 /-! ## Ordinary and matcher-root `fixE` -/
 
@@ -623,14 +785,81 @@ def plainFixFunctionCertificates
       elaboration
     exact ⟨zeroCall.reobserveUniversal .zero⟩
 
+/-- Recursive body safety uniformly quantified over the semantic solution of
+the outer fix elaboration. -/
+structure SolutionParametricPlainFixCallFamily
+    (signature : FrozenSignature) (body : Expr) where
+  bodyTyped : ∀ {staticFuel supply generated next}
+      (_elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
+        supply generated next) solution,
+    generated.SemanticSolution solution →
+      TotalRecursiveClosureBodyTyping
+        [((Fix.domain body supply).apply solution),
+          .fn ((Fix.domain body supply).apply solution)
+            ((Fix.codomain body supply).apply solution)]
+        body ((Fix.codomain body supply).apply solution)
+  bodySafe : ∀ {staticFuel supply generated next}
+      (_elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
+        supply generated next) bodyFuel argumentDemand resultDemand solution,
+    generated.SemanticSolution solution →
+      MatcherTyping.PlainFixBodyOriginSafe [] body
+        ((Fix.domain body supply).apply solution)
+        ((Fix.codomain body supply).apply solution)
+        bodyFuel argumentDemand resultDemand
+
+theorem solutionParametricPlainFixCallExactCertificate
+    (calls : SolutionParametricPlainFixCallFamily signature body)
+    (elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
+      supply generated next) :
+    Nonempty (M4.ExactRawOriginRequestCertificate elaboration constructionFuel
+      (.plainCall callFuel argumentDemand resultDemand)
+      OriginEnvironmentDemand.none) := by
+  let certificate : M4.RawOriginRequestCertificate elaboration constructionFuel
+      (.plainCall callFuel argumentDemand resultDemand) :=
+    ⟨OriginEnvironmentDemand.none, by
+      intro _compatible solution semantic environment environmentSafe
+      have environmentEq : environment = [] := by simpa using environmentSafe.1
+      subst environment
+      cases callFuel with
+      | zero =>
+          exact MatcherTyping.fixElaboration_eval_originResultSafe_zeroCall_of_m4Fuel
+            elaboration semantic (calls.bodyTyped elaboration solution semantic)
+            .nil
+      | succ bodyFuel =>
+          exact MatcherTyping.fixElaboration_eval_originResultSafe_plainCall_of_m4Fuel
+            elaboration semantic (calls.bodyTyped elaboration solution semantic)
+            .nil (calls.bodySafe elaboration bodyFuel argumentDemand
+              resultDemand solution semantic)⟩
+  exact ⟨⟨certificate, rfl⟩⟩
+
+def solutionParametricPlainFixFunctionCertificates
+    (calls : SolutionParametricPlainFixCallFamily signature body) :
+    SolutionParametricFunctionCertificates signature (.fixE body) where
+  atomicInput := fun _ => OriginEnvironmentDemand.none
+  call := by
+    intro constructionFuel callFuel argumentDemand resultDemand staticFuel
+      supply generated next elaboration
+    exact solutionParametricPlainFixCallExactCertificate calls elaboration
+  none := by
+    intro constructionFuel staticFuel supply generated next elaboration
+    obtain ⟨zeroCall⟩ := solutionParametricPlainFixCallExactCertificate
+      (constructionFuel := constructionFuel) (callFuel := 0)
+      (argumentDemand := .none) (resultDemand := .none) calls elaboration
+    exact ⟨zeroCall.reobserveUniversal .none⟩
+  zeroFuel := by
+    intro constructionFuel staticFuel supply generated next elaboration
+    obtain ⟨zeroCall⟩ := solutionParametricPlainFixCallExactCertificate
+      (constructionFuel := constructionFuel) (callFuel := 0)
+      (argumentDemand := .none) (resultDemand := .none) calls elaboration
+    exact ⟨zeroCall.reobserveUniversal .zero⟩
+
 theorem plainFix_derivationRequestProducer_total
-    (calls : PlainFixCallFamily signature body domain codomain)
+    (calls : SolutionParametricPlainFixCallFamily signature body)
     (derivation : M4.PrincipalTypingDerivation signature [] (.fixE body)
-      principal)
-    (instances : FixedFunctionInstances derivation domain codomain) :
+      principal) :
     DerivationRequestProducer derivation [] :=
-  ⟨(plainFixFunctionCertificates calls).requestProducer derivation
-    instances⟩
+  ⟨(solutionParametricPlainFixFunctionCertificates calls).requestProducer
+    derivation (fixFunctionInstances derivation)⟩
 
 /-- The only remaining matcher-root call obligation is safety of evaluating
 the matcher body after inserting the argument and recursive self.  Structural
@@ -699,14 +928,37 @@ def matcherFixFunctionCertificates
     intro constructionFuel staticFuel supply generated next elaboration
     exact matcherFixFuelLeafExactCertificate compatible (.fuel 0) elaboration
 
+/-- Solution-parametric matcher-root specialization.  S8 supplies total body
+typing, leaving only uniform body evaluation safety as a premise. -/
+structure SolutionParametricMatcherFixCallFamily
+    (signature : FrozenSignature) (clauses : List MatcherClause) where
+  bodySafe : ∀ {staticFuel supply generated next}
+      (_elaboration : M4.ElaboratesFuel signature staticFuel []
+        (.fixE (.matcher clauses)) supply generated next)
+      bodyFuel argumentDemand resultDemand solution,
+    generated.SemanticSolution solution →
+      MatcherTyping.PlainFixBodyOriginSafe [] (.matcher clauses)
+        ((Fix.domain (.matcher clauses) supply).apply solution)
+        ((Fix.codomain (.matcher clauses) supply).apply solution)
+        bodyFuel argumentDemand resultDemand
+
+def solutionParametricMatcherFixPlainCallFamily
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (calls : SolutionParametricMatcherFixCallFamily signature clauses) :
+    SolutionParametricPlainFixCallFamily signature (.matcher clauses) where
+  bodyTyped := by
+    intro staticFuel supply generated next elaboration solution semantic
+    exact MatcherTyping.matcherFixElaboration_totalRecursiveClosureBodyTyping_of_m4Fuel
+      elaboration compatible semantic .nil
+  bodySafe := calls.bodySafe
+
 theorem matcherFix_derivationRequestProducer_total
     (compatible : FrozenSignatureRuntimeCompatible signature)
-    (calls : MatcherFixCallFamily signature clauses domain codomain)
+    (calls : SolutionParametricMatcherFixCallFamily signature clauses)
     (derivation : M4.PrincipalTypingDerivation signature []
-      (.fixE (.matcher clauses)) principal)
-    (instances : FixedFunctionInstances derivation domain codomain) :
+      (.fixE (.matcher clauses)) principal) :
     DerivationRequestProducer derivation [] :=
-  ⟨(matcherFixFunctionCertificates compatible calls).requestProducer derivation
-    instances⟩
+  plainFix_derivationRequestProducer_total
+    (solutionParametricMatcherFixPlainCallFamily compatible calls) derivation
 
 end TypePM.Source.M5Paper1ClosureRequestProducer

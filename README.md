@@ -503,6 +503,10 @@ body環境でこの不足が残るため，Paper 1クラス全体の5.6--5.8は�
 同じ値へ同時に課す．これにより，関数，引数，結果，呼出しのすべてを一つの数値indexへ揃えずに，通常の
 lambdaが作る非再帰関数値（plain closure）の適用安全性とno-stuckを合成できる．需要を弱めるときは，
 呼出しfuelと結果への要求を小さくし，引数へ仮定する要求を逆に強くする定理も証明した．
+ただし，需要の意味上の順序`OriginDemand.Le`に沿って適用可能性が一般に保存されるわけではない．
+関数呼出しでは引数側が反変，すなわち利用側が仮定できる観測要求を強める向きになるため，関数型に適用可能な
+`none`引数を，その引数型には不適用な関数呼出し要求へ置き換える反例がある．この非保存性はLeanの定理として
+固定し，適用可能性は各semantic solutionで得られる具体型に対して個別に検査する．
 
 `M4OriginDemandSafety`は，実際の`RawFuelCertificate`を持つlambda bodyについて，引数位置と結果の
 数値需要を`fuel`葉へ埋め込み，捕捉環境をbody certificateの引数位置より後ろの需要で検査して，plain closureの
@@ -564,6 +568,13 @@ raw導出からcertificateを作る内部5.6と直接的な5.8が完了した．
 `listOf`需要専用familyとして構成し，その結果を`append`の子へ合成できる．arity 0の`letE`を本体に持つ
 lambda callbackも，同じ直前fuelを保持したまま`map`のexact certificateへ接続できる．残る中心は，
 これらをmatcher clause bodyとmatching構文まで閉じる統合帰納である．
+
+公開のlambda／通常の`fixE`／matcher-root `fixE` producerは，domainとcodomainを一つに固定しない．
+raw certificateがsemantic solution全体について持つ保存則をそのまま使い，同じcertificate familyを各instanceの
+具体的な関数型で再利用する．そのため，多相closureを`letE`の異なる使用箇所で別の型へ具体化しても，planを
+solution選択後に作り直す必要がない．これをraw planへ接続する`RawTotalPlanFamily`も結果需要だけでplanを選び，
+型やsolutionを選択条件にしない．一方，`map` callbackのように型が静的に既知の局所構成では，従来の固定型
+adapterを内部部品として残しているが，公開のtotal producerの前提にはしていない．
 
 探索taskの由来を空虚でない形に固定する新しい入口として，`evalFuelTraced`は既存`evalFuel`の結果と，
 式評価器が直接発行したbounded-DFS呼出しの実行順traceを返す．結果射影は定義上`evalFuel`と一致し，
