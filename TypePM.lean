@@ -350,6 +350,7 @@ import TypePM.Source.M5Paper1ProvenRuntimeScope
 import TypePM.Source.M5Paper1ClosureRequestProducer
 import TypePM.Source.M5Paper1BodyFamilyProducer
 import TypePM.Source.M5Paper1MapDemandProducer
+import TypePM.Source.M5Paper1MapCallbackAdapter
 import TypePM.Source.M5TrackedPrincipalOriginCertificate
 import TypePM.Source.M4CanonicalCertificateTransport
 import TypePM.Source.M4RawOriginCoherenceTransport

@@ -561,7 +561,8 @@ raw導出からcertificateを作る内部5.6と直接的な5.8が完了した．
 自由変数を含むtuple／list／`append`／`member`／`deleteFirst`／pair projection／conditional，arity 0の
 `letE`，lambda／application／plain `fixE`／matcher literal／matcher-root `fixE`については，主要導出に
 添字付く一般request producerまで接続した．`map`はcallbackと入力listを同じ直前fuelで観測する
-`listOf`需要専用familyとして構成し，その結果を`append`の子へ合成できる．またsearch plan coverageは
+`listOf`需要専用familyとして構成し，その結果を`append`の子へ合成できる．arity 0の`letE`を本体に持つ
+lambda callbackも，同じ直前fuelを保持したまま`map`のexact certificateへ接続できる．またsearch plan coverageは
 同じelaborationの構造的な出現位置を保持する．application，tuple，constructor／primitive引数，`if`の
 実行順に沿った動的な到達証拠から，match rootの探索certificateを再構成でき，無関係な初期stateや
 到達しない枝は注入できない．残る中心は，これらをmatcher clause bodyとmatching構文まで閉じる統合帰納，
