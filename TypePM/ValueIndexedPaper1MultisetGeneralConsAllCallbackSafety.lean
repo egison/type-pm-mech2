@@ -31,24 +31,22 @@ open ValueIndexedPaper1MultisetGeneralConsSafety
 
 /-- Once the actual seven-clause dispatch has completed at callback bound 26,
 its exact hit and source-ordered branches are unchanged at every larger
-callback bound.  Only evaluator-callback approximation is used here. -/
-theorem generalCons_dispatch_monotonicitySeeded_at26_add :
-    ∀ extra atomEnvironment,
-      dispatchMatcherClauses (evalFuel (26 + extra)) atomEnvironment
-        closedMultisetMatcherEnvironment multisetClauses multisetConsPattern
-        multisetConsTarget = .ok (.hit multisetConsBranches)
-  | 0, atomEnvironment => by
-      simpa using generalCons_dispatch_exact26 atomEnvironment
-  | extra + 1, atomEnvironment => by
-      have previous :=
-        generalCons_dispatch_monotonicitySeeded_at26_add extra atomEnvironment
-      have related := dispatchMatcherClauses_evalFuel_approximates_succ
-        (fuel := 26 + extra) (atomEnvironment := atomEnvironment)
-        (matcherEnvironment := closedMultisetMatcherEnvironment)
-        (clauses := multisetClauses) (pattern := multisetConsPattern)
-        (target := multisetConsTarget)
-      rw [previous] at related
-      simpa [Nat.add_assoc] using related.ok_eq
+callback bound.  Only the generic successor-approximation transport is used. -/
+theorem generalCons_dispatch_exact_of_26_le
+    (enough : 26 ≤ callbackFuel) (atomEnvironment : ValueEnvironment) :
+    dispatchMatcherClauses (evalFuel callbackFuel) atomEnvironment
+      closedMultisetMatcherEnvironment multisetClauses multisetConsPattern
+      multisetConsTarget = .ok (.hit multisetConsBranches) := by
+  exact FuelResult.Approximates.ok_eq_of_le
+    (fun fuel => dispatchMatcherClauses (evalFuel fuel) atomEnvironment
+      closedMultisetMatcherEnvironment multisetClauses multisetConsPattern
+      multisetConsTarget)
+    (fun fuel => dispatchMatcherClauses_evalFuel_approximates_succ
+      (fuel := fuel) (atomEnvironment := atomEnvironment)
+      (matcherEnvironment := closedMultisetMatcherEnvironment)
+      (clauses := multisetClauses) (pattern := multisetConsPattern)
+      (target := multisetConsTarget))
+    (generalCons_dispatch_exact26 atomEnvironment) enough
 
 /-- Complete callback classification.  The timeout half is direct; the hit
 half is the monotonicity-seeded transport above. -/
@@ -64,10 +62,7 @@ theorem generalCons_dispatch_allCallback :
   by_cases before : callbackFuel < 26
   · exact .inl (generalCons_dispatch_timeout_before26 before atomEnvironment)
   · have bound : 26 ≤ callbackFuel := Nat.le_of_not_gt before
-    exact .inr (by
-      have success := generalCons_dispatch_monotonicitySeeded_at26_add
-        (callbackFuel - 26) atomEnvironment
-      simpa [Nat.add_sub_of_le bound] using success)
+    exact .inr (generalCons_dispatch_exact_of_26_le bound atomEnvironment)
 
 /-- Pattern-indexed recursive dispatch typing at every callback bound.  The
 actual source patterns `$` and `$` are retained in each successful branch. -/

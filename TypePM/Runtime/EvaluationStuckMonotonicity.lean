@@ -68,6 +68,38 @@ theorem trans
   | stuck => cases second; exact .stuck
   | ok value => cases second; exact .ok value
 
+/-- Pointwise successor approximation extends to any ordered pair of natural
+indices.  This packages the repeated monotonicity argument independently of
+the particular evaluator, callback, or search operation being indexed. -/
+theorem of_le
+    {α : Type} (result : Nat → FuelResult α)
+    {lower upper : Nat}
+    (step : ∀ index, Approximates (result index) (result (index + 1)))
+    (bound : lower ≤ upper) :
+    Approximates (result lower) (result upper) := by
+  obtain ⟨extra, rfl⟩ := Nat.exists_eq_add_of_le bound
+  clear bound
+  induction extra with
+  | zero =>
+      rw [Nat.add_zero]
+      exact refl _
+  | succ extra induction =>
+      rw [Nat.add_succ]
+      exact induction.trans (step (lower + extra))
+
+/-- Once a monotone fuel-indexed computation has returned an exact value at
+one threshold, every larger index returns the same value. -/
+theorem ok_eq_of_le
+    {α : Type} (result : Nat → FuelResult α)
+    {threshold fuel : Nat} {value : α}
+    (step : ∀ index, Approximates (result index) (result (index + 1)))
+    (exactAtThreshold : result threshold = .ok value)
+    (bound : threshold ≤ fuel) :
+    result fuel = .ok value := by
+  have related := of_le result step bound
+  rw [exactAtThreshold] at related
+  exact related.ok_eq
+
 end Approximates
 
 end FuelResult

@@ -86,38 +86,15 @@ theorem innerJoin_reducer_approximates_succ (callbackFuel : Nat) :
         (target := list23Value))
       clauseResultToAtomReduction)
 
-theorem innerJoin_reducer_approximates_add (callbackFuel extra : Nat) :
-    FuelResult.Approximates
-      (evaluationAtomReducer (evalFuel callbackFuel)
-        actualJoinConsEnvironment innerJoinAtom)
-      (evaluationAtomReducer (evalFuel (callbackFuel + extra))
-        actualJoinConsEnvironment innerJoinAtom) := by
-  induction extra with
-  | zero =>
-      rw [Nat.add_zero]
-      exact FuelResult.Approximates.refl _
-  | succ extra induction =>
-      rw [Nat.add_succ]
-      exact induction.trans
-        (innerJoin_reducer_approximates_succ (callbackFuel + extra))
-
-theorem innerJoin_reducer_exact_from_13 (extra : Nat) :
-    evaluationAtomReducer (evalFuel (13 + extra)) actualJoinConsEnvironment
-        innerJoinAtom =
-      .ok (.hit ⟨list23JoinBranches, []⟩) := by
-  have related := innerJoin_reducer_approximates_add 13 extra
-  rw [innerJoin_reducer_exact_13] at related
-  exact related.ok_eq
-
 theorem innerJoin_reducer_exact_of_13_le
     (enough : 13 ≤ callbackFuel) :
     evaluationAtomReducer (evalFuel callbackFuel) actualJoinConsEnvironment
         innerJoinAtom =
       .ok (.hit ⟨list23JoinBranches, []⟩) := by
-  obtain ⟨extra, equality⟩ : ∃ extra, callbackFuel = 13 + extra := by
-    exact ⟨callbackFuel - 13, by omega⟩
-  subst callbackFuel
-  exact innerJoin_reducer_exact_from_13 extra
+  exact FuelResult.Approximates.ok_eq_of_le
+    (fun fuel => evaluationAtomReducer (evalFuel fuel)
+      actualJoinConsEnvironment innerJoinAtom)
+    innerJoin_reducer_approximates_succ innerJoin_reducer_exact_13 enough
 
 theorem innerJoin_reducer_timeout_of_lt_13 : ∀ callbackFuel,
     callbackFuel < 13 →
@@ -189,43 +166,18 @@ theorem delegatedVar_reducer_approximates_succ (callbackFuel : Nat)
         (clauses := listMatcherClauses) (pattern := .var) (target := target))
       clauseResultToAtomReduction)
 
-theorem delegatedVar_reducer_approximates_add (callbackFuel extra : Nat)
-    (atomEnvironment : ValueEnvironment) (target : Value) :
-    FuelResult.Approximates
-      (evaluationAtomReducer (evalFuel callbackFuel) atomEnvironment
-        (delegatedVarAtom target))
-      (evaluationAtomReducer (evalFuel (callbackFuel + extra)) atomEnvironment
-        (delegatedVarAtom target)) := by
-  induction extra with
-  | zero =>
-      rw [Nat.add_zero]
-      exact FuelResult.Approximates.refl _
-  | succ extra induction =>
-      rw [Nat.add_succ]
-      exact induction.trans
-        (delegatedVar_reducer_approximates_succ (callbackFuel + extra)
-          atomEnvironment target)
-
-theorem delegatedVar_reducer_exact_from_2 (extra : Nat)
-    (atomEnvironment : ValueEnvironment) (target : Value) :
-    evaluationAtomReducer (evalFuel (2 + extra)) atomEnvironment
-        (delegatedVarAtom target) =
-      .ok (.hit ⟨[[primitiveVarAtom target]], []⟩) := by
-  have related := delegatedVar_reducer_approximates_add 2 extra
-    atomEnvironment target
-  rw [delegatedVar_reducer_exact_2] at related
-  exact related.ok_eq
-
 theorem delegatedVar_reducer_exact_of_two_le
     (enough : 2 ≤ callbackFuel) (atomEnvironment : ValueEnvironment)
     (target : Value) :
     evaluationAtomReducer (evalFuel callbackFuel) atomEnvironment
         (delegatedVarAtom target) =
       .ok (.hit ⟨[[primitiveVarAtom target]], []⟩) := by
-  obtain ⟨extra, equality⟩ : ∃ extra, callbackFuel = 2 + extra := by
-    exact ⟨callbackFuel - 2, by omega⟩
-  subst callbackFuel
-  exact delegatedVar_reducer_exact_from_2 extra atomEnvironment target
+  exact FuelResult.Approximates.ok_eq_of_le
+    (fun fuel => evaluationAtomReducer (evalFuel fuel) atomEnvironment
+      (delegatedVarAtom target))
+    (fun fuel => delegatedVar_reducer_approximates_succ fuel atomEnvironment
+      target)
+    (delegatedVar_reducer_exact_2 atomEnvironment target) enough
 
 theorem primitiveVar_reducer_exact (callbackFuel : Nat)
     (atomEnvironment : ValueEnvironment)
