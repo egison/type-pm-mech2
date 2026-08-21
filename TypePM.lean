@@ -240,6 +240,8 @@ import TypePM.Source.M4RawFiniteDemandCertificateRegression
 import TypePM.OriginDemandSafety
 import TypePM.Source.M4OriginDemandSafety
 import TypePM.Source.M4OriginDemandSafetyRegression
+import TypePM.Source.M4RawOriginRequestCertificate
+import TypePM.Source.M4RawOriginRequestCertificateRegression
 import TypePM.ValueIndexedPaper1ListClauseBodySafety
 import TypePM.ValueIndexedPaper1MultisetTopLevelSafety
 import TypePM.ValueIndexedPaper1MultisetHeadConsSafety
