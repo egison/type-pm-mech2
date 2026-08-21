@@ -309,9 +309,12 @@ nodeへ有限回で探索機会を与える．無限個の結果を扱うには�
 `FairReductionTreeSearch`を追加し，現在のbounded `matchAllDFS`を残したまま，有限roundで得たanswer
 prefixと未探索frontierを返す．callerが選ぶstate／answer不変条件について，prefixとfrontierの型安全性，
 任意roundのno-stuckを証明した．左の自己再帰branchと右の即時成功からなる同じ回帰では，公平探索が
-2 roundで右のanswerを観測し，左branchをfrontierに保持する．現段階のnode／frontierは有限`List`であり，
-式評価の遅延collectionや真に無限なsuccessor列にはまだ接続していない．公平性の一般定理は「各局所stepが
-完了し，有限個の局所stepで到達できる成功は，ある有限roundのprefixに現れる」とし，一般停止性は要求しない．
+2 roundで右のanswerを観測し，左branchをfrontierに保持する．さらに`FairReductionTreeCompleteness`では，
+実行可能な探索とは独立に有限深さの到達可能性を定義し，深さ`d`のnodeがanswerをyieldし，深さ`d`までの
+全到達可能nodeの局所stepが完了するなら，`d + 1` roundのprefixにそのanswerが現れることを証明した．
+これは一般停止性を要求しないが，局所stepの`timeout`を公平な探索が自動的に追い越すという定理でもない．
+現段階のnode／frontier／successor列は有限`List`であり，式評価の遅延collectionや真に無限なsuccessor列には
+まだ接続していない．
 
 `matchFirst`の通常armに結果があるかを型推論で判定しないことも固定済みである．user matcherは
 型の正しい空decomposition列を返せるため，wildcard armでも照合結果がない場合がある．この場合は
@@ -793,7 +796,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[EvaluationStuckMonotonicity.lean](TypePM/Runtime/EvaluationStuckMonotonicity.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
-| bounded DFSと公平な二分簡約木prefix探索 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[FairReductionTreeSearch.lean](TypePM/Runtime/FairReductionTreeSearch.lean)，[FairReductionTreeSearchRegression.lean](TypePM/Runtime/FairReductionTreeSearchRegression.lean) |
+| bounded DFSと公平な二分簡約木prefix探索 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[FairReductionTreeSearch.lean](TypePM/Runtime/FairReductionTreeSearch.lean)，[FairReductionTreeCompleteness.lean](TypePM/Runtime/FairReductionTreeCompleteness.lean)，[FairReductionTreeCompletenessRegression.lean](TypePM/Runtime/FairReductionTreeCompletenessRegression.lean) |
 | Paper 1の全fuel実行回帰 | [Paper1NeverStuckRegression.lean](TypePM/Runtime/Paper1NeverStuckRegression.lean)，[M4Paper1MatcherLiteralEvaluationSafetyRegression.lean](TypePM/Source/M4Paper1MatcherLiteralEvaluationSafetyRegression.lean) |
 | Paper 1 list joinの実dispatchと型付き探索 | [M4Paper1ListJoinSearchSafety.lean](TypePM/Source/M4Paper1ListJoinSearchSafety.lean) |
 | Paper 1 multisetの実dispatchと型付き探索 | [M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) |
