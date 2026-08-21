@@ -288,4 +288,172 @@ theorem matchAllFuel_twoIndexTracedOriginSafe
                   simpa [evalFuelTrace, targetResult, matcherResult,
                     searchResult, searchTrace] using member
 
+/-- Source-ordered `matchFirst` arms with result preservation and complete
+trace coverage kept in the same inductive certificate. -/
+inductive TracedOriginTwoIndexMatchFirstArmsSafe
+    (eventSafe : MatchingSearchTraceEvent → Prop)
+    (operationalFuel bindingIndex : Nat) (resultDemand : OriginDemand)
+    (environment : ValueEnvironment) (targetValue matcherValue : Value)
+    (resultTarget : Ty) : List Source.MatchFirstArm → Source.Expr → Prop where
+  | nil
+      (fallbackSafe : TracedOriginResultSafe eventSafe resultDemand resultTarget
+        (evalFuel operationalFuel environment fallback)
+        (evalFuelTrace operationalFuel environment fallback)) :
+      TracedOriginTwoIndexMatchFirstArmsSafe eventSafe operationalFuel
+        bindingIndex resultDemand environment targetValue matcherValue
+        resultTarget [] fallback
+  | cons
+      (initialTyped : TwoIndexMatchingStateTyping FuelEnvironmentSafe
+        FuelEnvironmentSafe (evaluationAtomReducer (evalFuel operationalFuel))
+        operationalFuel bindingIndex
+        ⟨[⟨arm.pattern, matcherValue, targetValue⟩], environment, []⟩
+        bindingTypes)
+      (outerEventSafe : eventSafe
+        ⟨operationalFuel, environment, arm.pattern, matcherValue,
+          targetValue⟩)
+      (callbackTraceSafe : ∀ event,
+        event ∈ searchPatternFuelTrace (evalFuel operationalFuel)
+          (evalFuelTrace operationalFuel) operationalFuel environment
+          arm.pattern matcherValue targetValue →
+        eventSafe event)
+      (bodySafe : ∀ bindings,
+        FuelEnvironmentSafe bindingIndex bindings bindingTypes →
+          TracedOriginResultSafe eventSafe resultDemand resultTarget
+            (evalFuel operationalFuel (bindings ++ environment) arm.body)
+            (evalFuelTrace operationalFuel (bindings ++ environment) arm.body))
+      (tail : TracedOriginTwoIndexMatchFirstArmsSafe eventSafe operationalFuel
+        bindingIndex resultDemand environment targetValue matcherValue
+        resultTarget arms fallback) :
+      TracedOriginTwoIndexMatchFirstArmsSafe eventSafe operationalFuel
+        bindingIndex resultDemand environment targetValue matcherValue
+        resultTarget (arm :: arms) fallback
+
+theorem TracedOriginTwoIndexMatchFirstArmsSafe.eval_safe
+    (safe : TracedOriginTwoIndexMatchFirstArmsSafe eventSafe operationalFuel
+      bindingIndex resultDemand environment targetValue matcherValue
+      resultTarget arms fallback) :
+    TracedOriginResultSafe eventSafe resultDemand resultTarget
+      (evalMatchFirstArmsFuel (evalFuel operationalFuel) operationalFuel
+        environment targetValue matcherValue arms fallback)
+      (evalMatchFirstArmsFuelTrace (evalFuel operationalFuel)
+        (evalFuelTrace operationalFuel) operationalFuel environment targetValue
+        matcherValue arms fallback) := by
+  induction safe with
+  | nil fallbackSafe => simpa [evalMatchFirstArmsFuelTrace] using fallbackSafe
+  | @cons arm arms fallback bindingTypes initialTyped outerEventSafe
+      callbackTraceSafe bodySafe tail induction =>
+      have searchSafe := searchPatternFuel_twoIndexSafe
+        IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+        IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+        initialTyped
+      rcases searchSafe with searchTimeout |
+        ⟨answers, searchSuccess, answersSafe⟩
+      · constructor
+        · exact .inl (by
+            simp [evalMatchFirstArmsFuel, searchTimeout, FuelResult.bind])
+        · have combined := TraceEventsSafe.append
+            (TraceEventsSafe.singleton outerEventSafe) callbackTraceSafe
+          intro event member
+          apply combined event
+          simpa [evalMatchFirstArmsFuelTrace, searchTimeout] using member
+      · cases answers with
+        | nil =>
+            constructor
+            · rcases induction.1 with tailTimeout |
+                ⟨value, tailSuccess, valueSafe⟩
+              · exact .inl (by
+                  simp [evalMatchFirstArmsFuel, searchSuccess, tailTimeout,
+                    FuelResult.bind])
+              · exact .inr ⟨value, by
+                  simp [evalMatchFirstArmsFuel, searchSuccess, tailSuccess,
+                    FuelResult.bind], valueSafe⟩
+            · have combined := TraceEventsSafe.append
+                (TraceEventsSafe.append
+                  (TraceEventsSafe.singleton outerEventSafe)
+                  callbackTraceSafe)
+                induction.2
+              intro event member
+              apply combined event
+              simpa [evalMatchFirstArmsFuelTrace, searchSuccess] using member
+        | cons bindings remainingAnswers =>
+            have bindingsSafe := answersSafe bindings (by simp)
+            have selectedSafe := bodySafe bindings bindingsSafe
+            constructor
+            · rcases selectedSafe.1 with bodyTimeout |
+                ⟨value, bodySuccess, valueSafe⟩
+              · exact .inl (by
+                  simp [evalMatchFirstArmsFuel, searchSuccess, bodyTimeout,
+                    FuelResult.bind])
+              · exact .inr ⟨value, by
+                  simp [evalMatchFirstArmsFuel, searchSuccess, bodySuccess,
+                    FuelResult.bind], valueSafe⟩
+            · have combined := TraceEventsSafe.append
+                (TraceEventsSafe.append
+                  (TraceEventsSafe.singleton outerEventSafe)
+                  callbackTraceSafe)
+                selectedSafe.2
+              intro event member
+              apply combined event
+              simpa [evalMatchFirstArmsFuelTrace, searchSuccess] using member
+
+/-- Complete trace-refined `matchFirst` expression boundary. -/
+theorem matchFirstFuel_twoIndexTracedOriginSafe
+    (eventSafe : MatchingSearchTraceEvent → Prop)
+    (targetSafe : TracedOriginResultSafe eventSafe (.fuel operationalFuel)
+      matcherTarget (evalFuel operationalFuel environment targetExpression)
+      (evalFuelTrace operationalFuel environment targetExpression))
+    (matcherSafe : TracedOriginResultSafe eventSafe (.fuel operationalFuel)
+      (.matcher capability matcherTarget)
+      (evalFuel operationalFuel environment matcherExpression)
+      (evalFuelTrace operationalFuel environment matcherExpression))
+    (armsSafe : ∀ targetValue matcherValue,
+      evalFuel operationalFuel environment targetExpression = .ok targetValue →
+      evalFuel operationalFuel environment matcherExpression = .ok matcherValue →
+        TracedOriginTwoIndexMatchFirstArmsSafe eventSafe operationalFuel
+          bindingIndex resultDemand environment targetValue matcherValue
+          resultTarget arms fallbackExpression) :
+    TracedOriginResultSafe eventSafe resultDemand resultTarget
+      (evalFuel (operationalFuel + 1) environment
+        (.matchFirst targetExpression matcherExpression arms fallbackExpression))
+      (evalFuelTrace (operationalFuel + 1) environment
+        (.matchFirst targetExpression matcherExpression arms
+          fallbackExpression)) := by
+  cases targetResult : evalFuel operationalFuel environment targetExpression with
+  | timeout =>
+      constructor
+      · exact .inl (by simp [evalFuel, targetResult, FuelResult.bind])
+      · intro event member
+        apply targetSafe.2 event
+        simpa [evalFuelTrace, targetResult] using member
+  | stuck =>
+      have impossible := targetSafe.notStuck
+      simp [targetResult, FuelResult.NotStuck] at impossible
+  | ok targetValue =>
+      cases matcherResult : evalFuel operationalFuel environment
+          matcherExpression with
+      | timeout =>
+          constructor
+          · exact .inl (by
+              simp [evalFuel, targetResult, matcherResult, FuelResult.bind])
+          · have combined := TraceEventsSafe.append targetSafe.2 matcherSafe.2
+            intro event member
+            apply combined event
+            simpa [evalFuelTrace, targetResult, matcherResult] using member
+      | stuck =>
+          have impossible := matcherSafe.notStuck
+          simp [matcherResult, FuelResult.NotStuck] at impossible
+      | ok matcherValue =>
+          have selected := armsSafe targetValue matcherValue targetResult
+            matcherResult
+          have selectedResult := selected.eval_safe
+          constructor
+          · simpa [evalFuel, targetResult, matcherResult, FuelResult.bind] using
+              selectedResult.1
+          · have combined := TraceEventsSafe.append
+              (TraceEventsSafe.append targetSafe.2 matcherSafe.2)
+              selectedResult.2
+            intro event member
+            apply combined event
+            simpa [evalFuelTrace, targetResult, matcherResult] using member
+
 end TypePM.Runtime

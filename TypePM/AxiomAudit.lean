@@ -1598,6 +1598,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.TracedOriginEnvironmentSafe.forget
 #assert_allowed_axioms TypePM.Runtime.EvaluatedTracedOriginBindingBodySafeUnder
 #assert_allowed_axioms TypePM.Runtime.matchAllFuel_twoIndexTracedOriginSafe
+#assert_allowed_axioms TypePM.Runtime.TracedOriginTwoIndexMatchFirstArmsSafe
+#assert_allowed_axioms TypePM.Runtime.TracedOriginTwoIndexMatchFirstArmsSafe.eval_safe
+#assert_allowed_axioms TypePM.Runtime.matchFirstFuel_twoIndexTracedOriginSafe
 #assert_allowed_axioms TypePM.Source.M4.canonicalPrincipalTypingDerivation
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTypingDerivation.coherentWithCanonical_of_coherence_and_replay
 #assert_allowed_axioms TypePM.Source.M4.PrincipalTypingDerivation.coherentWithCanonical
