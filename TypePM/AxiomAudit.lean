@@ -106,6 +106,8 @@ import TypePM.Runtime.Paper1NeverStuckRegression
 import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.RuntimeTypingRegression
+import TypePM.Source.FrozenSignatureRuntimeCompatibility
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.Source.PolymorphicLetRuntimeBridgeRegression
 import TypePM.Source.PolymorphicLetProtectedClosureRegression
 import TypePM.Source.PolymorphicLetProtectedSyntaxRegression
@@ -1295,6 +1297,13 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.standardSignatureWellFormed
 #assert_allowed_axioms TypePM.Runtime.signatureCompatible_of_eq_standard
 #assert_allowed_axioms TypePM.Runtime.paper1SignatureCompatible
+#assert_allowed_axioms TypePM.Runtime.FrozenSignatureRuntimeCompatible
+#assert_allowed_axioms TypePM.Runtime.FrozenSignatureRuntimeCompatible.toSignatureCompatible
+#assert_allowed_axioms TypePM.Runtime.FrozenSignatureRuntimeCompatible.dataConstructorTyping
+#assert_allowed_axioms TypePM.Runtime.RuntimeDataConstructorTyping.apply
+#assert_allowed_axioms TypePM.Runtime.FrozenSignatureRuntimeCompatible.dataConstructorTyping_of_m4
+#assert_allowed_axioms TypePM.Source.Paper1FrozenSignature.dataConstructor_lookup_cases
+#assert_allowed_axioms TypePM.Source.Paper1FrozenSignature.runtimeCompatible
 #assert_allowed_axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
 #assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping
 #assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping_standard

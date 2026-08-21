@@ -438,7 +438,7 @@ strict positivity検査に通らない．これは現在の定理の健全性を
 |---|---|---|---|
 | T1 | 値・環境・core式の型付け | **done** | 整数，Bool/List，tuple，変数，lambda，通常／再帰closure，application，`letE`，`ifE` |
 | T2 | primitive安全性 | **done** | `add`，`append`，`member`，`deleteFirst`，`map`の型保存とno-stuck |
-| T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．公開橋はsignature等式だけで使え，内部のlookup契約は無関係な追加宣言も許す |
+| T3 | signature整合性 | **done** | 固定 evaluator の宣言を`Runtime.StandardSignature`に集約．基本のlookup契約は無関係な追加宣言を許す．data-pattern橋向けには，frozen signatureでlookup可能な各data constructorがruntimeのconstructor型付けを持つことを要求する一般契約を追加し，Paper 1の閉じた宣言表による証拠をfixture側へ分離した．既存M4橋をこの契約へ移す作業はT7の一部として残る |
 | T4 | core safety | **done** | `RuntimeTyping.coreSafety`と任意fuelの`RuntimeTyping.neverStuck` |
 | T5 | source-to-runtime橋の基本断片 | **done** | closedなtuple/data/primitiveに加え，monomorphic context下のvar/lam/app/map |
 | T6 | source多相`let`の実行時型付け | **in progress** | ここでいう橋は，sourceの型付け導出から，評価器が使う値・環境・式の型付けを自動で組み立てる定理である．多相bindingだけを証明用の印で追跡し，実行時contextは`List Ty`のまま保つ．入れ子`letE`の値はidentity限定ではなく，実際のvalue elaborationと，その`let`が採用した同じprincipal closureに結び付いたcertificateがあれば任意の構文を扱える．非identityのclosed tuple `(1, 2)`，入れ子identity，外側lambdaが多相identityを捕捉する三回帰では，公開`infer`成功だけからruntime typingと任意fuel no-stuckを得られる．var／literal／`something`／lambda／application／tuple／nested letに加え，複数引数のconstructor・primitive・`ifE`について，実際の関係的elaboration導出に沿って各残存検査の由来を記録する構造的certificateを追加した．一つの実elaboration導出と代入に固定した実行可能checkerも追加し，受理と同じ導出の構造的certificateが同値であることを証明した．さらに，引数位置をliteral／lambdaに制限して型の最外形を`Int`／関数型に固定する明示的な`RootOrdinarySourceFragment`では，構文証明と実際のelaboration成功からchecker受理を自動導出する．関数位置とtupleの子では入れ子applicationを許し，`letE`右辺の内部検査はroot列に現れないためbodyだけを調べる．この断片のlambda application＋tuple＋二引数`add`回帰も，公開`infer`からruntime typingと任意fuel no-stuckへ接続した．matcher-to-slotはrootの残存検査列に現れる限り通常等式として隠せない．公開root checkerについては受理からcertificateを作る向きだけを主張し，任意の`infer`成功からchecker成功が従うとはしていない．matcher構文，引数位置の一般化，同じclosureのcertificateをさらに一般の値へ広げる作業が残る |
@@ -706,10 +706,11 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
    certificateについて`ClosedRuntimeCertificateRespectsCoherence`を証明する．open contextではruntime型列，
    多相contextではcontext関係も同時に輸送し，多相`letE`，matcherを返す`fixE`，matcher literal，
    `matchAll`，user matcher／constructorを含む`matchFirst`へ広げる．
-4. 一般APIのうち`Paper1FrozenSignature`へ不要に固定されている定義を`FrozenSignature`でparameter化する．
-   Paper 1固有の回帰定数はfixtureとして残し，一般定理と具体例を名前・module境界で区別する．P1-L02／L05の
-   head-only／general-cons探索で得たbranch型付けを，field，capture，再帰tailを持つ任意のM4 constructor
-   branchへ運ぶ．
+4. frozen signatureでlookupできる全data constructorをruntime型付けへ対応させる
+   `FrozenSignatureRuntimeCompatible`と，そのPaper 1証拠を追加した．次は一般APIのうち
+   `Paper1FrozenSignature`へ不要に固定されている定義をこの契約でparameter化する．Paper 1固有の回帰定数は
+   fixtureとして残し，一般定理と具体例を名前・module境界で区別する．P1-L02／L05のhead-only／general-cons
+   探索で得たbranch型付けを，field，capture，再帰tailを持つ任意のM4 constructor branchへ運ぶ．
 5. callback fuelについては，隣接fuel間の近似，閾値でのexact成功，閾値以上という三つの前提から，同じ成功を
    任意の後続fuelへ運ぶ共通補題を追加し，P1-L01の閾値13，委譲variableの閾値2，P1-L05の閾値26へ適用した．
    残るtimeout側の直接計算や探索fuelの帰納は別の証明義務なので，全ての`rfl`を同じ理由で置換しない．
@@ -765,6 +766,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 list joinの実dispatchと型付き探索 | [M4Paper1ListJoinSearchSafety.lean](TypePM/Source/M4Paper1ListJoinSearchSafety.lean) |
 | Paper 1 multisetの実dispatchと型付き探索 | [M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) |
 | runtime typingと安全性 | [RuntimeTyping.lean](TypePM/RuntimeTyping.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) |
+| frozen signatureとruntime constructorの整合性 | [FrozenSignatureRuntimeCompatibility.lean](TypePM/Source/FrozenSignatureRuntimeCompatibility.lean)，[Paper1FrozenSignatureRuntimeCompatibility.lean](TypePM/Source/Paper1FrozenSignatureRuntimeCompatibility.lean) |
 | M5の条件付き完成interface | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean) |
 | M4主要導出から公開推論の代表導出へのclosed certificate輸送 | [M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean) |
 | 再帰matcherを捕捉する通常lambdaの安全性 | [TotalPlainClosureSafety.lean](TypePM/TotalPlainClosureSafety.lean)，[TotalPlainClosureSafetyRegression.lean](TypePM/TotalPlainClosureSafetyRegression.lean) |

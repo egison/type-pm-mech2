@@ -179,6 +179,8 @@ import TypePM.Runtime.ValueDataPatternRegression
 import TypePM.Runtime.ClauseDispatch
 import TypePM.Runtime.ClauseDispatchRegression
 import TypePM.RuntimeTyping
+import TypePM.Source.FrozenSignatureRuntimeCompatibility
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.CoreSafety
 import TypePM.NoStuck
 import TypePM.RuntimeTypingRegression
