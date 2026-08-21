@@ -305,10 +305,13 @@ freshnessを外部の証明関係で記録して接続する方針で進める�
 
 APLAS 2018の既定`match-all`は，状態列をnodeとする二分の簡約木を幅優先に走査し，各有限位置の
 nodeへ有限回で探索機会を与える．無限個の結果を扱うには，単に探索順を幅優先へ変えるだけでなく，
-完成した有限リストではなく遅延列または有限prefixとして結果を観測する必要がある．そのためLean側でも，
-現在のbounded `matchAllDFS`を残したまま，有限prefixと未探索frontierを返す公平な`matchAll` laneを
-別に追加し，両方について型安全性を証明する．公平性の正確な主張は「各局所stepが完了し，有限個の
-局所stepで到達できる成功は，ある有限roundのprefixに現れる」であり，一般停止性は要求しない．
+完成した有限リストではなく遅延列または有限prefixとして結果を観測する必要がある．Lean側には
+`FairReductionTreeSearch`を追加し，現在のbounded `matchAllDFS`を残したまま，有限roundで得たanswer
+prefixと未探索frontierを返す．callerが選ぶstate／answer不変条件について，prefixとfrontierの型安全性，
+任意roundのno-stuckを証明した．左の自己再帰branchと右の即時成功からなる同じ回帰では，公平探索が
+2 roundで右のanswerを観測し，左branchをfrontierに保持する．現段階のnode／frontierは有限`List`であり，
+式評価の遅延collectionや真に無限なsuccessor列にはまだ接続していない．公平性の一般定理は「各局所stepが
+完了し，有限個の局所stepで到達できる成功は，ある有限roundのprefixに現れる」とし，一般停止性は要求しない．
 
 `matchFirst`の通常armに結果があるかを型推論で判定しないことも固定済みである．user matcherは
 型の正しい空decomposition列を返せるため，wildcard armでも照合結果がない場合がある．この場合は
@@ -790,6 +793,7 @@ M1断片の`Typing`を定義しただけでは，Type-PM全体からterminal aud
 | Paper 1 source | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean) |
 | Paper 1 exact静的回帰 | [M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) |
 | 評価とmatching | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[EvaluationStuckMonotonicity.lean](TypePM/Runtime/EvaluationStuckMonotonicity.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) |
+| bounded DFSと公平な二分簡約木prefix探索 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[FairReductionTreeSearch.lean](TypePM/Runtime/FairReductionTreeSearch.lean)，[FairReductionTreeSearchRegression.lean](TypePM/Runtime/FairReductionTreeSearchRegression.lean) |
 | Paper 1の全fuel実行回帰 | [Paper1NeverStuckRegression.lean](TypePM/Runtime/Paper1NeverStuckRegression.lean)，[M4Paper1MatcherLiteralEvaluationSafetyRegression.lean](TypePM/Source/M4Paper1MatcherLiteralEvaluationSafetyRegression.lean) |
 | Paper 1 list joinの実dispatchと型付き探索 | [M4Paper1ListJoinSearchSafety.lean](TypePM/Source/M4Paper1ListJoinSearchSafety.lean) |
 | Paper 1 multisetの実dispatchと型付き探索 | [M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) |
