@@ -318,6 +318,8 @@ import TypePM.Source.M4MatchFirstReplay
 import TypePM.Source.FullM4Completion
 import TypePM.Source.M5CompletionArchitecture
 import TypePM.Source.M4CanonicalCertificateTransport
+import TypePM.Source.M5ClosedPairProjectionCertificate
+import TypePM.Source.M5ClosedPairProjectionCertificateRegression
 import TypePM.AxiomAudit
 
 /-!
