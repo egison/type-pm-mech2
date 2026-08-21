@@ -349,6 +349,7 @@ import TypePM.Source.M5Paper1RuntimeProducer
 import TypePM.Source.M5Paper1SearchFreeStructuralProducer
 import TypePM.Source.M5Paper1ArityZeroLetProducer
 import TypePM.Source.M5Paper1ProvenRuntimeScope
+import TypePM.Source.M5Paper1ProvenTraceCompletion
 import TypePM.Source.M5Paper1ClosureRequestProducer
 import TypePM.Source.M5Paper1BodyFamilyProducer
 import TypePM.Source.M5Paper1MapDemandProducer

@@ -33,6 +33,7 @@ abbrev TraceTaskAnnotationFamily (SearchDemand : Type) :=
 type list and logical result demand.  This is the non-vacuity condition absent
 from the original conditional completion schema. -/
 def EvaluationTraceOriginComplete
+    (scope : RuntimeScope)
     (Certificate : RuntimeCertificateFamily)
     (relations : RuntimeSafetyRelations)
     (inputDemand : EvaluationInputDemandFamily Certificate relations)
@@ -41,6 +42,7 @@ def EvaluationTraceOriginComplete
       {derivation : M4.PrincipalTypingDerivation signature context expression
         principal}
       {runtimeContext : List Ty}
+      (_inScope : scope derivation)
       (certificate : Certificate derivation runtimeContext)
       (_instantiation : IsInstance principal target)
       (evaluationFuel : Nat) (outputDemand : relations.EvaluationDemand)
@@ -78,8 +80,9 @@ theorem EvaluationTraceOriginComplete.origin
       principal}
     {runtimeContext : List Ty}
     {event : MatchingSearchTraceEvent}
-    (complete : EvaluationTraceOriginComplete Certificate relations inputDemand
-      Annotation)
+    (complete : EvaluationTraceOriginComplete scope Certificate relations
+      inputDemand Annotation)
+    (inScope : scope derivation)
     (certificate : Certificate derivation runtimeContext)
     (instantiation : IsInstance principal target)
     (evaluationFuel : Nat) (outputDemand : relations.EvaluationDemand)
@@ -93,8 +96,8 @@ theorem EvaluationTraceOriginComplete.origin
       EvaluationTraceSearchOrigin Annotation derivation runtimeContext event
         answerTypes event.fuel event.fuel resultDemand := by
   obtain ⟨answerTypes, resultDemand, annotation⟩ :=
-    complete certificate instantiation evaluationFuel outputDemand environment
-      applicable environmentSafe event member
+    complete inScope certificate instantiation evaluationFuel outputDemand
+      environment applicable environmentSafe event member
   exact ⟨answerTypes, resultDemand,
     .issued evaluationFuel environment member annotation⟩
 
@@ -176,15 +179,16 @@ def TraceCompleteConditionalCompletionSchema
   ConditionalCompletionSchema scope Certificate contextRelation relations
       inputDemand evalFuel (EvaluationTraceSearchOrigin Annotation)
       SearchCertificate runSearch ∧
-    EvaluationTraceOriginComplete Certificate relations inputDemand Annotation
+    EvaluationTraceOriginComplete scope Certificate relations inputDemand
+      Annotation
 
 /-- Packaging theorem for the non-vacuous trace-based schema. -/
 theorem traceCompleteConditionalCompletionSchema_of_components
     (completion : ConditionalCompletionSchema scope Certificate contextRelation
       relations inputDemand evalFuel (EvaluationTraceSearchOrigin Annotation)
       SearchCertificate runSearch)
-    (complete : EvaluationTraceOriginComplete Certificate relations inputDemand
-      Annotation) :
+    (complete : EvaluationTraceOriginComplete scope Certificate relations
+      inputDemand Annotation) :
     TraceCompleteConditionalCompletionSchema scope Certificate contextRelation
       relations inputDemand Annotation SearchCertificate runSearch :=
   ⟨completion, complete⟩
@@ -210,7 +214,7 @@ theorem traceCompleteMNodeFreeBoundedDfsCompletionSchema_of_components
     (typedEvaluation : TypedEvaluation Certificate
       originDemandSafetyRelations inputDemand evalFuel)
     (producer : TraceEventCertificateProducer Certificate Annotation)
-    (complete : EvaluationTraceOriginComplete Certificate
+    (complete : EvaluationTraceOriginComplete MNodeFreeRuntimeScope Certificate
       originDemandSafetyRelations inputDemand Annotation) :
     TraceCompleteMNodeFreeBoundedDfsCompletionSchema Certificate inputDemand
       Annotation := by
