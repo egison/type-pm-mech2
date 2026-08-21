@@ -235,6 +235,8 @@ import TypePM.SchemeIndexedFuelSafety
 import TypePM.SchemeIndexedFuelSafetyRegression
 import TypePM.FiniteInputDemandSafety
 import TypePM.FiniteInputDemandSafetyRegression
+import TypePM.Source.M4RawFiniteDemandCertificate
+import TypePM.Source.M4RawFiniteDemandCertificateRegression
 import TypePM.ValueIndexedPaper1ListClauseBodySafety
 import TypePM.ValueIndexedPaper1MultisetTopLevelSafety
 import TypePM.ValueIndexedPaper1MultisetHeadConsSafety
