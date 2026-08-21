@@ -344,6 +344,11 @@ import TypePM.Source.M5CompletionArchitecture
 import TypePM.Source.M5TwoIndexBoundedDfsSearchBridge
 import TypePM.Source.M5PrincipalOriginCertificate
 import TypePM.Source.M5Paper1RuntimeProducer
+import TypePM.Source.M5Paper1SearchFreeStructuralProducer
+import TypePM.Source.M5Paper1ArityZeroLetProducer
+import TypePM.Source.M5Paper1ProvenRuntimeScope
+import TypePM.Source.M5Paper1ClosureRequestProducer
+import TypePM.Source.M5TrackedPrincipalOriginCertificate
 import TypePM.Source.M4CanonicalCertificateTransport
 import TypePM.Source.M4RawOriginCoherenceTransport
 import TypePM.Source.M5ClosedPairProjectionCertificate

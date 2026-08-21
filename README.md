@@ -375,8 +375,8 @@ pattern functionの全具体化でのinterface主要性PF6も，ここで完了�
 - `letE`は，まずclosedな右辺，または一般化する型変数が0個の右辺を一般producerへ含める．
   後者を以下では**arity 0のlet**と呼ぶ．openな右辺を完全に多相化する一般規則は，この範囲を
   閉じた後で追加する．それまではPaper 1クラス全体のscopeにこの条件を明記する．
-- user matcher値はmatcher型だけでなくmatcher slotとmatcher productへの変換後も正のfuelで
-  安全に分類する．`something`だけへ限定しない．
+- user matcher値はmatcher型とmatcher slotで正のfuelにより安全に分類する．matcherの非空積は
+  matcher型へ暗黙変換せず，利用箇所が要求するslotへ直接変換する．`something`だけへ限定しない．
 - 評価結果はno-stuckだけに弱めず，certificateが指定する`OriginDemand`，すなわち値への有限な
   構造的観測要求，に対する安全性を保持する．matcher型や関数型の結果もこの関係で扱う．
 
@@ -519,8 +519,8 @@ semantic solutionを選ぶ前にsource/runtime環境の各位置へ入力要求�
 示す変換証拠を取り出し，関数と引数のcertificateを合成する．
 
 `PositiveMatcherValueSafe`は，built-in matcherに加えてsourceから作られたuser matcher closureを保持する．
-そのため，matcherからmatcher slot，matcher product，matcher productからslotへの4種類のchecking変換を，
-正の`fuel`葉を含む任意の`OriginDemand`について運べる．application producerは親blockが保持する実際の
+そのため，通常の同型変換，matcherからslot，matcherの非空積からslotへの3種類のchecking変換について，
+正の`fuel`葉を含む任意の`OriginDemand`を運べる．application producerは親blockが保持する実際の
 `CheckConversion`を使い，引数要求に`OriginDemand.CheckStable`という追加制限を課さない．
 
 回帰では，`(lambda x => x) (lambda x => x)`の実raw M4導出全体から，結果の関数値をさらに呼び出せることを
@@ -558,12 +558,15 @@ source由来構成規則であり，一般のopenな多相右辺や，bodyに実
 静的request planを実際に構成できるclosed式について，
 raw導出からcertificateを作る内部5.6と直接的な5.8が完了した．fuel 0のlambda呼出しなど，観測しない本体の構文は
 調べないため，対象構文だけからなる全式が自動的にplanを持つとは主張しない．一般のopen多相`letE`と，
-主要導出から`fixE`／matcher／`matchAllDFS`／`matchFirst`を含むrequest producerを自動構成する統合帰納が
-Paper 1クラス全体に残る．
+自由変数を含むtuple／list／`append`／`member`／`deleteFirst`／pair projection／conditional，arity 0の
+`letE`，lambda／application／plain `fixE`／matcher literal／matcher-root `fixE`については，主要導出に
+添字付く一般request producerまで接続した．残る中心は，これらをmatcher clause bodyとmatching構文まで
+閉じる統合帰納，および入れ子のbounded-DFS task originを同じcertificateから構成する証拠である．
 
 構造需要には，canonicalなruntime listの各要素を同じ子需要で観測する`listOf`と，binary tupleの
-左右を別々の子需要で観測する`pairOf`も含める．`pairOf`は通常の積型だけでなく，checkingが選んだ
-matcher product／slot型への変換後も同じ観測を保持する．raw producerには，左右で異なる需要を持つ
+左右を別々の子需要で観測する`pairOf`も含める．公開の適用条件では`pairOf`を実際の二要素積型に限定し，
+matcher／slot型は通常の`fuel`需要で観測する．内部の値安全性では，producerが由来を保持する局所的な
+checking変換の輸送を引き続き利用できる．raw producerには，左右で異なる需要を持つ
 二要素tupleの一般規則`RawOriginRequestPlan.tuplePair`を接続した．またraw certificateの保存則は，
 constructor／primitiveのruntime実装を使う今後の規則に備え，frozen signatureの通常部分が実装と
 一致する`SignatureCompatible`を明示的に受け取る．
@@ -814,7 +817,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 | Paper 1 source／静的回帰 | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean)，[M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) | listing inventoryのsourceと5.1--5.5 |
 | 評価・matching基盤 | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) | 関係的評価，実行可能評価，matching state |
 | Paper 1 bounded DFS実行時層 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) | 既に実行時型付けされた項の型保存・no-stuck |
-| 5.6目標interface／現行producer | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M5PrincipalOriginCertificate.lean](TypePM/Source/M5PrincipalOriginCertificate.lean)，[M4RawOriginCoherenceTransport.lean](TypePM/Source/M4RawOriginCoherenceTransport.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4OriginMatcherProducer.lean](TypePM/Source/M4OriginMatcherProducer.lean)，[M4OriginPlainFixProducer.lean](TypePM/Source/M4OriginPlainFixProducer.lean)，[M4OriginMapProducer.lean](TypePM/Source/M4OriginMapProducer.lean)，[M4OriginMatchingEvaluationBridge.lean](TypePM/Source/M4OriginMatchingEvaluationBridge.lean) | 主要導出indexed certificate，需要の型適用条件，raw構文producer，matcher／fix／map／matching追加producer，closed coherence輸送．全主要導出からのrequest producer自動構成は未完 |
+| 5.6目標interface／現行producer | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M5PrincipalOriginCertificate.lean](TypePM/Source/M5PrincipalOriginCertificate.lean)，[M5TrackedPrincipalOriginCertificate.lean](TypePM/Source/M5TrackedPrincipalOriginCertificate.lean)，[M5Paper1SearchFreeStructuralProducer.lean](TypePM/Source/M5Paper1SearchFreeStructuralProducer.lean)，[M5Paper1ArityZeroLetProducer.lean](TypePM/Source/M5Paper1ArityZeroLetProducer.lean)，[M5Paper1ClosureRequestProducer.lean](TypePM/Source/M5Paper1ClosureRequestProducer.lean)，[M5Paper1ProvenRuntimeScope.lean](TypePM/Source/M5Paper1ProvenRuntimeScope.lean)，[M4RawOriginCoherenceTransport.lean](TypePM/Source/M4RawOriginCoherenceTransport.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4OriginMatcherProducer.lean](TypePM/Source/M4OriginMatcherProducer.lean)，[M4OriginPlainFixProducer.lean](TypePM/Source/M4OriginPlainFixProducer.lean)，[M4OriginMapProducer.lean](TypePM/Source/M4OriginMapProducer.lean)，[M4OriginMatchingEvaluationBridge.lean](TypePM/Source/M4OriginMatchingEvaluationBridge.lean) | 主要導出indexed certificate，需要の型適用条件，search plan coverageを保持するtracked wrapper，自由変数を含むsearch-free構文，arity 0 `letE`，closure構文，matcher／fix／map／matching追加producer，closed coherence輸送．matchingまで含む全主要導出の統合帰納は未完 |
 | 退役済みの5.6試行経路 | [M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[FiniteInputDemandSafety.lean](TypePM/FiniteInputDemandSafety.lean)と各回帰 | 過去の条件付き境界と線形indexの反例を保存する参照資料．新しい一般producerをこの経路へ追加しない |
 | closed pair certificate | [M5ClosedPairProjectionCertificate.lean](TypePM/Source/M5ClosedPairProjectionCertificate.lean)，[M5ClosedPairProjectionCertificateRegression.lean](TypePM/Source/M5ClosedPairProjectionCertificateRegression.lean) | 5.6--5.8とcoherence輸送を満たす完了したsearch-free具体断片．Paper 1クラス全体ではない |
 | closed literal `matchAllDFS` certificate | [M5ClosedLiteralMatchAllCertificate.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificate.lean)，[M5ClosedLiteralMatchAllCertificateRegression.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificateRegression.lean) | 5.6--5.8を実際に発行された空でないbounded-DFS taskとともに満たす完了した具体断片．user matcherを含むクラス全体ではない |
