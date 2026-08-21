@@ -419,6 +419,141 @@ theorem TwoIndexMatchFirstArmsSafe.eval_safe
                 simp [evalMatchFirstArmsFuel, searchSuccess, bodySuccess,
                   FuelResult.bind], valueSafe⟩
 
+/-- Source-ordered `matchFirst` arms with an arbitrary structural result
+observation.  Binding safety keeps its independent logical index. -/
+inductive OriginTwoIndexMatchFirstArmsSafe
+    (operationalFuel bindingIndex : Nat) (resultDemand : OriginDemand)
+    (environment : ValueEnvironment) (targetValue matcherValue : Value)
+    (resultTarget : Ty) : List Source.MatchFirstArm → Source.Expr → Prop where
+  | nil
+      (fallbackSafe : OriginResultSafe resultDemand resultTarget
+        (evalFuel operationalFuel environment fallback)) :
+      OriginTwoIndexMatchFirstArmsSafe operationalFuel bindingIndex
+        resultDemand environment targetValue matcherValue resultTarget []
+        fallback
+  | cons
+      (initialTyped : TwoIndexMatchingStateTyping FuelEnvironmentSafe
+        FuelEnvironmentSafe (evaluationAtomReducer (evalFuel operationalFuel))
+        operationalFuel bindingIndex
+        ⟨[⟨arm.pattern, matcherValue, targetValue⟩], environment, []⟩
+        bindingTypes)
+      (bodySafe : ∀ bindings,
+        FuelEnvironmentSafe bindingIndex bindings bindingTypes →
+          OriginResultSafe resultDemand resultTarget
+            (evalFuel operationalFuel (bindings ++ environment) arm.body))
+      (tail : OriginTwoIndexMatchFirstArmsSafe operationalFuel bindingIndex
+        resultDemand environment targetValue matcherValue resultTarget arms
+        fallback) :
+      OriginTwoIndexMatchFirstArmsSafe operationalFuel bindingIndex
+        resultDemand environment targetValue matcherValue resultTarget
+        (arm :: arms) fallback
+
+theorem OriginTwoIndexMatchFirstArmsSafe.eval_safe
+    (safe : OriginTwoIndexMatchFirstArmsSafe operationalFuel bindingIndex
+      resultDemand environment targetValue matcherValue resultTarget arms
+      fallback) :
+    OriginResultSafe resultDemand resultTarget
+      (evalMatchFirstArmsFuel (evalFuel operationalFuel) operationalFuel
+        environment targetValue matcherValue arms fallback) := by
+  induction safe with
+  | nil fallbackSafe => simpa using fallbackSafe
+  | @cons arm arms fallback bindingTypes initialTyped bodySafe tail induction =>
+      have searchSafe := searchPatternFuel_twoIndexSafe
+        IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+        IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+        initialTyped
+      rcases searchSafe with searchTimeout |
+        ⟨answers, searchSuccess, answersSafe⟩
+      · exact .inl (by
+          simp [evalMatchFirstArmsFuel, searchTimeout, FuelResult.bind])
+      · cases answers with
+        | nil =>
+            rcases induction with tailTimeout |
+              ⟨value, tailSuccess, valueSafe⟩
+            · exact .inl (by
+                simp [evalMatchFirstArmsFuel, searchSuccess, tailTimeout,
+                  FuelResult.bind])
+            · exact .inr ⟨value, by
+                simp [evalMatchFirstArmsFuel, searchSuccess, tailSuccess,
+                  FuelResult.bind], valueSafe⟩
+        | cons bindings remainingAnswers =>
+            have bindingsSafe := answersSafe bindings (by simp)
+            rcases bodySafe bindings bindingsSafe with bodyTimeout |
+              ⟨value, bodySuccess, valueSafe⟩
+            · exact .inl (by
+                simp [evalMatchFirstArmsFuel, searchSuccess, bodyTimeout,
+                  FuelResult.bind])
+            · exact .inr ⟨value, by
+                simp [evalMatchFirstArmsFuel, searchSuccess, bodySuccess,
+                  FuelResult.bind], valueSafe⟩
+
+/-- Runtime-boundary components for arbitrary-demand `matchFirst`. -/
+structure OriginEmbeddedMatchFirstRuntimeCertificate
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (operationalFuel bindingIndex : Nat) (resultDemand : OriginDemand)
+    (environmentTypes : List Ty) (environment : ValueEnvironment)
+    (targetExpression matcherExpression : Source.Expr)
+    (arms : List Source.MatchFirstArm) (fallbackExpression : Source.Expr)
+    (matcherTarget resultTarget : Ty) (capability : Cap) where
+  targetInput : OriginEnvironmentDemand
+  targetCertificate : Certificate operationalFuel [] environmentTypes
+    targetExpression matcherTarget (.fuel operationalFuel) targetInput
+  targetEnvironmentSafe : OriginEnvironmentSafe targetInput environment
+    environmentTypes
+  matcherInput : OriginEnvironmentDemand
+  matcherCertificate : Certificate operationalFuel [] environmentTypes
+    matcherExpression (.matcher capability matcherTarget)
+    (.fuel operationalFuel) matcherInput
+  matcherEnvironmentSafe : OriginEnvironmentSafe matcherInput environment
+    environmentTypes
+  armsSafe : ∀ targetValue matcherValue,
+    evalFuel operationalFuel environment targetExpression = .ok targetValue →
+    evalFuel operationalFuel environment matcherExpression = .ok matcherValue →
+      OriginTwoIndexMatchFirstArmsSafe operationalFuel bindingIndex
+        resultDemand environment targetValue matcherValue resultTarget arms
+        fallbackExpression
+
+theorem OriginEmbeddedMatchFirstRuntimeCertificate.outputDemandApplicable
+    (applicable :
+      TypePM.Source.M5CompletionArchitecture.OriginDemandApplicable
+        resultDemand resultTarget) :
+    TypePM.Source.M5CompletionArchitecture.OriginDemandApplicable
+      resultDemand resultTarget :=
+  applicable
+
+/-- General S10 `matchFirst` boundary. -/
+theorem OriginEmbeddedMatchFirstRuntimeCertificate.eval_originResultSafe
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evalFuel)
+    (certificate : OriginEmbeddedMatchFirstRuntimeCertificate Certificate
+      operationalFuel bindingIndex resultDemand environmentTypes environment
+      targetExpression matcherExpression arms fallbackExpression matcherTarget
+      resultTarget capability) :
+    OriginResultSafe resultDemand resultTarget
+      (evalFuel (operationalFuel + 1) environment
+        (.matchFirst targetExpression matcherExpression arms
+          fallbackExpression)) := by
+  have targetSafe : OriginResultSafe (.fuel operationalFuel) matcherTarget
+      (evalFuel operationalFuel environment targetExpression) := by
+    simpa using evalSafe (bindings := []) (environment := environment)
+      certificate.targetCertificate (by
+        simpa using certificate.targetEnvironmentSafe)
+  have matcherSafe : OriginResultSafe (.fuel operationalFuel)
+      (.matcher capability matcherTarget)
+      (evalFuel operationalFuel environment matcherExpression) := by
+    simpa using evalSafe (bindings := []) (environment := environment)
+      certificate.matcherCertificate (by
+        simpa using certificate.matcherEnvironmentSafe)
+  rcases targetSafe.toFuel with targetTimeout |
+    ⟨targetValue, targetSuccess, _targetValueSafe⟩
+  · exact .inl (by simp [evalFuel, targetTimeout, FuelResult.bind])
+  · rcases matcherSafe.toFuel with matcherTimeout |
+      ⟨matcherValue, matcherSuccess, _matcherValueSafe⟩
+    · exact .inl (by
+        simp [evalFuel, targetSuccess, matcherTimeout, FuelResult.bind])
+    · simpa [evalFuel, targetSuccess, matcherSuccess, FuelResult.bind] using
+        (certificate.armsSafe targetValue matcherValue targetSuccess
+          matcherSuccess).eval_safe
+
 /-- Runtime-boundary components for one `matchFirst` evaluator step.  The
 target and matcher certificates establish no-stuck classification before the
 source-ordered arm certificate takes over. -/

@@ -1084,7 +1084,7 @@ theorem matchFirst
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.matchFirst targetExpression matcherExpression arms fallbackExpression)
       supply generated next)
-    (childFuel bindingIndex resultIndex : Nat)
+    (childFuel bindingIndex : Nat) (resultDemand : OriginDemand)
     (sourceTargets : List Ty)
     (contextEq : context = sourceTargets.map Scheme.mono)
     (targetInput matcherInput fallbackInput : OriginEnvironmentDemand)
@@ -1102,7 +1102,7 @@ theorem matchFirst
       ∀ fallbackElaboration : ElaboratesFuel signature staticFuel context
         fallbackExpression childSupply generatedFallback afterFallback,
       Nonempty (ExactRawOriginRequestCertificate fallbackElaboration childFuel
-        (.fuel resultIndex) fallbackInput))
+        resultDemand fallbackInput))
     (matcherRuntimeType : ∀ {generatedTarget generatedMatcher : Generated}
         {generatedArms : MatchFirstTyping.GeneratedArms},
       MatchFirstTyping.ElaboratesUsing
@@ -1137,14 +1137,14 @@ theorem matchFirst
       ∀ environment,
       FuelEnvironmentSafe bindingIndex environment
         (Ty.applyList solution sourceTargets) →
-      FuelResultSafe resultIndex (generatedFallback.target.apply solution)
+      OriginResultSafe resultDemand (generatedFallback.target.apply solution)
         (evalFuel childFuel environment fallbackExpression) →
       ∀ targetValue matcherValue,
-      TwoIndexMatchFirstArmsSafe childFuel bindingIndex resultIndex environment
-        targetValue matcherValue (generatedFallback.target.apply solution) arms
-        fallbackExpression) :
+      OriginTwoIndexMatchFirstArmsSafe childFuel bindingIndex resultDemand
+        environment targetValue matcherValue
+        (generatedFallback.target.apply solution) arms fallbackExpression) :
     Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
-      (.fuel resultIndex)
+      resultDemand
       (OriginEnvironmentDemand.both targetInput
         (OriginEnvironmentDemand.both matcherInput
           (OriginEnvironmentDemand.both fallbackInput
@@ -1175,7 +1175,7 @@ theorem matchFirst
               (OriginEnvironmentDemand.both fallbackInput
                 (OriginEnvironmentDemand.fuel (fun _ => bindingIndex))))
           let certificate : RawOriginRequestCertificate parentElaboration
-              (childFuel + 1) (.fuel resultIndex) :=
+              (childFuel + 1) resultDemand :=
             ⟨inputDemand, by
               intro compatible solution semantic environment environmentSafe
               have contextCompatible : MonomorphicContextCompatible context
@@ -1238,8 +1238,8 @@ theorem matchFirst
               have fallbackResult := fallbackExact.certificate.preserves
                 compatible solution fallbackSemantic environment
                 (by simpa [fallbackExact.input_eq] using fallbackSchemeSafe)
-              let runtimeCertificate : FuelEmbeddedMatchFirstRuntimeCertificate
-                  RawOriginEmbeddedCertificate childFuel bindingIndex resultIndex
+              let runtimeCertificate : OriginEmbeddedMatchFirstRuntimeCertificate
+                  RawOriginEmbeddedCertificate childFuel bindingIndex resultDemand
                   (Ty.applyList solution sourceTargets) environment targetExpression
                   matcherExpression (first :: rest) fallbackExpression
                   (generatedTarget.target.apply solution)
@@ -1255,7 +1255,7 @@ theorem matchFirst
                     exact armsRuntimeSafe targetElaboration matcherElaboration
                       fallbackElaboration tailElaboration compatible solution
                       tailSemantic contextCompatible environment
-                      outerFuelEnvironmentSafe fallbackResult.toFuel targetValue
+                      outerFuelEnvironmentSafe fallbackResult targetValue
                       matcherValue }
               simpa [MatchFirstTyping.Generated.fromMatchFirst,
                 MatchFirstTyping.GeneratedArms.fromFallback] using
@@ -3091,8 +3091,8 @@ def RawOriginMatchAllIssuedTask.task
 arm retains its own binding types through `generatedPattern`, its own body
 input demand, and its own initial-state producer. -/
 inductive RawOriginMatchFirstTailPlan
-    (signature : FrozenSignature) (staticFuel childFuel bindingIndex
-      resultIndex : Nat)
+    (signature : FrozenSignature) (staticFuel childFuel bindingIndex : Nat)
+    (resultDemand : OriginDemand)
     (context : Context) (sourceTargets : List Ty)
     (targetExpression matcherExpression : Expr) :
     ∀ {targetType matcherType expectedResult : Ty}
@@ -3103,7 +3103,7 @@ inductive RawOriginMatchFirstTailPlan
         matcherType expectedResult arms supply generated next → Prop where
   | nil {targetType matcherType expectedResult supply} :
       RawOriginMatchFirstTailPlan signature staticFuel childFuel bindingIndex
-        resultIndex context sourceTargets targetExpression matcherExpression
+        resultDemand context sourceTargets targetExpression matcherExpression
         (MatchFirstTyping.TailElaboratesUsing.nil (targetType := targetType)
           (matcherType := matcherType) (expectedResult := expectedResult)
           (supply := supply))
@@ -3121,7 +3121,7 @@ inductive RawOriginMatchFirstTailPlan
         matcherType expectedResult arms afterBody generatedTail next}
       {bodyInput : OriginEnvironmentDemand}
       (patternMNodeFree : pattern.MNodeFree)
-      (bodyPlan : RawOriginRequestPlan childFuel body (.fuel resultIndex)
+      (bodyPlan : RawOriginRequestPlan childFuel body resultDemand
         bodyInput)
       (bodyInputCovered : ∀ position,
         OriginDemand.Le (bodyInput position) (.fuel bindingIndex))
@@ -3136,10 +3136,10 @@ inductive RawOriginMatchFirstTailPlan
           ⟨[⟨pattern, matcherValue, targetValue⟩], environment, []⟩
           (Ty.applyList solution generatedPattern.bindings))
       (tailPlan : RawOriginMatchFirstTailPlan signature staticFuel childFuel
-        bindingIndex resultIndex context sourceTargets targetExpression
+        bindingIndex resultDemand context sourceTargets targetExpression
         matcherExpression tailElaboration) :
       RawOriginMatchFirstTailPlan signature staticFuel childFuel bindingIndex
-        resultIndex context sourceTargets targetExpression matcherExpression
+        resultDemand context sourceTargets targetExpression matcherExpression
         (MatchFirstTyping.TailElaboratesUsing.cons patternElaboration
           bodyElaboration tailElaboration)
 
@@ -3176,7 +3176,8 @@ structure RawOriginMatchFirstPlan
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.matchFirst targetExpression matcherExpression arms fallbackExpression)
       supply generated next)
-    (childFuel bindingIndex resultIndex : Nat) (sourceTargets : List Ty)
+    (childFuel bindingIndex : Nat) (resultDemand : OriginDemand)
+    (sourceTargets : List Ty)
     (targetInput matcherInput fallbackInput : OriginEnvironmentDemand) : Prop where
   contextEq : context = sourceTargets.map Scheme.mono
   targetPlan : RawOriginRequestPlan childFuel targetExpression
@@ -3184,7 +3185,7 @@ structure RawOriginMatchFirstPlan
   matcherPlan : RawOriginRequestPlan childFuel matcherExpression
     (.fuel childFuel) matcherInput
   fallbackPlan : RawOriginRequestPlan childFuel fallbackExpression
-    (.fuel resultIndex) fallbackInput
+    resultDemand fallbackInput
   matcherRuntimeType : RawOriginMatchFirstMatcherRuntimeTypeProducer signature
     staticFuel context targetExpression matcherExpression arms
     fallbackExpression supply next
@@ -3202,7 +3203,7 @@ structure RawOriginMatchFirstPlan
       generatedTarget.target generatedMatcher.target generatedFallback.target
       arms afterFallback generatedTail next,
     RawOriginMatchFirstTailPlan signature staticFuel childFuel bindingIndex
-      resultIndex context sourceTargets targetExpression matcherExpression
+      resultDemand context sourceTargets targetExpression matcherExpression
       tailElaboration
 
 /-- One source-arm task issued after the common-fuel target and matcher
@@ -3766,8 +3767,8 @@ theorem RawOriginRequestPlan.exactCertificate
       outputDemand inputDemand) :=
   plan.certificate elaboration
 
-/-- Convert the source-ordered tail plan to the runtime arm certificate used
-by `FuelEmbeddedMatchFirstRuntimeCertificate`. -/
+/-- Convert the source-ordered tail plan to the arbitrary-demand runtime arm
+certificate. -/
 theorem RawOriginMatchFirstTailPlan.runtimeSafe
     {targetType matcherType expectedResult : Ty}
     {arms : List MatchFirstArm} {supply : Supply}
@@ -3776,7 +3777,7 @@ theorem RawOriginMatchFirstTailPlan.runtimeSafe
       (ElaboratesFuel signature staticFuel) signature context targetType
       matcherType expectedResult arms supply generated next}
     (plan : RawOriginMatchFirstTailPlan signature staticFuel childFuel
-      bindingIndex resultIndex context sourceTargets targetExpression
+      bindingIndex resultDemand context sourceTargets targetExpression
       matcherExpression elaboration)
     (compatible : SignatureCompatible signature.base)
     (semantic : generated.SemanticSolution solution)
@@ -3784,10 +3785,12 @@ theorem RawOriginMatchFirstTailPlan.runtimeSafe
       (Ty.applyList solution sourceTargets) solution)
     (outerFuelSafe : FuelEnvironmentSafe bindingIndex environment
       (Ty.applyList solution sourceTargets))
-    (fallbackSafe : FuelResultSafe resultIndex (expectedResult.apply solution)
+    (fallbackSafe : OriginResultSafe resultDemand
+      (expectedResult.apply solution)
       (evalFuel childFuel environment fallback)) :
-    TwoIndexMatchFirstArmsSafe childFuel bindingIndex resultIndex environment
-      targetValue matcherValue (expectedResult.apply solution) arms fallback := by
+    OriginTwoIndexMatchFirstArmsSafe childFuel bindingIndex resultDemand
+      environment targetValue matcherValue (expectedResult.apply solution)
+      arms fallback := by
   induction plan generalizing solution environment targetValue matcherValue
       fallback with
   | nil => exact .nil fallbackSafe
@@ -3809,7 +3812,7 @@ theorem RawOriginMatchFirstTailPlan.runtimeSafe
         simpa [Pattern.extendContext] using
           monomorphicContextCompatible_prepend generatedPattern.bindings
             contextCompatible
-      apply TwoIndexMatchFirstArmsSafe.cons
+      apply OriginTwoIndexMatchFirstArmsSafe.cons
         (initialState solution patternSemantic environment outerFuelSafe
           targetValue matcherValue)
       · intro bindings bindingsSafe
@@ -3822,23 +3825,23 @@ theorem RawOriginMatchFirstTailPlan.runtimeSafe
           (by simpa [bodyExact.input_eq] using
             bodyEnvironmentSafe.toSchemeOrigin bodyContextCompatible)
         rw [bodyTargetEq] at bodyResult
-        exact bodyResult.toFuel
+        exact bodyResult
       · exact tailIH restSemantic contextCompatible outerFuelSafe fallbackSafe
 
 /-- The dedicated `matchFirst` plan exposes one exact demand-parametric raw
 certificate while retaining the source-ordered tail evidence for search task
 issuance. -/
 theorem RawOriginMatchFirstPlan.exactCertificate
-    (plan : RawOriginMatchFirstPlan elaboration childFuel bindingIndex resultIndex
+    (plan : RawOriginMatchFirstPlan elaboration childFuel bindingIndex resultDemand
       sourceTargets targetInput matcherInput fallbackInput) :
     Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
-      (.fuel resultIndex)
+      resultDemand
       (OriginEnvironmentDemand.both targetInput
         (OriginEnvironmentDemand.both matcherInput
           (OriginEnvironmentDemand.both fallbackInput
             (OriginEnvironmentDemand.fuel (fun _ => bindingIndex)))))) := by
   apply ExactRawOriginRequestCertificate.matchFirst elaboration childFuel
-    bindingIndex resultIndex sourceTargets plan.contextEq targetInput
+    bindingIndex resultDemand sourceTargets plan.contextEq targetInput
     matcherInput fallbackInput
   · intro childSupply generatedTarget afterTarget targetElaboration
     exact plan.targetPlan.exactCertificate targetElaboration
