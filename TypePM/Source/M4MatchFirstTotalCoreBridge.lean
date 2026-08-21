@@ -103,7 +103,11 @@ mutual
         | value expressionSupported =>
             exact .value (elaboratesFuel_toM2_of_m2Fragment
               expressionSupported.toM2Fragment expressionElaboration)
-    | ctor lookup arity fields => cases supported
+    | ctor lookup arity fields =>
+        cases supported with
+        | ctor fieldsSupported =>
+            exact .ctor lookup arity
+              (patternsElaborationToM2Direct fields fieldsSupported)
     | tuple itemsElaboration =>
         cases supported with
         | tuple itemsSupported =>

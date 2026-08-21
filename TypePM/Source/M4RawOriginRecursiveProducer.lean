@@ -11,10 +11,9 @@ source-environment input observation without storing a semantic solution,
 runtime value, or completed evaluation result.
 
 The producer below turns a plan into an exact raw certificate by mutual
-induction over expressions and tuple fields.  Its lambda and application
-rules retain the deliberate boundaries of `M4RawOriginRequestCertificate`:
-plain lambdas need a contravariant argument-coverage proof, and application
-crosses arbitrary checking conversions only for `OriginDemand.CheckStable`.
+induction over expressions and tuple fields.  Plain lambdas retain the
+contravariant argument-coverage proof; application transports every demand
+through the solved checking conversion.
 -/
 
 namespace TypePM.Runtime
@@ -502,9 +501,8 @@ theorem lamZeroCall
           exact .zero⟩
   exact ⟨⟨certificate, rfl⟩⟩
 
-theorem appOfCheckStable
+theorem app
     {childFuel : Nat} {argumentDemand resultDemand : OriginDemand}
-    (argumentStable : argumentDemand.CheckStable)
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.app function argument) supply generated next)
     (functionInput argumentInput : OriginEnvironmentDemand)
@@ -587,7 +585,7 @@ theorem appOfCheckStable
         argumentSemantic environment
         (environmentSafe.mono (fun position => .fromRight (.refl _)))
       have argumentSafe := argumentSafeAtSource.ofCheckConversion
-        argumentStable argumentConversion
+        argumentConversion
       exact evalFuel_app_origin functionSafe argumentSafe⟩
   refine ⟨⟨certificate, ?_⟩⟩
   change OriginEnvironmentDemand.both functionCertificate.inputDemand
@@ -750,10 +748,9 @@ mutual
     | lamZeroCall : RawOriginRequestPlan lambdaOperationalFuel (.lam body)
         (.plainCall 0 argumentDemand resultDemand)
         OriginEnvironmentDemand.none
-    /-- Uniform application is available exactly when the argument demand is
-    stable under every normalized checking conversion. -/
-    | appCheckStable
-        (stable : argumentDemand.CheckStable)
+    /-- Uniform application transports any argument demand through the
+    normalized checking conversion stored by the parent block. -/
+    | app
         (functionPlan : RawOriginRequestPlan childFuel function
           (.plainCall childFuel argumentDemand resultDemand) functionInput)
         (argumentPlan : RawOriginRequestPlan childFuel argument argumentDemand
@@ -917,10 +914,9 @@ private theorem lamZeroCall : ∀ {lambdaOperationalFuel body argumentDemand res
   | succ staticFuel =>
       exact ExactRawOriginRequestCertificate.lamZeroCall elaboration _ _ _
 
-private theorem appCheckStable :
+private theorem app :
     ∀ {childFuel function argumentDemand resultDemand functionInput argument
         argumentInput}
-      (stable : argumentDemand.CheckStable)
       (functionPlan : RawOriginRequestPlan childFuel function
         (.plainCall childFuel argumentDemand resultDemand) functionInput)
       (argumentPlan : RawOriginRequestPlan childFuel argument argumentDemand argumentInput),
@@ -932,14 +928,14 @@ private theorem appCheckStable :
           RawOriginRequestCertificateMotive (childFuel + 1) (.app function argument)
             resultDemand (OriginEnvironmentDemand.both functionInput
               argumentInput)
-            (.appCheckStable stable functionPlan argumentPlan) := by
+            (.app functionPlan argumentPlan) := by
   intro childFuel function argumentDemand resultDemand functionInput argument
-    argumentInput stable functionPlan argumentPlan functionIH argumentIH
+    argumentInput functionPlan argumentPlan functionIH argumentIH
     signature staticFuel context supply generated next elaboration
   cases staticFuel with
   | zero => exact False.elim elaboration
   | succ staticFuel =>
-      apply ExactRawOriginRequestCertificate.appOfCheckStable stable elaboration _ _
+      apply ExactRawOriginRequestCertificate.app elaboration _ _
       · intro generatedFunction afterFunction generatedArgument afterArgument
           functionElaboration argumentElaboration
         exact functionIH functionElaboration
@@ -1076,7 +1072,7 @@ theorem RawOriginRequestPlan.certificate
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
     RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
-    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.letUniversalInput
+    RawOriginRequestProducerHandlers.app RawOriginRequestProducerHandlers.letUniversalInput
     RawOriginRequestProducerHandlers.both
     RawOriginRequestProducerHandlers.weaken RawOriginRequestProducerHandlers.universal
     RawOriginRequestProducerHandlers.strengthenInput RawOriginRequestProducerHandlers.nil
@@ -1093,7 +1089,7 @@ theorem RawOriginItemsFuelPlan.certificate
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
     RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
-    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.letUniversalInput
+    RawOriginRequestProducerHandlers.app RawOriginRequestProducerHandlers.letUniversalInput
     RawOriginRequestProducerHandlers.both
     RawOriginRequestProducerHandlers.weaken RawOriginRequestProducerHandlers.universal
     RawOriginRequestProducerHandlers.strengthenInput RawOriginRequestProducerHandlers.nil

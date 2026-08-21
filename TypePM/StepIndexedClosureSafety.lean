@@ -56,18 +56,6 @@ mutual
         (conversion : CheckConversion .matcherToSlot
           (.matcher producer target) (.slot consumer target)) :
         PositiveValueSafe fuel previous value (.slot consumer target)
-    | generatedMatcher
-        (lower : previous value (.matcher capability target))
-        (value_eq : value = .matcherV environment clauses clauses)
-        (environmentLength : environment.length = environmentTypes.length)
-        (environmentSafe : ∀ (index : Nat) targetType,
-          environmentTypes[index]? = some targetType →
-            ∃ captured,
-              environment[index]? = some captured ∧
-                previous captured targetType)
-        (body : TotalRecursiveClosureBodyTyping environmentTypes
-          (.matcher clauses) (.matcher capability target)) :
-        PositiveValueSafe fuel previous value (.matcher capability target)
 
   /-- Pointwise positive-index safety for heterogeneous tuples. -/
   inductive PositiveValueSafes
@@ -87,10 +75,10 @@ mutual
         (tail : PositiveListValueSafes fuel previous values element) :
         PositiveListValueSafes fuel previous (value :: values) element
 
-  /-- Built-in matchers are enumerated explicitly.  In particular there is
-  no constructor that can classify a dynamic `matcherV` merely from structural
-  value typing.  Tuple matcher fields are checked pointwise at the same
-  positive index. -/
+  /-- Positive matcher safety covers primitive matchers, products of matchers,
+  and generated user matcher closures.  Generated closures retain both their
+  total body certificate and pointwise safety of the captured environment at
+  the preceding index. -/
   inductive PositiveMatcherValueSafe
       (fuel : Nat) (previous : Value → Ty → Prop) : Value → Cap → Ty → Prop where
     | something (target : Ty) :
@@ -100,6 +88,17 @@ mutual
           values capabilities targets) :
         PositiveMatcherValueSafe fuel previous (.tuple values)
           (.prod capabilities) (.prod targets)
+    | generated
+        (value_eq : value = .matcherV environment clauses clauses)
+        (environmentLength : environment.length = environmentTypes.length)
+        (environmentSafe : ∀ (index : Nat) targetType,
+          environmentTypes[index]? = some targetType →
+            ∃ captured,
+              environment[index]? = some captured ∧
+                previous captured targetType)
+        (body : TotalRecursiveClosureBodyTyping environmentTypes
+          (.matcher clauses) (.matcher capability target)) :
+        PositiveMatcherValueSafe fuel previous value capability target
 
   /-- Pointwise safety for fields of the built-in tuple matcher. -/
   inductive PositiveMatcherValueSafes
@@ -187,6 +186,59 @@ theorem FuelValueSafe.previous
     (safe : FuelValueSafe (fuel + 1) value target) :
     FuelValueSafe fuel value target := by
   cases safe <;> assumption
+
+/-- Pointwise product safety at matcher types exposes the matcher-specific
+certificate needed by product checking conversions. -/
+theorem PositiveValueSafes.toPositiveMatcherValueSafes :
+    ∀ (duals : List Dual) values,
+      PositiveValueSafes fuel previous values (duals.map Dual.matcherType) →
+        PositiveMatcherValueSafes fuel previous values
+          (Dual.capabilities duals) (Dual.targets duals)
+  | [], _, safe => by
+      cases safe
+      exact .nil
+  | dual :: duals, _, safe => by
+      cases safe with
+      | cons head tail =>
+          cases head with
+          | matcher _ matcherSafe =>
+              exact .cons matcherSafe
+                (toPositiveMatcherValueSafes duals _ tail)
+
+/-- Fuel-indexed value safety is preserved by every normalized checking
+conversion.  The recursive call transports the cumulative lower layer; the
+positive layer either reuses a matcher certificate or collects the matcher
+certificates stored in a product. -/
+theorem FuelValueSafe.ofCheckConversion
+  (conversion : CheckConversion conversionClass source target) :
+    ∀ fuel value, FuelValueSafe fuel value source →
+      FuelValueSafe fuel value target
+  | 0, _, _ => by simp [FuelValueSafe]
+  | fuel + 1, value, safe => by
+      cases conversion with
+      | ordinary => exact safe
+      | matcherToSlot demand =>
+          cases safe with
+          | matcher lower matcherSafe =>
+              exact .matcherSlot
+                (FuelValueSafe.ofCheckConversion
+                  (.matcherToSlot demand) fuel value lower)
+                matcherSafe (.matcherToSlot demand)
+      | @productMatcher duals nonempty =>
+          cases safe with
+          | tuple lower items =>
+              exact .matcher
+                (FuelValueSafe.ofCheckConversion
+                  (.productMatcher nonempty) fuel _ lower)
+                (.tuple items.toPositiveMatcherValueSafes)
+      | @productMatcherToSlot duals consumer nonempty demand =>
+          cases safe with
+          | tuple lower items =>
+              exact .matcherSlot
+                (FuelValueSafe.ofCheckConversion
+                  (.productMatcherToSlot nonempty demand) fuel _ lower)
+                (.tuple items.toPositiveMatcherValueSafes)
+                (.matcherToSlot demand)
 
 /-- Step-indexed value safety is downward closed: a certificate at a larger
 logical index can be used at every smaller index. -/
@@ -390,13 +442,6 @@ theorem fuelValueSafe_somethingSlot (target : Ty) :
   | fuel + 1 =>
       .matcherSlot (fuelValueSafe_somethingSlot target fuel)
         (.something target) (.matcherToSlot .equal)
-
-/-- A built-in matcher certificate never classifies a dynamic user matcher
-closure. -/
-theorem PositiveMatcherValueSafe.notMatcherClosure
-    (safe : PositiveMatcherValueSafe fuel previous
-      (.matcherV environment original remaining) capability target) : False := by
-  cases safe
 
 /-- Public boundary supplied by this stage: a function value is safe at all
 indices.  Its application theorem applies only to an argument carrying the

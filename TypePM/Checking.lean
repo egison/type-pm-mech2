@@ -47,4 +47,23 @@ inductive CheckConversion : ConversionClass → Ty → Ty → Prop where
         (.prod (duals.map Dual.matcherType))
         (.slot consumer (.prod (Dual.targets duals)))
 
+namespace CheckConversion
+
+/-- A checking conversion whose target is neither a matcher nor a matcher
+slot is necessarily the ordinary identity conversion. -/
+theorem source_eq_target_of_target_not_matcher_or_slot
+    (conversion : CheckConversion conversionClass source target)
+    (targetNotMatcher : ∀ capability item,
+      target ≠ .matcher capability item)
+    (targetNotSlot : ∀ capability item,
+      target ≠ .slot capability item) :
+    source = target := by
+  cases conversion with
+  | ordinary => rfl
+  | matcherToSlot => exact (targetNotSlot _ _ rfl).elim
+  | productMatcher => exact (targetNotMatcher _ _ rfl).elim
+  | productMatcherToSlot => exact (targetNotSlot _ _ rfl).elim
+
+end CheckConversion
+
 end TypePM

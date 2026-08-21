@@ -114,7 +114,7 @@ def fixtureSupported : M4.RawOriginNoStuckSupported fixture := by
               have firstAppPlan : M4.RawOriginRequestPlan
                   (appChildFuel + 1) (.app (.var 0) (.lit 1)) (.fuel 0)
                   appInput :=
-                .appCheckStable .zero
+                .app
                   (.var (operationalFuel := appChildFuel) (position := 0)
                     (outputDemand := callDemand))
                   (.litFuel (operationalFuel := appChildFuel)
@@ -122,7 +122,7 @@ def fixtureSupported : M4.RawOriginNoStuckSupported fixture := by
               have secondAppPlan : M4.RawOriginRequestPlan
                   (appChildFuel + 1) (.app (.var 0) .something) (.fuel 0)
                   appInput :=
-                .appCheckStable .zero
+                .app
                   (.var (operationalFuel := appChildFuel) (position := 0)
                     (outputDemand := callDemand))
                   (.somethingFuel (operationalFuel := appChildFuel)

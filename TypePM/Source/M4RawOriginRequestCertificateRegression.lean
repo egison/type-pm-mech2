@@ -11,11 +11,9 @@ only the raw certificates, the generated block's explicit semantic solution,
 and the empty source/runtime environment relation.  It does not assume an
 evaluator equation or whole-program no-stuck premise.
 
-The second regression fixes the boundary of `OriginDemand.CheckStable` with
-the repository's actual Paper 1 user matcher closure.  That value is safe at
-positive fuel under matcher type and has a genuine matcher-to-slot checking
-conversion, but positive-fuel safety at the slot type is impossible.  This
-prevents a later application theorem from silently becoming unrestricted.
+The second regression checks that the repository's actual Paper 1 user
+matcher closure crosses matcher-to-slot checking conversion at positive
+fuel.  Additional product regressions cover both product conversion forms.
 -/
 
 namespace TypePM.Source.M4.RawOriginRequestCertificateRegression
@@ -91,13 +89,12 @@ theorem higherOrderElaboration (signature : FrozenSignature) :
     identityElaboration signature [] ⟨1, 0⟩, rfl, rfl⟩
 
 /-- The complete raw application certificate is composed from the two actual
-raw lambda children.  Its argument demand is check-stable because its outer
-node is a function call; its positive fuel leaves occur strictly below it. -/
+raw lambda children.  Its argument demand contains a nested positive fuel
+leaf and is transported through the solved checking conversion. -/
 theorem higherOrderCertificate (signature : FrozenSignature) :
     Nonempty (RawOriginRequestCertificate
       (higherOrderElaboration signature) 3 integerIdentityDemand) := by
-  apply RawOriginRequestCertificate.appOfCheckStable
-    (argumentStable := .plainCall)
+  apply RawOriginRequestCertificate.app
   · intro generatedFunction afterFunction generatedArgument afterArgument
       functionElaboration argumentElaboration
     exact identityCertificate functionElaboration 2 1 integerIdentityDemand
@@ -158,13 +155,6 @@ theorem higherOrderExact :
       .ok (Value.plainClosure [] identityBody) := by
   rfl
 
-/-- The constructor list itself records that positive fuel is outside the
-check-stable demand fragment. -/
-theorem positiveFuel_notCheckStable :
-    ¬ OriginDemand.CheckStable (.fuel 1) := by
-  intro stable
-  cases stable
-
 namespace PositiveFuelConversionBoundary
 
 open TypePM.Source.Paper1Programs
@@ -191,34 +181,74 @@ theorem actualMatcher_conversion :
     CheckConversion .matcherToSlot concreteListCodomain actualMatcherSlot := by
   exact .matcherToSlot .equal
 
-/-- At positive fuel the slot target is impossible for this actual user
-matcher cursor: the only slot constructor requires a built-in matcher proof. -/
-theorem actualMatcher_not_slotFuelSafe :
-    ¬ FuelValueSafe 1 actualMatcher actualMatcherSlot := by
-  intro targetSafe
-  generalize valueEq : actualMatcher = value at targetSafe
-  generalize typeEq : actualMatcherSlot = targetType at targetSafe
-  cases targetSafe <;>
-    simp_all [actualMatcherSlot, TypePM.DataTypes.bool, TypePM.DataTypes.list]
-  rename_i _ _ _ _ typing
-  rw [← valueEq] at typing
-  exact typing.notMatcherClosure
+/-- A generated matcher now retains its matcher-specific certificate in the
+slot layer, so positive fuel crosses matcher-to-slot conversion. -/
+theorem actualMatcher_slotFuelSafe :
+    FuelValueSafe 1 actualMatcher actualMatcherSlot :=
+  FuelValueSafe.ofCheckConversion actualMatcher_conversion 1 actualMatcher
+    actualMatcher_sourceFuelSafe
 
-theorem actualMatcher_not_slotOriginSafe :
-    ¬ OriginValueSafe (.fuel 1) actualMatcher actualMatcherSlot := by
-  intro safe
-  exact actualMatcher_not_slotFuelSafe safe.toFuel
+theorem actualMatcher_slotOriginSafe :
+    OriginValueSafe (.fuel 1) actualMatcher actualMatcherSlot :=
+  actualMatcher_sourceOriginSafe.ofCheckConversion actualMatcher_conversion
 
-/-- Consequently there can be no unrestricted positive-fuel transport across
-all checking conversions. -/
-theorem positiveFuel_unrestrictedConversion_false :
-    ¬ (∀ {value source expected conversionClass},
-      CheckConversion conversionClass source expected →
-      OriginValueSafe (.fuel 1) value source →
-      OriginValueSafe (.fuel 1) value expected) := by
-  intro unrestricted
-  exact actualMatcher_not_slotOriginSafe
-    (unrestricted actualMatcher_conversion actualMatcher_sourceOriginSafe)
+def actualMatcherDual : Dual :=
+  ⟨.con PatternFormer.list [.any], DataTypes.list .int⟩
+
+def actualMatcherProductSource : Ty :=
+  .prod [concreteListCodomain]
+
+def actualMatcherProductTarget : Ty :=
+  .matcher (.prod [.con PatternFormer.list [.any]])
+    (.prod [DataTypes.list .int])
+
+def actualMatcherProductSlot : Ty :=
+  .slot (.prod [.con PatternFormer.list [.any]])
+    (.prod [DataTypes.list .int])
+
+theorem actualMatcherProduct_sourceFuelSafe :
+    FuelValueSafe 1 (.tuple [actualMatcher]) actualMatcherProductSource := by
+  exact fuelValueSafe_tuple_of_environment 1 [actualMatcher]
+    [concreteListCodomain]
+    (FuelEnvironmentSafe.cons actualMatcher_sourceFuelSafe
+      (FuelEnvironmentSafe.nil 1))
+
+theorem actualMatcherProduct_conversion :
+    CheckConversion .productMatcher actualMatcherProductSource
+      actualMatcherProductTarget := by
+  simpa [actualMatcherDual, actualMatcherProductSource, concreteListCodomain,
+    actualMatcherProductTarget, Dual.matcherType, Dual.capabilities,
+    Dual.targets] using
+      (CheckConversion.productMatcher (duals := [actualMatcherDual]) (by simp))
+
+theorem actualMatcherProductToSlot_conversion :
+    CheckConversion .productMatcherToSlot actualMatcherProductSource
+      actualMatcherProductSlot := by
+  simpa [actualMatcherDual, actualMatcherProductSource, concreteListCodomain,
+    actualMatcherProductSlot, Dual.matcherType, Dual.capabilities,
+    Dual.targets] using
+      (CheckConversion.productMatcherToSlot
+        (duals := [actualMatcherDual]) (consumer := .prod
+          [.con PatternFormer.list [.any]]) (by simp) CapabilityDemand.equal)
+
+theorem actualMatcherProduct_targetFuelSafe :
+    FuelValueSafe 1 (.tuple [actualMatcher]) actualMatcherProductTarget :=
+  FuelValueSafe.ofCheckConversion actualMatcherProduct_conversion 1 _
+    actualMatcherProduct_sourceFuelSafe
+
+theorem actualMatcherProduct_slotFuelSafe :
+    FuelValueSafe 1 (.tuple [actualMatcher]) actualMatcherProductSlot :=
+  FuelValueSafe.ofCheckConversion actualMatcherProductToSlot_conversion 1 _
+    actualMatcherProduct_sourceFuelSafe
+
+/-- Arbitrary positive-fuel observations now cross all normalized checking
+conversions. -/
+theorem positiveFuel_unrestrictedConversion
+    {value source expected conversionClass}
+    (conversion : CheckConversion conversionClass source expected)
+    (safe : OriginValueSafe (.fuel 1) value source) :
+    OriginValueSafe (.fuel 1) value expected :=
+  safe.ofCheckConversion conversion
 
 end PositiveFuelConversionBoundary
 

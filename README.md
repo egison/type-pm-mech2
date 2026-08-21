@@ -368,11 +368,26 @@ pattern functionの全具体化でのinterface主要性PF6も，ここで完了�
 
 ### Paper 1：bounded DFSの5.6--5.8
 
+#### 動的定理で固定する範囲
+
+- `letE`は，まずclosedな右辺，または一般化する型変数が0個の右辺を一般producerへ含める．
+  後者を以下では**arity 0のlet**と呼ぶ．openな右辺を完全に多相化する一般規則は，この範囲を
+  閉じた後で追加する．それまではPaper 1クラス全体のscopeにこの条件を明記する．
+- user matcher値はmatcher型だけでなくmatcher slotとmatcher productへの変換後も正のfuelで
+  安全に分類する．`something`だけへ限定しない．
+- 評価結果はno-stuckだけに弱めず，certificateが指定する`OriginDemand`，すなわち値への有限な
+  構造的観測要求，に対する安全性を保持する．matcher型や関数型の結果もこの関係で扱う．
+
+この三点は今後の選択肢ではなく，Paper 1の一般接続を実装するための現在の設計判断である．
+
 #### 5.6：source導出から実行時証拠へ
 
-`M5CompletionArchitecture.ConditionalCompletionSchema`は，実際の
+`M5CompletionArchitecture.MNodeFreeBoundedDfsCompletionSchema`は，実際の
 `M4.PrincipalTypingDerivation`に添字を付けたcertificate，source contextとruntime contextの対応，
-結果型の具体化，評価・探索の安全性，closed programのno-stuckを束ねる目標interfaceである．
+結果型の具体化，評価・探索の安全性，closed programのno-stuckを束ねるPaper 1の目標interfaceである．
+環境，評価結果，探索回答の需要型を分け，式側は`OriginDemand`，すなわち有限な構造的観測要求を使う．
+探索側はcallback fuel，探索fuel，回答需要を合算せず個別にcertificateへ渡す．
+`ConditionalCompletionSchema`は，この目標を構成するための需要型に依存しない共通interfaceである．
 `PrincipalStateErasure`と`MatchingStateErasure`は，source導出から実行時証拠を作る位置を明示する．
 これらは抽象的なcertificate familyやsearch originを引数に取るため，interfaceだけを5.6完成の
 証拠とは数えない．
@@ -382,6 +397,15 @@ pattern functionの全具体化でのinterface主要性PF6も，ここで完了�
 主要導出を公開`infer`の代表導出へ結ぶが，certificateがcoherenceを尊重することを条件にする．
 残る中心課題は，任意のPaper 1主要導出から，context対応，評価certificate，matching taskの由来を
 同時に構成する帰納的な一般定理である．
+
+以下で説明する`M4LetRuntimeWorldStep`，`ProtectedPolymorphicLetFuelSafety`，
+`M4ProtectedFuelContextBridge`，`FiniteInputDemandSafety`は，現在の一般producerへ新しい証明を
+追加する経路としては**退役済み**である．既存定理と回帰は，設計上の反例や過去の条件付き境界を
+記録するために残すが，新しい5.6--5.8の証明は
+`OriginDemandSafety` → `M4OriginDemandSafety` →
+`M4RawOriginRequestCertificate` → `M4RawOriginRecursiveProducer`を使う．
+`GeneralizedOccurrenceSolution`は，arity 0の`letE`と，将来一般の多相`letE`を扱うときの
+使用箇所ごとの制約解の構成に引き続き使う．
 
 `M4LetRuntimeWorldStep`は，その帰納法で最初にcontextを変える一般構成子を固定する．任意の正の
 静的fuelを持つM4 `letE`導出を，実際に選ばれた右辺の主要closure，同じ一段小さい静的fuelを持つ
@@ -492,17 +516,16 @@ semantic solutionを選ぶ前にsource/runtime環境の各位置へ入力要求�
 二つの子の制約解，関数型の等式，実際の`CheckConversion`，すなわち生成側の型を要求型として使えることを
 示す変換証拠を取り出し，関数と引数のcertificateを合成する．
 
-applicationで型変換を自動的に越えられる引数値への観測要求は，`OriginDemand.CheckStable`として明示した．これは，
-観測しない要求，fuel 0，それらの有限な結合，外側が関数呼出しである要求からなる．正の`fuel`葉は含めない．
-実際のPaper 1 user matcher値は，matcher型ではfuel 1で安全でありmatcher-to-slot変換も持つ一方，slot型では
-fuel 1の安全性を持てないことを反例として証明したためである．型が実際に等しいapplicationでは，この制限を
-使わず任意の有限要求を合成できる．
+`PositiveMatcherValueSafe`は，built-in matcherに加えてsourceから作られたuser matcher closureを保持する．
+そのため，matcherからmatcher slot，matcher product，matcher productからslotへの4種類のchecking変換を，
+正の`fuel`葉を含む任意の`OriginDemand`について運べる．application producerは親blockが保持する実際の
+`CheckConversion`を使い，引数要求に`OriginDemand.CheckStable`という追加制限を課さない．
 
 回帰では，`(lambda x => x) (lambda x => x)`の実raw M4導出全体から，結果の関数値をさらに呼び出せることを
 表す入れ子の要求，安全性，no-stuckを構成した．十分なfuelでその関数値へ実際に成功する等式は，安全性定理より
 後に独立して検査する．ここで完了したのは，**構造的な有限観測要求の一般runtime基盤，数値raw bodyを`fuel`葉へ
-埋め込む橋，raw lambda／applicationの条件付き構成規則，非基底型を返す高階回帰**である．任意のraw M4導出を
-構文全体で再帰的に覆うproducer，正のfuel要求を特殊な型変換ごとに運ぶ証拠，closedな任意lambda断片，
+埋め込む橋，raw lambda／applicationの構成規則，非基底型を返す高階回帰，正のfuel要求を全checking conversionへ
+運ぶ証拠**である．任意のraw M4導出を構文全体で再帰的に覆うproducer，closedな任意lambda断片，
 recursive closure，matcher，探索，多相`letE`との統合はまだ主張しない．
 
 `M4RawOriginRecursiveProducer`は，これらの条件付き構成規則を，探索を行わない式の再帰的な判断へまとめる．
@@ -510,8 +533,8 @@ recursive closure，matcher，探索，多相`letE`との統合はまだ主張�
 側条件の証拠とともに，評価fuel，結果への有限な観測要求，source環境の各位置に必要な観測要求を先に固定する
 判断である．制約解，runtime値，評価結果，それらの等式は保持しない．変数，整数literal，`something`，任意長の
 tuple，通常のlambda，applicationについて，式とtuple要素を同時にたどる帰納法（相互帰納法）により，planが
-指定した入力要求と正確に一致するraw certificateを構成する．applicationは上記の
-`OriginDemand.CheckStable`を満たす引数要求に限定し，正の`fuel`葉を任意の型変換へ運べるとは主張しない．
+指定した入力要求と正確に一致するraw certificateを構成する．applicationは親blockが保持するchecking変換を
+使って，任意の有限な引数要求を生成側の型から要求型へ運ぶ．
 
 `letUniversalInput`は，同じ帰納法へ限定的な多相`letE`規則を追加する．右辺が外側の環境へ課す各観測要求を
 **Universal**，すなわち値や型に依存せず必ず満たせる`none`，`fuel 0`，またはそれらの有限な`both`に限定する．
@@ -749,7 +772,8 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 | Paper 1 source／静的回帰 | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean)，[M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) | listing inventoryのsourceと5.1--5.5 |
 | 評価・matching基盤 | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) | 関係的評価，実行可能評価，matching state |
 | Paper 1 bounded DFS実行時層 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) | 既に実行時型付けされた項の型保存・no-stuck |
-| 5.6目標interface／部分橋 | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4RuntimeBridge.lean](TypePM/Source/M4RuntimeBridge.lean)，[PolymorphicLetRuntimeBridge.lean](TypePM/Source/PolymorphicLetRuntimeBridge.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[M4LetRuntimeWorldStepRegression.lean](TypePM/Source/M4LetRuntimeWorldStepRegression.lean)，[GeneralizedOccurrenceSolution.lean](TypePM/Source/GeneralizedOccurrenceSolution.lean)，[GeneralizedOccurrenceSolutionRegression.lean](TypePM/Source/GeneralizedOccurrenceSolutionRegression.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[ProtectedPolymorphicLetFuelSafetyRegression.lean](TypePM/ProtectedPolymorphicLetFuelSafetyRegression.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[M4ProtectedFuelContextBridgeRegression.lean](TypePM/Source/M4ProtectedFuelContextBridgeRegression.lean)，[SchemeIndexedFuelSafety.lean](TypePM/SchemeIndexedFuelSafety.lean)，[SchemeIndexedFuelSafetyRegression.lean](TypePM/SchemeIndexedFuelSafetyRegression.lean)，[FiniteInputDemandSafety.lean](TypePM/FiniteInputDemandSafety.lean)，[FiniteInputDemandSafetyRegression.lean](TypePM/FiniteInputDemandSafetyRegression.lean)，[M4RawFiniteDemandCertificate.lean](TypePM/Source/M4RawFiniteDemandCertificate.lean)，[M4RawFiniteDemandCertificateRegression.lean](TypePM/Source/M4RawFiniteDemandCertificateRegression.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4OriginDemandSafety.lean](TypePM/Source/M4OriginDemandSafety.lean)，[M4OriginDemandSafetyRegression.lean](TypePM/Source/M4OriginDemandSafetyRegression.lean)，[M4RawOriginRequestCertificate.lean](TypePM/Source/M4RawOriginRequestCertificate.lean)，[M4RawOriginRequestCertificateRegression.lean](TypePM/Source/M4RawOriginRequestCertificateRegression.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4RawOriginRecursiveProducerRegression.lean](TypePM/Source/M4RawOriginRecursiveProducerRegression.lean)，[M4RawOriginLetUniversalRegression.lean](TypePM/Source/M4RawOriginLetUniversalRegression.lean) | interface，一般`letE`の静的body worldと使用箇所ごとの子の制約解，二種類の動的環境，interface輸送，有限需要法則，位置別需要を持つraw M4の4構文producerとclosed安全性，構造的な高階観測要求，raw lambda／applicationの条件付き構成規則，実際に再帰・観測する位置を六構文に限定したplanからのproducerと直接的なclosed no-stuck，RHSの外側需要がUniversalな多相`letE`のsource由来規則．一般のopen多相`letE`，残るsource構文，matcher・探索を含むクラス全体は未完 |
+| 5.6目標interface／現行producer | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[GeneralizedOccurrenceSolution.lean](TypePM/Source/GeneralizedOccurrenceSolution.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4OriginDemandSafety.lean](TypePM/Source/M4OriginDemandSafety.lean)，[M4RawOriginRequestCertificate.lean](TypePM/Source/M4RawOriginRequestCertificate.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4RawOriginLetUniversalRegression.lean](TypePM/Source/M4RawOriginLetUniversalRegression.lean) | 主要導出に添字付いた目標interface，構造的な高階観測要求，raw lambda／application／限定的多相`letE`のproducerとclosed no-stuck．一般のopen多相`letE`，残るsource構文，matcher・探索を含むクラス全体は未完 |
+| 退役済みの5.6試行経路 | [M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[FiniteInputDemandSafety.lean](TypePM/FiniteInputDemandSafety.lean)と各回帰 | 過去の条件付き境界と線形indexの反例を保存する参照資料．新しい一般producerをこの経路へ追加しない |
 | closed pair certificate | [M5ClosedPairProjectionCertificate.lean](TypePM/Source/M5ClosedPairProjectionCertificate.lean)，[M5ClosedPairProjectionCertificateRegression.lean](TypePM/Source/M5ClosedPairProjectionCertificateRegression.lean) | 5.6--5.8とcoherence輸送を満たす完了したsearch-free具体断片．Paper 1クラス全体ではない |
 | closed literal `matchAllDFS` certificate | [M5ClosedLiteralMatchAllCertificate.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificate.lean)，[M5ClosedLiteralMatchAllCertificateRegression.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificateRegression.lean) | 5.6--5.8を実際に発行された空でないbounded-DFS taskとともに満たす完了した具体断片．user matcherを含むクラス全体ではない |
 | 二添字bounded DFS | [TwoIndexMatchingSearchSafety.lean](TypePM/TwoIndexMatchingSearchSafety.lean)，[TwoIndexMatchAllSafety.lean](TypePM/TwoIndexMatchAllSafety.lean) | caller指定の環境・answer関係と局所保存則を合成する実行時層 |

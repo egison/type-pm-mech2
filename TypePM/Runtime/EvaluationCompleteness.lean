@@ -199,7 +199,10 @@ private theorem matcherAtom_hit_mono
       .ok .miss := by
   cases result <;> simp [FuelResult.map]
 
-private theorem reduceBuiltinAtom_matcherV_miss
+/-- A dispatchable pattern paired with a user-matcher closure is never owned
+by the built-in reducer, so combined reduction proceeds to matcher-clause
+dispatch. -/
+theorem reduceBuiltinAtom_matcherV_miss
     (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
     (environment matcherEnvironment : ValueEnvironment)
     (original remaining : List Source.MatcherClause)

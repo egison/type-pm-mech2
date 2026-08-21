@@ -15,38 +15,11 @@ types, runtime values, or a completed evaluator result.  The source rules in
 this file are conditional composition rules, not a claim that every raw M4
 term satisfies every possible demand.
 
-The application rule deliberately exposes its checking-conversion boundary.
-`appOfCheckStable` covers only demands whose safety crosses every current
-conversion.  Positive `fuel` leaves are not in that class: a dynamic user
-matcher can be fuel-safe at matcher type without being fuel-safe at slot type.
+The application rule transports every structural observation through the
+normalized checking conversion selected by the solved parent block.
 -/
 
 namespace TypePM.Runtime
-
-/-- One finite structural observation demand per newest-first environment
-position. -/
-abbrev OriginEnvironmentDemand := Nat → OriginDemand
-
-namespace OriginEnvironmentDemand
-
-def none : OriginEnvironmentDemand := fun _ => .none
-
-def both (left right : OriginEnvironmentDemand) : OriginEnvironmentDemand :=
-  fun position => .both (left position) (right position)
-
-/-- Embed the old per-position numeric demands as `fuel` leaves. -/
-def fuel (demand : FuelDemand) : OriginEnvironmentDemand :=
-  fun position => .fuel (demand position)
-
-/-- Drop the newest source-environment entry. -/
-def tail (demand : OriginEnvironmentDemand) : OriginEnvironmentDemand :=
-  fun position => demand (position + 1)
-
-def single (selected : Nat) (demand : OriginDemand) :
-    OriginEnvironmentDemand :=
-  fun position => if position = selected then demand else .none
-
-end OriginEnvironmentDemand
 
 /-- A runtime value satisfies one structural demand at every occurrence type
 obtained by instantiating the aligned source scheme under one fixed solution. -/
@@ -193,31 +166,21 @@ theorem bothIntro
 
 end OriginResultSafe
 
-/-- Demands whose value safety can cross every currently normalized checking
-conversion.  Positive ordinary-fuel leaves are intentionally excluded. -/
-inductive OriginDemand.CheckStable : OriginDemand → Prop where
-  | none : CheckStable .none
-  | zero : CheckStable (.fuel 0)
-  | both (left : CheckStable leftDemand) (right : CheckStable rightDemand) :
-      CheckStable (.both leftDemand rightDemand)
-  | plainCall : CheckStable (.plainCall operationalFuel argument result)
-
-/-- `CheckStable` is exactly the sufficient boundary used by raw application.
-A call demand forces the source value's outer type to be a function, so every
-special matcher conversion is impossible at that outer node. -/
+/-- Every structural value observation is preserved by normalized checking
+conversion.  Fuel leaves use the step-indexed conversion theorem; call nodes
+can only meet the ordinary conversion because their source is a function. -/
 theorem OriginValueSafe.ofCheckConversion
-    (stable : OriginDemand.CheckStable demand)
-    (conversion : CheckConversion conversionClass source expected)
-    (safe : OriginValueSafe demand value source) :
-    OriginValueSafe demand value expected := by
-  induction stable with
-  | none => simp only [OriginValueSafe]
-  | zero => simp [OriginValueSafe, FuelValueSafe]
-  | both left right leftIH rightIH =>
-      exact OriginValueSafe.both
-        (leftIH safe.bothLeft)
-        (rightIH safe.bothRight)
-  | plainCall =>
+    (conversion : CheckConversion conversionClass source expected) :
+    ∀ demand value, OriginValueSafe demand value source →
+      OriginValueSafe demand value expected
+  | .none, _, _ => by simp only [OriginValueSafe]
+  | .fuel index, value, safe =>
+      OriginValueSafe.ofFuel (safe.toFuel.ofCheckConversion conversion)
+  | .both left right, value, safe =>
+      OriginValueSafe.both
+        (OriginValueSafe.ofCheckConversion conversion left value safe.bothLeft)
+        (OriginValueSafe.ofCheckConversion conversion right value safe.bothRight)
+  | .plainCall operationalFuel argument result, _, safe => by
       simp only [OriginValueSafe] at safe ⊢
       cases safe with
       | zero =>
@@ -228,14 +191,13 @@ theorem OriginValueSafe.ofCheckConversion
           exact .closure bodySafe
 
 theorem OriginResultSafe.ofCheckConversion
-    (stable : OriginDemand.CheckStable demand)
     (conversion : CheckConversion conversionClass source expected)
     (safe : OriginResultSafe demand source result) :
     OriginResultSafe demand expected result := by
   rcases safe with timeout | ⟨value, success, valueSafe⟩
   · exact .inl timeout
   · exact .inr ⟨value, success,
-      valueSafe.ofCheckConversion stable conversion⟩
+      valueSafe.ofCheckConversion conversion⟩
 
 end TypePM.Runtime
 
@@ -544,11 +506,10 @@ theorem appWithArgumentTransport
           semantic conversionClass argumentValue argumentConversion valueSafe⟩
   exact evalFuel_app_origin functionSafe argumentSafe
 
-/-- Application for the exact demand class known to cross every current
-checking conversion. -/
-theorem appOfCheckStable
+/-- Application transports the argument observation through the exact
+checking conversion retained by the solved parent block. -/
+theorem app
     {childFuel : Nat} {argumentDemand resultDemand : OriginDemand}
-    (argumentStable : argumentDemand.CheckStable)
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.app function argument) supply generated next)
     (functionCertificate : ∀ generatedFunction afterFunction
@@ -574,7 +535,7 @@ theorem appOfCheckStable
   intro generatedFunction afterFunction generatedArgument afterArgument
     functionElaboration argumentElaboration solution semantic conversionClass
     value conversion valueSafe
-  exact valueSafe.ofCheckConversion argumentStable conversion
+  exact valueSafe.ofCheckConversion conversion
 
 /-- Equality-specialized application.  The equality callback is indexed by
 the exact parent application block and its semantic solution; an unrelated

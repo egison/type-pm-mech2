@@ -147,25 +147,25 @@ mutual
           concreteListCodomain
     | 0, _ => fuelValueSafe_zero _ _
     | fuel + 1, argumentSafe => by
-        exact .generatedMatcher
+        exact .matcher
           (listMatcherClosure_concreteFuelValueSafe argument fuel
             argumentSafe.previous)
-          rfl rfl (by
-            intro index target found
-            cases index with
-            | zero =>
-                simp at found
-                subst target
-                exact ⟨argument, rfl, argumentSafe.previous⟩
-            | succ index =>
-                cases index with
-                | zero =>
-                    simp at found
-                    subst target
-                    exact ⟨listRecursiveClosure, rfl,
-                      listRecursiveClosure_concreteFuelValueSafe fuel⟩
-                | succ index => simp at found)
-          listRecursiveClosure_concreteBodyTyping
+          (.generated rfl rfl (by
+              intro index target found
+              cases index with
+              | zero =>
+                  simp at found
+                  subst target
+                  exact ⟨argument, rfl, argumentSafe.previous⟩
+              | succ index =>
+                  cases index with
+                  | zero =>
+                      simp at found
+                      subst target
+                      exact ⟨listRecursiveClosure, rfl,
+                        listRecursiveClosure_concreteFuelValueSafe fuel⟩
+                  | succ index => simp at found)
+            listRecursiveClosure_concreteBodyTyping)
 
 end
 

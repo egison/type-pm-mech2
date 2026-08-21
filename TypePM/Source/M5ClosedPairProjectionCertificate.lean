@@ -360,10 +360,17 @@ theorem principalStateErasure : PrincipalStateErasure Supported Certificate
   subst expected
   exact .ordinary fragment principalTyping
 
+/-- The stable first-order certificate uses the traditional additive fuel
+demand.  More expressive certificate families may instead return a structural
+demand derived from their retained principal derivation. -/
+def evaluationInputDemand : EvaluationInputDemandFamily Certificate
+    fuelIndexedSafetyRelations :=
+  additiveFuelEvaluationInputDemand Certificate
+
 /-- Typed evaluation for the concrete certificate and the existing
 fuel-indexed logical relation. -/
 theorem typedEvaluation : TypedEvaluation Certificate
-    fuelIndexedSafetyRelations evalFuel := by
+    fuelIndexedSafetyRelations evaluationInputDemand evalFuel := by
   intro signature context expression principal target derivation runtimeContext
     certificate instantiation evaluationFuel resultIndex environment
     _environmentSafe
@@ -405,20 +412,22 @@ theorem closedRuntimeCertificateRespectsCoherence :
 is not a claim about arbitrary MNode-free expressions. -/
 inductive SearchOrigin :
     MatchingSearchOriginFamily BoundedDfsMatchingSearchTask
+      fuelIndexedSafetyRelations.SearchDemand
 
 def SearchCertificate :
-    MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask :=
-  fun _task _answerTypes _index => False
+    MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask
+      fuelIndexedSafetyRelations.SearchDemand :=
+  fun _task _answerTypes _callbackFuel _searchFuel _resultDemand => False
 
 theorem matchingStateErasure :
     MatchingStateErasure Certificate SearchOrigin SearchCertificate := by
   intro signature context expression principal derivation runtimeContext task
-    answerTypes inputIndex certificate origin
+    answerTypes callbackFuel searchFuel resultDemand certificate origin
   cases origin
 
-theorem typedMatchingSearch : TypedMatchingSearch SearchCertificate
-    fuelIndexedSafetyRelations runBoundedDfsMatchingSearch := by
-  intro task answerTypes callbackFuel searchFuel resultIndex certificate
+theorem typedMatchingSearch : TypedMatchingSearch fuelIndexedSafetyRelations
+    SearchCertificate runBoundedDfsMatchingSearch := by
+  intro task answerTypes callbackFuel searchFuel resultDemand certificate
   exact certificate.elim
 
 /-- The complete M5 conditional schema for this non-search fragment.  Because
@@ -427,8 +436,9 @@ two search fields are consequently vacuous.  This theorem is not evidence for
 any fragment containing `matchAll` or another search-bearing expression. -/
 theorem conditionalCompletionSchema :
     ConditionalCompletionSchema Supported Certificate
-      ClosedRuntimeContextRelation fuelIndexedSafetyRelations evalFuel
-      SearchOrigin SearchCertificate runBoundedDfsMatchingSearch :=
+      ClosedRuntimeContextRelation fuelIndexedSafetyRelations
+      evaluationInputDemand evalFuel SearchOrigin SearchCertificate
+      runBoundedDfsMatchingSearch :=
   conditionalCompletionSchema_of_components
     closedRuntimeContext_realizable principalStateErasure matchingStateErasure
       typedEvaluation typedMatchingSearch

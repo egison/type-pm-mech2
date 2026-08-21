@@ -76,28 +76,29 @@ mutual
           (.matcher listCapability listTarget)
     | 0, _ => fuelValueSafe_zero _ _
     | fuel + 1, argumentSafe => by
-        exact PositiveValueSafe.generatedMatcher
-          (environmentTypes :=
-            [capturedListDomain,
-              .fn capturedListDomain (.matcher listCapability listTarget)])
+        exact PositiveValueSafe.matcher
           (listMatcherClosure_fuelValueSafe_of_body body argument fuel
             argumentSafe.previous)
-          rfl rfl (by
-            intro index target found
-            cases index with
-            | zero =>
-                simp at found
-                subst target
-                exact ⟨argument, rfl, argumentSafe.previous⟩
-            | succ index =>
-                cases index with
-                | zero =>
-                    simp at found
-                    subst target
-                    exact ⟨listRecursiveClosure, rfl,
-                      listRecursiveClosure_fuelValueSafe_of_body body fuel⟩
-                | succ index => simp at found)
-          body
+          (.generated
+            (environmentTypes :=
+              [capturedListDomain,
+                .fn capturedListDomain (.matcher listCapability listTarget)])
+            rfl rfl (by
+              intro index target found
+              cases index with
+              | zero =>
+                  simp at found
+                  subst target
+                  exact ⟨argument, rfl, argumentSafe.previous⟩
+              | succ index =>
+                  cases index with
+                  | zero =>
+                      simp at found
+                      subst target
+                      exact ⟨listRecursiveClosure, rfl,
+                        listRecursiveClosure_fuelValueSafe_of_body body fuel⟩
+                  | succ index => simp at found)
+            body)
 
 end
 
@@ -169,38 +170,39 @@ mutual
           concreteMultisetCodomain
     | 0, _ => fuelValueSafe_zero _ _
     | fuel + 1, argumentSafe => by
-        exact PositiveValueSafe.generatedMatcher
-          (environmentTypes :=
-            [concreteMultisetDomain,
-              .fn concreteMultisetDomain concreteMultisetCodomain,
-              .fn capturedListDomain (.matcher listCapability listTarget)])
+        exact PositiveValueSafe.matcher
           (multisetMatcherClosure_fuelValueSafe_of_bodies
             listBody multisetBody argument fuel argumentSafe.previous)
-          rfl rfl (by
-            intro index target found
-            cases index with
-            | zero =>
-                simp at found
-                subst target
-                exact ⟨argument, rfl, argumentSafe.previous⟩
-            | succ index =>
-                cases index with
-                | zero =>
-                    simp at found
-                    subst target
-                    exact ⟨multisetRecursiveClosure, rfl,
-                      multisetRecursiveClosure_fuelValueSafe_of_bodies
-                        listBody multisetBody fuel⟩
-                | succ index =>
-                    cases index with
-                    | zero =>
-                        simp at found
-                        subst target
-                        exact ⟨listRecursiveClosure, rfl,
-                          listRecursiveClosure_fuelValueSafe_of_body
-                            listBody fuel⟩
-                    | succ index => simp at found)
-          multisetBody
+          (.generated
+            (environmentTypes :=
+              [concreteMultisetDomain,
+                .fn concreteMultisetDomain concreteMultisetCodomain,
+                .fn capturedListDomain (.matcher listCapability listTarget)])
+            rfl rfl (by
+              intro index target found
+              cases index with
+              | zero =>
+                  simp at found
+                  subst target
+                  exact ⟨argument, rfl, argumentSafe.previous⟩
+              | succ index =>
+                  cases index with
+                  | zero =>
+                      simp at found
+                      subst target
+                      exact ⟨multisetRecursiveClosure, rfl,
+                        multisetRecursiveClosure_fuelValueSafe_of_bodies
+                          listBody multisetBody fuel⟩
+                  | succ index =>
+                      cases index with
+                      | zero =>
+                          simp at found
+                          subst target
+                          exact ⟨listRecursiveClosure, rfl,
+                            listRecursiveClosure_fuelValueSafe_of_body
+                              listBody fuel⟩
+                      | succ index => simp at found)
+            multisetBody)
 
 end
 

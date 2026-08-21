@@ -126,15 +126,13 @@ theorem buildMatchingBranches_patternIndexedTyped
 
 /-! ## Solved M4 patterns in the built-in runtime fragment
 
-The runtime `PatternBinds` judgment currently has rules for variables,
-wildcards, value patterns, tuples, conjunction, and disjunction.  The first
-  bridge below covers the structurally direct fragment (variable, wildcard,
-  value, tuple, conjunction, and disjunction).  For conjunction it transports
-  the binding prefix produced by the left child into the right child.  For
-  disjunction it uses the solved pointwise binding equations to prove that both
-  alternatives contribute exactly the same binding types.  Constructor
-  patterns, pattern-function application, and embedded pattern parameters have
-  no `PatternBinds` rule.
+The runtime `PatternBinds` judgment has rules for the structurally direct
+fragment and for declared constructor patterns.  For conjunction the bridge
+below transports the binding prefix produced by the left child into the right
+child.  For disjunction it uses the solved pointwise binding equations to
+prove that both alternatives contribute exactly the same binding types.
+Pattern-function application and embedded pattern parameters remain outside
+this fragment.
 -/
 
 mutual
@@ -145,6 +143,9 @@ mutual
     | wild : DirectRuntimePatternSupported .wild
     | value {expression : Expr} (supported : RuntimeSupported expression) :
         DirectRuntimePatternSupported (.value expression)
+    | ctor
+        (fields : DirectRuntimePatternsSupported patterns) :
+        DirectRuntimePatternSupported (.ctor constructor patterns)
     | tuple (items : DirectRuntimePatternsSupported patterns) :
         DirectRuntimePatternSupported (.tuple patterns)
     | and
@@ -192,6 +193,51 @@ private theorem applyList_append_bridge (left right : List Ty) :
   induction left with
   | nil => rfl
   | cons head tail induction => simp [Ty.applyList, induction]
+
+/-- Solved constructor-field equations identify the runtime target types of
+the synthesized child patterns with those of the declared hole duals. -/
+private theorem Pattern.fieldEquations_runtime_targets_eq
+    (arity : actual.length = expected.length)
+    (solved : Solves solution (Pattern.fieldEquations actual expected)) :
+    Dual.targets (actual.map (RuntimeDual.apply solution)) =
+      Dual.targets (expected.map (RuntimeDual.apply solution)) := by
+  induction actual generalizing expected with
+  | nil =>
+      cases expected <;> simp at arity ⊢
+  | cons actualHead actualTail induction =>
+      cases expected with
+      | nil => simp at arity
+      | cons expectedHead expectedTail =>
+          simp only [List.length_cons, Nat.succ.injEq] at arity
+          have fieldsCons : Pattern.fieldEquations
+              (actualHead :: actualTail) (expectedHead :: expectedTail) =
+              [.ty actualHead.target expectedHead.target,
+                .cap actualHead.capability expectedHead.capability] ++
+                Pattern.fieldEquations actualTail expectedTail := rfl
+          rw [fieldsCons, solves_append] at solved
+          have headTarget :
+              actualHead.target.apply solution =
+                expectedHead.target.apply solution :=
+            solved.1 (.ty actualHead.target expectedHead.target) (by simp)
+          have tailTargets := induction arity solved.2
+          change actualHead.target.apply solution ::
+              Dual.targets (actualTail.map (RuntimeDual.apply solution)) =
+            expectedHead.target.apply solution ::
+              Dual.targets (expectedTail.map (RuntimeDual.apply solution))
+          rw [headTarget, tailTargets]
+
+private theorem patternsElaborate_duals_length
+    (elaboration : PatternsElaborate signature context arguments patterns
+      bindings supply generated next) :
+    generated.duals.length = patterns.length := by
+  refine @PatternsElaborate.rec signature context arguments
+    (fun _ _ _ _ _ _ => True)
+    (fun patterns _ _ generated _ _ =>
+      generated.duals.length = patterns.length)
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      patterns bindings supply generated next elaboration
+  all_goals intros
+  all_goals simp_all
 
 /-- Solving the pointwise equations emitted for an or-pattern makes the two
 source-ordered binding lists identical after substitution. -/
@@ -259,7 +305,43 @@ mutual
               compatible.toSignatureCompatible expressionElaboration
               expressionSemantic extendedCompatible
             exact ⟨[], .value expressionTyping, by simp⟩
-    | ctor lookup arity fieldsElaboration => cases supported
+    | ctor lookup arity fieldsElaboration =>
+        rename_i scheme generatedFields
+        cases supported with
+        | ctor fieldsSupported =>
+            have hardParts := (solves_append solution generatedFields.hard
+              (Pattern.fieldEquations generatedFields.duals
+                (scheme.instantiate supply).1.fields)).mp semantic.1
+            obtain ⟨fieldBindings, fieldsTyping, bindingsEq⟩ :=
+              TypePM.Source.MatcherTyping.PatternsElaborate.toDirectRuntimePatternsBind
+                fieldsElaboration compatible fieldsSupported
+                  ⟨hardParts.1, semantic.2⟩ contextCompatible
+            have fieldArity : generatedFields.duals.length =
+                (scheme.instantiate supply).1.fields.length := by
+              rw [patternsElaborate_duals_length fieldsElaboration, arity]
+              simp [DualScheme.instantiate]
+            have targetTypesEq := Pattern.fieldEquations_runtime_targets_eq
+              fieldArity hardParts.2
+            have appliedTargetTypesEq :
+                Ty.applyList solution (Dual.targets generatedFields.duals) =
+                  Dual.targets ((scheme.instantiate supply).1.fields.map
+                    (RuntimeDual.apply solution)) := by
+              simpa using targetTypesEq
+            rw [appliedTargetTypesEq] at fieldsTyping
+            let declaration : PatternConstructorInstance _
+                ((scheme.instantiate supply).1.fields.map
+                  (RuntimeDual.apply solution))
+                (RuntimeDual.apply solution
+                  (scheme.instantiate supply).1.result) :=
+              { signature := signature.base
+                scheme := scheme
+                supply := supply
+                solution := solution
+                declared := lookup
+                holes_eq := rfl
+                result_eq := rfl }
+            exact ⟨fieldBindings,
+              PatternBinds.ctor declaration fieldsTyping, bindingsEq⟩
     | tuple itemsElaboration =>
         cases supported with
         | tuple itemsSupported =>
@@ -522,7 +604,7 @@ theorem PatternBinds.toDirectMatchingAtomTyping
             (fun runtimeContext expression target =>
               RuntimeTyping expression target runtimeContext)
             environmentTypes bindingTypes atoms newBindings)
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ environmentTypes bindingTypes pattern
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ environmentTypes bindingTypes pattern
       targetType newBindings binds matcherValue targetValue matcherShape
       targetTyped
   · intro environmentTypes bindingTypes target matcherValue targetValue shape typed
@@ -538,6 +620,10 @@ theorem PatternBinds.toDirectMatchingAtomTyping
     cases shape with
     | somethingValue => exact .somethingValue expressionTyped targetTyped
     | productValue => exact .productValue expressionTyped targetTyped
+  · intro environmentTypes bindingTypes constructor holes result patterns
+      newBindings declaration fields fieldsInduction matcherValue targetValue shape
+      targetTyped
+    cases shape
   · intro environmentTypes bindingTypes patterns targets newBindings
       items itemsInduction matcherValues targetValue shape targetTyped
     cases shape with

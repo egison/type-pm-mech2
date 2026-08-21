@@ -36,11 +36,28 @@ def EmbeddedEvaluatorSafe
     expressionTyping environmentTypes expression target →
     TypedResult target (eval environment expression)
 
+/-- One solved use of a declared pattern constructor.  The full duals of
+the declared holes are retained because user-matcher dispatch consumes both
+their target types and their matcher capabilities. -/
+structure PatternConstructorInstance
+    (constructor : PatternCtor) (holes : List Dual) (result : Dual) where
+  signature : Signature
+  scheme : DualScheme
+  supply : Supply
+  solution : Subst
+  declared : signature.lookupPatternConstructor constructor = some scheme
+  holes_eq : holes =
+    (scheme.instantiate supply).1.fields.map (RuntimeDual.apply solution)
+  result_eq : result =
+    RuntimeDual.apply solution (scheme.instantiate supply).1.result
+
 mutual
 
   /-- Binding types contributed by the currently certified pattern fragment.
-  Constructor, embedded pattern-function, and pattern-application nodes are
-  intentionally absent until their runtime rules have preservation proofs. -/
+  Constructor fields are typed at the targets of the solved hole duals from
+  the referenced declaration.  Embedded pattern-function and
+  pattern-application nodes remain absent until their runtime rules have
+  preservation proofs. -/
   inductive PatternBinds
       (expressionTyping : EmbeddedExpressionTyping) :
       List Ty → List Ty → Pattern → Ty → List Ty → Prop where
@@ -53,6 +70,12 @@ mutual
           expression target) :
         PatternBinds expressionTyping environmentTypes bindingTypes
           (.value expression) target []
+    | ctor
+        (declaration : PatternConstructorInstance constructor holes result)
+        (fields : PatternsBind expressionTyping environmentTypes bindingTypes
+          patterns (Dual.targets holes) newBindings) :
+        PatternBinds expressionTyping environmentTypes bindingTypes
+          (.ctor constructor patterns) result.target newBindings
     | tuple
         (items : PatternsBind expressionTyping environmentTypes bindingTypes
           patterns targets newBindings) :

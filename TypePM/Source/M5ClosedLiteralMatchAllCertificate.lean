@@ -229,7 +229,8 @@ theorem principalStateErasure : PrincipalStateErasure Supported Certificate
       exact .literal rfl (.literal value)
 
 inductive SearchOrigin :
-    MatchingSearchOriginFamily BoundedDfsMatchingSearchTask where
+    MatchingSearchOriginFamily BoundedDfsMatchingSearchTask
+      fuelIndexedSafetyRelations.SearchDemand where
   | issued
       {signature : FrozenSignature} {value : Int}
       {derivation : M4.PrincipalTypingDerivation signature []
@@ -240,31 +241,33 @@ inductive SearchOrigin :
       (matcherSuccess :
         evalFuel callbackFuel [] .something = .ok .something) :
       SearchOrigin derivation [] (literalVariableTask value) [.int]
-        (callbackFuel + searchFuel + resultIndex)
+        callbackFuel searchFuel resultIndex
 
-/-- A ground-task tag produced by state erasure.  The input index is retained
-as part of the architecture boundary; the uniform two-index initial-state
-proof is reconstructed from this tag by `typedMatchingSearch`. -/
+/-- A ground-task tag produced by state erasure.  Callback fuel, DFS fuel, and
+the requested answer demand remain separate; the uniform two-index
+initial-state proof is reconstructed from this tag by `typedMatchingSearch`. -/
 inductive SearchCertificate :
-    MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask where
-  | literal (value : Int) (inputIndex : Nat) :
-      SearchCertificate (literalVariableTask value) [.int] inputIndex
+    MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask
+      fuelIndexedSafetyRelations.SearchDemand where
+  | literal (value : Int) (callbackFuel searchFuel resultIndex : Nat) :
+      SearchCertificate (literalVariableTask value) [.int]
+        callbackFuel searchFuel resultIndex
 
 theorem matchingStateErasure :
     MatchingStateErasure Certificate SearchOrigin SearchCertificate := by
   intro signature context expression principal derivation runtimeContext task
-    answerTypes inputIndex certificate origin
+    answerTypes callbackFuel searchFuel resultIndex certificate origin
   cases certificate with
   | literal contextEq fragment =>
       subst context
       cases origin
-      exact .literal _ _
+      exact .literal _ _ _ _
 
-theorem typedMatchingSearch : TypedMatchingSearch SearchCertificate
-    fuelIndexedSafetyRelations runBoundedDfsMatchingSearch := by
+theorem typedMatchingSearch : TypedMatchingSearch fuelIndexedSafetyRelations
+    SearchCertificate runBoundedDfsMatchingSearch := by
   intro task answerTypes callbackFuel searchFuel resultIndex certificate
   cases certificate with
-  | literal value inputIndex =>
+  | literal value _callbackFuel _searchFuel _resultIndex =>
       change FuelMatchingSearchResultSafe resultIndex [.int]
         (searchPatternFuel (evalFuel callbackFuel) searchFuel [] .var
           .something (.int value))
@@ -330,13 +333,11 @@ private theorem evaluated_search_safe
       subst targetValue
       subst matcherValue
       have origin : SearchOrigin derivation [] (literalVariableTask value)
-          [.int] ((operationalFuel + 1) + (operationalFuel + 1) +
-            resultIndex) :=
+          [.int] (operationalFuel + 1) (operationalFuel + 1) resultIndex :=
         .issued (operationalFuel + 1) (operationalFuel + 1) resultIndex
           rfl rfl
       have searchCertificate : SearchCertificate (literalVariableTask value)
-          [.int] ((operationalFuel + 1) + (operationalFuel + 1) +
-            resultIndex) :=
+          [.int] (operationalFuel + 1) (operationalFuel + 1) resultIndex :=
         matchingStateErasure certificate origin
       have searchSafe := typedMatchingSearch (operationalFuel + 1)
         (operationalFuel + 1) resultIndex searchCertificate
@@ -346,10 +347,16 @@ private theorem evaluated_search_safe
       simpa [runBoundedDfsMatchingSearch, literalVariableTask,
         fuelIndexedSafetyRelations] using searchSafe
 
+/-- This fixture retains its prior additive fuel discipline as a certificate
+demand policy. -/
+def evaluationInputDemand : EvaluationInputDemandFamily Certificate
+    fuelIndexedSafetyRelations :=
+  additiveFuelEvaluationInputDemand Certificate
+
 /-- The expression-side proof uses the nonempty search certificate above for
 the exact task selected by successful target and matcher evaluations. -/
 theorem typedEvaluation : TypedEvaluation Certificate
-    fuelIndexedSafetyRelations evalFuel := by
+    fuelIndexedSafetyRelations evaluationInputDemand evalFuel := by
   intro signature context expression principal target derivation runtimeContext
     certificate instantiation evaluationFuel resultIndex environment
     environmentSafe
@@ -405,8 +412,9 @@ inhabited and whose typed evaluation consumes the same bounded-DFS search
 certificate. -/
 theorem conditionalCompletionSchema :
     ConditionalCompletionSchema Supported Certificate
-      ClosedRuntimeContextRelation fuelIndexedSafetyRelations evalFuel
-      SearchOrigin SearchCertificate runBoundedDfsMatchingSearch :=
+      ClosedRuntimeContextRelation fuelIndexedSafetyRelations
+      evaluationInputDemand evalFuel SearchOrigin SearchCertificate
+      runBoundedDfsMatchingSearch :=
   conditionalCompletionSchema_of_components
     closedRuntimeContext_realizable principalStateErasure matchingStateErasure
       typedEvaluation typedMatchingSearch

@@ -61,6 +61,33 @@ inductive OriginDemand where
   | plainCall (operationalFuel : Nat)
       (argument result : OriginDemand)
 
+/-- One finite structural observation demand per newest-first runtime
+environment position.  Keeping this runtime-level definition independent of
+source schemes lets expression evaluation and matching callbacks share the
+same demand language. -/
+abbrev OriginEnvironmentDemand := Nat → OriginDemand
+
+namespace OriginEnvironmentDemand
+
+def none : OriginEnvironmentDemand := fun _ => .none
+
+def both (left right : OriginEnvironmentDemand) : OriginEnvironmentDemand :=
+  fun position => .both (left position) (right position)
+
+/-- Embed an ordinary numeric demand at every environment position. -/
+def fuel (demand : Nat → Nat) : OriginEnvironmentDemand :=
+  fun position => .fuel (demand position)
+
+/-- Drop the newest environment entry. -/
+def tail (demand : OriginEnvironmentDemand) : OriginEnvironmentDemand :=
+  fun position => demand (position + 1)
+
+def single (selected : Nat) (demand : OriginDemand) :
+    OriginEnvironmentDemand :=
+  fun position => if position = selected then demand else .none
+
+end OriginEnvironmentDemand
+
 namespace PlainCallDemand
 
 /-- Embed the numeric convenience view into the structural demand tree. -/
@@ -145,6 +172,51 @@ def OriginResultSafe (demand : OriginDemand) (target : Ty)
     (result : FuelResult Value) : Prop :=
   result = .timeout ∨
     ∃ value, result = .ok value ∧ OriginValueSafe demand value target
+
+/-- Pointwise structural safety for a monomorphic runtime environment. -/
+def OriginEnvironmentSafe (demand : OriginEnvironmentDemand)
+    (values : ValueEnvironment) (targets : List Ty) : Prop :=
+  values.length = targets.length ∧
+    ∀ (position : Nat) (target : Ty) (value : Value),
+      targets[position]? = some target →
+      values[position]? = some value →
+      OriginValueSafe (demand position) value target
+
+/-- Static data supplied for one embedded evaluation request.  Binding types
+and the outer environment remain separate even though the embedded evaluator
+observes their concatenation. -/
+abbrev FuelEmbeddedExpressionCertificateFamily :=
+  Nat → List Ty → List Ty → Source.Expr → Ty →
+    OriginDemand → OriginEnvironmentDemand → Prop
+
+/-- Demand-indexed evaluator contract used at the expression/search boundary.
+The certificate chooses the finite input and output observations before the
+runtime values are supplied.  The contract then closes the callback over the
+actual `bindings ++ environment`, exactly matching embedded expression
+evaluation inside value patterns and user-matcher clauses. -/
+def FuelEmbeddedEvaluatorSafe
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (evaluate : Nat → ValueEnvironment → Source.Expr → FuelResult Value) :
+    Prop :=
+  ∀ {operationalFuel bindingTypes environmentTypes expression target
+      outputDemand inputDemand bindings environment},
+    Certificate operationalFuel bindingTypes environmentTypes expression
+        target outputDemand inputDemand →
+      OriginEnvironmentSafe inputDemand (bindings ++ environment)
+        (bindingTypes ++ environmentTypes) →
+        OriginResultSafe outputDemand target
+          (evaluate operationalFuel (bindings ++ environment) expression)
+
+namespace OriginEnvironmentSafe
+
+theorem nil (demand : OriginEnvironmentDemand) :
+    OriginEnvironmentSafe demand [] [] := by
+  constructor
+  · rfl
+  · intro position target value targetFound
+    simp at targetFound
+
+end OriginEnvironmentSafe
 
 namespace OriginResultSafe
 

@@ -1,4 +1,5 @@
 import TypePM.Source.FullM4Completion
+import TypePM.OriginDemandSafety
 import TypePM.ValueIndexedMatchingSearchSafety
 import TypePM.Runtime.PatternFunctionNodeEvaluation
 
@@ -79,23 +80,46 @@ def RuntimeSignatureReady (signature : FrozenSignature) : Prop :=
 proof.  Keeping them in one package prevents the environment side from being
 generalized while silently retaining an incompatible result relation.
 
-Evaluator fuel, search fuel, and the logical result index are deliberately
-separate.  The two index functions compute how much input safety is required
-to obtain a requested logical result index.  This prevents evaluator fuel
-from being silently identified with the strictly decreasing index used by
-higher-order application. -/
+Evaluator fuel, search fuel, environment demand, evaluation-result demand,
+and search-answer demand are deliberately separate.  In particular, no
+numeric addition is built into this package: a certificate may select a
+position-sensitive `OriginDemand` tree, and a search certificate receives its
+two operational fuels and logical answer demand as separate arguments. -/
 structure RuntimeSafetyRelations where
-  environmentSafe : Nat → ValueEnvironment → List Ty → Prop
-  resultSafe : Nat → Ty → FuelResult Value → Prop
-  searchResultSafe : Nat → List Ty →
+  /-- Demand placed on the runtime environment before evaluation. -/
+  EnvironmentDemand : Type
+  /-- Observation requested from the value returned by evaluation. -/
+  EvaluationDemand : Type
+  /-- Pointwise observation requested from each binding answer. -/
+  SearchDemand : Type
+  environmentSafe : EnvironmentDemand → ValueEnvironment → List Ty → Prop
+  resultSafe : EvaluationDemand → Ty → FuelResult Value → Prop
+  searchResultSafe : SearchDemand → List Ty →
     FuelResult (List (List Value)) → Prop
-  evaluationInputIndex : Nat → Nat → Nat
-  searchInputIndex : Nat → Nat → Nat → Nat
-  emptyEnvironment : ∀ index, environmentSafe index [] []
-  resultNotStuck : ∀ {index target result},
-    resultSafe index target result → result.NotStuck
-  searchResultNotStuck : ∀ {index targets result},
-    searchResultSafe index targets result → result.NotStuck
+  /-- The weakest result observation used by the closed no-stuck endpoint. -/
+  noStuckDemand : EvaluationDemand
+  emptyEnvironment : ∀ demand, environmentSafe demand [] []
+  resultNotStuck : ∀ {demand target result},
+    resultSafe demand target result → result.NotStuck
+  searchResultNotStuck : ∀ {demand targets result},
+    searchResultSafe demand targets result → result.NotStuck
+
+/-- A certificate-selected environment demand.  The selection may inspect the
+exact principal derivation retained by the certificate, unlike a global
+numeric function of evaluator fuel and result index. -/
+abbrev EvaluationInputDemandFamily
+    (Certificate : RuntimeCertificateFamily)
+    (relations : RuntimeSafetyRelations) :=
+  {signature : FrozenSignature} →
+    {context : Context} →
+      {expression : Expr} →
+        {principal : Ty} →
+          {derivation : M4.PrincipalTypingDerivation signature context
+            expression principal} →
+            {runtimeContext : List Ty} →
+              Certificate derivation runtimeContext →
+                Nat → relations.EvaluationDemand →
+                  relations.EnvironmentDemand
 
 /-- Pointwise fuel-indexed safety of every binding environment returned by a
 completed matching search. -/
@@ -117,16 +141,55 @@ theorem FuelMatchingSearchResultSafe.notStuck
 safety package.  This declaration does not claim the full M4 preservation
 property for that package. -/
 def fuelIndexedSafetyRelations : RuntimeSafetyRelations where
+  EnvironmentDemand := Nat
+  EvaluationDemand := Nat
+  SearchDemand := Nat
   environmentSafe := FuelEnvironmentSafe
   resultSafe := FuelResultSafe
   searchResultSafe := FuelMatchingSearchResultSafe
-  evaluationInputIndex := fun evaluationFuel resultIndex =>
-    evaluationFuel + resultIndex
-  searchInputIndex := fun callbackFuel searchFuel resultIndex =>
-    callbackFuel + searchFuel + resultIndex
+  noStuckDemand := 0
   emptyEnvironment := FuelEnvironmentSafe.nil
   resultNotStuck := FuelResultSafe.notStuck
   searchResultNotStuck := FuelMatchingSearchResultSafe.notStuck
+
+/-- The traditional additive input index, now expressed as one certificate
+demand policy rather than built into the safety-relation package.  Concrete
+OriginDemand certificates replace this policy with their derived demand tree. -/
+def additiveFuelEvaluationInputDemand
+    (Certificate : RuntimeCertificateFamily) :
+    EvaluationInputDemandFamily Certificate fuelIndexedSafetyRelations :=
+  by
+    intro _signature _context _expression _principal _derivation
+      _runtimeContext _certificate evaluationFuel resultIndex
+    change Nat at resultIndex
+    exact evaluationFuel + resultIndex
+
+/-- Timeout or completed answers satisfying one structural demand per binding
+position. -/
+abbrev OriginMatchingSearchResultSafe
+    (demand : OriginEnvironmentDemand) (answerTypes : List Ty)
+    (result : FuelResult (List (List Value))) : Prop :=
+  MatchingSearchResultSafeWith (OriginEnvironmentSafe demand) answerTypes result
+
+theorem OriginMatchingSearchResultSafe.notStuck
+    (safe : OriginMatchingSearchResultSafe demand answerTypes result) :
+    result.NotStuck :=
+  MatchingSearchResultSafeWith.notStuck safe
+
+/-- The structural OriginDemand relations inhabit the abstract architecture.
+In particular, successful function and matcher results can now be described
+by finite observation trees instead of an unattainable uniform fuel index. -/
+def originDemandSafetyRelations : RuntimeSafetyRelations where
+  EnvironmentDemand := OriginEnvironmentDemand
+  EvaluationDemand := OriginDemand
+  SearchDemand := OriginEnvironmentDemand
+  environmentSafe := OriginEnvironmentSafe
+  resultSafe := OriginResultSafe
+  searchResultSafe := OriginMatchingSearchResultSafe
+  noStuckDemand := .none
+  emptyEnvironment := OriginEnvironmentSafe.nil
+  resultNotStuck := OriginResultSafe.notStuck
+  searchResultNotStuck := OriginMatchingSearchResultSafe.notStuck
 
 /-- **Target statement 5.6 (state erasure).**  An exact principal M4
 derivation in the selected source fragment and an explicit context
@@ -144,13 +207,16 @@ def PrincipalStateErasure
         contextRelation derivation runtimeContext →
           Certificate derivation runtimeContext
 
-/-- **Target statement 5.7 (typed evaluation).**  A runtime
-certificate transports the environment side of one safety package to its
-matching result side.  `evaluate` may be `evalFuel` or another checked
-evaluator; the statement does not hard-code the structural `TypedResult`. -/
+/-- **Target statement 5.7 (typed evaluation).**  A runtime certificate
+presents the environment demand needed for the requested result observation,
+then transports the environment side of one safety package to its matching
+result side.  `evaluate` may be `evalFuel` or another checked evaluator; the
+statement does not hard-code a numeric result index or structural
+`TypedResult`. -/
 def TypedEvaluation
     (Certificate : RuntimeCertificateFamily)
     (relations : RuntimeSafetyRelations)
+    (inputDemand : EvaluationInputDemandFamily Certificate relations)
     (evaluate : Nat → ValueEnvironment → Expr → FuelResult Value) : Prop :=
   ∀ {signature context expression principal target}
       {derivation : M4.PrincipalTypingDerivation signature context expression
@@ -158,30 +224,32 @@ def TypedEvaluation
       {runtimeContext : List Ty}
       (_certificate : Certificate derivation runtimeContext)
       (_instantiation : IsInstance principal target)
-      (evaluationFuel resultIndex : Nat) (environment : ValueEnvironment),
+      (evaluationFuel : Nat) (resultDemand : relations.EvaluationDemand)
+      (environment : ValueEnvironment),
     relations.environmentSafe
-        (relations.evaluationInputIndex evaluationFuel resultIndex)
+        (inputDemand _certificate evaluationFuel resultDemand)
         environment runtimeContext →
-      relations.resultSafe resultIndex target
+      relations.resultSafe resultDemand target
         (evaluate evaluationFuel environment expression)
 
 /-- A proof-bearing certificate for one concrete matching-search task and its
 answer binding types.  The task type may retain patterns, matcher values,
 runtime environments, and callback-specific evidence. -/
-abbrev MatchingSearchCertificateFamily (SearchTask : Type) :=
-  SearchTask → List Ty → Nat → Prop
+abbrev MatchingSearchCertificateFamily (SearchTask SearchDemand : Type) :=
+  SearchTask → List Ty → Nat → Nat → SearchDemand → Prop
 
 /-- An actual matching-search obligation originating in one principal source
 derivation and its realized runtime context.  A concrete instantiation must
 relate precisely the tasks issued by its evaluator; this relation is not a
 free-standing source of unrelated search fixtures. -/
-abbrev MatchingSearchOriginFamily (SearchTask : Type) :=
+abbrev MatchingSearchOriginFamily (SearchTask SearchDemand : Type) :=
   {signature : FrozenSignature} →
     {context : Context} →
       {expression : Expr} →
         {principal : Ty} →
           M4.PrincipalTypingDerivation signature context expression principal →
-            List Ty → SearchTask → List Ty → Nat → Prop
+            List Ty → SearchTask → List Ty → Nat → Nat →
+              SearchDemand → Prop
 
 /-- **Target statement 5.6 (matching-state erasure).**  A proof-bearing
 runtime certificate and evidence that a concrete search task originates in
@@ -191,32 +259,34 @@ preservation theorem: `SearchCertificate` is not admitted as an independent
 premise for an unrelated task. -/
 def MatchingStateErasure
     (Certificate : RuntimeCertificateFamily)
-    {SearchTask : Type}
-    (SearchOrigin : MatchingSearchOriginFamily SearchTask)
-    (SearchCertificate : MatchingSearchCertificateFamily SearchTask) : Prop :=
+    {SearchTask SearchDemand : Type}
+    (SearchOrigin : MatchingSearchOriginFamily SearchTask SearchDemand)
+    (SearchCertificate :
+      MatchingSearchCertificateFamily SearchTask SearchDemand) : Prop :=
   ∀ {signature context expression principal}
       {derivation : M4.PrincipalTypingDerivation signature context expression
         principal}
       {runtimeContext : List Ty} {task : SearchTask} {answerTypes : List Ty}
-      {inputIndex : Nat},
+      {callbackFuel searchFuel : Nat} {resultDemand : SearchDemand},
     Certificate derivation runtimeContext →
-      SearchOrigin derivation runtimeContext task answerTypes inputIndex →
-        SearchCertificate task answerTypes inputIndex
+      SearchOrigin derivation runtimeContext task answerTypes callbackFuel
+          searchFuel resultDemand →
+        SearchCertificate task answerTypes callbackFuel searchFuel resultDemand
 
 /-- **Target statement 5.7 (matching and finite search).**  A certified search
 task returns either timeout or answers satisfying the search component of the
 same safety package used by expression evaluation. -/
 def TypedMatchingSearch
     {SearchTask : Type}
-    (SearchCertificate : MatchingSearchCertificateFamily SearchTask)
     (relations : RuntimeSafetyRelations)
+    (SearchCertificate : MatchingSearchCertificateFamily SearchTask
+      relations.SearchDemand)
     (runSearch : Nat → Nat → SearchTask →
       FuelResult (List (List Value))) : Prop :=
   ∀ {task answerTypes},
-    ∀ callbackFuel searchFuel resultIndex,
-      SearchCertificate task answerTypes
-          (relations.searchInputIndex callbackFuel searchFuel resultIndex) →
-        relations.searchResultSafe resultIndex answerTypes
+    ∀ callbackFuel searchFuel resultDemand,
+      SearchCertificate task answerTypes callbackFuel searchFuel resultDemand →
+        relations.searchResultSafe resultDemand answerTypes
           (runSearch callbackFuel searchFuel task)
 
 /-- The three search-side boundaries compose: principal erasure constructs
@@ -229,8 +299,10 @@ theorem matchingSearchSafe_of_erasure
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
     {SearchTask : Type}
-    {SearchOrigin : MatchingSearchOriginFamily SearchTask}
-    {SearchCertificate : MatchingSearchCertificateFamily SearchTask}
+    {SearchOrigin : MatchingSearchOriginFamily SearchTask
+      relations.SearchDemand}
+    {SearchCertificate : MatchingSearchCertificateFamily SearchTask
+      relations.SearchDemand}
     {runSearch : Nat → Nat → SearchTask →
       FuelResult (List (List Value))}
     (principalErasure :
@@ -238,7 +310,7 @@ theorem matchingSearchSafe_of_erasure
     (matchingErasure :
       MatchingStateErasure Certificate SearchOrigin SearchCertificate)
     (typedSearch :
-      TypedMatchingSearch SearchCertificate relations runSearch)
+      TypedMatchingSearch relations SearchCertificate runSearch)
     {signature context expression principal}
     (derivation : M4.PrincipalTypingDerivation signature context expression
       principal)
@@ -247,18 +319,18 @@ theorem matchingSearchSafe_of_erasure
     (inScope : scope expression)
     (contextRealization : contextRelation derivation runtimeContext)
     {task : SearchTask} {answerTypes : List Ty}
-    (callbackFuel searchFuel resultIndex : Nat)
+    (callbackFuel searchFuel : Nat) (resultDemand : relations.SearchDemand)
     (origin : SearchOrigin derivation runtimeContext task answerTypes
-      (relations.searchInputIndex callbackFuel searchFuel resultIndex)) :
-    relations.searchResultSafe resultIndex answerTypes
+      callbackFuel searchFuel resultDemand) :
+    relations.searchResultSafe resultDemand answerTypes
       (runSearch callbackFuel searchFuel task) := by
   have runtimeCertificate : Certificate derivation runtimeContext :=
     principalErasure derivation runtimeContext signatureReady inScope
       contextRealization
   have searchCertificate : SearchCertificate task answerTypes
-      (relations.searchInputIndex callbackFuel searchFuel resultIndex) :=
+      callbackFuel searchFuel resultDemand :=
     matchingErasure runtimeCertificate origin
-  exact typedSearch callbackFuel searchFuel resultIndex searchCertificate
+  exact typedSearch callbackFuel searchFuel resultDemand searchCertificate
 
 /-- The context relation has a canonical realization for every closed
 principal derivation.  This is the only context fact needed to derive 5.8. -/
@@ -297,10 +369,12 @@ theorem closedNoStuck_of_principalStateErasure_and_typedEvaluation
     {Certificate : RuntimeCertificateFamily}
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
+    {inputDemand : EvaluationInputDemandFamily Certificate relations}
     {evaluate : Nat → ValueEnvironment → Expr → FuelResult Value}
     (closedContext : ClosedContextRealizable contextRelation)
     (stateErasure : PrincipalStateErasure scope Certificate contextRelation)
-    (typedEvaluation : TypedEvaluation Certificate relations evaluate) :
+    (typedEvaluation :
+      TypedEvaluation Certificate relations inputDemand evaluate) :
     ClosedNoStuck scope evaluate := by
   unfold ClosedNoStuck
   intro signature expression target signatureReady inScope sourceTyping fuel
@@ -312,9 +386,9 @@ theorem closedNoStuck_of_principalStateErasure_and_typedEvaluation
     stateErasure selectedDerivation [] signatureReady inScope
       contextRealization
   exact relations.resultNotStuck
-    (typedEvaluation certificate instantiation fuel 0 []
+    (typedEvaluation certificate instantiation fuel relations.noStuckDemand []
       (relations.emptyEnvironment
-        (relations.evaluationInputIndex fuel 0)))
+        (inputDemand certificate fuel relations.noStuckDemand)))
 
 /-- Machine-checked architecture boundary for one evaluator lane.  The final
 no-stuck conjunct is retained explicitly because it is the user-facing result,
@@ -325,17 +399,20 @@ def ConditionalCompletionSchema
     (Certificate : RuntimeCertificateFamily)
     (contextRelation : RuntimeContextRelation)
     (relations : RuntimeSafetyRelations)
+    (inputDemand : EvaluationInputDemandFamily Certificate relations)
     (evaluate : Nat → ValueEnvironment → Expr → FuelResult Value)
     {SearchTask : Type}
-    (SearchOrigin : MatchingSearchOriginFamily SearchTask)
-    (SearchCertificate : MatchingSearchCertificateFamily SearchTask)
+    (SearchOrigin : MatchingSearchOriginFamily SearchTask
+      relations.SearchDemand)
+    (SearchCertificate : MatchingSearchCertificateFamily SearchTask
+      relations.SearchDemand)
     (runSearch : Nat → Nat → SearchTask →
       FuelResult (List (List Value))) : Prop :=
   ClosedContextRealizable contextRelation ∧
     PrincipalStateErasure scope Certificate contextRelation ∧
       MatchingStateErasure Certificate SearchOrigin SearchCertificate ∧
-        TypedEvaluation Certificate relations evaluate ∧
-          TypedMatchingSearch SearchCertificate relations runSearch ∧
+        TypedEvaluation Certificate relations inputDemand evaluate ∧
+          TypedMatchingSearch relations SearchCertificate runSearch ∧
             ClosedNoStuck scope evaluate
 
 /-- Packaging theorem for a future concrete certificate family. -/
@@ -344,19 +421,24 @@ theorem conditionalCompletionSchema_of_components
     {Certificate : RuntimeCertificateFamily}
     {contextRelation : RuntimeContextRelation}
     {relations : RuntimeSafetyRelations}
+    {inputDemand : EvaluationInputDemandFamily Certificate relations}
     {evaluate : Nat → ValueEnvironment → Expr → FuelResult Value}
     {SearchTask : Type}
-    {SearchOrigin : MatchingSearchOriginFamily SearchTask}
-    {SearchCertificate : MatchingSearchCertificateFamily SearchTask}
+    {SearchOrigin : MatchingSearchOriginFamily SearchTask
+      relations.SearchDemand}
+    {SearchCertificate : MatchingSearchCertificateFamily SearchTask
+      relations.SearchDemand}
     {runSearch : Nat → Nat → SearchTask → FuelResult (List (List Value))}
     (closedContext : ClosedContextRealizable contextRelation)
     (stateErasure : PrincipalStateErasure scope Certificate contextRelation)
     (matchingErasure :
       MatchingStateErasure Certificate SearchOrigin SearchCertificate)
-    (typedEvaluation : TypedEvaluation Certificate relations evaluate)
-    (typedSearch : TypedMatchingSearch SearchCertificate relations runSearch) :
+    (typedEvaluation :
+      TypedEvaluation Certificate relations inputDemand evaluate)
+    (typedSearch :
+      TypedMatchingSearch relations SearchCertificate runSearch) :
     ConditionalCompletionSchema scope Certificate contextRelation relations
-      evaluate SearchOrigin SearchCertificate runSearch :=
+      inputDemand evaluate SearchOrigin SearchCertificate runSearch :=
   ⟨closedContext, stateErasure, matchingErasure, typedEvaluation, typedSearch,
     closedNoStuck_of_principalStateErasure_and_typedEvaluation closedContext
       stateErasure typedEvaluation⟩
@@ -382,6 +464,8 @@ def runBoundedDfsMatchingSearch
 expression scope is exactly the recursively MNode-free fragment evaluated by
 `evalFuel`.  Its search lane is the current `searchPatternFuel` callback above;
 `SearchOrigin` must identify the concrete DFS tasks issued by that evaluation.
+Environment inputs and successful expression results use structural
+`OriginDemand`; matching-answer demands are likewise position-sensitive.
 This schema proves finite bounded-search safety only.  A fair `matchAll` needs
 the separate binary-reduction-tree prefix semantics and cannot be obtained by
 relabeling this finite-list result.  MNode-bearing patterns instead require the checked
@@ -390,11 +474,15 @@ evidence, and are not hidden in this schema.  The certificate families remain
 parameters until their full M4 instances are proved. -/
 def MNodeFreeBoundedDfsCompletionSchema
     (Certificate : RuntimeCertificateFamily)
-    (SearchOrigin : MatchingSearchOriginFamily BoundedDfsMatchingSearchTask)
+    (inputDemand : EvaluationInputDemandFamily Certificate
+      originDemandSafetyRelations)
+    (SearchOrigin : MatchingSearchOriginFamily BoundedDfsMatchingSearchTask
+      originDemandSafetyRelations.SearchDemand)
     (SearchCertificate :
-      MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask) : Prop :=
+      MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask
+        originDemandSafetyRelations.SearchDemand) : Prop :=
   ConditionalCompletionSchema Expr.MNodeFree Certificate
-    MonomorphicRuntimeContextRelation fuelIndexedSafetyRelations evalFuel
-      SearchOrigin SearchCertificate runBoundedDfsMatchingSearch
+    MonomorphicRuntimeContextRelation originDemandSafetyRelations inputDemand
+      evalFuel SearchOrigin SearchCertificate runBoundedDfsMatchingSearch
 
 end TypePM.Source.M5CompletionArchitecture

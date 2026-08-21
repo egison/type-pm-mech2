@@ -67,10 +67,9 @@ evaluation.  Its callback fuel, DFS fuel, and logical result index remain
 separate. -/
 theorem concreteSearchOrigin :
     SearchOrigin canonicalDerivation [] (literalVariableTask 7) [.int]
-      (fuelIndexedSafetyRelations.searchInputIndex 2 2 1) := by
-  change SearchOrigin canonicalDerivation [] (literalVariableTask 7) [.int]
-    (2 + 2 + 1)
-  exact .issued 2 2 1 rfl rfl
+      2 2 (show fuelIndexedSafetyRelations.SearchDemand from (1 : Nat)) := by
+  exact .issued 2 2
+    (show fuelIndexedSafetyRelations.SearchDemand from (1 : Nat)) rfl rfl
 
 /-- The nonempty search side of the schema is exercised independently of any
 completed-search equation. -/
@@ -88,7 +87,8 @@ theorem concreteSearchSafe :
     (runSearch := runBoundedDfsMatchingSearch)
     principalStateErasure matchingStateErasure typedMatchingSearch
     canonicalDerivation [] signatureReady expression_supported ⟨rfl, rfl⟩
-    2 2 1 concreteSearchOrigin
+    2 2 (show fuelIndexedSafetyRelations.SearchDemand from (1 : Nat))
+      concreteSearchOrigin
 
 theorem concreteSearchNeverStuck :
     (runBoundedDfsMatchingSearch 2 2

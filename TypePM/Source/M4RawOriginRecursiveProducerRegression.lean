@@ -102,7 +102,7 @@ def fixtureIdentityApplicationPlan : ∀ operationalFuel,
         fixtureIdentityFunctionPlan childFuel
       obtain ⟨argumentInput, argumentPlan⟩ := fixturePayloadPlan childFuel
       exact ⟨OriginEnvironmentDemand.both functionInput argumentInput,
-        .appCheckStable .zero functionPlan argumentPlan⟩
+        .app functionPlan argumentPlan⟩
 
 /-- `fuel 0` adds no value-shape requirement, but retains the inner
 application's no-stuck certificate for use as the outer argument. -/
@@ -139,7 +139,7 @@ def fixtureSupported : M4.RawOriginNoStuckSupported fixture := by
       obtain ⟨argumentInput, argumentPlan⟩ :=
         fixtureIdentityApplicationArgumentPlan childFuel
       exact ⟨OriginEnvironmentDemand.both functionInput argumentInput,
-        .appCheckStable .zero functionPlan argumentPlan⟩
+        .app functionPlan argumentPlan⟩
 
 private def fixtureGenerated : Generated :=
   { target := .var ⟨7⟩
