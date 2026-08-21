@@ -44,4 +44,19 @@ theorem closureBodyMatch_trace_environment :
       [⟨1, [.int 7], .wild, .something, .int 7⟩] := by
   rfl
 
+def openVariableClosureBodyMatch : Expr :=
+  .app (.var 0) (.lit 7)
+
+/-- An open expression whose syntax contains no matching form can still emit
+a search event when its runtime environment supplies a closure with a matching
+body.  Consequently, open-context trace completeness needs a provenance-aware
+value/environment relation; expression syntax alone is insufficient. -/
+theorem openVariableClosureBodyMatch_trace_from_environment :
+    evalFuelTrace 4
+        [.plainClosure []
+          (.matchAll (.var 0) .something .wild (.lit 2))]
+        openVariableClosureBodyMatch =
+      [⟨1, [.int 7], .wild, .something, .int 7⟩] := by
+  rfl
+
 end TypePM.Runtime.EvalFuelTracedRegression

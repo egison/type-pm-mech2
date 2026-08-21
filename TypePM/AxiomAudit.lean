@@ -291,6 +291,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.directMatch_trace
 #assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.firstMatch_trace_stops_at_selected_arm
 #assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.closureBodyMatch_trace_environment
+#assert_allowed_axioms TypePM.Runtime.EvalFuelTracedRegression.openVariableClosureBodyMatch_trace_from_environment
 #assert_allowed_axioms TypePM.PatternCtor.canonical_pairwise_distinct
 #assert_allowed_axioms TypePM.NamesRegression.nil_spellings_agree
 #assert_allowed_axioms TypePM.PrimOp.all_pairwise_distinct
