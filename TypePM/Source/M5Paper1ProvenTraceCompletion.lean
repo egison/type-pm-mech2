@@ -225,7 +225,7 @@ theorem planScope_evalFuelTrace_eq_nil
       exact evalFuelTrace_if_eq_nil conditionIH thenIH elseIH
 
 /-- Every expression admitted by the currently proved scope has an empty
-direct evaluator search trace. -/
+evaluator search trace. -/
 theorem provenRuntimeScope_evalFuelTrace_eq_nil
     {derivation : M4.PrincipalTypingDerivation signature context expression
       principal}

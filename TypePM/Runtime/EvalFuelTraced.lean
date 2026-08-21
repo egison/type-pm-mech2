@@ -5,8 +5,9 @@ import TypePM.Runtime.EvalFuel
 
 `evalFuelTraced` is a conservative extension of `evalFuel`.  Its first
 projection is definitionally the existing evaluator result; its second
-projection records every bounded DFS call issued directly by expression
-evaluation, in execution order.
+projection records every bounded DFS call issued by expression evaluation,
+including calls made by evaluator callbacks inside matching search, in
+execution order.
 
 The trace event deliberately carries no `Pattern.MNodeFree` proof.  Runtime
 evaluation accepts the complete source syntax and cannot manufacture a
@@ -14,14 +15,14 @@ static fragment proof.  The source-side origin bridge combines an event with
 the retained M4 pattern evidence before constructing
 `BoundedDfsMatchingSearchTask`.
 
-This first trace boundary records evaluator-level searches.  Matching-search
-callbacks still use the first projection, so searches issued inside matcher
-callback evaluation require the later traced-search generalization.
+The matching evaluator itself is unchanged.  A parallel trace interpreter
+mirrors its control flow and concatenates the traces of exactly those
+callbacks that were reached before success, timeout, or stuck.
 -/
 
 namespace TypePM.Runtime
 
-/-- Runtime data present at every direct `searchPatternFuel` invocation. -/
+/-- Runtime data present at every `searchPatternFuel` invocation. -/
 structure MatchingSearchTraceEvent where
   fuel : Nat
   environment : ValueEnvironment
@@ -54,6 +55,149 @@ def evalPrimitiveTrace
       | none => []
   | _, _ => []
 
+/-- Trace a source-ordered first-hit dispatch.  A normal miss advances to the
+tail; a hit, timeout, or stuck result stops after the reached candidate. -/
+def firstHitTrace
+    (run : Candidate → FuelResult (DispatchResult Result))
+    (trace : Candidate → List MatchingSearchTraceEvent) :
+    List Candidate → List MatchingSearchTraceEvent
+  | [] => []
+  | candidate :: rest =>
+      let headTrace := trace candidate
+      match run candidate with
+      | .ok .miss => headTrace ++ firstHitTrace run trace rest
+      | .ok (.hit _) | .timeout | .stuck => headTrace
+
+/-- Callback trace of the syntax-directed built-in atom reducer. -/
+def reduceBuiltinAtomTrace
+    (_evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (environment : ValueEnvironment) (atom : MatchingAtom) :
+    List MatchingSearchTraceEvent :=
+  match atom.pattern, atom.matcher, atom.target with
+  | .value expression, .something, _ => trace environment expression
+  | _, _, _ => []
+
+/-- Callback trace of one reached user-matcher arm. -/
+def tryMatcherArmTrace
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (matcherEnvironment captureValues : ValueEnvironment)
+    (holes : List Source.Pattern) (nextMatchers : Source.Expr)
+    (target : Value) : Source.MatcherArm → List MatchingSearchTraceEvent
+  | .mk header body =>
+      match matchValueDataPattern header target with
+      | none => []
+      | some dataValues =>
+          let bodyEnvironment :=
+            dataValues ++ captureValues ++ matcherEnvironment
+          let bodyTrace := trace bodyEnvironment body
+          match evaluate bodyEnvironment body with
+          | .ok decompositionValue =>
+              match decodeDecompositions holes.length decompositionValue with
+              | none => bodyTrace
+              | some _ =>
+                  bodyTrace ++ trace (captureValues ++ matcherEnvironment)
+                    nextMatchers
+          | .timeout | .stuck => bodyTrace
+
+/-- Callback trace of one reached matcher clause. -/
+def tryMatcherClauseTrace
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (atomEnvironment matcherEnvironment : ValueEnvironment)
+    (pattern : Source.Pattern) (target : Value) :
+    Source.MatcherClause → List MatchingSearchTraceEvent
+  | .mk header nextMatchers arms =>
+      match inspectPatternPattern header pattern with
+      | none => []
+      | some dispatch =>
+          let capturesTrace := traceTraverse (evaluate atomEnvironment)
+            (trace atomEnvironment) dispatch.captures
+          match FuelResult.traverse (evaluate atomEnvironment)
+              dispatch.captures with
+          | .ok captureValues =>
+              capturesTrace ++ firstHitTrace
+                (tryMatcherArm evaluate matcherEnvironment captureValues
+                  dispatch.holes nextMatchers target)
+                (tryMatcherArmTrace evaluate trace matcherEnvironment
+                  captureValues dispatch.holes nextMatchers target)
+                arms
+          | .timeout | .stuck => capturesTrace
+
+/-- Callback trace of source-ordered user-matcher clause dispatch. -/
+def reduceMatcherAtomTrace
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (atomEnvironment : ValueEnvironment) (atom : MatchingAtom) :
+    List MatchingSearchTraceEvent :=
+  match atom.matcher with
+  | .matcherV matcherEnvironment _ remaining =>
+      firstHitTrace
+        (tryMatcherClause evaluate atomEnvironment matcherEnvironment
+          atom.pattern atom.target)
+        (tryMatcherClauseTrace evaluate trace atomEnvironment
+          matcherEnvironment atom.pattern atom.target)
+        remaining
+  | _ => []
+
+/-- Callback trace of the built-in-before-user combined atom reducer. -/
+def evaluationAtomReducerTrace
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (environment : ValueEnvironment) (atom : MatchingAtom) :
+    List MatchingSearchTraceEvent :=
+  let builtinTrace := reduceBuiltinAtomTrace evaluate trace environment atom
+  match reduceBuiltinAtom evaluate environment atom with
+  | .ok .miss =>
+      builtinTrace ++ reduceMatcherAtomTrace evaluate trace environment atom
+  | .ok (.hit _) | .timeout | .stuck => builtinTrace
+
+/-- Callback trace emitted while stepping one matching state. -/
+def stepMatchingStateTrace
+    (reduceTrace : ValueEnvironment → MatchingAtom →
+      List MatchingSearchTraceEvent)
+    (state : MatchingState) : List MatchingSearchTraceEvent :=
+  match state.work with
+  | [] => []
+  | atom :: _ => reduceTrace (state.bindings ++ state.environment) atom
+
+/-- Trace the exact prefix visited by bounded ordered depth-first search. -/
+def depthFirstFuelTrace
+    (step : State → FuelResult (SearchStep State Answer))
+    (stepTrace : State → List MatchingSearchTraceEvent) :
+    Nat → List State → List MatchingSearchTraceEvent
+  | _, [] => []
+  | 0, _ :: _ => []
+  | fuel + 1, state :: rest =>
+      let headTrace := stepTrace state
+      match step state with
+      | .ok (.yield _) =>
+          headTrace ++ depthFirstFuelTrace step stepTrace fuel rest
+      | .ok (.expand successors) =>
+          headTrace ++ depthFirstFuelTrace step stepTrace fuel
+            (successors ++ rest)
+      | .timeout | .stuck => headTrace
+
+/-- All evaluator-callback traces emitted by one bounded matching search. -/
+def searchPatternFuelTrace
+    (evaluate : ValueEnvironment → Source.Expr → FuelResult Value)
+    (trace : ValueEnvironment → Source.Expr →
+      List MatchingSearchTraceEvent)
+    (fuel : Nat) (environment : ValueEnvironment)
+    (pattern : Source.Pattern) (matcher target : Value) :
+    List MatchingSearchTraceEvent :=
+  let reduce := evaluationAtomReducer evaluate
+  let reduceTrace := evaluationAtomReducerTrace evaluate trace
+  depthFirstFuelTrace (stepMatchingState reduce)
+    (stepMatchingStateTrace reduceTrace) fuel
+    [⟨[⟨pattern, matcher, target⟩], environment, []⟩]
+
 /-- Trace the source-ordered arm searches of `matchFirst`.  Every reached arm
 is recorded before its search is run; only an empty result advances to the
 next arm. -/
@@ -69,18 +213,20 @@ def evalMatchFirstArmsFuelTrace
   | arm :: rest, fallback =>
       let event : MatchingSearchTraceEvent :=
         ⟨fuel, environment, arm.pattern, matcher, target⟩
-      event ::
+      let searchTrace := searchPatternFuelTrace evaluate trace fuel environment
+        arm.pattern matcher target
+      event :: (searchTrace ++
         match searchPatternFuel evaluate fuel environment arm.pattern matcher
             target with
         | .ok [] =>
             evalMatchFirstArmsFuelTrace evaluate trace fuel environment target
               matcher rest fallback
         | .ok (bindings :: _) => trace (bindings ++ environment) arm.body
-        | .timeout | .stuck => []
+        | .timeout | .stuck => [])
 
 mutual
 
-  /-- The direct matching-search trace of fuel-bounded evaluation. -/
+  /-- The complete matching-search trace of fuel-bounded evaluation. -/
   def evalFuelTrace : Nat → ValueEnvironment → Source.Expr →
       List MatchingSearchTraceEvent
     | 0, _, _ => []
@@ -138,7 +284,11 @@ mutual
                 | .ok matcherValue =>
                     let event : MatchingSearchTraceEvent :=
                       ⟨fuel, environment, pattern, matcherValue, targetValue⟩
-                    let tracePrefix := targetTrace ++ matcherTrace ++ [event]
+                    let searchTrace := searchPatternFuelTrace (evalFuel fuel)
+                      (evalFuelTrace fuel) fuel environment pattern matcherValue
+                      targetValue
+                    let tracePrefix := targetTrace ++ matcherTrace ++
+                      [event] ++ searchTrace
                     match searchPatternFuel (evalFuel fuel) fuel environment
                         pattern matcherValue targetValue with
                     | .ok bindingGroups =>

@@ -15,6 +15,10 @@ open TypePM.Source
 def directMatch : Expr :=
   .matchAll (.lit 1) .something .wild (.lit 2)
 
+private def sourceList : List Expr → Expr
+  | [] => .ctor DataCtor.nil []
+  | head :: tail => .ctor DataCtor.cons [head, sourceList tail]
+
 theorem directMatch_result_projection :
     (evalFuelTraced 2 [] directMatch).1 = evalFuel 2 [] directMatch :=
   rfl
@@ -57,6 +61,19 @@ theorem openVariableClosureBodyMatch_trace_from_environment :
           (.matchAll (.var 0) .something .wild (.lit 2))]
         openVariableClosureBodyMatch =
       [⟨1, [.int 7], .wild, .something, .int 7⟩] := by
+  rfl
+
+def nestedValuePatternMatch : Expr :=
+  .matchAll (sourceList [.lit 2]) .something (.value directMatch) (.lit 9)
+
+/-- A match run by the evaluator callback inside matching search is retained
+after the outer search event.  The inner event has its actual smaller callback
+fuel; no common-fuel approximation is written into the trace. -/
+theorem nestedValuePatternMatch_propagates_callback_trace :
+    evalFuelTrace 4 [] nestedValuePatternMatch =
+      [⟨3, [], .value directMatch, .something,
+          Value.buildList [.int 2]⟩,
+        ⟨2, [], .wild, .something, .int 1⟩] := by
   rfl
 
 end TypePM.Runtime.EvalFuelTracedRegression

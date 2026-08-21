@@ -577,9 +577,10 @@ solution選択後に作り直す必要がない．これをraw planへ接続す�
 adapterを内部部品として残しているが，公開のtotal producerの前提にはしていない．
 
 探索taskの由来を空虚でない形に固定する新しい入口として，`evalFuelTraced`は既存`evalFuel`の結果と，
-式評価器が直接発行したbounded-DFS呼出しの実行順traceを返す．結果射影は定義上`evalFuel`と一致し，
-`letE`／closure body／`matchFirst`の選択枝では実際のruntime環境をtraceへ記録する．現段階では探索器内部の
-評価callbackは結果射影だけを使うため，callback内部でさらに発行される探索を同じtraceへ集約する一般化は未完である．
+式評価から発行されたbounded-DFS呼出しの実行順traceを返す．結果射影は定義上`evalFuel`と一致し，
+`letE`／closure body／`matchFirst`の選択枝では実際のruntime環境をtraceへ記録する．探索器内部で実行される
+value pattern／capture／matcher arm body／next matcherの評価traceも，探索の実行順に外側traceへ連結する．
+回帰はvalue pattern内の内側`matchAll`が外側eventの後ろに，その実際のより小さいfuelとともに残ることを固定する．
 `EvaluationTraceOriginComplete`は，安全なcertificateを持つ評価traceの全eventにanswer型と結果需要が存在する
 ことを明示的に要求する．したがって空のorigin関係では最終schemaを満たせない．source側の統合帰納は，
 この全event注釈と，注釈から二添字search certificateを作る局所保存則の両方を供給する．
