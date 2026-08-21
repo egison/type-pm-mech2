@@ -24,9 +24,11 @@ conclusion has not yet been proved for arbitrary higher-order evaluation.
 
 The architecture is parameterized by an evaluator because ordinary
 `evalFuel` and the checked pattern-function-node evaluator are different
-semantic lanes.  `OrdinaryFuelIndexedCompletionSchema` below fixes the
+semantic lanes.  `MNodeFreeBoundedDfsCompletionSchema` below fixes the
 expression lane to MNode-free expressions and `evalFuel`, and fixes its search
-lane to `searchPatternFuel` with the same ordinary evaluator callback.  A
+lane to the current bounded depth-first `searchPatternFuel` callback.  This is
+the `match-all-dfs` lane, not the fair lazy `match-all` semantics of the APLAS
+2018 reduction tree.  A
 checked pattern-function completion boundary must additionally retain frozen
 definitions and their agreement proof; it is intentionally not claimed here.
 -/
@@ -359,37 +361,40 @@ theorem conditionalCompletionSchema_of_components
     closedNoStuck_of_principalStateErasure_and_typedEvaluation closedContext
       stateErasure typedEvaluation⟩
 
-/-- Runtime input of one ordinary `searchPatternFuel` call. -/
-structure OrdinaryMatchingSearchTask where
+/-- Runtime input of one current bounded depth-first `searchPatternFuel`
+call. -/
+structure BoundedDfsMatchingSearchTask where
   environment : ValueEnvironment
   pattern : Pattern
   patternMNodeFree : pattern.MNodeFree
   matcher : Value
   target : Value
 
-/-- The ordinary search lane uses `evalFuel` at the independently selected
-callback fuel and the generic bounded depth-first search fuel. -/
-def runOrdinaryMatchingSearch
-    (callbackFuel searchFuel : Nat) (task : OrdinaryMatchingSearchTask) :
+/-- The bounded DFS lane uses `evalFuel` at the independently selected
+callback fuel and the generic depth-first search bound. -/
+def runBoundedDfsMatchingSearch
+    (callbackFuel searchFuel : Nat) (task : BoundedDfsMatchingSearchTask) :
     FuelResult (List (List Value)) :=
   searchPatternFuel (evalFuel callbackFuel) searchFuel task.environment
     task.pattern task.matcher task.target
 
-/-- Ordinary-expression specialization of the architecture.  Its expression
-scope is exactly the recursively MNode-free fragment evaluated by `evalFuel`.
-Its search lane is the actual ordinary `searchPatternFuel` callback above;
-`SearchOrigin` must identify the concrete search tasks issued by that
-evaluation.  MNode-bearing patterns instead require the checked
+/-- MNode-free bounded-DFS specialization of the architecture.  Its
+expression scope is exactly the recursively MNode-free fragment evaluated by
+`evalFuel`.  Its search lane is the current `searchPatternFuel` callback above;
+`SearchOrigin` must identify the concrete DFS tasks issued by that evaluation.
+This schema proves finite bounded-search safety only.  A fair `matchAll` needs
+the separate binary-reduction-tree prefix semantics and cannot be obtained by
+relabeling this finite-list result.  MNode-bearing patterns instead require the checked
 pattern-function evaluator together with frozen definitions and agreement
 evidence, and are not hidden in this schema.  The certificate families remain
 parameters until their full M4 instances are proved. -/
-def OrdinaryFuelIndexedCompletionSchema
+def MNodeFreeBoundedDfsCompletionSchema
     (Certificate : RuntimeCertificateFamily)
-    (SearchOrigin : MatchingSearchOriginFamily OrdinaryMatchingSearchTask)
+    (SearchOrigin : MatchingSearchOriginFamily BoundedDfsMatchingSearchTask)
     (SearchCertificate :
-      MatchingSearchCertificateFamily OrdinaryMatchingSearchTask) : Prop :=
+      MatchingSearchCertificateFamily BoundedDfsMatchingSearchTask) : Prop :=
   ConditionalCompletionSchema Expr.MNodeFree Certificate
     MonomorphicRuntimeContextRelation fuelIndexedSafetyRelations evalFuel
-      SearchOrigin SearchCertificate runOrdinaryMatchingSearch
+      SearchOrigin SearchCertificate runBoundedDfsMatchingSearch
 
 end TypePM.Source.M5CompletionArchitecture

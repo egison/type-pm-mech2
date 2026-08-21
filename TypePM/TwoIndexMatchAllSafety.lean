@@ -2,7 +2,7 @@ import TypePM.TwoIndexMatchingSearchSafety
 import TypePM.ValueIndexedMatchAllSafety
 
 /-!
-# Two-index composition rule for `matchAll`
+# Two-index composition rule for bounded DFS `matchAll`
 
 The executable `evalFuel` rule uses its predecessor fuel both as the
 evaluation callback fuel and as the bounded matching-search fuel.  This
@@ -14,7 +14,8 @@ The caller still supplies the initial-state certificate, including every
 local atom-reducer obligation reachable within the bounded search.  The
 theorem below only composes that certificate with the existing two-index DFS
 theorem and the value-and-binding-indexed `matchAll` theorem.  It is therefore
-not yet the complete fuel-indexed replacement for `commonFuelSafety`.
+not yet the complete fuel-indexed replacement for `commonFuelSafety`, nor a
+fairness theorem for the separate lazy-prefix `matchAll` lane.
 -/
 
 namespace TypePM.Runtime

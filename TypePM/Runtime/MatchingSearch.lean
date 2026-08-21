@@ -2,7 +2,7 @@ import TypePM.Runtime.DepthFirstSearch
 import TypePM.Runtime.MatchingState
 
 /-!
-# Matching-state stepping and ordered search
+# Matching-state stepping and bounded ordered DFS
 
 This module turns atom reductions into concrete matching-state transitions.
 An atom reduction supplies an ordered list of alternative worklists.  Each
@@ -141,7 +141,9 @@ theorem stepMatchingState_notStuck
           | miss => exact (total (bindings ++ environment) atom result).elim
           | hit reduction => trivial
 
-/-- Execute all matching alternatives by ordered depth-first search. -/
+/-- Execute all matching alternatives by bounded ordered depth-first search.
+This is the `match-all-dfs` lane.  Fair `matchAll` traverses the separate
+binary reduction tree and exposes finite result prefixes instead. -/
 def searchMatchingFuel
     (reduceAtom : ValueEnvironment → MatchingAtom →
       FuelResult (DispatchResult AtomReduction))

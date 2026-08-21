@@ -13,11 +13,14 @@ right.  `timeout` therefore means only that the supplied depth bound was too
 small, whereas malformed variables, applications, primitive calls and
 conditions produce `stuck`.
 
-`matchAll` and core `matchFirst` use the same remaining fuel for
+The current `.matchAll` and core `.matchFirst` cases implement the bounded
+ordered `match-all-dfs` lane.  They use the same remaining fuel for
 target evaluation, matcher evaluation, matching search, every expression
 evaluated by an atom rule, and every selected body.  This is a depth bound, not
 a global step counter.  Matching search preserves source order and duplicate
-branches.
+branches.  The fair lazy `match-all` semantics uses a separate breadth-first
+binary-reduction-tree prefix interface; it is not represented by the finite
+answer list returned here.
 -/
 
 namespace TypePM.Runtime
@@ -40,8 +43,9 @@ def searchPatternFuel
   searchMatchingFuel (evaluationAtomReducer evaluate) fuel
     ⟨[⟨pattern, matcher, target⟩], environment, []⟩
 
-/-- Execute the ordinary arms of Paper 1's single-result `match` in source
-order.  Each arm performs exactly the ordered search used by `matchAll`.  An
+/-- Execute the ordinary arms of the current bounded-DFS single-result
+`match` in source order.  Each arm performs exactly the ordered DFS used by
+this evaluator's `.matchAll` case.  An
 empty result continues with the next arm; a nonempty result selects its first
 binding group, including when later groups are duplicates. -/
 def evalMatchFirstArmsFuel
@@ -59,9 +63,9 @@ def evalMatchFirstArmsFuel
               rest fallback
           | bindings :: _ => evaluate (bindings ++ environment) arm.body
 
-/-- Exact connection to the Paper 1 desugaring: one source arm runs the same
-ordered search as `matchAll`, then chooses its first result; only an empty
-result advances to the next source arm. -/
+/-- Exact connection within the bounded-DFS semantics: one source arm runs
+the same ordered search as this evaluator's `.matchAll`, then chooses its first
+result; only an empty result advances to the next source arm. -/
 theorem evalMatchFirstArmsFuel_orderedMatchAll_firstResult :
     evalMatchFirstArmsFuel evaluate fuel environment target matcher (arm :: rest)
         fallback =
