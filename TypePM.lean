@@ -223,6 +223,8 @@ import TypePM.StepIndexedClosureSafety
 import TypePM.StepIndexedPaper1ListSafetyRegression
 import TypePM.ValueIndexedMatchingSearchSafety
 import TypePM.TwoIndexMatchingSearchSafety
+import TypePM.FairTwoIndexMatchingSearchSafety
+import TypePM.FairTwoIndexMatchingSearchSafetyRegression
 import TypePM.ValueIndexedMatchAllSafety
 import TypePM.TwoIndexMatchAllSafety
 import TypePM.ValueIndexedPaper1ListJoinMatchAllSafetyRegression
