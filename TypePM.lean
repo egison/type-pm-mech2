@@ -220,6 +220,7 @@ import TypePM.StepIndexedPaper1ListSafetyRegression
 import TypePM.ValueIndexedMatchingSearchSafety
 import TypePM.TwoIndexMatchingSearchSafety
 import TypePM.ValueIndexedMatchAllSafety
+import TypePM.TwoIndexMatchAllSafety
 import TypePM.ValueIndexedPaper1ListJoinMatchAllSafetyRegression
 import TypePM.ValueIndexedStableFirstOrderSafety
 import TypePM.ValueIndexedPaper1ListClauseBodySafety
@@ -270,6 +271,7 @@ import TypePM.Source.M4TwoIndexUserMatcherReducerBridgeRegression
 import TypePM.Source.M4Paper1ListJoinEnvironmentIndexedSearchRegression
 import TypePM.Source.M4Paper1ListJoinRelationalProducerRegression
 import TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression
+import TypePM.Source.M4TwoIndexMatchAllSafetyRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
