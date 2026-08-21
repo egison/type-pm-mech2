@@ -244,6 +244,7 @@ import TypePM.Source.M4RawOriginRequestCertificate
 import TypePM.Source.M4RawOriginRequestCertificateRegression
 import TypePM.Source.M4RawOriginRecursiveProducer
 import TypePM.Source.M4RawOriginRecursiveProducerRegression
+import TypePM.Source.M4RawOriginLetUniversalRegression
 import TypePM.ValueIndexedPaper1ListClauseBodySafety
 import TypePM.ValueIndexedPaper1MultisetTopLevelSafety
 import TypePM.ValueIndexedPaper1MultisetHeadConsSafety

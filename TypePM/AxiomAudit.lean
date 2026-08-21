@@ -94,6 +94,7 @@ import TypePM.Source.M4RawOriginRequestCertificate
 import TypePM.Source.M4RawOriginRequestCertificateRegression
 import TypePM.Source.M4RawOriginRecursiveProducer
 import TypePM.Source.M4RawOriginRecursiveProducerRegression
+import TypePM.Source.M4RawOriginLetUniversalRegression
 import TypePM.Source.M4FixTypingRegression
 import TypePM.Runtime.OrderedChoiceRegression
 import TypePM.Runtime.OrderedChoiceAdequacy
@@ -1878,6 +1879,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.ExactRawOriginRequestCertificate.lamPlainCall
 #assert_allowed_axioms TypePM.Source.M4.ExactRawOriginRequestCertificate.lamZeroCall
 #assert_allowed_axioms TypePM.Source.M4.ExactRawOriginRequestCertificate.appOfCheckStable
+#assert_allowed_axioms TypePM.Source.M4.ExactRawOriginRequestCertificate.letUniversalInput
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.timeout
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.var
@@ -1887,6 +1889,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.lamPlainCall
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.lamZeroCall
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.appCheckStable
+#assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.letUniversalInput
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.both
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.weaken
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestPlan.universal
@@ -1917,6 +1920,12 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4RawOriginRecursiveProducerRegression.fixture_typing
 #assert_allowed_axioms TypePM.Source.M4RawOriginRecursiveProducerRegression.fixture_neverStuck
 #assert_allowed_axioms TypePM.Source.M4RawOriginRecursiveProducerRegression.fixture_fuelFour_exact
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixture
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixtureSupported
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixture_infer
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixture_typing
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixture_neverStuck
+#assert_allowed_axioms TypePM.Source.M4RawOriginLetUniversalRegression.fixture_fuelFive_exact
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.fixCoherenceStep
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.FullM4FuelPairProperty.transportLetBody
 #assert_allowed_axioms TypePM.Source.M4.CompletenessArchitecture.m4LetTransportAndAssembly

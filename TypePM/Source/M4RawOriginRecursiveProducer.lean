@@ -1,3 +1,4 @@
+import TypePM.Source.GeneralizedOccurrenceSolution
 import TypePM.Source.M4RawOriginRequestCertificate
 
 /-!
@@ -49,6 +50,70 @@ end TypePM.Runtime
 namespace TypePM.Source.M4
 
 open TypePM.Runtime
+
+private theorem sourceScheme_mem_of_getElem?_eq_some
+    {context : Context} {position : Nat} {scheme : Scheme}
+    (lookup : context[position]? = some scheme) :
+    scheme ∈ context := by
+  induction context generalizing position with
+  | nil => simp at lookup
+  | cons head tail induction =>
+      cases position with
+      | zero =>
+          simp at lookup
+          subst scheme
+          simp
+      | succ position =>
+          simp only [List.getElem?_cons_succ] at lookup
+          exact List.mem_cons_of_mem head (induction lookup)
+
+/-- Pointwise universal demands need only source/runtime length alignment. -/
+private theorem schemeOriginEnvironmentSafe_ofUniversal
+    (lengthEq : values.length = context.length)
+    (universal : ∀ position, OriginDemand.Universal (demand position)) :
+    SchemeOriginEnvironmentSafe demand solution values context := by
+  refine ⟨lengthEq, ?_⟩
+  intro position scheme value _schemeFound _valueFound occurrenceSupply
+  exact (universal position).valueSafe value
+    ((scheme.instantiate occurrenceSupply).1.apply solution)
+
+/-- Closing the source context at an exact `letE` interface preserves every
+structural environment observation under the enclosing solution. -/
+private theorem schemeOriginEnvironmentSafe_ofApplyFreeInterface
+    (safe : SchemeOriginEnvironmentSafe demand solution values context)
+    (solved : Solves solution (context.interfaceEquations block)) :
+    SchemeOriginEnvironmentSafe demand solution values
+      (context.applyFree block) := by
+  refine ⟨?_, ?_⟩
+  · simpa [Context.applyFree] using safe.1
+  · intro position transformedScheme value transformedFound valueFound
+    simp only [Context.applyFree, List.getElem?_map] at transformedFound
+    cases originalFound : context[position]? with
+    | none => simp [originalFound] at transformedFound
+    | some scheme =>
+        simp only [originalFound, Option.map_some, Option.some.injEq] at transformedFound
+        subst transformedScheme
+        intro occurrenceSupply
+        have valueSafe := safe.2 position scheme value originalFound valueFound
+          occurrenceSupply
+        rw [SchemeFuelEnvironmentSafe.instantiate_applyFree_apply_eq_of_interface
+          (sourceScheme_mem_of_getElem?_eq_some originalFound) block solution
+          solved occurrenceSupply]
+        exact valueSafe
+
+private theorem semanticSolution_fromLet_parts
+    (semantic : (Generated.fromLet effects bodyGenerated).SemanticSolution
+      solution) :
+    Solves solution effects ∧ bodyGenerated.SemanticSolution solution := by
+  constructor
+  · intro equation membership
+    exact semantic.1 equation (by simp [Generated.fromLet, membership])
+  · constructor
+    · intro equation membership
+      exact semantic.1 equation (by simp [Generated.fromLet, membership])
+    · intro obligation membership
+      exact semantic.2 obligation (by
+        simpa [Generated.fromLet] using membership)
 
 /-- A raw certificate whose synthesized input demand is exactly the demand
 advertised by the static request plan. -/
@@ -530,6 +595,123 @@ theorem appOfCheckStable
     OriginEnvironmentDemand.both functionInput argumentInput
   rw [functionExact.input_eq, argumentExact.input_eq]
 
+/-- Source-derived `letE` composition when every observation requested by
+the right-hand side from the outer environment is universal.  The body may
+request an arbitrary structural observation from the generalized binding.
+
+For each scheme occurrence, the exact principal right-hand-side closure
+constructs an occurrence-specific semantic solution.  Universality makes the
+outer runtime environment safe under that solution without assuming an
+evaluation result or an occurrence-transport oracle. -/
+theorem letUniversalInput
+    {childFuel : Nat} {outputDemand : OriginDemand}
+    (elaboration : ElaboratesFuel signature (staticFuel + 1) context
+      (.letE value body) supply generated next)
+    (valueInput bodyInput : OriginEnvironmentDemand)
+    (valueInputUniversal : ∀ position,
+      OriginDemand.Universal (valueInput position))
+    (valueCertificate : ∀ generatedValue afterValue,
+      ∀ valueElaboration : ElaboratesFuel signature staticFuel context value
+        supply generatedValue afterValue,
+      Nonempty (ExactRawOriginRequestCertificate valueElaboration childFuel
+        (bodyInput 0) valueInput))
+    (bodyCertificate : ∀ generatedValue afterValue,
+      ∀ _valueElaboration : ElaboratesFuel signature staticFuel context value
+        supply generatedValue afterValue,
+      ∀ valueClosure : PrincipalBlockClosure generatedValue,
+      ∀ bodyGenerated,
+      ∀ bodyElaboration : ElaboratesFuel signature staticFuel
+        ((context.applyFree valueClosure.substitution).generalize
+            valueClosure.target :: context.applyFree valueClosure.substitution)
+        body
+        (afterValue.join
+          (context.applyFree valueClosure.substitution).initialSupply)
+        bodyGenerated next,
+      Nonempty (ExactRawOriginRequestCertificate bodyElaboration childFuel
+        outputDemand bodyInput)) :
+    Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
+      outputDemand (OriginEnvironmentDemand.tail bodyInput)) := by
+  let parentElaboration := elaboration
+  simp only [ElaboratesFuel] at elaboration
+  obtain ⟨generatedValue, afterValue, valueElaboration, valueClosure,
+    bodyGenerated, valueAbsorbing, bodyElaboration, generatedEq⟩ := elaboration
+  obtain ⟨valueExact⟩ := valueCertificate generatedValue afterValue
+    valueElaboration
+  obtain ⟨bodyExact⟩ := bodyCertificate generatedValue afterValue
+    valueElaboration valueClosure bodyGenerated bodyElaboration
+  let generalizedScheme :=
+    (context.applyFree valueClosure.substitution).generalize
+      valueClosure.target
+  let certificate : RawOriginRequestCertificate parentElaboration
+      (childFuel + 1) outputDemand :=
+    ⟨OriginEnvironmentDemand.tail bodyInput, by
+      intro solution semantic environment environmentSafe
+      rw [generatedEq] at semantic
+      obtain ⟨interfaceSolved, bodySemantic⟩ :=
+        semanticSolution_fromLet_parts semantic
+      have valueResult : FuelResultSafeWith
+          (fun value => SchemeOriginValueSafe (bodyInput 0) value
+            generalizedScheme solution)
+          (evalFuel childFuel environment value) := by
+        let initialSupply : Supply := ⟨0, 0⟩
+        let initialOccurrence :=
+          TypePM.Source.PrincipalBlockClosure.generalizedOccurrenceSolution
+            valueClosure valueAbsorbing context solution interfaceSolved
+              initialSupply
+        have initialEnvironmentSafe : SchemeOriginEnvironmentSafe valueInput
+            initialOccurrence.solution environment context :=
+          schemeOriginEnvironmentSafe_ofUniversal environmentSafe.1
+            valueInputUniversal
+        have initialResult := valueExact.certificate.preserves
+          initialOccurrence.solution initialOccurrence.semantic environment
+          (by simpa [valueExact.input_eq] using initialEnvironmentSafe)
+        rw [initialOccurrence.target_eq] at initialResult
+        rcases initialResult with valueTimeout |
+            ⟨actual, valueSuccess, _initialSafe⟩
+        · exact .inl valueTimeout
+        · refine .inr ⟨actual, valueSuccess, ?_⟩
+          intro occurrenceSupply
+          let occurrence :=
+            TypePM.Source.PrincipalBlockClosure.generalizedOccurrenceSolution
+              valueClosure valueAbsorbing context solution interfaceSolved
+                occurrenceSupply
+          have occurrenceEnvironmentSafe : SchemeOriginEnvironmentSafe
+              valueInput occurrence.solution environment context :=
+            schemeOriginEnvironmentSafe_ofUniversal environmentSafe.1
+              valueInputUniversal
+          have occurrenceResult := valueExact.certificate.preserves
+            occurrence.solution occurrence.semantic environment
+            (by simpa [valueExact.input_eq] using occurrenceEnvironmentSafe)
+          rw [occurrence.target_eq] at occurrenceResult
+          rcases occurrenceResult with occurrenceTimeout |
+              ⟨occurrenceValue, occurrenceSuccess, occurrenceSafe⟩
+          · rw [valueSuccess] at occurrenceTimeout
+            contradiction
+          · rw [valueSuccess] at occurrenceSuccess
+            cases occurrenceSuccess
+            exact occurrenceSafe
+      have bodyTailClosedSafe : SchemeOriginEnvironmentSafe
+          (OriginEnvironmentDemand.tail bodyInput) solution environment
+          (context.applyFree valueClosure.substitution) :=
+        schemeOriginEnvironmentSafe_ofApplyFreeInterface environmentSafe
+          interfaceSolved
+      rw [generatedEq]
+      apply evalFuel_letE_resultSafeWith valueResult
+      intro boundValue boundSafe
+      have bodyEnvironmentSafe : SchemeOriginEnvironmentSafe bodyInput
+          solution (boundValue :: environment)
+          (generalizedScheme ::
+            context.applyFree valueClosure.substitution) := by
+        have pushed := SchemeOriginEnvironmentSafe.cons boundSafe
+          bodyTailClosedSafe
+        apply pushed.congr
+        intro position _within
+        cases position <;> rfl
+      exact bodyExact.certificate.preserves solution bodySemantic
+        (boundValue :: environment)
+        (by simpa [bodyExact.input_eq] using bodyEnvironmentSafe)⟩
+  exact ⟨⟨certificate, rfl⟩⟩
+
 end ExactRawOriginRequestCertificate
 
 mutual
@@ -578,6 +760,17 @@ mutual
           argumentInput) :
         RawOriginRequestPlan (childFuel + 1) (.app function argument) resultDemand
           (OriginEnvironmentDemand.both functionInput argumentInput)
+    /-- A generalized `letE` may delegate its binding observation to the
+    right-hand side when the latter's outer-environment observations are
+    universal under every occurrence-specific semantic solution. -/
+    | letUniversalInput
+        (valuePlan : RawOriginRequestPlan childFuel value (bodyInput 0)
+          valueInput)
+        (valueInputUniversal : ∀ position,
+          OriginDemand.Universal (valueInput position))
+        (bodyPlan : RawOriginRequestPlan childFuel body outputDemand bodyInput) :
+        RawOriginRequestPlan (childFuel + 1) (.letE value body) outputDemand
+          (OriginEnvironmentDemand.tail bodyInput)
     | both
         (left : RawOriginRequestPlan operationalFuel expression leftDemand leftInput)
         (right : RawOriginRequestPlan operationalFuel expression rightDemand rightInput) :
@@ -754,6 +947,35 @@ private theorem appCheckStable :
           functionElaboration argumentElaboration
         exact argumentIH argumentElaboration
 
+private theorem letUniversalInput :
+    ∀ {childFuel value bodyInput valueInput body outputDemand}
+      (valuePlan : RawOriginRequestPlan childFuel value (bodyInput 0)
+        valueInput)
+      (valueInputUniversal : ∀ position,
+        OriginDemand.Universal (valueInput position))
+      (bodyPlan : RawOriginRequestPlan childFuel body outputDemand bodyInput),
+      RawOriginRequestCertificateMotive childFuel value (bodyInput 0)
+          valueInput valuePlan →
+        RawOriginRequestCertificateMotive childFuel body outputDemand bodyInput
+            bodyPlan →
+          RawOriginRequestCertificateMotive (childFuel + 1)
+            (.letE value body) outputDemand
+            (OriginEnvironmentDemand.tail bodyInput)
+            (.letUniversalInput valuePlan valueInputUniversal bodyPlan) := by
+  intro childFuel value bodyInput valueInput body outputDemand valuePlan
+    valueInputUniversal bodyPlan valueIH bodyIH signature staticFuel context
+    supply generated next elaboration
+  cases staticFuel with
+  | zero => exact False.elim elaboration
+  | succ staticFuel =>
+      apply ExactRawOriginRequestCertificate.letUniversalInput elaboration
+        valueInput bodyInput valueInputUniversal
+      · intro generatedValue afterValue valueElaboration
+        exact valueIH valueElaboration
+      · intro generatedValue afterValue valueElaboration valueClosure
+          bodyGenerated bodyElaboration
+        exact bodyIH bodyElaboration
+
 private theorem both :
     ∀ {operationalFuel expression leftDemand leftInput rightDemand rightInput}
       (left : RawOriginRequestPlan operationalFuel expression leftDemand leftInput)
@@ -854,7 +1076,8 @@ theorem RawOriginRequestPlan.certificate
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
     RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
-    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.both
+    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.letUniversalInput
+    RawOriginRequestProducerHandlers.both
     RawOriginRequestProducerHandlers.weaken RawOriginRequestProducerHandlers.universal
     RawOriginRequestProducerHandlers.strengthenInput RawOriginRequestProducerHandlers.nil
     RawOriginRequestProducerHandlers.cons plan
@@ -870,7 +1093,8 @@ theorem RawOriginItemsFuelPlan.certificate
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
     RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
-    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.both
+    RawOriginRequestProducerHandlers.appCheckStable RawOriginRequestProducerHandlers.letUniversalInput
+    RawOriginRequestProducerHandlers.both
     RawOriginRequestProducerHandlers.weaken RawOriginRequestProducerHandlers.universal
     RawOriginRequestProducerHandlers.strengthenInput RawOriginRequestProducerHandlers.nil
     RawOriginRequestProducerHandlers.cons plan
