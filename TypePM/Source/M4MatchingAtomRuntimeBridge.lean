@@ -678,7 +678,7 @@ theorem PatternElaborates.toBuiltinTotalMatchingAtomTyping
     (contextCompatible :
       MonomorphicContextCompatible context runtimeContext solution)
     (_matcherTyped : ValueTyping matcherValue
-      (.matcher (generated.dual.capability.apply solution.cap)
+      (.slot (generated.dual.capability.apply solution.cap)
         (generated.dual.target.apply solution)))
     (matcherShape : DirectPatternMatcherShape pattern matcherValue)
     (targetTyped : ValueTyping targetValue

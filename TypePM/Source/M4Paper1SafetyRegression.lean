@@ -63,8 +63,8 @@ theorem somethingVariable_close_exact :
   simp only [somethingVariableGenerated, DataTypes.list]
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
-    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
-    Ty.mayBecomeExpectedSlot, Ty.apply, Cap.apply, Subst.compose]
+    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedSlot, Ty.apply, Cap.apply,
+    Subst.compose]
   have resolutionTrace :
       resolve (.matcher .any (.var ⟨1⟩)) (.slot (.var ⟨0⟩) .int) =
         .matcherToSlot .any (.var ⟨0⟩) (.var ⟨1⟩) .int .equal := by
@@ -123,7 +123,8 @@ private theorem somethingVariable_initialAtom
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
           variablePattern_elaborates Paper1FrozenSignature.runtimeCompatible
           .var variablePattern_semantic
-          MonomorphicContextCompatible.nil matcherTyped .somethingVar
+          MonomorphicContextCompatible.nil
+          (.checked matcherTyped (.matcherToSlot .equal)) .somethingVar
           targetTyped
       have newBindingsEq : newBindings = [.int] := by
         simpa [variablePatternGenerated, variablePatternSolution,
@@ -312,7 +313,8 @@ private theorem paperSomethingVariable_initialAtom
           paperSomethingVariable_pattern_elaborates
           Paper1FrozenSignature.runtimeCompatible .var
           paperSomethingVariable_pattern_semantic
-          MonomorphicContextCompatible.nil matcherTyped .somethingVar
+          MonomorphicContextCompatible.nil
+          (.checked matcherTyped (.matcherToSlot .equal)) .somethingVar
           targetTyped
       have newBindingsEq : newBindings = [DataTypes.list .int] := by
         simpa [paperSomethingVariablePatternGenerated,
@@ -404,7 +406,8 @@ private theorem paperIntegerValueMismatch_initialAtom
           integerValuePattern_elaborates Paper1FrozenSignature.runtimeCompatible
           integerValuePattern_supported
           integerValuePattern_semantic MonomorphicContextCompatible.nil
-          matcherTyped .somethingValue targetTyped
+          (.checked matcherTyped (.matcherToSlot .equal)) .somethingValue
+          targetTyped
       have newBindingsEq : newBindings = [] := by
         simpa [integerValuePatternGenerated, integerValuePatternSolution,
           Ty.applyList] using bindingsEq.symm
@@ -487,7 +490,8 @@ private theorem firstMatch_initialAtom
         MatcherTyping.PatternElaborates.toBuiltinTotalMatchingAtomTyping
           wildcardPattern_elaborates Paper1FrozenSignature.runtimeCompatible
           .wild wildcardPattern_semantic
-          MonomorphicContextCompatible.nil matcherTyped .somethingWild
+          MonomorphicContextCompatible.nil
+          (.checked matcherTyped (.matcherToSlot .equal)) .somethingWild
           targetTyped
       have newBindingsEq : newBindings = [] := by
         simpa [wildcardPatternGenerated, wildcardPatternSolution,

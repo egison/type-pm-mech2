@@ -87,7 +87,7 @@ theorem unconsWith_close_exact :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, Subst.singleTy, Subst.singleCap]
   have resolutionTrace :

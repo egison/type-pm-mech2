@@ -76,26 +76,6 @@ theorem Resolution.equations_support
           rcases member' with sourceMember | expectedMember
           · exact Or.inl (List.mem_append_right _ sourceMember)
           · exact Or.inr (List.mem_append_right _ expectedMember)
-  | productMatcher items duals types_eq nonempty expectedCapability
-      expectedTarget =>
-      have member' : candidate ∈
-          Cap.unificationVarsList (Dual.capabilities duals) ++
-            expectedCapability.unificationVars ++
-              Ty.unificationVarsList (Dual.targets duals) ++
-                expectedTarget.unificationVars := by
-        simpa [Resolution.equations, unificationVars,
-          Equation.unificationVars, Cap.unificationVars,
-          Ty.unificationVars, List.append_assoc] using member
-      rw [← types_eq]
-      simp only [List.mem_append] at member'
-      rcases member' with left | expectedTargetMember
-      · rcases left with caps | sourceTargets
-        · rcases caps with sourceCapability | expectedCapabilityMember
-          · exact Or.inl
-              (Dual.capabilities_support duals candidate sourceCapability)
-          · exact Or.inr (List.mem_append_left _ expectedCapabilityMember)
-        · exact Or.inl (Dual.targets_support duals candidate sourceTargets)
-      · exact Or.inr (List.mem_append_right _ expectedTargetMember)
   | productMatcherToSlot items duals types_eq nonempty consumer expectedTarget
       capability =>
       cases capability with

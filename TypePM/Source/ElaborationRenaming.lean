@@ -351,12 +351,6 @@ namespace Ty
             mayBecomeMatcherItems_renameVariables]
   | _ => rfl
 
-@[simp] theorem mayBecomeExpectedMatcher_renameVariables
-    (rho : VariableRenaming) (target : TypePM.Ty) :
-    (renameTy rho target).mayBecomeExpectedMatcher =
-      target.mayBecomeExpectedMatcher := by
-  cases target <;> rfl
-
 @[simp] theorem mayBecomeExpectedSlot_renameVariables
     (rho : VariableRenaming) (target : TypePM.Ty) :
     (renameTy rho target).mayBecomeExpectedSlot =

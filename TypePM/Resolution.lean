@@ -71,14 +71,6 @@ inductive Resolution : Ty → Ty → Type where
       Resolution
         (.matcher producer sourceTarget)
         (.slot consumer expectedTarget)
-  | productMatcher
-      (items : List Ty) (duals : List Dual)
-      (types_eq : duals.map Dual.matcherType = items)
-      (nonempty : duals ≠ [])
-      (expectedCapability : Cap) (expectedTarget : Ty) :
-      Resolution
-        (.prod items)
-        (.matcher expectedCapability expectedTarget)
   | productMatcherToSlot
       (items : List Ty) (duals : List Dual)
       (types_eq : duals.map Dual.matcherType = items)
@@ -99,7 +91,6 @@ inductive Branch where
   | ordinary
   | matcherToSlotEqual
   | matcherToSlotAny
-  | productMatcher
   | productMatcherToSlotEqual
   | productMatcherToSlotAny
 deriving Repr, DecidableEq
@@ -110,7 +101,6 @@ def branch {source expected : Ty} :
   | .matcherToSlot _ _ _ _ capability =>
       if capability.isRootedAny then .matcherToSlotAny
       else .matcherToSlotEqual
-  | .productMatcher _ _ _ _ _ _ => .productMatcher
   | .productMatcherToSlot _ _ _ _ _ _ capability =>
       if capability.isRootedAny then .productMatcherToSlotAny
       else .productMatcherToSlotEqual
@@ -119,7 +109,6 @@ def conversionClass {source expected : Ty} :
     Resolution source expected → ConversionClass
   | .ordinary _ _ => .ordinary
   | .matcherToSlot _ _ _ _ _ => .matcherToSlot
-  | .productMatcher _ _ _ _ _ _ => .productMatcher
   | .productMatcherToSlot _ _ _ _ _ _ _ => .productMatcherToSlot
 
 /-- Equalities deliberately left for the ordinary two-sort unifier. -/
@@ -128,9 +117,6 @@ def equations {source expected : Ty} :
   | .ordinary source expected => [.ty source expected]
   | .matcherToSlot _ _ sourceTarget expectedTarget capability =>
       capability.equations ++ [.ty sourceTarget expectedTarget]
-  | .productMatcher _ duals _ _ expectedCapability expectedTarget =>
-      [ .cap (.prod (Dual.capabilities duals)) expectedCapability,
-        .ty (.prod (Dual.targets duals)) expectedTarget ]
   | .productMatcherToSlot _ duals _ _ _ expectedTarget capability =>
       capability.equations ++
         [.ty (.prod (Dual.targets duals)) expectedTarget]
@@ -195,13 +181,6 @@ def resolve :
   | .matcher producer sourceTarget, .slot consumer expectedTarget =>
       .matcherToSlot producer consumer sourceTarget expectedTarget
         (capabilityResolution producer consumer)
-  | .prod items, .matcher expectedCapability expectedTarget =>
-      match matcherProduct? items with
-      | none => .ordinary (.prod items)
-          (.matcher expectedCapability expectedTarget)
-      | some product =>
-          .productMatcher items product.duals product.types_eq
-            product.nonempty expectedCapability expectedTarget
   | .prod items, .slot consumer expectedTarget =>
       match matcherProduct? items with
       | none => .ordinary (.prod items) (.slot consumer expectedTarget)
@@ -460,7 +439,7 @@ private theorem resolve_matcher_slot_apply_canonical_of_retract
 private theorem resolve_product_matcher_apply_canonical_of_retract
     (post retract : Subst) (items : List Ty)
     (expectedCapability : Cap) (expectedTarget : Ty)
-    (itemsRetract :
+    (_itemsRetract :
       Ty.applyList retract (Ty.applyList post items) = items) :
     (resolve (Ty.prod items)
         (Ty.matcher expectedCapability expectedTarget)).branch =
@@ -473,24 +452,8 @@ private theorem resolve_product_matcher_apply_canonical_of_retract
       (resolve (Ty.prod items)
         (Ty.matcher expectedCapability expectedTarget)).equations.map
           (Equation.apply post) := by
-  cases parsedOriginal : matcherProduct? items with
-  | none =>
-      have parsedApplied := matcherProduct?_none_apply_of_retract
-        post retract itemsRetract parsedOriginal
-      simp [Ty.apply, resolve, parsedOriginal, parsedApplied,
-        Resolution.branch, Resolution.equations, Equation.apply]
-  | some original =>
-      obtain ⟨applied, parsedApplied, dualsEquality⟩ :=
-        matcherProduct?_apply post original
-      constructor
-      · simp [Ty.apply, resolve, parsedOriginal, parsedApplied,
-          Resolution.branch]
-      · simp only [Ty.apply, resolve]
-        rw [parsedOriginal, parsedApplied]
-        simp only [Resolution.equations, List.map_cons, List.map_nil,
-          Equation.apply]
-        rw [dualsEquality]
-        simp [Cap.apply, Ty.apply, capabilities_apply, targets_apply]
+  simp [Ty.apply, resolve, Resolution.branch, Resolution.equations,
+    Equation.apply]
 
 private theorem resolve_product_slot_apply_canonical_of_retract
     (post retract : Subst) (items : List Ty)
@@ -664,35 +627,6 @@ theorem sound
       have demand := capability.sound capabilitySolved
       simpa [Resolution.conversionClass, Ty.apply, targetEquality] using
         (CheckConversion.matcherToSlot demand)
-  | productMatcher items duals typesEquality nonempty
-      expectedCapability expectedTarget =>
-      simp only [Resolution.equations] at solved
-      obtain ⟨capabilitySolved, rest⟩ :=
-        (solves_cons substitution _ _).mp solved
-      obtain ⟨targetSolved, _⟩ :=
-        (solves_cons substitution _ _).mp rest
-      simp only [Equation.Holds] at capabilitySolved targetSolved
-      let applied := duals.map (Dual.apply substitution)
-      have appliedNonempty : applied ≠ [] := by
-        simpa [applied] using nonempty
-      have appliedSourceEquality :
-          Ty.applyList substitution items =
-            applied.map Dual.matcherType := by
-        rw [← typesEquality]
-        exact matcherTypes_apply substitution duals
-      have expectedCapabilityEquality :
-          expectedCapability.apply substitution.cap =
-            Cap.prod (Dual.capabilities applied) := by
-        rw [← capabilitySolved]
-        simp [Cap.apply, applied, capabilities_apply]
-      have expectedTargetEquality :
-          expectedTarget.apply substitution =
-            Ty.prod (Dual.targets applied) := by
-        rw [← targetSolved]
-        simp [Ty.apply, applied, targets_apply]
-      simpa [Resolution.conversionClass, Ty.apply, appliedSourceEquality,
-        expectedCapabilityEquality, expectedTargetEquality, applied] using
-        (CheckConversion.productMatcher (duals := applied) appliedNonempty)
   | productMatcherToSlot items duals typesEquality nonempty
       consumer expectedTarget capability =>
       simp only [Resolution.equations] at solved
@@ -726,19 +660,16 @@ theorem sound
         (CheckConversion.productMatcherToSlot
           (duals := applied) appliedNonempty appliedDemand)
 
-/-- Every special normalized resolution has an expected type whose outer
-matcher/slot constructor was already explicit before residual solving. -/
-theorem special_expected_head
+/-- Every special normalized resolution has an explicit slot expected type. -/
+theorem special_expected_slot
     {source expected : Ty}
     (resolution : Resolution source expected)
     (special : resolution.Special) :
-    (∃ capability target, expected = .matcher capability target) ∨
-      (∃ capability target, expected = .slot capability target) := by
+    ∃ capability target, expected = .slot capability target := by
   cases resolution with
   | ordinary => simp [Resolution.Special] at special
-  | matcherToSlot => exact Or.inr ⟨_, _, rfl⟩
-  | productMatcher => exact Or.inl ⟨_, _, rfl⟩
-  | productMatcherToSlot => exact Or.inr ⟨_, _, rfl⟩
+  | matcherToSlot => exact ⟨_, _, rfl⟩
+  | productMatcherToSlot => exact ⟨_, _, rfl⟩
 
 end Resolution
 

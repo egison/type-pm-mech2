@@ -34,12 +34,6 @@ def branch {source expected : Ty} :
       (.rootedAny : CapabilityResolution producer .any)) =
         .matcherToSlotAny := rfl
 
-@[simp] theorem branch_productMatcher
-    (duals : List Dual) (nonempty : duals ≠ [])
-    (expectedCapability : Cap) (expectedTarget : Ty) :
-    branch (.productMatcher (duals.map Dual.matcherType) duals rfl nonempty
-      expectedCapability expectedTarget) = .productMatcher := rfl
-
 @[simp] theorem branch_productMatcherToSlot_equal
     (duals : List Dual) (nonempty : duals ≠ [])
     (consumer : Cap) (expectedTarget : Ty) :

@@ -100,6 +100,8 @@ Lean 4で機械的に検証するプロジェクトである．推論終了後�
 - **capability**は，matcherが入力値のどの形を観察できるかを表す型情報である．
 - **matcher producer**は実際にmatcher値を作る式の型，**matcher slot**は利用箇所がmatcherへ
   要求する型である．
+- matcherの非空積はmatcher producer型へ暗黙変換しない．利用箇所が明示するmatcher slotへだけ，
+  積から直接変換する．
 - **raw synthesis**は外側の要求をまだ使わず式自身の型を作る処理，**checking**はその型を要求型として
   使用できるか確認する処理である．producerからslotへの暗黙変換はcheckingでだけ選ぶ．
 - **制約block**は，同じ変数の有効範囲で生じた制約をまとめて解く単位である．

@@ -168,20 +168,20 @@ private theorem fixture_close :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, Subst.singleTy, Subst.singleCap]
   rw [saturateLoop.eq_def]
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, Subst.singleTy, Subst.singleCap]
   compute_unification
   rw [saturateLoop.eq_def]
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, Subst.singleTy, Subst.singleCap]
   compute_unification

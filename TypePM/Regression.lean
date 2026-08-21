@@ -1,4 +1,5 @@
 import TypePM.Substitution
+import TypePM.Resolution
 import TypePM.Typing
 
 /-!
@@ -46,10 +47,13 @@ theorem pair_does_not_synthesize_matcher
   obtain ⟨targets, equality⟩ := typing.tuple_target
   cases equality
 
-theorem pair_checks_as_matcher :
-    RootChecks [] pair pairMatcher := by
-  exact .via pair_synthesizes_concrete
-    (.productMatcher (duals := [⟨.any, .int⟩, ⟨.any, .int⟩]) (by simp))
+theorem pair_does_not_check_as_matcher :
+    ¬ RootChecks [] pair pairMatcher := by
+  intro checking
+  cases checking with
+  | via synthesis conversion =>
+      cases conversion with
+      | ordinary => exact pair_does_not_synthesize_matcher synthesis
 
 theorem pair_checks_as_slot :
     RootChecks [] pair pairSlot := by
@@ -57,6 +61,27 @@ theorem pair_checks_as_slot :
     (.productMatcherToSlot
       (duals := [⟨.any, .int⟩, ⟨.any, .int⟩]) (by simp)
       .equal)
+
+/-- A matcher-product checked against an explicit matcher type now follows
+the ordinary equality branch.  Its product/matcher residual equality cannot
+be solved. -/
+theorem pair_matcher_resolution_branch :
+    (resolve pairConcrete pairMatcher).branch = .ordinary := by
+  rfl
+
+theorem pair_matcher_residual_unsatisfiable :
+    ¬ ∃ substitution,
+      Solves substitution (resolve pairConcrete pairMatcher).equations := by
+  rintro ⟨substitution, solved⟩
+  simp [pairConcrete, pairMatcher, resolve, Resolution.equations, Solves,
+    Equation.Holds, Ty.apply] at solved
+
+/-- The same source product still selects the direct product-to-slot
+conversion when the consumer explicitly asks for a matcher slot. -/
+theorem pair_slot_resolution_branch :
+    (resolve pairConcrete pairSlot).branch =
+      .productMatcherToSlotEqual := by
+  rfl
 
 /-- The `Any` consumer is an explicit capability demand, rather than a
 substitution guessed by synthesis. -/

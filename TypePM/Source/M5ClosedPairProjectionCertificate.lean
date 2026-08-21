@@ -140,11 +140,6 @@ private theorem checked_target_eq_of_intPair
   cases conversion with
   | ordinary => rfl
   | matcherToSlot demand => simp at sourceEq
-  | @productMatcher duals nonempty =>
-      simp only [Ty.prod.injEq] at sourceEq
-      cases duals with
-      | nil => simp at sourceEq
-      | cons first rest => simp [Dual.matcherType] at sourceEq
   | @productMatcherToSlot duals consumer nonempty demand =>
       simp only [Ty.prod.injEq] at sourceEq
       cases duals with

@@ -292,7 +292,7 @@ private theorem promotion_exact_inherited :
   simp [valueGenerated, firstInherited, promotion, promoteUnder,
     Subst.compose, Subst.singleTy, Ty.apply, Ty.couldSpecial,
     Ty.mayBecomeMatcher,
-    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
+    Ty.mayBecomeMatcherProduct,
     Ty.mayBecomeExpectedSlot, inherited, representative]
 
 private theorem promotion_exact_representative :
@@ -300,7 +300,7 @@ private theorem promotion_exact_representative :
   simp [valueGenerated, firstRepresentative, promotion, promoteUnder,
     Subst.compose, Subst.singleTy, Ty.apply, Ty.couldSpecial,
     Ty.mayBecomeMatcher,
-    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
+    Ty.mayBecomeMatcherProduct,
     Ty.mayBecomeExpectedSlot, inherited, representative]
 
 private theorem id_absorbing : AbsorbingPrincipal [] Subst.id := by

@@ -236,11 +236,57 @@ theorem deleteFirstStructural
       · exact .cons head
           (tailIH (Value.viewList_buildList storedValues))
 
+/-- Re-encode a structurally safe list using an observed host-list view. -/
+theorem ofView
+    (safe : ListOfValueSafe elementSafe value target)
+    (encoding : Value.viewList value = some values) :
+    ListOfValueSafe elementSafe (Value.buildList values) target := by
+  induction safe generalizing values with
+  | nil =>
+      have valuesEq : values = [] := by simpa using encoding.symm
+      subst values
+      exact .nil
+  | @cons value elementType storedValues head tail tailIH =>
+      have valuesEq : values = value :: storedValues := by
+        simpa using encoding.symm
+      subst values
+      exact .cons head (tailIH (Value.viewList_buildList storedValues))
+
+/-- Concatenating two observed canonical runtime lists preserves the same
+element predicate without comparing their elements. -/
+theorem appendStructural
+    (left : ListOfValueSafe elementSafe leftValue target)
+    (leftView : Value.viewList leftValue = some leftValues)
+    (right : ListOfValueSafe elementSafe rightValue target)
+    (rightView : Value.viewList rightValue = some rightValues) :
+    ListOfValueSafe elementSafe
+      (Value.buildList (leftValues ++ rightValues)) target := by
+  induction left generalizing leftValues with
+  | nil =>
+      have leftValuesEq : leftValues = [] := by
+        simpa using leftView.symm
+      subst leftValues
+      simpa using right.ofView rightView
+  | @cons value elementType storedValues head tail tailIH =>
+      have leftValuesEq : leftValues = value :: storedValues := by
+        simpa using leftView.symm
+      subst leftValues
+      exact .cons head
+        (tailIH (Value.viewList_buildList storedValues) right)
+
+/-- Build-list specialization of `appendStructural`. -/
+theorem append
+    (left : ListOfValueSafe elementSafe (Value.buildList leftValues) target)
+    (right : ListOfValueSafe elementSafe (Value.buildList rightValues) target) :
+    ListOfValueSafe elementSafe
+      (Value.buildList (leftValues ++ rightValues)) target :=
+  left.appendStructural (Value.viewList_buildList leftValues) right
+    (Value.viewList_buildList rightValues)
+
 end ListOfValueSafe
 
-/-- Compose two normalized checking conversions.  The only nontrivial chain
-is product-matcher followed by matcher-to-slot, represented directly by the
-existing product-matcher-to-slot constructor. -/
+/-- Compose two normalized checking conversions.  Special conversions now
+end directly at a matcher slot, so only an ordinary second step is possible. -/
 theorem CheckConversion.trans
     (first : CheckConversion firstClass source middle)
     (second : CheckConversion secondClass middle target) :
@@ -250,11 +296,6 @@ theorem CheckConversion.trans
   | matcherToSlot demand =>
       cases second
       exact ⟨_, .matcherToSlot demand⟩
-  | @productMatcher duals nonempty =>
-      cases second with
-      | ordinary => exact ⟨_, .productMatcher nonempty⟩
-      | matcherToSlot demand =>
-          exact ⟨_, .productMatcherToSlot nonempty demand⟩
   | @productMatcherToSlot duals consumer nonempty demand =>
       cases second
       exact ⟨_, .productMatcherToSlot nonempty demand⟩

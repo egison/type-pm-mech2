@@ -489,11 +489,6 @@ theorem apply
   | matcherToSlot demand =>
       simpa [Ty.apply] using .matcherToSlot
         (CapabilityDemand.apply demand substitution.cap)
-  | @productMatcher duals nonempty =>
-      have appliedNonempty : duals.map (RuntimeDual.apply substitution) ≠ [] := by
-        simpa using nonempty
-      simpa [Ty.apply, Cap.apply] using
-        CheckConversion.productMatcher appliedNonempty
   | @productMatcherToSlot duals consumer nonempty demand =>
       have appliedNonempty : duals.map (RuntimeDual.apply substitution) ≠ [] := by
         simpa using nonempty

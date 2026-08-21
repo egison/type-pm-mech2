@@ -87,14 +87,14 @@ theorem infer_useFirst_exact :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   simp only [saturateLoop]
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   have resolutionTrace :
@@ -123,14 +123,14 @@ theorem infer_applicationFirst_exact :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   simp only [saturateLoop]
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   have resolutionTrace :
@@ -160,7 +160,7 @@ theorem infer_singletonFirst_none :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   have matcherResolution :
@@ -193,7 +193,7 @@ theorem infer_pairFirst_none :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id]
   have productResolution :

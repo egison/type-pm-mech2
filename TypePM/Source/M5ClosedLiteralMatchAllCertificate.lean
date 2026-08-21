@@ -65,7 +65,7 @@ private theorem literalVariable_close_exact :
   simp only [literalVariableGenerated, DataTypes.list]
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
-    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
+    Ty.mayBecomeMatcherProduct,
     Ty.mayBecomeExpectedSlot, Ty.apply, Cap.apply, Subst.compose]
   have resolutionTrace :
       resolve (.matcher .any (.var ⟨1⟩)) (.slot (.var ⟨0⟩) .int) =

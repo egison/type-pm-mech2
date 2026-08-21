@@ -134,12 +134,6 @@ namespace Ty
             mayBecomeMatcherItems_rename]
   | _ => rfl
 
-@[simp] theorem mayBecomeExpectedMatcher_rename
-    (rho : TyRenaming) (target : Ty) :
-    (target.rename rho).mayBecomeExpectedMatcher =
-      target.mayBecomeExpectedMatcher := by
-  cases target <;> rfl
-
 @[simp] theorem mayBecomeExpectedSlot_rename
     (rho : TyRenaming) (target : Ty) :
     (target.rename rho).mayBecomeExpectedSlot =

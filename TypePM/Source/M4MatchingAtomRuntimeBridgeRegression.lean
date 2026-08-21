@@ -63,11 +63,11 @@ theorem tuplePattern_semantic_bridge :
 
 private theorem tupleMatcher_typed :
     ValueTyping (.tuple [.something, .something])
-      (.matcher (.prod [.any, .any]) (.prod [.int, .int])) := by
+      (.slot (.prod [.any, .any]) (.prod [.int, .int])) := by
   apply ValueTyping.checked
   · exact .tuple (.cons (.something .int) (.cons (.something .int) .nil))
-  · exact CheckConversion.productMatcher (duals :=
-      [(⟨.any, .int⟩ : Dual), ⟨.any, .int⟩]) (by simp)
+  · exact CheckConversion.productMatcherToSlot (duals :=
+      [(⟨.any, .int⟩ : Dual), ⟨.any, .int⟩]) (by simp) .equal
 
 /-- The executable bridge also handles a real product matcher: the tuple
 pattern is split into source-ordered child atoms using the typed target tuple. -/
@@ -199,7 +199,8 @@ private theorem conjunctionMatchAll_initialAtom
           conjunctionPattern_elaborates Paper1FrozenSignature.runtimeCompatible
           conjunctionPattern_supported
           conjunctionPattern_semantic MonomorphicContextCompatible.nil
-          matcherTyped (.and .somethingVar .somethingWild) targetTyped
+          (.checked matcherTyped (.matcherToSlot .equal))
+          (.and .somethingVar .somethingWild) targetTyped
       have newBindingsEq : newBindings = [.int] := by
         simpa [conjunctionGenerated, bridgeSolution, Ty.applyList, Ty.apply]
           using bindingsEq.symm

@@ -1479,6 +1479,11 @@ inductive RawOriginPrimitiveResultPlan :
   | add : RawOriginPrimitiveResultPlan .add [.int, .int] .int
   | addFuel : RawOriginPrimitiveResultPlan .add [.int, .int]
       (.fuel resultIndex)
+  | append : RawOriginPrimitiveResultPlan .append
+      [.listOf element, .listOf element] (.listOf element)
+  | appendFuel : RawOriginPrimitiveResultPlan .append
+      [.listOf (.fuel resultIndex), .listOf (.fuel resultIndex)]
+      (.fuel resultIndex)
   | member : RawOriginPrimitiveResultPlan .member
       [.none, .listOf element] .bool
   | memberFuel : RawOriginPrimitiveResultPlan .member
@@ -1487,8 +1492,31 @@ inductive RawOriginPrimitiveResultPlan :
       [.none, .listOf element] (.listOf element)
   | deleteFirstFuel : RawOriginPrimitiveResultPlan .deleteFirst
       [.none, .listOf (.fuel resultIndex)] (.fuel resultIndex)
+  | pairFirst : RawOriginPrimitiveResultPlan .pairFirst
+      [.pairOf fieldDemand .none] fieldDemand
+  | pairSecond : RawOriginPrimitiveResultPlan .pairSecond
+      [.pairOf .none fieldDemand] fieldDemand
 
 namespace RawOriginPrimitiveResultPlan
+
+private theorem PairOfValueSafe.fieldsOfProduct
+    (safe : PairOfValueSafe leftSafe rightSafe value
+      (.prod [expectedLeft, expectedRight])) :
+    ∃ leftValue rightValue,
+      value = .tuple [leftValue, rightValue] ∧
+      leftSafe leftValue expectedLeft ∧ rightSafe rightValue expectedRight := by
+  cases safe with
+  | pair left right conversion =>
+      generalize sourceEq : (Ty.prod _) = source at conversion
+      generalize targetEq : Ty.prod [expectedLeft, expectedRight] = target at conversion
+      cases conversion with
+      | ordinary =>
+          have fieldsEq := Ty.prod.inj (sourceEq.trans targetEq.symm)
+          simp only [List.cons.injEq, and_true] at fieldsEq
+          rcases fieldsEq with ⟨rfl, rfl⟩
+          exact ⟨_, _, rfl, left, right⟩
+      | matcherToSlot demand => simp at targetEq
+      | productMatcherToSlot nonempty demand => simp at targetEq
 
 theorem resultSafe
     (plan : RawOriginPrimitiveResultPlan operation demands outputDemand)
@@ -1570,6 +1598,83 @@ theorem resultSafe
                       rw [← secondParts.2]
                       exact .inr ⟨_, rfl, OriginValueSafe.ofFuel
                         (fuelValueSafe_int _ resultIndex)⟩
+  | @append element =>
+      rw [compatible.append] at lookup
+      cases lookup
+      cases valuesSafe with
+      | cons leftSafe valuesSafe =>
+          cases valuesSafe with
+          | cons rightSafe valuesSafe =>
+              cases valuesSafe
+              cases callSemantic with
+              | cons tailSemantic _initialSemantic _leftSemantic firstEquation
+                  _leftConversion =>
+                  cases tailSemantic with
+                  | cons tailSemantic _firstSemantic _rightSemantic
+                      secondEquation _rightConversion =>
+                      cases tailSemantic
+                      simp only [Equation.Holds,
+                        Source.PrimitiveSchemes.instantiate_append,
+                        Ty.apply] at firstEquation
+                      simp only [Equation.Holds, Source.Generated.fromApp,
+                        Ty.apply] at secondEquation
+                      have firstParts := Ty.fn.inj firstEquation
+                      rw [← firstParts.2] at secondEquation
+                      have secondParts := Ty.fn.inj secondEquation
+                      simp only [Ty.apply] at leftSafe rightSafe
+                      rw [← firstParts.1] at leftSafe
+                      rw [← secondParts.1] at rightSafe
+                      simp only [Source.Generated.fromApp, Ty.apply]
+                      rw [← secondParts.2]
+                      simp only [OriginValueSafe] at leftSafe rightSafe
+                      obtain ⟨leftItems, leftEncoding⟩ := leftSafe.existsViewList
+                      obtain ⟨rightItems, rightEncoding⟩ :=
+                        rightSafe.existsViewList
+                      have appendedSafe := leftSafe.appendStructural leftEncoding
+                        rightSafe rightEncoding
+                      exact .inr ⟨Value.buildList (leftItems ++ rightItems), by
+                        simp [evalPrimitive, leftEncoding, rightEncoding], by
+                        simpa only [OriginValueSafe] using appendedSafe⟩
+  | @appendFuel resultIndex =>
+      rw [compatible.append] at lookup
+      cases lookup
+      cases valuesSafe with
+      | cons leftSafe valuesSafe =>
+          cases valuesSafe with
+          | cons rightSafe valuesSafe =>
+              cases valuesSafe
+              cases callSemantic with
+              | cons tailSemantic _initialSemantic _leftSemantic firstEquation
+                  _leftConversion =>
+                  cases tailSemantic with
+                  | cons tailSemantic _firstSemantic _rightSemantic
+                      secondEquation _rightConversion =>
+                      cases tailSemantic
+                      simp only [Equation.Holds,
+                        Source.PrimitiveSchemes.instantiate_append,
+                        Ty.apply] at firstEquation
+                      simp only [Equation.Holds, Source.Generated.fromApp,
+                        Ty.apply] at secondEquation
+                      have firstParts := Ty.fn.inj firstEquation
+                      rw [← firstParts.2] at secondEquation
+                      have secondParts := Ty.fn.inj secondEquation
+                      simp only [Ty.apply] at leftSafe rightSafe
+                      rw [← firstParts.1] at leftSafe
+                      rw [← secondParts.1] at rightSafe
+                      simp only [Source.Generated.fromApp, Ty.apply]
+                      rw [← secondParts.2]
+                      simp only [OriginValueSafe] at leftSafe rightSafe
+                      obtain ⟨leftItems, leftEncoding⟩ := leftSafe.existsViewList
+                      obtain ⟨rightItems, rightEncoding⟩ :=
+                        rightSafe.existsViewList
+                      have appendedSafe := leftSafe.appendStructural leftEncoding
+                        rightSafe rightEncoding
+                      exact .inr ⟨Value.buildList (leftItems ++ rightItems), by
+                        simp [evalPrimitive, leftEncoding, rightEncoding],
+                        OriginValueSafe.ofFuel
+                          (RawOriginConstructorResultPlan.fuelValueSafe_of_listOfFuel
+                            (by simpa only [OriginValueSafe] using
+                              appendedSafe))⟩
   | @member element =>
       rw [compatible.member] at lookup
       cases lookup
@@ -1726,6 +1831,50 @@ theorem resultSafe
                         OriginValueSafe.ofFuel
                           (RawOriginConstructorResultPlan.fuelValueSafe_of_listOfFuel (by
                             simpa only [OriginValueSafe] using deletedSafe))⟩
+  | @pairFirst fieldDemand =>
+      rw [compatible.pairFirst] at lookup
+      cases lookup
+      cases valuesSafe with
+      | cons pairSafe valuesSafe =>
+          cases valuesSafe
+          cases callSemantic with
+          | cons tailSemantic _initialSemantic _pairSemantic equation
+              _pairConversion =>
+              cases tailSemantic
+              simp only [Equation.Holds,
+                Source.PrimitiveSchemes.instantiate_pairFirst,
+                Ty.apply] at equation
+              have parts := Ty.fn.inj equation
+              simp only [Ty.apply] at pairSafe
+              rw [← parts.1] at pairSafe
+              simp only [Source.Generated.fromApp, Ty.apply]
+              rw [← parts.2]
+              simp only [OriginValueSafe] at pairSafe
+              obtain ⟨leftValue, rightValue, rfl, leftSafe, rightSafe⟩ :=
+                PairOfValueSafe.fieldsOfProduct pairSafe
+              exact .inr ⟨leftValue, by simp [evalPrimitive], leftSafe⟩
+  | @pairSecond fieldDemand =>
+      rw [compatible.pairSecond] at lookup
+      cases lookup
+      cases valuesSafe with
+      | cons pairSafe valuesSafe =>
+          cases valuesSafe
+          cases callSemantic with
+          | cons tailSemantic _initialSemantic _pairSemantic equation
+              _pairConversion =>
+              cases tailSemantic
+              simp only [Equation.Holds,
+                Source.PrimitiveSchemes.instantiate_pairSecond,
+                Ty.apply] at equation
+              have parts := Ty.fn.inj equation
+              simp only [Ty.apply] at pairSafe
+              rw [← parts.1] at pairSafe
+              simp only [Source.Generated.fromApp, Ty.apply]
+              rw [← parts.2]
+              simp only [OriginValueSafe] at pairSafe
+              obtain ⟨leftValue, rightValue, rfl, leftSafe, rightSafe⟩ :=
+                PairOfValueSafe.fieldsOfProduct pairSafe
+              exact .inr ⟨rightValue, by simp [evalPrimitive], rightSafe⟩
 
 end RawOriginPrimitiveResultPlan
 

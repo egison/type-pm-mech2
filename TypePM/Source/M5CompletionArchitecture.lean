@@ -191,11 +191,11 @@ mutual
 end
 
 /-- Structural applicability of an origin observation to a result type.
-`none` is type-independent.  Structural observations follow
-the corresponding type shape recursively.  Pair observations retain the same
-normalized product conversion admitted by `PairOfValueSafe`, so matcher and
-slot targets reached from a binary matcher product are not spuriously
-excluded. -/
+`none` is type-independent.  Structural observations follow the corresponding
+type shape recursively.  Public pair observations apply only to an exact
+binary product.  `PairOfValueSafe` still retains normalized conversion
+transport internally, but converted matcher and slot targets are observed
+through ordinary fuel demands instead of a type-only pair request. -/
 def OriginDemandApplicable : OriginDemand → Ty → Prop
   | .none, _ => True
   | .fuel index, target => FuelDemandApplicable index target
@@ -207,8 +207,8 @@ def OriginDemandApplicable : OriginDemand → Ty → Prop
         target = DataTypes.list elementType ∧
           OriginDemandApplicable element elementType
   | .pairOf left right, target =>
-      ∃ leftType rightType conversionClass,
-        CheckConversion conversionClass (.prod [leftType, rightType]) target ∧
+      ∃ leftType rightType,
+        target = .prod [leftType, rightType] ∧
           OriginDemandApplicable left leftType ∧
           OriginDemandApplicable right rightType
   | .bool, target => target = DataTypes.bool
@@ -237,6 +237,32 @@ theorem originDemandApplicable_fuel
 theorem originDemandApplicable_fuel_zero (target : Ty) :
     OriginDemandApplicable (.fuel 0) target := by
   simpa [OriginDemandApplicable] using FuelDemandApplicable.zero target
+
+/-- A structural pair request is applicable to its exact binary product. -/
+theorem originDemandApplicable_pairOf
+    (left : OriginDemandApplicable leftDemand leftType)
+    (right : OriginDemandApplicable rightDemand rightType) :
+    OriginDemandApplicable (.pairOf leftDemand rightDemand)
+      (.prod [leftType, rightType]) := by
+  simpa only [OriginDemandApplicable] using
+    (show ∃ actualLeft actualRight,
+        Ty.prod [leftType, rightType] =
+          Ty.prod [actualLeft, actualRight] ∧
+        OriginDemandApplicable leftDemand actualLeft ∧
+        OriginDemandApplicable rightDemand actualRight from
+      ⟨leftType, rightType, rfl, left, right⟩)
+
+/-- Converted matcher and slot targets are intentionally outside the public
+pair applicability boundary; they remain observable through fuel demands. -/
+theorem originDemandApplicable_pairOf_matcher_false :
+    ¬ OriginDemandApplicable (.pairOf leftDemand rightDemand)
+      (.matcher capability target) := by
+  simp [OriginDemandApplicable]
+
+theorem originDemandApplicable_pairOf_slot_false :
+    ¬ OriginDemandApplicable (.pairOf leftDemand rightDemand)
+      (.slot capability target) := by
+  simp [OriginDemandApplicable]
 
 /-- Existing fuel-indexed value/environment relations form one coherent
 safety package.  This declaration does not claim the full M4 preservation

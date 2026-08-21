@@ -31,12 +31,6 @@ def mayBecomeMatcherProduct : Ty → Bool
       item.mayBecomeMatcher && mayBecomeMatcherItems items
   | _ => false
 
-/-- An expected type whose outer constructor can become `matcher`. -/
-def mayBecomeExpectedMatcher : Ty → Bool
-  | .var _ => true
-  | .matcher _ _ => true
-  | _ => false
-
 /-- An expected type whose outer constructor can become `slot`. -/
 def mayBecomeExpectedSlot : Ty → Bool
   | .var _ => true
@@ -46,9 +40,8 @@ def mayBecomeExpectedSlot : Ty → Bool
 /-- Whether some future substitution could expose one of the special
 checking conversions supported by M1. -/
 def couldSpecial (source expected : Ty) : Bool :=
-  (source.mayBecomeMatcher && expected.mayBecomeExpectedSlot) ||
-  (source.mayBecomeMatcherProduct &&
-    (expected.mayBecomeExpectedMatcher || expected.mayBecomeExpectedSlot))
+  (source.mayBecomeMatcher || source.mayBecomeMatcherProduct) &&
+    expected.mayBecomeExpectedSlot
 
 theorem mayBecomeMatcher_of_apply
     (substitution : Subst) (target : Ty)
@@ -89,13 +82,6 @@ theorem mayBecomeMatcherProduct_of_apply
           exact ⟨mayBecomeMatcher_of_apply substitution item possible.1,
             mayBecomeMatcherItems_of_apply substitution items possible.2⟩
 
-theorem mayBecomeExpectedMatcher_of_apply
-    (substitution : Subst) (target : Ty)
-    (possible :
-      (target.apply substitution).mayBecomeExpectedMatcher = true) :
-    target.mayBecomeExpectedMatcher = true := by
-  cases target <;> simp_all [Ty.apply, mayBecomeExpectedMatcher]
-
 theorem mayBecomeExpectedSlot_of_apply
     (substitution : Subst) (target : Ty)
     (possible : (target.apply substitution).mayBecomeExpectedSlot = true) :
@@ -111,18 +97,12 @@ theorem couldSpecial_of_apply
         true) :
     couldSpecial source expected = true := by
   simp only [couldSpecial, Bool.or_eq_true, Bool.and_eq_true] at possible ⊢
-  rcases possible with matcherToSlot | productConversion
-  · exact Or.inl
-      ⟨mayBecomeMatcher_of_apply substitution source matcherToSlot.1,
-        mayBecomeExpectedSlot_of_apply substitution expected matcherToSlot.2⟩
-  · exact Or.inr
-      ⟨mayBecomeMatcherProduct_of_apply substitution source
-          productConversion.1,
-        productConversion.2.elim
-          (fun matcher => Or.inl
-            (mayBecomeExpectedMatcher_of_apply substitution expected matcher))
-          (fun slot => Or.inr
-            (mayBecomeExpectedSlot_of_apply substitution expected slot))⟩
+  exact ⟨possible.1.elim
+      (fun matcher => Or.inl
+        (mayBecomeMatcher_of_apply substitution source matcher))
+      (fun product => Or.inr
+        (mayBecomeMatcherProduct_of_apply substitution source product)),
+    mayBecomeExpectedSlot_of_apply substitution expected possible.2⟩
 
 private theorem matcherTypes_possible (duals : List Dual) :
     mayBecomeMatcherItems (duals.map Dual.matcherType) = true := by
@@ -155,10 +135,6 @@ theorem special_implies_couldSpecial
   | matcherToSlot =>
       simp [Ty.couldSpecial, Ty.mayBecomeMatcher,
         Ty.mayBecomeExpectedSlot]
-  | productMatcher _ duals typesEquality nonempty _ _ =>
-      rw [← typesEquality]
-      simp [Ty.couldSpecial, Ty.mayBecomeExpectedMatcher,
-        Ty.matcherProduct_possible duals nonempty]
   | productMatcherToSlot _ duals typesEquality nonempty _ _ _ =>
       rw [← typesEquality]
       simp [Ty.couldSpecial, Ty.mayBecomeExpectedSlot,

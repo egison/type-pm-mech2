@@ -181,7 +181,7 @@ private theorem close_mismatch_none :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, TypePM.DataTypes.bool]
   simp only [saturateLoop]

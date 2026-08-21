@@ -92,7 +92,6 @@ import TypePM.Source.DirectLetComparison
 import TypePM.Source.GeneratedStableSemanticAcceptance
 import TypePM.Source.SourceSafeAlignmentCounterexample
 import TypePM.Source.ElaborationCompleteness
-import TypePM.GeneratedSemanticAcceptanceRegression
 import TypePM.Source.Principality
 import TypePM.Source.ConditionalPrincipality
 import TypePM.Source.FullM2Completion

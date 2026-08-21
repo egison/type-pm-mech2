@@ -216,14 +216,6 @@ theorem actualMatcherProduct_sourceFuelSafe :
     (FuelEnvironmentSafe.cons actualMatcher_sourceFuelSafe
       (FuelEnvironmentSafe.nil 1))
 
-theorem actualMatcherProduct_conversion :
-    CheckConversion .productMatcher actualMatcherProductSource
-      actualMatcherProductTarget := by
-  simpa [actualMatcherDual, actualMatcherProductSource, concreteListCodomain,
-    actualMatcherProductTarget, Dual.matcherType, Dual.capabilities,
-    Dual.targets] using
-      (CheckConversion.productMatcher (duals := [actualMatcherDual]) (by simp))
-
 theorem actualMatcherProductToSlot_conversion :
     CheckConversion .productMatcherToSlot actualMatcherProductSource
       actualMatcherProductSlot := by
@@ -233,11 +225,6 @@ theorem actualMatcherProductToSlot_conversion :
       (CheckConversion.productMatcherToSlot
         (duals := [actualMatcherDual]) (consumer := .prod
           [.con PatternFormer.list [.any]]) (by simp) CapabilityDemand.equal)
-
-theorem actualMatcherProduct_targetFuelSafe :
-    FuelValueSafe 1 (.tuple [actualMatcher]) actualMatcherProductTarget :=
-  FuelValueSafe.ofCheckConversion actualMatcherProduct_conversion 1 _
-    actualMatcherProduct_sourceFuelSafe
 
 theorem actualMatcherProduct_slotFuelSafe :
     FuelValueSafe 1 (.tuple [actualMatcher]) actualMatcherProductSlot :=

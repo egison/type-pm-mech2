@@ -16,7 +16,6 @@ import TypePM.M1BoundaryRegression
 import TypePM.BlockClosureTransport
 import TypePM.AbsorbingSupportRange
 import TypePM.GeneratedSupport
-import TypePM.GeneratedSemanticAcceptanceRegression
 import TypePM.GeneratedStableSemanticAcceptance
 import TypePM.ResolutionSupport
 import TypePM.BlockClosureSupport
@@ -278,7 +277,11 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Cap.apply_compose
 #assert_allowed_axioms TypePM.Ty.apply_compose
 #assert_allowed_axioms TypePM.Regression.pair_principal
+#assert_allowed_axioms TypePM.Regression.pair_does_not_check_as_matcher
 #assert_allowed_axioms TypePM.Regression.pair_checks_as_slot
+#assert_allowed_axioms TypePM.Regression.pair_matcher_resolution_branch
+#assert_allowed_axioms TypePM.Regression.pair_matcher_residual_unsatisfiable
+#assert_allowed_axioms TypePM.Regression.pair_slot_resolution_branch
 #assert_allowed_axioms TypePM.Regression.structured_matcher_checks_at_any_slot
 #assert_allowed_axioms TypePM.unify_none_iff_unsatisfiable
 #assert_allowed_axioms TypePM.unify_completeMGUSolver
@@ -292,7 +295,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Subst.Localized.compose
 #assert_allowed_axioms TypePM.AbsorbingPrincipal.localized
 #assert_allowed_axioms TypePM.promoteUnder_equation_no_special_after
-#assert_allowed_axioms TypePM.Resolution.special_expected_head
+#assert_allowed_axioms TypePM.Resolution.special_expected_slot
 #assert_allowed_axioms TypePM.Resolution.resolve_apply_canonical_of_retract
 #assert_allowed_axioms TypePM.ResolutionTransport.residualEquations_transport_of_mutualFactors
 #assert_allowed_axioms TypePM.Inference.infer_success_typing
@@ -322,7 +325,6 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Generated.saturationSupport_subset
 #assert_allowed_axioms TypePM.Generated.exists_semanticSolution_of_blockAccepts
 #assert_allowed_axioms TypePM.Generated.blockAccepts_iff_exists_semanticSolution_of_pending_eq_nil
-#assert_allowed_axioms TypePM.GeneratedSemanticAcceptanceCounterexample.semanticSolution_not_iff_blockAccepts
 #assert_allowed_axioms TypePM.Generated.blockAccepts_iff_exists_stableSemanticSolution
 #assert_allowed_axioms TypePM.Generated.StableSemanticSolution.transportHard
 #assert_allowed_axioms TypePM.Generated.exists_stableSemanticSolution_iff_of_hardEquivalent
@@ -1336,6 +1338,9 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_plainCall_int_false
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_fuel
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_fuel_zero
+#assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_pairOf
+#assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_pairOf_matcher_false
+#assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.originDemandApplicable_pairOf_slot_false
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.fuelIndexedSafetyRelations
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.additiveFuelEvaluationInputDemand
 #assert_allowed_axioms TypePM.Source.M5CompletionArchitecture.OriginMatchingSearchResultSafe
@@ -2106,9 +2111,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProductTarget
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProductSlot
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProduct_sourceFuelSafe
-#assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProduct_conversion
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProductToSlot_conversion
-#assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProduct_targetFuelSafe
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.actualMatcherProduct_slotFuelSafe
 #assert_allowed_axioms TypePM.Source.M4.RawOriginRequestCertificateRegression.PositiveFuelConversionBoundary.positiveFuel_unrestrictedConversion
 
@@ -2320,7 +2323,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.RuntimeSupported.elaboration_typing
 #assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping
 #assert_allowed_axioms TypePM.Source.Typing.toRuntimeTyping_standard
-#assert_allowed_axioms TypePM.CheckConversion.source_eq_target_of_target_not_matcher_or_slot
+#assert_allowed_axioms TypePM.CheckConversion.source_eq_target_of_target_not_slot
 #assert_allowed_axioms TypePM.Runtime.CheckConversion.apply
 #assert_allowed_axioms TypePM.Runtime.EnvironmentTyping.apply
 #assert_allowed_axioms TypePM.Runtime.RuntimeTyping.applyContext

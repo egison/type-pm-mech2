@@ -213,12 +213,7 @@ private theorem literalValueSafe_of_applicable (literal : Int) :
       cases impossible
   | .pairOf _ _, applicable => by
       simp only [OriginDemandApplicable] at applicable
-      rcases applicable with ⟨leftType, rightType, conversionClass,
-        conversion, _left, _right⟩
-      have impossible : Ty.prod [leftType, rightType] = Ty.int :=
-        conversion.source_eq_target_of_target_not_matcher_or_slot
-          (by intro capability item equality; cases equality)
-          (by intro capability item equality; cases equality)
+      rcases applicable with ⟨leftType, rightType, impossible, _left, _right⟩
       cases impossible
   | .bool, applicable => by
       simp only [OriginDemandApplicable] at applicable
@@ -314,9 +309,8 @@ private theorem somethingValueSafe_of_applicable (itemType : Ty) :
       cases impossible
   | .pairOf _ _, applicable => by
       simp only [OriginDemandApplicable] at applicable
-      rcases applicable with ⟨leftType, rightType, conversionClass,
-        conversion, _left, _right⟩
-      exact False.elim (no_product_conversion_to_anyMatcher conversion)
+      rcases applicable with ⟨leftType, rightType, impossible, _left, _right⟩
+      cases impossible
   | .bool, applicable => by
       simp only [OriginDemandApplicable] at applicable
       cases applicable
@@ -450,28 +444,6 @@ theorem fuelPlan
                 OriginEnvironmentDemand.none),
             .tupleFuel (.cons leftPlan (.cons rightPlan .nil))⟩
 
-private theorem no_product_conversion_to_int
-    (conversion : CheckConversion conversionClass
-      (.prod [leftType, rightType]) .int) : False := by
-  have impossible : Ty.prod [leftType, rightType] = Ty.int :=
-    conversion.source_eq_target_of_target_not_matcher_or_slot
-      (by intro capability item equality; cases equality)
-      (by intro capability item equality; cases equality)
-  cases impossible
-
-private theorem no_product_conversion_to_product_of_wrong_shape
-    (conversion : CheckConversion conversionClass
-      (.prod [actualLeft, actualRight])
-      (.prod [expectedLeft, expectedRight])) :
-    actualLeft = expectedLeft ∧ actualRight = expectedRight := by
-  have equality : Ty.prod [actualLeft, actualRight] =
-      Ty.prod [expectedLeft, expectedRight] :=
-    conversion.source_eq_target_of_target_not_matcher_or_slot
-      (by intro capability item impossible; cases impossible)
-      (by intro capability item impossible; cases impossible)
-  cases equality
-  exact ⟨rfl, rfl⟩
-
 /-- Demand-directed raw planner for pair trees.  Applicability rules out
 ill-shaped observations; every admitted structural observation is translated
 to the corresponding raw plan constructor. -/
@@ -511,15 +483,15 @@ theorem plan
       cases tree with
       | lit =>
           simp only [OriginDemandApplicable] at applicable
-          rcases applicable with ⟨leftType, rightType, conversionClass,
-            conversion, _leftApplicable, _rightApplicable⟩
-          exact False.elim (no_product_conversion_to_int conversion)
+          rcases applicable with ⟨leftType, rightType, impossible,
+            _leftApplicable, _rightApplicable⟩
+          cases impossible
       | @pair leftExpression leftTarget rightExpression rightTarget left right =>
           simp only [OriginDemandApplicable] at applicable
-          rcases applicable with ⟨actualLeft, actualRight, conversionClass,
-            conversion, leftApplicable, rightApplicable⟩
-          obtain ⟨rfl, rfl⟩ :=
-            no_product_conversion_to_product_of_wrong_shape conversion
+          rcases applicable with ⟨actualLeft, actualRight, targetEq,
+            leftApplicable, rightApplicable⟩
+          simp only [Ty.prod.injEq, List.cons.injEq, and_true] at targetEq
+          obtain ⟨rfl, rfl⟩ := targetEq
           cases operationalFuel with
           | zero => exact ⟨OriginEnvironmentDemand.none, .timeout⟩
           | succ childFuel =>

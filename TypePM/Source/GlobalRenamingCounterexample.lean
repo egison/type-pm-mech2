@@ -180,7 +180,7 @@ private theorem promotion_exact :
   simp [valueGenerated, firstRight, firstPromotion, promoteUnder,
     Subst.compose, Subst.singleTy, Ty.apply, Ty.couldSpecial,
     Ty.mayBecomeMatcher, Ty.mayBecomeMatcherItems,
-    Ty.mayBecomeMatcherProduct, Ty.mayBecomeExpectedMatcher,
+    Ty.mayBecomeMatcherProduct,
     Ty.mayBecomeExpectedSlot, a, d, p, r]
 
 private def alternativeClosure : PrincipalBlockClosure valueGenerated :=
@@ -272,14 +272,14 @@ private theorem close_value_exact :
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, firstLeft, finalLeft, executableSubstitution, p, a, d, r]
   simp only [saturateLoop]
   compute_unification
   simp [promoteUnder, Ty.couldSpecial, Ty.mayBecomeMatcher,
     Ty.mayBecomeMatcherItems, Ty.mayBecomeMatcherProduct,
-    Ty.mayBecomeExpectedMatcher, Ty.mayBecomeExpectedSlot,
+    Ty.mayBecomeExpectedSlot,
     Ty.apply, Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, firstLeft, finalLeft, executableSubstitution, p, a, d, r]
   simp only [residualEquations]

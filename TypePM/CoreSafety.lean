@@ -115,7 +115,6 @@ theorem source_apply_eq_of_int_target
   cases conversion with
   | ordinary => exact targetEq
   | matcherToSlot => simp [Ty.apply] at targetEq
-  | productMatcher => simp [Ty.apply] at targetEq
   | productMatcherToSlot => simp [Ty.apply] at targetEq
 
 theorem source_apply_eq_of_data_target
@@ -125,7 +124,6 @@ theorem source_apply_eq_of_data_target
   cases conversion with
   | ordinary => exact targetEq
   | matcherToSlot => simp [Ty.apply] at targetEq
-  | productMatcher => simp [Ty.apply] at targetEq
   | productMatcherToSlot => simp [Ty.apply] at targetEq
 
 theorem source_apply_eq_of_fn_target
@@ -135,7 +133,6 @@ theorem source_apply_eq_of_fn_target
   cases conversion with
   | ordinary => exact targetEq
   | matcherToSlot => simp [Ty.apply] at targetEq
-  | productMatcher => simp [Ty.apply] at targetEq
   | productMatcherToSlot => simp [Ty.apply] at targetEq
 
 end CheckConversion
@@ -446,19 +443,12 @@ private theorem dispatchCanonicalProperties
       cases conversion with
       | ordinary => exact sourceIH.productShape substitution targets equality
       | matcherToSlot => simp [Ty.apply] at equality
-      | productMatcher => simp [Ty.apply] at equality
       | productMatcherToSlot => simp [Ty.apply] at equality
     · intro substitution capability matcherTarget equality
       cases conversion with
       | ordinary =>
           exact sourceIH.matcherShape substitution capability matcherTarget equality
       | matcherToSlot => simp [Ty.apply] at equality
-      | @productMatcher duals nonempty =>
-          obtain ⟨values, valueEq, _itemsTyped⟩ :=
-            sourceIH.productShape substitution
-              (Ty.applyList substitution (duals.map Dual.matcherType)) (by
-                simp [Ty.apply])
-          exact Or.inr (Or.inr ⟨values, valueEq⟩)
       | productMatcherToSlot => simp [Ty.apply] at equality
     · intro substitution capability matcherTarget equality
       cases conversion with
@@ -468,7 +458,6 @@ private theorem dispatchCanonicalProperties
           exact sourceIH.matcherShape substitution
             (producer.apply substitution.cap) (sourceTarget.apply substitution)
             (by simp [Ty.apply])
-      | productMatcher => simp [Ty.apply] at equality
       | @productMatcherToSlot duals consumer nonempty demand =>
           obtain ⟨values, valueEq, _itemsTyped⟩ :=
             sourceIH.productShape substitution

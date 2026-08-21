@@ -224,13 +224,6 @@ theorem FuelValueSafe.ofCheckConversion
                 (FuelValueSafe.ofCheckConversion
                   (.matcherToSlot demand) fuel value lower)
                 matcherSafe (.matcherToSlot demand)
-      | @productMatcher duals nonempty =>
-          cases safe with
-          | tuple lower items =>
-              exact .matcher
-                (FuelValueSafe.ofCheckConversion
-                  (.productMatcher nonempty) fuel _ lower)
-                (.tuple items.toPositiveMatcherValueSafes)
       | @productMatcherToSlot duals consumer nonempty demand =>
           cases safe with
           | tuple lower items =>

@@ -513,7 +513,6 @@ private theorem polymorphicIdentityGenerated_close :
   simp [promoteUnder, TypePM.Ty.couldSpecial,
     TypePM.Ty.mayBecomeMatcher, TypePM.Ty.mayBecomeMatcherItems,
     TypePM.Ty.mayBecomeMatcherProduct,
-    TypePM.Ty.mayBecomeExpectedMatcher,
     TypePM.Ty.mayBecomeExpectedSlot, TypePM.Ty.apply,
     TypePM.Ty.applyList, Cap.apply, Cap.applyList, Subst.compose,
     Subst.id, Subst.singleTy, Subst.singleCap]
