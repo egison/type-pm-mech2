@@ -154,6 +154,201 @@ theorem FuelEmbeddedMatchAllRuntimeCertificate.eval_originResultSafe
     targetOriginSafe.toFuel matcherOriginSafe.toFuel certificate.initialTyped
     bodySafe
 
+/-- Per-binding preservation of an arbitrary structural result observation.
+This is the demand-indexed counterpart of `EvaluatedBindingBodySafeUnder`:
+the operational body fuel, the logical binding index, and the observation
+requested from each body result remain independent. -/
+def EvaluatedOriginBindingBodySafeUnder
+    (bindingsInvariant : MatchingBindingsInvariant)
+    (operationalFuel : Nat) (resultDemand : OriginDemand)
+    (environment : ValueEnvironment) (bindingTypes : List Ty)
+    (bodyExpression : Source.Expr) (bodyTarget : Ty) : Prop :=
+  ∀ bindings,
+    bindingsInvariant bindings bindingTypes →
+      OriginResultSafe resultDemand bodyTarget
+        (evalFuel operationalFuel (bindings ++ environment) bodyExpression)
+
+private theorem traverseEvaluatedOriginBindingBodiesUnder
+    (answersSafe : MatchingAnswersSafeWith bindingsInvariant answers
+      bindingTypes)
+    (bodySafe : EvaluatedOriginBindingBodySafeUnder bindingsInvariant
+      operationalFuel resultDemand environment bindingTypes bodyExpression
+      bodyTarget) :
+    FuelResult.traverse
+        (fun bindings =>
+          evalFuel operationalFuel (bindings ++ environment) bodyExpression)
+        answers = .timeout ∨
+      ∃ values,
+        FuelResult.traverse
+            (fun bindings =>
+              evalFuel operationalFuel (bindings ++ environment)
+                bodyExpression)
+            answers = .ok values ∧
+          ∀ value ∈ values,
+            OriginValueSafe resultDemand value bodyTarget := by
+  induction answers with
+  | nil => exact .inr ⟨[], rfl, by simp⟩
+  | cons bindings answers induction =>
+      have bindingsSafe := answersSafe bindings (by simp)
+      have tailSafe : MatchingAnswersSafeWith bindingsInvariant answers
+          bindingTypes := by
+        intro candidate member
+        exact answersSafe candidate (by simp [member])
+      rcases bodySafe bindings bindingsSafe with bodyTimeout |
+        ⟨value, bodySuccess, valueSafe⟩
+      · exact .inl (by simp [FuelResult.traverse, bodyTimeout])
+      · rcases induction tailSafe with tailTimeout |
+          ⟨values, tailSuccess, valuesSafe⟩
+        · exact .inl (by
+            simp [FuelResult.traverse, bodySuccess, tailTimeout,
+              FuelResult.bind, FuelResult.map])
+        · exact .inr ⟨value :: values, by
+            simp [FuelResult.traverse, bodySuccess, tailSuccess,
+              FuelResult.bind, FuelResult.map], by
+            intro candidate member
+            simp only [List.mem_cons] at member
+            rcases member with rfl | member
+            · exact valueSafe
+            · exact valuesSafe candidate member⟩
+
+private theorem originValueSafe_buildList
+    (itemsSafe : ∀ value ∈ values,
+      OriginValueSafe elementDemand value elementType) :
+    OriginValueSafe (.listOf elementDemand) (Value.buildList values)
+      (DataTypes.list elementType) := by
+  induction values with
+  | nil => exact OriginValueSafe.listNil
+  | cons head tail induction =>
+      exact OriginValueSafe.listCons
+        (itemsSafe head (by simp))
+        (induction (by
+          intro value member
+          exact itemsSafe value (by simp [member])))
+
+/-- General structural-demand `matchAll` rule.  Unlike the earlier S10
+boundary, the body result is not restricted to a fuel leaf: any finite
+`OriginDemand` is preserved elementwise and exported as `.listOf` that same
+demand.  Search callback fuel and DFS fuel are still the one executable
+predecessor `operationalFuel`. -/
+theorem matchAllFuel_twoIndexOriginSafe
+    (environmentDownward :
+      IndexedMatchingInvariant.DownwardClosed environmentInvariant)
+    (bindingsDownward :
+      IndexedMatchingInvariant.DownwardClosed bindingsInvariant)
+    (targetSafe : OriginResultSafe (.fuel operationalFuel) matcherTarget
+      (evalFuel operationalFuel environment targetExpression))
+    (matcherSafe : OriginResultSafe (.fuel operationalFuel)
+      (.matcher capability matcherTarget)
+      (evalFuel operationalFuel environment matcherExpression))
+    (initialTyped : EvaluatedTwoIndexInitialStateTyping environmentInvariant
+      bindingsInvariant operationalFuel bindingIndex environment
+      targetExpression matcherExpression pattern bindingTypes)
+    (bodySafe : EvaluatedOriginBindingBodySafeUnder
+      (bindingsInvariant bindingIndex) operationalFuel resultDemand environment
+      bindingTypes bodyExpression bodyTarget) :
+    OriginResultSafe (.listOf resultDemand) (DataTypes.list bodyTarget)
+      (evalFuel (operationalFuel + 1) environment
+        (.matchAll targetExpression matcherExpression pattern
+          bodyExpression)) := by
+  rcases targetSafe.toFuel with targetTimeout |
+    ⟨targetValue, targetSuccess, _targetValueSafe⟩
+  · exact .inl (by
+      simp [evalFuel, targetTimeout, FuelResult.bind])
+  · rcases matcherSafe.toFuel with matcherTimeout |
+      ⟨matcherValue, matcherSuccess, _matcherValueSafe⟩
+    · exact .inl (by
+        simp [evalFuel, targetSuccess, matcherTimeout, FuelResult.bind])
+    · have searchSafe := searchPatternFuel_twoIndexSafe
+        environmentDownward bindingsDownward
+        (initialTyped targetValue matcherValue targetSuccess matcherSuccess)
+      rcases searchSafe with searchTimeout |
+        ⟨answers, searchSuccess, answersSafe⟩
+      · exact .inl (by
+          simp [evalFuel, targetSuccess, matcherSuccess, searchTimeout,
+            FuelResult.bind])
+      · rcases traverseEvaluatedOriginBindingBodiesUnder answersSafe
+          bodySafe with bodiesTimeout |
+          ⟨values, bodiesSuccess, valuesSafe⟩
+        · exact .inl (by
+            simp [evalFuel, targetSuccess, matcherSuccess, searchSuccess,
+              bodiesTimeout, FuelResult.bind, FuelResult.map])
+        · exact .inr ⟨Value.buildList values, by
+            simp [evalFuel, targetSuccess, matcherSuccess, searchSuccess,
+              bodiesSuccess, FuelResult.bind, FuelResult.map],
+            originValueSafe_buildList valuesSafe⟩
+
+/-- Demand-indexed components for one `matchAll` step.  This is the general
+form of `FuelEmbeddedMatchAllRuntimeCertificate`: the selected body
+certificate may request any applicable finite origin demand, and the outer
+result observes a list of values satisfying that demand. -/
+structure OriginEmbeddedMatchAllRuntimeCertificate
+    (Certificate : FuelEmbeddedExpressionCertificateFamily)
+    (operationalFuel bindingIndex : Nat) (resultDemand : OriginDemand)
+    (environmentTypes : List Ty) (environment : ValueEnvironment)
+    (targetExpression matcherExpression : Source.Expr)
+    (pattern : Source.Pattern) (bodyExpression : Source.Expr)
+    (matcherTarget bodyTarget : Ty) (capability : Cap)
+    (bindingTypes : List Ty) where
+  targetInput : OriginEnvironmentDemand
+  targetCertificate : Certificate operationalFuel [] environmentTypes
+    targetExpression matcherTarget (.fuel operationalFuel) targetInput
+  targetEnvironmentSafe : OriginEnvironmentSafe targetInput environment
+    environmentTypes
+  matcherInput : OriginEnvironmentDemand
+  matcherCertificate : Certificate operationalFuel [] environmentTypes
+    matcherExpression (.matcher capability matcherTarget)
+    (.fuel operationalFuel) matcherInput
+  matcherEnvironmentSafe : OriginEnvironmentSafe matcherInput environment
+    environmentTypes
+  initialTyped : EvaluatedTwoIndexInitialStateTyping FuelEnvironmentSafe
+    FuelEnvironmentSafe operationalFuel bindingIndex environment
+    targetExpression matcherExpression pattern bindingTypes
+  bodyInput : OriginEnvironmentDemand
+  bodyCertificate : Certificate operationalFuel bindingTypes environmentTypes
+    bodyExpression bodyTarget resultDemand bodyInput
+  bodyEnvironmentSafe : ∀ bindings,
+    FuelEnvironmentSafe bindingIndex bindings bindingTypes →
+      OriginEnvironmentSafe bodyInput (bindings ++ environment)
+        (bindingTypes ++ environmentTypes)
+
+theorem OriginEmbeddedMatchAllRuntimeCertificate.outputDemandApplicable
+    (bodyApplicable :
+      TypePM.Source.M5CompletionArchitecture.OriginDemandApplicable
+        resultDemand bodyTarget) :
+    TypePM.Source.M5CompletionArchitecture.OriginDemandApplicable
+      (.listOf resultDemand) (DataTypes.list bodyTarget) := by
+  simp only [TypePM.Source.M5CompletionArchitecture.OriginDemandApplicable]
+  exact ⟨bodyTarget, rfl, bodyApplicable⟩
+
+/-- General S10 `matchAll` boundary with an arbitrary applicable observation
+on every selected body result. -/
+theorem OriginEmbeddedMatchAllRuntimeCertificate.eval_originResultSafe
+    (evalSafe : FuelEmbeddedEvaluatorSafe Certificate evalFuel)
+    (certificate : OriginEmbeddedMatchAllRuntimeCertificate Certificate
+      operationalFuel bindingIndex resultDemand environmentTypes environment
+      targetExpression matcherExpression pattern bodyExpression matcherTarget
+      bodyTarget capability bindingTypes) :
+    OriginResultSafe (.listOf resultDemand) (DataTypes.list bodyTarget)
+      (evalFuel (operationalFuel + 1) environment
+        (.matchAll targetExpression matcherExpression pattern
+          bodyExpression)) := by
+  have targetSafe := evalSafe (bindings := []) (environment := environment)
+    certificate.targetCertificate (by
+      simpa using certificate.targetEnvironmentSafe)
+  have matcherSafe := evalSafe (bindings := []) (environment := environment)
+    certificate.matcherCertificate (by
+      simpa using certificate.matcherEnvironmentSafe)
+  have bodySafe : EvaluatedOriginBindingBodySafeUnder
+      (FuelEnvironmentSafe bindingIndex) operationalFuel resultDemand
+      environment bindingTypes bodyExpression bodyTarget := by
+    intro bindings bindingsSafe
+    exact evalSafe certificate.bodyCertificate
+      (certificate.bodyEnvironmentSafe bindings bindingsSafe)
+  exact matchAllFuel_twoIndexOriginSafe
+    IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+    IndexedMatchingInvariant.fuelEnvironmentSafe_downwardClosed
+    targetSafe matcherSafe certificate.initialTyped bodySafe
+
 /-- Search/body preservation for an already evaluated `matchFirst` arm list.
 Every arm may contribute a different binding type list, while all searches,
 arm bodies, and the fallback use one shared operational fuel. -/

@@ -153,6 +153,37 @@ theorem apply
   rcases typeEq with ⟨rfl, rfl⟩
   exact callSafe argument argumentSafe
 
+/-- Construct one trace-refined call observation for a recursive closure.
+The premise is exactly the predecessor-fuel body evaluation, including every
+search event emitted by that evaluation.  This is the local successor step
+used by the eventual fuel induction for recursive self. -/
+theorem recursiveClosure
+    (environmentTyped : TotalEnvironmentTyping environment context)
+    (bodyTyped : TotalRecursiveClosureBodyTyping
+      (domain :: .fn domain codomain :: context) body codomain)
+    (bodySafe : ∀ argument,
+      OriginValueSafe argumentDemand argument domain →
+        TracedOriginResultSafe eventSafe resultDemand codomain
+          (evalFuel bodyFuel
+            (argument :: Value.recursiveClosure environment body :: environment)
+            body)
+          (evalFuelTrace bodyFuel
+            (argument :: Value.recursiveClosure environment body :: environment)
+            body)) :
+    TracedOriginValueSafe eventSafe
+      (.plainCall (bodyFuel + 1) argumentDemand resultDemand)
+      (Value.recursiveClosure environment body) (.fn domain codomain) := by
+  simp only [TracedOriginValueSafe]
+  refine ⟨OriginValueSafe.recursiveClosure environmentTyped bodyTyped ?_,
+    domain, codomain, rfl, ?_⟩
+  · intro argument argumentSafe
+    rcases (bodySafe argument argumentSafe).1 with timeout |
+      ⟨result, success, resultSafe⟩
+    · exact .inl timeout
+    · exact .inr ⟨result, success, resultSafe.forget⟩
+  · intro argument argumentSafe
+    exact bodySafe argument argumentSafe.forget
+
 end TracedOriginValueSafe
 
 namespace TracedOriginResultSafe

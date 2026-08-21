@@ -895,7 +895,7 @@ theorem matchAll
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.matchAll targetExpression matcherExpression pattern bodyExpression)
       supply generated next)
-    (childFuel bindingIndex resultIndex : Nat)
+    (childFuel bindingIndex : Nat) (resultDemand : OriginDemand)
     (sourceTargets : List Ty)
     (contextEq : context = sourceTargets.map Scheme.mono)
     (targetInput matcherInput bodyInput : OriginEnvironmentDemand)
@@ -915,7 +915,7 @@ theorem matchAll
       ∀ bodyElaboration : ElaboratesFuel signature staticFuel bodyContext
         bodyExpression childSupply generatedBody afterBody,
       Nonempty (ExactRawOriginRequestCertificate bodyElaboration childFuel
-        (.fuel resultIndex) bodyInput))
+        resultDemand bodyInput))
     (matcherRuntimeType : ∀ {generatedTarget : Generated}
         {generatedPattern : GeneratedPattern} {generatedMatcher : Generated}
         {generatedBody : Generated},
@@ -950,7 +950,7 @@ theorem matchAll
         targetExpression matcherExpression pattern
         (Ty.applyList solution generatedPattern.bindings)) :
     Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
-      (.fuel resultIndex)
+      (.listOf resultDemand)
       (OriginEnvironmentDemand.both targetInput
         (OriginEnvironmentDemand.both matcherInput
           (OriginEnvironmentDemand.fuel (fun _ => bindingIndex))))) := by
@@ -974,7 +974,7 @@ theorem matchAll
         (OriginEnvironmentDemand.both matcherInput
           (OriginEnvironmentDemand.fuel (fun _ => bindingIndex)))
       let certificate : RawOriginRequestCertificate parentElaboration
-          (childFuel + 1) (.fuel resultIndex) :=
+          (childFuel + 1) (.listOf resultDemand) :=
         ⟨inputDemand, by
           intro compatible solution semantic environment environmentSafe
           have contextCompatible : MonomorphicContextCompatible context
@@ -1037,15 +1037,15 @@ theorem matchAll
           let bodyEmbedded : RawOriginEmbeddedCertificate childFuel
               (Ty.applyList solution generatedPattern.bindings)
               (Ty.applyList solution sourceTargets) bodyExpression
-              (generatedBody.target.apply solution) (.fuel resultIndex)
+              (generatedBody.target.apply solution) resultDemand
               bodyInput := by
             intro bindings embeddedEnvironment embeddedSafe
             exact bodyExact.certificate.preserves compatible solution
               bodySemantic (bindings ++ embeddedEnvironment)
               (by simpa [bodyExact.input_eq] using
                 embeddedSafe.toSchemeOrigin bodyContextCompatible)
-          let runtimeCertificate : FuelEmbeddedMatchAllRuntimeCertificate
-              RawOriginEmbeddedCertificate childFuel bindingIndex resultIndex
+          let runtimeCertificate : OriginEmbeddedMatchAllRuntimeCertificate
+              RawOriginEmbeddedCertificate childFuel bindingIndex resultDemand
               (Ty.applyList solution sourceTargets) environment targetExpression
               matcherExpression pattern bodyExpression
               (generatedTarget.target.apply solution)
@@ -3035,7 +3035,7 @@ def RawOriginMatchAllInitialStateProducer
 
 /-- Elaboration-indexed request plan for one bounded `matchAll`.  All dynamic
 roles use `childFuel`; `bindingIndex` is retained for search answers and
-`resultIndex` for body results.  The MNode-free proof records the exact task
+`resultDemand` for body results.  The MNode-free proof records the exact task
 shape later consumed by the G8--G10 bounded-DFS origin bridge. -/
 structure RawOriginMatchAllPlan
     {signature : FrozenSignature} {staticFuel : Nat} {context : Context}
@@ -3045,7 +3045,7 @@ structure RawOriginMatchAllPlan
     (elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.matchAll targetExpression matcherExpression pattern bodyExpression)
       supply generated next)
-    (childFuel bindingIndex resultIndex : Nat)
+    (childFuel bindingIndex : Nat) (resultDemand : OriginDemand)
     (sourceTargets : List Ty)
     (targetInput matcherInput bodyInput : OriginEnvironmentDemand) : Prop where
   contextEq : context = sourceTargets.map Scheme.mono
@@ -3055,7 +3055,7 @@ structure RawOriginMatchAllPlan
   matcherPlan : RawOriginRequestPlan childFuel matcherExpression
     (.fuel childFuel) matcherInput
   bodyPlan : RawOriginRequestPlan childFuel bodyExpression
-    (.fuel resultIndex) bodyInput
+    resultDemand bodyInput
   bodyInputCovered : ∀ position,
     OriginDemand.Le (bodyInput position) (.fuel bindingIndex)
   matcherRuntimeType : RawOriginMatchAllMatcherRuntimeTypeProducer signature
@@ -3860,15 +3860,15 @@ theorem RawOriginMatchFirstPlan.exactCertificate
 plans, simple-matcher runtime type, and evaluated initial-state producer into
 one exact raw Origin certificate. -/
 theorem RawOriginMatchAllPlan.exactCertificate
-    (plan : RawOriginMatchAllPlan elaboration childFuel bindingIndex resultIndex
+    (plan : RawOriginMatchAllPlan elaboration childFuel bindingIndex resultDemand
       sourceTargets targetInput matcherInput bodyInput) :
     Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
-      (.fuel resultIndex)
+      (.listOf resultDemand)
       (OriginEnvironmentDemand.both targetInput
         (OriginEnvironmentDemand.both matcherInput
           (OriginEnvironmentDemand.fuel (fun _ => bindingIndex))))) := by
   apply ExactRawOriginRequestCertificate.matchAll elaboration childFuel
-    bindingIndex resultIndex sourceTargets plan.contextEq targetInput
+    bindingIndex resultDemand sourceTargets plan.contextEq targetInput
     matcherInput bodyInput plan.bodyInputCovered
   · intro childSupply generatedTarget afterTarget targetElaboration
     exact plan.targetPlan.exactCertificate targetElaboration
@@ -3887,7 +3887,7 @@ theorem RawOriginMatchAllPlan.issuedTask
     {elaboration : ElaboratesFuel signature (staticFuel + 1) context
       (.matchAll targetExpression matcherExpression pattern bodyExpression)
       supply generated next}
-    (plan : RawOriginMatchAllPlan elaboration childFuel bindingIndex resultIndex
+    (plan : RawOriginMatchAllPlan elaboration childFuel bindingIndex resultDemand
       sourceTargets targetInput matcherInput bodyInput)
     (components : MatchAllElaboratesUsing
       (ElaboratesFuel signature staticFuel) signature context targetExpression

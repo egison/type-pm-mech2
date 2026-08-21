@@ -1580,6 +1580,7 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.TracedOriginValueSafe
 #assert_allowed_axioms TypePM.Runtime.TracedOriginValueSafe.forget
 #assert_allowed_axioms TypePM.Runtime.TracedOriginValueSafe.apply
+#assert_allowed_axioms TypePM.Runtime.TracedOriginValueSafe.recursiveClosure
 #assert_allowed_axioms TypePM.Runtime.TracedOriginResultSafe
 #assert_allowed_axioms TypePM.Runtime.TracedOriginResultSafe.forget
 #assert_allowed_axioms TypePM.Runtime.TracedOriginEnvironmentSafe
@@ -3613,6 +3614,11 @@ These commands enforce that selected public results depend only on `propext`,
 #assert_allowed_axioms TypePM.Runtime.FuelEmbeddedMatchAllRuntimeCertificate
 #assert_allowed_axioms TypePM.Runtime.FuelEmbeddedMatchAllRuntimeCertificate.eval_originResultSafe
 #assert_allowed_axioms TypePM.Runtime.FuelEmbeddedMatchAllRuntimeCertificate.outputDemandApplicable
+#assert_allowed_axioms TypePM.Runtime.EvaluatedOriginBindingBodySafeUnder
+#assert_allowed_axioms TypePM.Runtime.matchAllFuel_twoIndexOriginSafe
+#assert_allowed_axioms TypePM.Runtime.OriginEmbeddedMatchAllRuntimeCertificate
+#assert_allowed_axioms TypePM.Runtime.OriginEmbeddedMatchAllRuntimeCertificate.outputDemandApplicable
+#assert_allowed_axioms TypePM.Runtime.OriginEmbeddedMatchAllRuntimeCertificate.eval_originResultSafe
 #assert_allowed_axioms TypePM.Runtime.TwoIndexMatchFirstArmsSafe
 #assert_allowed_axioms TypePM.Runtime.TwoIndexMatchFirstArmsSafe.nil
 #assert_allowed_axioms TypePM.Runtime.TwoIndexMatchFirstArmsSafe.cons
