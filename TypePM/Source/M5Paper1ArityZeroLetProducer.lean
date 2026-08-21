@@ -70,6 +70,12 @@ def var (position : Nat) (target : Ty) :
     intro operationalFuel outputDemand _applicable
     exact .var
 
+/-- The canonical something matcher supports every applicable observation of
+its matcher result type. -/
+noncomputable def something (target : Ty) :
+    RawApplicablePlanFamily .something (.matcher .any target) :=
+  ofPlanScope .something
+
 /-- Binary tuple composition over two arbitrary child families. -/
 noncomputable def tuple
     (left : RawApplicablePlanFamily leftExpression leftTarget)

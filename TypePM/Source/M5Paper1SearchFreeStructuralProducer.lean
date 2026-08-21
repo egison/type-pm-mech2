@@ -20,6 +20,7 @@ open M5Paper1RuntimeProducer
 /-- Search-free source expressions with a statically stated result shape. -/
 inductive PlanScope : Expr → Ty → Prop where
   | var : PlanScope (.var position) target
+  | something : PlanScope .something (.matcher .any target)
   | pairTree (tree : PairTree expression target) :
       PlanScope expression target
   | tuple
@@ -169,6 +170,17 @@ theorem PlanScope.plan
   | var =>
       intro operationalFuel outputDemand applicable
       exact ⟨OriginEnvironmentDemand.single _ outputDemand, .var⟩
+  | @something target =>
+      apply closeDemand
+      intro childFuel outputDemand notNone notBoth applicable
+      cases outputDemand with
+      | none => contradiction
+      | fuel index =>
+          exact ⟨OriginEnvironmentDemand.none, .somethingFuel⟩
+      | both left right =>
+          exact False.elim (notBoth left right rfl)
+      | listOf element | pairOf _ _ | bool | int | plainCall _ _ _ =>
+          simp [OriginDemandApplicable, DataTypes.list, DataTypes.bool] at applicable
   | pairTree tree => exact tree.plan
   | @tuple leftExpression leftTarget rightExpression rightTarget left right
       leftIH rightIH =>

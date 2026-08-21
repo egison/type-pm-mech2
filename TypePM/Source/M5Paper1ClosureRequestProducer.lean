@@ -259,6 +259,14 @@ abbrev FunctionInstances
   ∀ target, IsInstance principal target →
     ∃ domain codomain, target = .fn domain codomain
 
+/-- Every public instance has one fixed outer function type.  Ground Paper-1
+closures satisfy this boundary; polymorphic closures instead require a
+codomain-indexed certificate family. -/
+abbrev FixedFunctionInstances
+    (_derivation : M4.PrincipalTypingDerivation signature [] expression
+      principal) (domain codomain : Ty) : Prop :=
+  ∀ target, IsInstance principal target → target = .fn domain codomain
+
 theorem functionInstances_of_generatedTarget
     (derivation : M4.PrincipalTypingDerivation signature [] expression
       principal)
@@ -327,15 +335,18 @@ environment demand of a positive lambda call may be the tail of its body
 certificate, so it is retained explicitly instead of being forced to
 `none`.  Conjunction inputs are assembled structurally below. -/
 structure ClosedFunctionDemandCertificates
-    (signature : FrozenSignature) (expression : Expr) where
+    (signature : FrozenSignature) (expression : Expr)
+    (domain codomain : Ty) where
   atomicInput : OriginDemand → OriginEnvironmentDemand
   call : ∀ constructionFuel callFuel argumentDemand resultDemand
       {staticFuel supply generated next},
-    (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
-      supply generated next) →
-      Nonempty (M4.ExactRawOriginRequestCertificate elaboration
-        constructionFuel (.plainCall callFuel argumentDemand resultDemand)
-        (atomicInput (.plainCall callFuel argumentDemand resultDemand)))
+    OriginDemandApplicable argumentDemand domain →
+      OriginDemandApplicable resultDemand codomain →
+        (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
+          supply generated next) →
+          Nonempty (M4.ExactRawOriginRequestCertificate elaboration
+            constructionFuel (.plainCall callFuel argumentDemand resultDemand)
+            (atomicInput (.plainCall callFuel argumentDemand resultDemand)))
   none : ∀ constructionFuel {staticFuel supply generated next},
     (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
       supply generated next) →
@@ -352,7 +363,8 @@ namespace ClosedFunctionDemandCertificates
 /-- The input selected for an applicable function demand.  Only conjunctions
 combine inputs; every other case is supplied by its atomic builder. -/
 def inputDemand
-    (certificates : ClosedFunctionDemandCertificates signature expression) :
+    (certificates : ClosedFunctionDemandCertificates signature expression
+      domain codomain) :
     OriginDemand → OriginEnvironmentDemand
   | .both left right => OriginEnvironmentDemand.both
       (certificates.inputDemand left) (certificates.inputDemand right)
@@ -362,7 +374,8 @@ termination_by demand => demand
 /-- Applicability-directed exact certificate construction.  Conjunctions may
 freely mix call observations with fuel leaves. -/
 theorem applicableCertificate
-    (certificates : ClosedFunctionDemandCertificates signature expression)
+    (certificates : ClosedFunctionDemandCertificates signature expression
+      domain codomain)
     (elaboration : M4.ElaboratesFuel signature staticFuel [] expression
       supply generated next)
     (operationalFuel : Nat) :
@@ -411,20 +424,26 @@ theorem applicableCertificate
       simp only [OriginDemandApplicable] at applicable
       cases applicable
   | .plainCall callFuel argument result, applicable => by
+      simp only [OriginDemandApplicable] at applicable
+      obtain ⟨actualDomain, actualCodomain, targetEq, argumentApplicable,
+        resultApplicable⟩ := applicable
+      cases targetEq
       simpa only [inputDemand] using
-        certificates.call operationalFuel callFuel argument result elaboration
+        certificates.call operationalFuel callFuel argument result
+          argumentApplicable resultApplicable elaboration
 termination_by demand => demand
 
 def requestProducer
-    (certificates : ClosedFunctionDemandCertificates signature expression)
+    (certificates : ClosedFunctionDemandCertificates signature expression
+      domain codomain)
     (derivation : M4.PrincipalTypingDerivation signature [] expression
       principal)
-    (instances : FunctionInstances derivation) :
+    (instances : FixedFunctionInstances derivation domain codomain) :
     PrincipalOriginRequestProducer derivation [] where
   inputDemand := fun _ outputDemand => certificates.inputDemand outputDemand
   request := by
     intro operationalFuel outputDemand target instantiation applicable
-    obtain ⟨domain, codomain, targetEq⟩ := instances target instantiation
+    have targetEq := instances target instantiation
     subst target
     refine ⟨.elaboration
       (fun elaboration => certificates.applicableCertificate elaboration
@@ -441,22 +460,25 @@ end ClosedFunctionDemandCertificates
 /-- Positive lambda calls delegate to exact body certificates in the extended
 argument context. -/
 structure LambdaCallBodyFamily
-    (signature : FrozenSignature) (body : Expr) where
+    (signature : FrozenSignature) (body : Expr) (domain codomain : Ty) where
   bodyInput : Nat → OriginDemand → OriginDemand → OriginEnvironmentDemand
   certificate : ∀ bodyFuel argumentDemand resultDemand
       {staticFuel : Nat} {supply : Supply} {generatedBody : Generated}
       {next : Supply},
-    (bodyElaboration : M4.ElaboratesFuel signature staticFuel
-      [Scheme.mono (Ty.var ⟨supply.ty⟩)] body (supply.nextTy 1)
-      generatedBody next) →
-      Nonempty (M4.ExactRawOriginRequestCertificate bodyElaboration bodyFuel
-        resultDemand (bodyInput bodyFuel argumentDemand resultDemand))
-  argumentCovers : ∀ bodyFuel argumentDemand resultDemand,
+    OriginDemandApplicable argumentDemand domain →
+      OriginDemandApplicable resultDemand codomain →
+        (bodyElaboration : M4.ElaboratesFuel signature staticFuel
+          [Scheme.mono (Ty.var ⟨supply.ty⟩)] body (supply.nextTy 1)
+          generatedBody next) →
+          Nonempty (M4.ExactRawOriginRequestCertificate bodyElaboration bodyFuel
+            resultDemand (bodyInput bodyFuel argumentDemand resultDemand))
+  argumentCovers : ∀ bodyFuel argumentDemand resultDemand domain,
+    OriginDemandApplicable argumentDemand domain →
     OriginDemand.Le ((bodyInput bodyFuel argumentDemand resultDemand) 0)
       argumentDemand
 
 def lambdaAtomicInput
-    (calls : LambdaCallBodyFamily signature body) :
+    (calls : LambdaCallBodyFamily signature body domain codomain) :
     OriginDemand → OriginEnvironmentDemand
   | .plainCall (bodyFuel + 1) argumentDemand resultDemand =>
       OriginEnvironmentDemand.tail
@@ -464,12 +486,12 @@ def lambdaAtomicInput
   | _ => OriginEnvironmentDemand.none
 
 def lambdaFunctionCertificates
-    (calls : LambdaCallBodyFamily signature body) :
-    ClosedFunctionDemandCertificates signature (.lam body) where
+    (calls : LambdaCallBodyFamily signature body domain codomain) :
+    ClosedFunctionDemandCertificates signature (.lam body) domain codomain where
   atomicInput := lambdaAtomicInput calls
   call := by
     intro constructionFuel callFuel argumentDemand resultDemand staticFuel
-      supply generated next elaboration
+      supply generated next argumentApplicable resultApplicable elaboration
     cases staticFuel with
     | zero => exact False.elim elaboration
     | succ childStaticFuel =>
@@ -484,8 +506,10 @@ def lambdaFunctionCertificates
                 (calls.bodyInput bodyFuel argumentDemand resultDemand)
                 (fun generatedBody bodyElaboration =>
                   calls.certificate bodyFuel argumentDemand resultDemand
+                    argumentApplicable resultApplicable
                     bodyElaboration)
-                (calls.argumentCovers bodyFuel argumentDemand resultDemand))
+                (calls.argumentCovers bodyFuel argumentDemand resultDemand
+                  domain argumentApplicable))
   none := by
     intro constructionFuel staticFuel supply generated next elaboration
     cases staticFuel with
@@ -512,16 +536,18 @@ def lambdaFunctionCertificates
             ⟨zeroCall.reobserveUniversal .zero⟩)
 
 theorem lambda_derivationRequestProducer_total
-    (calls : LambdaCallBodyFamily signature body)
+    (calls : LambdaCallBodyFamily signature body domain codomain)
     (derivation : M4.PrincipalTypingDerivation signature [] (.lam body)
-      principal) :
+      principal)
+    (instances : FixedFunctionInstances derivation domain codomain) :
     DerivationRequestProducer derivation [] :=
   ⟨(lambdaFunctionCertificates calls).requestProducer derivation
-    (lambdaFunctionInstances derivation)⟩
+    instances⟩
 
 /-! ## Ordinary and matcher-root `fixE` -/
 
-structure PlainFixCallFamily (signature : FrozenSignature) (body : Expr) where
+structure PlainFixCallFamily (signature : FrozenSignature) (body : Expr)
+    (observedDomain observedCodomain : Ty) where
   bodyTyped : ∀ {staticFuel supply generated next}
       (_elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
         supply generated next) solution,
@@ -533,7 +559,10 @@ structure PlainFixCallFamily (signature : FrozenSignature) (body : Expr) where
         body ((Fix.codomain body supply).apply solution)
   bodySafe : ∀ {staticFuel supply generated next}
       (_elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
-        supply generated next) bodyFuel argumentDemand resultDemand solution,
+        supply generated next) bodyFuel argumentDemand resultDemand,
+    OriginDemandApplicable argumentDemand observedDomain →
+      OriginDemandApplicable resultDemand observedCodomain →
+        ∀ solution,
     generated.SemanticSolution solution →
       MatcherTyping.PlainFixBodyOriginSafe [] body
         ((Fix.domain body supply).apply solution)
@@ -541,7 +570,9 @@ structure PlainFixCallFamily (signature : FrozenSignature) (body : Expr) where
         bodyFuel argumentDemand resultDemand
 
 theorem plainFixCallExactCertificate
-    (calls : PlainFixCallFamily signature body)
+    (calls : PlainFixCallFamily signature body observedDomain observedCodomain)
+    (argumentApplicable : OriginDemandApplicable argumentDemand observedDomain)
+    (resultApplicable : OriginDemandApplicable resultDemand observedCodomain)
     (elaboration : M4.ElaboratesFuel signature staticFuel [] (.fixE body)
       supply generated next) :
     Nonempty (M4.ExactRawOriginRequestCertificate elaboration constructionFuel
@@ -562,47 +593,58 @@ theorem plainFixCallExactCertificate
           exact MatcherTyping.fixElaboration_eval_originResultSafe_plainCall_of_m4Fuel
             elaboration semantic (calls.bodyTyped elaboration solution semantic)
             .nil (calls.bodySafe elaboration bodyFuel argumentDemand
-              resultDemand solution semantic)⟩
+              resultDemand argumentApplicable resultApplicable solution
+              semantic)⟩
   exact ⟨⟨certificate, rfl⟩⟩
 
 def plainFixFunctionCertificates
-    (calls : PlainFixCallFamily signature body) :
-    ClosedFunctionDemandCertificates signature (.fixE body) where
+    (calls : PlainFixCallFamily signature body domain codomain) :
+    ClosedFunctionDemandCertificates signature (.fixE body) domain codomain where
   atomicInput := fun _ => OriginEnvironmentDemand.none
   call := by
     intro constructionFuel callFuel argumentDemand resultDemand staticFuel
-      supply generated next elaboration
-    exact plainFixCallExactCertificate calls elaboration
+      supply generated next argumentApplicable resultApplicable elaboration
+    exact plainFixCallExactCertificate calls argumentApplicable
+      resultApplicable elaboration
   none := by
     intro constructionFuel staticFuel supply generated next elaboration
     obtain ⟨zeroCall⟩ := plainFixCallExactCertificate
       (constructionFuel := constructionFuel) (callFuel := 0)
-      (argumentDemand := .none) (resultDemand := .none) calls elaboration
+      (argumentDemand := .none) (resultDemand := .none) calls
+      (by simp [OriginDemandApplicable]) (by simp [OriginDemandApplicable])
+      elaboration
     exact ⟨zeroCall.reobserveUniversal .none⟩
   zeroFuel := by
     intro constructionFuel staticFuel supply generated next elaboration
     obtain ⟨zeroCall⟩ := plainFixCallExactCertificate
       (constructionFuel := constructionFuel) (callFuel := 0)
-      (argumentDemand := .none) (resultDemand := .none) calls elaboration
+      (argumentDemand := .none) (resultDemand := .none) calls
+      (by simp [OriginDemandApplicable]) (by simp [OriginDemandApplicable])
+      elaboration
     exact ⟨zeroCall.reobserveUniversal .zero⟩
 
 theorem plainFix_derivationRequestProducer_total
-    (calls : PlainFixCallFamily signature body)
+    (calls : PlainFixCallFamily signature body domain codomain)
     (derivation : M4.PrincipalTypingDerivation signature [] (.fixE body)
-      principal) :
+      principal)
+    (instances : FixedFunctionInstances derivation domain codomain) :
     DerivationRequestProducer derivation [] :=
   ⟨(plainFixFunctionCertificates calls).requestProducer derivation
-    (fixFunctionInstances derivation)⟩
+    instances⟩
 
 /-- The only remaining matcher-root call obligation is safety of evaluating
 the matcher body after inserting the argument and recursive self.  Structural
 body typing is derived from the solved matcher elaboration by S8. -/
 structure MatcherFixCallFamily
-    (signature : FrozenSignature) (clauses : List MatcherClause) where
+    (signature : FrozenSignature) (clauses : List MatcherClause)
+    (observedDomain observedCodomain : Ty) where
   bodySafe : ∀ {staticFuel supply generated next}
       (_elaboration : M4.ElaboratesFuel signature staticFuel []
         (.fixE (.matcher clauses)) supply generated next)
-      bodyFuel argumentDemand resultDemand solution,
+      bodyFuel argumentDemand resultDemand,
+    OriginDemandApplicable argumentDemand observedDomain →
+      OriginDemandApplicable resultDemand observedCodomain →
+        ∀ solution,
     generated.SemanticSolution solution →
       MatcherTyping.PlainFixBodyOriginSafe [] (.matcher clauses)
         ((Fix.domain (.matcher clauses) supply).apply solution)
@@ -611,8 +653,8 @@ structure MatcherFixCallFamily
 
 def matcherFixPlainCallFamily
     (compatible : FrozenSignatureRuntimeCompatible signature)
-    (calls : MatcherFixCallFamily signature clauses) :
-    PlainFixCallFamily signature (.matcher clauses) where
+    (calls : MatcherFixCallFamily signature clauses domain codomain) :
+    PlainFixCallFamily signature (.matcher clauses) domain codomain where
   bodyTyped := by
     intro staticFuel supply generated next elaboration solution semantic
     exact MatcherTyping.matcherFixElaboration_totalRecursiveClosureBodyTyping_of_m4Fuel
@@ -640,14 +682,16 @@ theorem matcherFixFuelLeafExactCertificate
 
 def matcherFixFunctionCertificates
     (compatible : FrozenSignatureRuntimeCompatible signature)
-    (calls : MatcherFixCallFamily signature clauses) :
-    ClosedFunctionDemandCertificates signature (.fixE (.matcher clauses)) where
+    (calls : MatcherFixCallFamily signature clauses domain codomain) :
+    ClosedFunctionDemandCertificates signature (.fixE (.matcher clauses))
+      domain codomain where
   atomicInput := fun _ => OriginEnvironmentDemand.none
   call := by
     intro constructionFuel callFuel argumentDemand resultDemand staticFuel
-      supply generated next elaboration
+      supply generated next argumentApplicable resultApplicable elaboration
     exact plainFixCallExactCertificate
-      (matcherFixPlainCallFamily compatible calls) elaboration
+      (matcherFixPlainCallFamily compatible calls) argumentApplicable
+      resultApplicable elaboration
   none := by
     intro constructionFuel staticFuel supply generated next elaboration
     exact matcherFixFuelLeafExactCertificate compatible .none elaboration
@@ -657,11 +701,12 @@ def matcherFixFunctionCertificates
 
 theorem matcherFix_derivationRequestProducer_total
     (compatible : FrozenSignatureRuntimeCompatible signature)
-    (calls : MatcherFixCallFamily signature clauses)
+    (calls : MatcherFixCallFamily signature clauses domain codomain)
     (derivation : M4.PrincipalTypingDerivation signature []
-      (.fixE (.matcher clauses)) principal) :
+      (.fixE (.matcher clauses)) principal)
+    (instances : FixedFunctionInstances derivation domain codomain) :
     DerivationRequestProducer derivation [] :=
   ⟨(matcherFixFunctionCertificates compatible calls).requestProducer derivation
-    (fixFunctionInstances derivation)⟩
+    instances⟩
 
 end TypePM.Source.M5Paper1ClosureRequestProducer

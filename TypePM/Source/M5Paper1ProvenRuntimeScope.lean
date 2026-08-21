@@ -29,6 +29,7 @@ private theorem canonicalScope
     (tree : PlanScope expression target) : Scope expression := by
   induction tree with
   | var => exact .var
+  | something => exact .something
   | pairTree pair => exact pairTreeScope pair
   | tuple left right leftIH rightIH =>
       exact .tuple (.cons leftIH (.cons rightIH .nil))
@@ -62,7 +63,7 @@ theorem canonicalMNodeFree
     (tree : PlanScope expression target) : expression.MNodeFree := by
   induction tree with
   | pairTree pair => exact pairTreeMNodeFree pair
-  | var | tuple | boolTrue | boolFalse | listNil |
+  | var | something | tuple | boolTrue | boolFalse | listNil |
     listCons | add | append | member | deleteFirst | pairFirst | pairSecond |
     ifE =>
       simp_all [Expr.MNodeFree, PatternFunctionExpansion.expandExpr,
