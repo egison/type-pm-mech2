@@ -180,6 +180,22 @@ theorem OriginValueSafe.ofCheckConversion
       OriginValueSafe.both
         (OriginValueSafe.ofCheckConversion conversion left value safe.bothLeft)
         (OriginValueSafe.ofCheckConversion conversion right value safe.bothRight)
+  | .listOf element, _, safe => by
+      simp only [OriginValueSafe] at safe ⊢
+      cases safe with
+      | nil =>
+          cases conversion
+          exact .nil
+      | cons head tail =>
+          cases conversion
+          exact .cons head tail
+  | .pairOf left right, _, safe => by
+      simp only [OriginValueSafe] at safe ⊢
+      cases safe with
+      | pair leftSafe rightSafe firstConversion =>
+          obtain ⟨finalClass, finalConversion⟩ :=
+            CheckConversion.trans firstConversion conversion
+          exact .pair leftSafe rightSafe finalConversion
   | .plainCall operationalFuel argument result, _, safe => by
       simp only [OriginValueSafe] at safe ⊢
       cases safe with
@@ -216,7 +232,7 @@ structure RawOriginRequestCertificate
       supply generated next)
     (operationalFuel : Nat) (outputDemand : OriginDemand) : Type where
   inputDemand : OriginEnvironmentDemand
-  preserves : ∀ solution,
+  preserves : SignatureCompatible signature.base → ∀ solution,
     generated.SemanticSolution solution →
       ∀ environment,
         SchemeOriginEnvironmentSafe inputDemand solution environment context →
@@ -234,7 +250,7 @@ def var
     RawOriginRequestCertificate elaboration operationalFuel outputDemand := by
   let inputDemand := OriginEnvironmentDemand.single position outputDemand
   refine ⟨inputDemand, ?_⟩
-  intro solution _semantic environment environmentSafe
+  intro _compatible solution _semantic environment environmentSafe
   simp only [ElaboratesFuel] at elaboration
   obtain ⟨scheme, schemeFound, generatedEq, _nextEq⟩ := elaboration
   obtain ⟨value, valueFound, valueSafe⟩ := environmentSafe.lookup schemeFound
@@ -265,7 +281,7 @@ def ofFuel
   let inputDemand := OriginEnvironmentDemand.fuel
     (certificate.inputDemand operationalFuel resultIndex)
   refine ⟨inputDemand, ?_⟩
-  intro solution semantic environment environmentSafe
+  intro _compatible solution semantic environment environmentSafe
   apply OriginResultSafe.ofFuel
   exact certificate.preserves solution semantic operationalFuel resultIndex
     environment environmentSafe.toFuel
@@ -281,13 +297,13 @@ def both
   let inputDemand := OriginEnvironmentDemand.both
     left.inputDemand right.inputDemand
   refine ⟨inputDemand, ?_⟩
-  intro solution semantic environment environmentSafe
+  intro compatible solution semantic environment environmentSafe
   apply OriginResultSafe.bothIntro
-  · apply left.preserves solution semantic environment
+  · apply left.preserves compatible solution semantic environment
     apply environmentSafe.mono
     intro position
     exact .fromLeft (.refl _)
-  · apply right.preserves solution semantic environment
+  · apply right.preserves compatible solution semantic environment
     apply environmentSafe.mono
     intro position
     exact .fromRight (.refl _)
@@ -299,8 +315,8 @@ def weakenOutput
     (weaken : OriginDemand.Le requestedDemand availableDemand) :
     RawOriginRequestCertificate elaboration operationalFuel requestedDemand :=
   ⟨certificate.inputDemand, by
-    intro solution semantic environment environmentSafe
-    exact (certificate.preserves solution semantic environment
+    intro compatible solution semantic environment environmentSafe
+    exact (certificate.preserves compatible solution semantic environment
       environmentSafe).mono weaken⟩
 
 /-- Supply a stronger input environment than the certificate minimally asks
@@ -313,8 +329,8 @@ def strengthenInput
       OriginDemand.Le (certificate.inputDemand position) (stronger position)) :
     RawOriginRequestCertificate elaboration operationalFuel outputDemand :=
   ⟨stronger, by
-    intro solution semantic environment environmentSafe
-    exact certificate.preserves solution semantic environment
+    intro compatible solution semantic environment environmentSafe
+    exact certificate.preserves compatible solution semantic environment
       (environmentSafe.mono covers)⟩
 
 /-- One smaller body certificate together with the contravariant fact that
@@ -357,14 +373,15 @@ theorem lamPlainCall
   let inputDemand : OriginEnvironmentDemand :=
     OriginEnvironmentDemand.tail certificate.inputDemand
   refine ⟨⟨inputDemand, ?_⟩⟩
-  intro solution semantic environment environmentSafe
+  intro compatible solution semantic environment environmentSafe
   cases lambdaOperationalFuel with
   | zero => exact .inl rfl
   | succ lambdaFuel =>
       refine .inr ⟨.plainClosure environment body, rfl, ?_⟩
       apply OriginValueSafe.plainClosure
       intro argument argumentSafe
-      apply certificate.preserves solution semantic (argument :: environment)
+      apply certificate.preserves compatible solution semantic
+        (argument :: environment)
       have headSafe : SchemeOriginValueSafe
           (certificate.inputDemand 0) argument
           (Scheme.mono (.var ⟨supply.ty⟩)) solution :=
@@ -388,7 +405,7 @@ theorem lamZeroCall
   subst generated
   let inputDemand := OriginEnvironmentDemand.none
   refine ⟨⟨inputDemand, ?_⟩⟩
-  intro solution _semantic environment _environmentSafe
+  intro _compatible solution _semantic environment _environmentSafe
   cases lambdaOperationalFuel with
   | zero => exact .inl rfl
   | succ lambdaFuel =>
@@ -453,7 +470,7 @@ theorem appWithArgumentTransport
   let inputDemand := OriginEnvironmentDemand.both
     functionCertificate.inputDemand argumentCertificate.inputDemand
   refine ⟨⟨inputDemand, ?_⟩⟩
-  intro solution semantic environment environmentSafe
+  intro compatible solution semantic environment environmentSafe
   have functionSemantic : generatedFunction.SemanticSolution solution := by
     constructor
     · intro equation membership
@@ -488,10 +505,11 @@ theorem appWithArgumentTransport
     semantic.2
       ⟨generatedArgument.target, Ty.var ⟨afterArgument.ty⟩⟩
       (by simp [Generated.fromApp])
-  have functionSafe := functionCertificate.preserves solution functionSemantic
+  have functionSafe := functionCertificate.preserves compatible solution
+    functionSemantic
     environment (environmentSafe.mono (fun position => .fromLeft (.refl _)))
   rw [functionType] at functionSafe
-  have argumentSafeAtSource := argumentCertificate.preserves solution
+  have argumentSafeAtSource := argumentCertificate.preserves compatible solution
     argumentSemantic environment
     (environmentSafe.mono (fun position => .fromRight (.refl _)))
   have argumentSafe : OriginResultSafe argumentDemand

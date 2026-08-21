@@ -1,5 +1,6 @@
 import TypePM.Source.M4RawOriginRecursiveProducer
 import TypePM.Source.Paper1Programs
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Regression for the recursive raw origin-request producer
@@ -205,7 +206,9 @@ theorem fixture_typing :
 on the plan family and public typing, not on the exact evaluation below. -/
 theorem fixture_neverStuck (operationalFuel : Nat) :
     (evalFuel operationalFuel [] fixture).NotStuck :=
-  fixtureSupported.closedNeverStuck fixture_typing operationalFuel
+  fixtureSupported.closedNeverStuck
+    Paper1FrozenSignature.runtimeCompatible.toSignatureCompatible
+    fixture_typing operationalFuel
 
 /-- A separate post-safety check rules out a regression whose arbitrary-fuel
 theorem is useful only because every tested run times out. -/

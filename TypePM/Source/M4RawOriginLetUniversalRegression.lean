@@ -1,5 +1,6 @@
 import TypePM.Source.M4RawOriginRecursiveProducer
 import TypePM.Source.M4LetRuntimeWorldStepRegression
+import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 
 /-!
 # Regression for the source-derived universal-input `letE` plan
@@ -151,7 +152,9 @@ theorem fixture_typing :
 evaluator fuel.  No completed evaluation equation occurs in this proof. -/
 theorem fixture_neverStuck (operationalFuel : Nat) :
     (evalFuel operationalFuel [] fixture).NotStuck :=
-  fixtureSupported.closedNeverStuck fixture_typing operationalFuel
+  fixtureSupported.closedNeverStuck
+    Paper1FrozenSignature.runtimeCompatible.toSignatureCompatible
+    fixture_typing operationalFuel
 
 /-- Independent post-safety execution check: the generalized identity is
 used successfully at two distinct source types. -/

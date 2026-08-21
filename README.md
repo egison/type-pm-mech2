@@ -561,6 +561,29 @@ raw導出からcertificateを作る内部5.6と直接的な5.8が完了した．
 conditional，`fixE`，recursive closure，matcher，`matchAllDFS`，`matchFirst`を実行・再帰する規則は
 含まないため，Paper 1クラス全体は引き続き未完である．
 
+構造需要には，canonicalなruntime listの各要素を同じ子需要で観測する`listOf`と，binary tupleの
+左右を別々の子需要で観測する`pairOf`も含める．`pairOf`は通常の積型だけでなく，checkingが選んだ
+matcher product／slot型への変換後も同じ観測を保持する．raw producerには，左右で異なる需要を持つ
+二要素tupleの一般規則`RawOriginRequestPlan.tuplePair`を接続した．またraw certificateの保存則は，
+constructor／primitiveのruntime実装を使う今後の規則に備え，frozen signatureの通常部分が実装と
+一致する`SignatureCompatible`を明示的に受け取る．
+
+`M4StepIndexedMatcherClosureSafety`は，runtime-compatibleな任意のfrozen signatureについて，solved M4
+matcher literalとmatcherを本体に持つ`fixE`から，user matcher closureの正のfuel安全性に必要な
+`TotalRecursiveClosureBodyTyping`を構成する．fresh matcher closureの捕捉環境は直前indexで検査し，
+recursive selfの証拠は外側のfuel帰納から受け取る．fixture名，固定fuel，評価結果の等式は使わない．
+
+探索側では，`M4TwoIndexBuiltinAtomProducer`がM4由来の`PatternBinds`，実際のbuilt-in matcher形状，
+target値のfuel安全性からcanonicalなatom証拠を作り，built-in reducerとcombined reducerの局所保存則を
+任意の二添字で証明する．`M4TwoIndexMatchAllInitialProducer`の一般入口は，従来固定していたvariable
+pattern，単一catch-all clause，Paper 1 signatureを，runtime-compatible signature，direct pattern，
+最終catch-allを持つ任意clause列という前提へ昇格した．既存Paper 1入口はこの一般定理の特殊化である．
+
+`FuelUserMatcherGeneralSafety`はuser clause dispatchの前半を同じ需要付き契約へ移した．capture列の
+評価，decompositionとnext matcher productのdecode，単一arm，単一arm clauseについて，正のfuelで
+delegated atom／branchの型を保つ．body，next matcher，captureの入力需要を実環境が満たす証拠は
+式producer側から受け取り，recursive branchを探索状態へ投入する合流部はまだ含めない．
+
 `M5ClosedPairProjectionCertificate`は，整数，二要素の整数pair，入れ子のpair projectionからなる
 closedかつsearch-freeな具体断片について，`ConditionalCompletionSchema`の連言全体を満たす．
 certificateが保持するのは，実際のM4主要導出に対応するfragment証拠と`RuntimeTyping`だけであり，
@@ -711,7 +734,7 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 |---|---|---|
 | Paper 1／5.6 | **in progress** | 一般M4 `letE`の静的body worldと使用箇所ごとの子の制約解，二種類の動的環境，interface輸送，`letE`／application断片の有限需要法則，位置別需要を持つraw M4の変数・literal・`something`・tuple producer，plain closure用の構造的な有限観測要求，raw lambda／applicationの条件付き構成規則，実際に再帰・観測する位置を六構文に限定した静的planからのproducer，RHSの外側需要がUniversalな多相`letE`規則は完了．次はopenな多相runtime環境の値安全性を，実際に現れる有限個の使用箇所と子の解へ運ぶ関係，一般`letE`，残るsource構文，matching taskの由来を同じ内部certificateへ統合する |
 | Paper 1／5.6 | **in progress** | 上の具体certificateがcoherenceを尊重することを証明し，公開`infer`が選ぶ代表導出へclosed certificateを輸送する．多相`letE`ではscheme bindingの由来とfreshnessを保存する |
-| Paper 1／5.7 | **in progress** | 任意のM4 matcher-clause導出から，actual dispatchの各branch，atom関係，局所evaluator／reducer保存則，二添字初期stateを生成する．具体例固有の有限branch証拠を一般定理の外部前提に残さず，complete-search等式にも依存しない |
+| Paper 1／5.7 | **in progress** | M4 built-in atomのcanonical関係と局所reducer保存則，任意direct pattern／最終catch-all clause列の二添字初期state，user dispatchのcapture／単一arm／単一clause保存則は完了．次は任意のM4 matcher-clause列からactual dispatchの各recursive branchを探索状態へ投入し，一般user reducer保存則を作る．具体例固有のbranch証拠やcomplete-search等式には依存しない |
 | Paper 1／5.8 | **in progress** | 5.6のsource certificateと5.7のbounded DFS安全性を合成し，任意の全域的Paper 1 closed式について`ClosedNoStuck`を得る |
 | Paper 2／言語 | **not started** | surface loop patternのAST，binding interface，静的elaboration，実行規則を定義する |
 | Paper 2／loopの5.1--5.5 | **not started** | loop patternをM4のfuel・support・coherence・replay・主要性へ統合する |
@@ -772,12 +795,12 @@ joinは末尾の分割を再帰的に列挙し，各段階で現在の要素を�
 | Paper 1 source／静的回帰 | [Paper1Programs.lean](TypePM/Source/Paper1Programs.lean)，[M4Paper1ListExactRegression.lean](TypePM/Source/M4Paper1ListExactRegression.lean)，[M4Paper1ClosedMultisetExactRegression.lean](TypePM/Source/M4Paper1ClosedMultisetExactRegression.lean) | listing inventoryのsourceと5.1--5.5 |
 | 評価・matching基盤 | [Evaluation.lean](TypePM/Runtime/Evaluation.lean)，[EvalFuel.lean](TypePM/Runtime/EvalFuel.lean)，[MatchingState.lean](TypePM/Runtime/MatchingState.lean)，[MatchingSearch.lean](TypePM/Runtime/MatchingSearch.lean) | 関係的評価，実行可能評価，matching state |
 | Paper 1 bounded DFS実行時層 | [DepthFirstSearch.lean](TypePM/Runtime/DepthFirstSearch.lean)，[CoreSafety.lean](TypePM/CoreSafety.lean)，[MatcherSafety.lean](TypePM/MatcherSafety.lean)，[CommonFuelSafety.lean](TypePM/CommonFuelSafety.lean)，[NoStuck.lean](TypePM/NoStuck.lean) | 既に実行時型付けされた項の型保存・no-stuck |
-| 5.6目標interface／現行producer | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[GeneralizedOccurrenceSolution.lean](TypePM/Source/GeneralizedOccurrenceSolution.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4OriginDemandSafety.lean](TypePM/Source/M4OriginDemandSafety.lean)，[M4RawOriginRequestCertificate.lean](TypePM/Source/M4RawOriginRequestCertificate.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4RawOriginLetUniversalRegression.lean](TypePM/Source/M4RawOriginLetUniversalRegression.lean) | 主要導出に添字付いた目標interface，構造的な高階観測要求，raw lambda／application／限定的多相`letE`のproducerとclosed no-stuck．一般のopen多相`letE`，残るsource構文，matcher・探索を含むクラス全体は未完 |
+| 5.6目標interface／現行producer | [M5CompletionArchitecture.lean](TypePM/Source/M5CompletionArchitecture.lean)，[M4CanonicalCertificateTransport.lean](TypePM/Source/M4CanonicalCertificateTransport.lean)，[GeneralizedOccurrenceSolution.lean](TypePM/Source/GeneralizedOccurrenceSolution.lean)，[OriginDemandSafety.lean](TypePM/OriginDemandSafety.lean)，[M4OriginDemandSafety.lean](TypePM/Source/M4OriginDemandSafety.lean)，[M4RawOriginRequestCertificate.lean](TypePM/Source/M4RawOriginRequestCertificate.lean)，[M4RawOriginRecursiveProducer.lean](TypePM/Source/M4RawOriginRecursiveProducer.lean)，[M4StepIndexedMatcherClosureSafety.lean](TypePM/Source/M4StepIndexedMatcherClosureSafety.lean)，[M4RawOriginLetUniversalRegression.lean](TypePM/Source/M4RawOriginLetUniversalRegression.lean) | 主要導出に添字付いた需要型抽象interface，構造的な高階・list・pair観測，raw lambda／application／pair／限定的多相`letE`のproducer，solved matcher literal／matcher-root `fixE`からのclosure安全性．一般のopen多相`letE`，残るsource構文，式評価と探索の合流は未完 |
 | 退役済みの5.6試行経路 | [M4LetRuntimeWorldStep.lean](TypePM/Source/M4LetRuntimeWorldStep.lean)，[ProtectedPolymorphicLetFuelSafety.lean](TypePM/ProtectedPolymorphicLetFuelSafety.lean)，[M4ProtectedFuelContextBridge.lean](TypePM/Source/M4ProtectedFuelContextBridge.lean)，[FiniteInputDemandSafety.lean](TypePM/FiniteInputDemandSafety.lean)と各回帰 | 過去の条件付き境界と線形indexの反例を保存する参照資料．新しい一般producerをこの経路へ追加しない |
 | closed pair certificate | [M5ClosedPairProjectionCertificate.lean](TypePM/Source/M5ClosedPairProjectionCertificate.lean)，[M5ClosedPairProjectionCertificateRegression.lean](TypePM/Source/M5ClosedPairProjectionCertificateRegression.lean) | 5.6--5.8とcoherence輸送を満たす完了したsearch-free具体断片．Paper 1クラス全体ではない |
 | closed literal `matchAllDFS` certificate | [M5ClosedLiteralMatchAllCertificate.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificate.lean)，[M5ClosedLiteralMatchAllCertificateRegression.lean](TypePM/Source/M5ClosedLiteralMatchAllCertificateRegression.lean) | 5.6--5.8を実際に発行された空でないbounded-DFS taskとともに満たす完了した具体断片．user matcherを含むクラス全体ではない |
 | 二添字bounded DFS | [TwoIndexMatchingSearchSafety.lean](TypePM/TwoIndexMatchingSearchSafety.lean)，[TwoIndexMatchAllSafety.lean](TypePM/TwoIndexMatchAllSafety.lean) | caller指定の環境・answer関係と局所保存則を合成する実行時層 |
-| M4から二添字DFSへの局所bridge | [M4TwoIndexMatchAllInitialProducer.lean](TypePM/Source/M4TwoIndexMatchAllInitialProducer.lean)，[M4TwoIndexPatternDispatchProducer.lean](TypePM/Source/M4TwoIndexPatternDispatchProducer.lean)，[M4TwoIndexUserMatcherReducerBridge.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridge.lean) | bounded DFSの限定的な局所合成．dispatch no-stuck，hit時のbranch証拠，局所reducer保存則が残る |
+| M4から二添字DFSへの局所bridge | [M4TwoIndexBuiltinAtomProducer.lean](TypePM/Source/M4TwoIndexBuiltinAtomProducer.lean)，[M4TwoIndexMatchAllInitialProducer.lean](TypePM/Source/M4TwoIndexMatchAllInitialProducer.lean)，[M4TwoIndexPatternDispatchProducer.lean](TypePM/Source/M4TwoIndexPatternDispatchProducer.lean)，[M4TwoIndexUserMatcherReducerBridge.lean](TypePM/Source/M4TwoIndexUserMatcherReducerBridge.lean)，[FuelUserMatcherGeneralSafety.lean](TypePM/FuelUserMatcherGeneralSafety.lean) | M4 built-in atomの一般局所保存則，任意direct pattern／最終catch-all clause列の初期producer，user dispatchのcapture／単一arm／単一clauseまで完了．recursive branchの投入とuser clause列全体の一般局所保存則が残る |
 | Paper 1実行回帰 | [Paper1NeverStuckRegression.lean](TypePM/Runtime/Paper1NeverStuckRegression.lean)，[M4Paper1ListJoinSearchSafety.lean](TypePM/Source/M4Paper1ListJoinSearchSafety.lean)，[M4Paper1MultisetSearchSafety.lean](TypePM/Source/M4Paper1MultisetSearchSafety.lean) | inventoryに列挙した具体listing |
 | Paper 2 freeze／checked MNode | [PatternFunctionFreeze.lean](TypePM/Source/PatternFunctionFreeze.lean)，[PatternFunctionNodeEvaluation.lean](TypePM/Runtime/PatternFunctionNodeEvaluation.lean)，[PatternFunctionSafety.lean](TypePM/PatternFunctionSafety.lean) | pattern-function断片．surface loop patternは含まない |
 | Paper 3公平探索 | [FairReductionTreeSearch.lean](TypePM/Runtime/FairReductionTreeSearch.lean)，[FairReductionTreeCompleteness.lean](TypePM/Runtime/FairReductionTreeCompleteness.lean)，[FairTwoIndexMatchingSearchSafety.lean](TypePM/FairTwoIndexMatchingSearchSafety.lean) | 一般runtime探索木の有限prefix安全性と有限到達観測 |

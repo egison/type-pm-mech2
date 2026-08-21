@@ -1,4 +1,4 @@
-import TypePM.Source.M4TwoIndexPatternDispatchProducer
+import TypePM.Source.M4TwoIndexBuiltinAtomProducer
 import TypePM.Source.Paper1FrozenSignatureRuntimeCompatibility
 import TypePM.Source.Paper1Programs
 import TypePM.TwoIndexMatchAllSafety
@@ -157,6 +157,130 @@ private theorem fromMatchAll_matcherToSlot
     ⟨matcher.target, Ty.slot pattern.dual.capability target.target⟩ (by
       simp [Generated.fromMatchAll])
 
+/-- General bounded initial-state producer for one solved M4 pattern and any
+user-matcher clause list with a checked final catch-all.  Signature choice,
+pattern shape, and clause count are premises rather than Paper 1 constants.
+The theorem uses only local dispatch and atom obligations; it assumes no
+complete-search equation and fixes no callback fuel. -/
+theorem evaluatedTwoIndexInitialState_of_m4PatternAndBoundedLocalWork
+    {generatedTarget generatedMatcher : Generated}
+    (patternElaboration : PatternElaborates signature context [] pattern []
+      patternSupply generatedPattern patternNext)
+    (compatible : FrozenSignatureRuntimeCompatible signature)
+    (supported : DirectRuntimePatternSupported pattern)
+    (patternSemantic : GeneratedPatternRuntimeSolution generatedPattern solution)
+    (matcherSemantic : generatedMatcher.SemanticSolution solution)
+    (matcherToSlot : ∃ conversionClass,
+      CheckConversion conversionClass (generatedMatcher.target.apply solution)
+        ((Ty.slot generatedPattern.dual.capability generatedTarget.target).apply
+          solution))
+    (targetEq : generatedPattern.dual.target.apply solution =
+      generatedTarget.target.apply solution)
+    (contextCompatible :
+      MonomorphicContextCompatible context environmentTypes solution)
+    (finalCatchAll : FinalCatchAll clauses)
+    (targetSuccess :
+      evalFuel (searchFuel + 1) environment targetExpression = .ok targetValue)
+    (matcherSuccess :
+      evalFuel (searchFuel + 1) environment matcherExpression =
+        .ok (.matcherV matcherEnvironment original clauses))
+    (dispatchNotStuck :
+      (dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
+        matcherEnvironment clauses pattern targetValue).NotStuck)
+    (atomsSafe : ∀ {newBindings branches},
+      generatedMatcher.SemanticSolution solution →
+      (∃ conversionClass,
+        CheckConversion conversionClass
+          (generatedMatcher.target.apply solution)
+          ((Ty.slot generatedPattern.dual.capability generatedTarget.target).apply
+            solution)) →
+      PatternBinds
+          (fun runtimeContext expression target =>
+            RuntimeTyping expression target runtimeContext)
+          environmentTypes [] pattern
+          (generatedTarget.target.apply solution) newBindings →
+        dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
+            matcherEnvironment clauses pattern targetValue =
+          .ok (.hit branches) →
+        ∀ branch ∈ branches,
+          M4TwoIndexMatchingBranchObligations atomRelation
+            (fun runtimeContext expression target =>
+              RuntimeTyping expression target runtimeContext)
+            searchFuel residual environmentTypes [] branch [pattern]
+            [generatedTarget.target.apply solution] newBindings)
+    (environmentDownward :
+      IndexedMatchingInvariant.DownwardClosed environmentInvariant)
+    (bindingsDownward :
+      IndexedMatchingInvariant.DownwardClosed bindingsInvariant)
+    (bindingsAppend :
+      IndexedMatchingInvariant.AppendClosed bindingsInvariant)
+    (atomDownward :
+      TwoIndexMatchingAtomRelation.DownwardClosed atomRelation)
+    (reducerSafe : TwoIndexRelationalAtomReducerTypedSafe
+      environmentInvariant bindingsInvariant atomRelation
+      (evaluationAtomReducer (evalFuel (searchFuel + 1))))
+    (environmentTyped : environmentInvariant (searchFuel + 1 + residual)
+      environment environmentTypes)
+    (emptyBindingsTyped : bindingsInvariant (searchFuel + 1 + residual) [] [])
+    (builtinMiss :
+      reduceBuiltinAtom (evalFuel (searchFuel + 1)) environment
+        ⟨pattern, .matcherV matcherEnvironment original clauses, targetValue⟩ =
+          .ok .miss) :
+    EvaluatedTwoIndexInitialStateTyping environmentInvariant bindingsInvariant
+      (searchFuel + 1) residual environment targetExpression matcherExpression
+      pattern (Ty.applyList solution generatedPattern.bindings) := by
+  obtain ⟨newBindings, patternTyped, bindingsEq⟩ :=
+    TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
+      patternElaboration compatible supported patternSemantic contextCompatible
+  have patternTypedAtTarget :
+      PatternBinds
+        (fun runtimeContext expression target =>
+          RuntimeTyping expression target runtimeContext)
+        environmentTypes [] pattern (generatedTarget.target.apply solution)
+        newBindings := by
+    rw [← targetEq]
+    exact patternTyped
+  have dispatchTyped : TwoIndexPatternDispatchCertificate
+      (relationalTwoIndexMatchingBranchRelation atomRelation) searchFuel
+      residual environmentTypes [] newBindings
+      (dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
+        matcherEnvironment clauses pattern targetValue) := by
+    generalize dispatchEq :
+      dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
+        matcherEnvironment clauses pattern targetValue = dispatchResult
+    cases dispatchResult with
+    | timeout => exact .timeout
+    | stuck =>
+        rw [dispatchEq] at dispatchNotStuck
+        exact dispatchNotStuck.elim
+    | ok result =>
+        cases result with
+        | miss =>
+            exact False.elim
+              (finalCatchAll_dispatch_ne_miss finalCatchAll dispatchEq)
+        | hit branches =>
+            exact TwoIndexPatternDispatchCertificate.hitOfM4BranchObligations
+              (atomsSafe matcherSemantic matcherToSlot patternTypedAtTarget
+                dispatchEq)
+  have initialState :=
+    dispatchTyped.toTwoIndexUserMatcherStateTyping
+      environmentDownward bindingsDownward bindingsAppend atomDownward
+      reducerSafe environmentTyped emptyBindingsTyped builtinMiss
+      (RelationalTwoIndexMatchingBranchTyping.nil
+        (atomRelation := atomRelation) (searchFuel := searchFuel)
+        (residual := residual) (environmentTypes := environmentTypes)
+        (bindingTypes := newBindings))
+  intro actualTarget actualMatcher actualTargetSuccess actualMatcherSuccess
+  rw [targetSuccess] at actualTargetSuccess
+  cases actualTargetSuccess
+  rw [matcherSuccess] at actualMatcherSuccess
+  cases actualMatcherSuccess
+  have generatedBindingsEq :
+      Ty.applyList solution generatedPattern.bindings = newBindings := by
+    simpa [Ty.applyList] using bindingsEq
+  rw [generatedBindingsEq]
+  simpa using initialState
+
 /-- Produce the bounded two-index initial state from the exact corresponding
 full M4 derivation of a variable-pattern `matchAll` using only the real Paper 1
 final catch-all clause.
@@ -239,57 +363,12 @@ theorem Paper1CatchAllVariableMatchAllTotalInputElaboratesUsing.evaluatedTwoInde
   have matcherToSlot := fromMatchAll_matcherToSlot combinedSemantic
   have finalCatchAll :=
     paper1CatchAll_finalCatchAll_of_input input.matcherInput
-  obtain ⟨newBindings, patternTyped, bindingsEq⟩ :=
-    TypePM.Source.MatcherTyping.PatternElaborates.toDirectRuntimePatternBinds
-      patternElaboration Paper1FrozenSignature.runtimeCompatible
-      DirectRuntimePatternSupported.var patternSemantic contextCompatible
-  have patternTypedAtTarget :
-      PatternBinds
-        (fun runtimeContext expression target =>
-          RuntimeTyping expression target runtimeContext)
-        environmentTypes [] .var (generatedTarget.target.apply solution)
-        newBindings := by
-    rw [← targetEq]
-    exact patternTyped
-  have dispatchTyped : TwoIndexPatternDispatchCertificate
-      (relationalTwoIndexMatchingBranchRelation atomRelation) searchFuel
-      residual environmentTypes [] newBindings
-      (dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
-        matcherEnvironment [catchAllClause] .var targetValue) := by
-    generalize dispatchEq :
-      dispatchMatcherClauses (evalFuel (searchFuel + 1)) environment
-        matcherEnvironment [catchAllClause] .var targetValue = dispatchResult
-    cases dispatchResult with
-    | timeout => exact .timeout
-    | stuck =>
-        rw [dispatchEq] at dispatchNotStuck
-        exact dispatchNotStuck.elim
-    | ok result =>
-        cases result with
-        | miss =>
-            exact False.elim
-              (finalCatchAll_dispatch_ne_miss finalCatchAll dispatchEq)
-        | hit branches =>
-            exact TwoIndexPatternDispatchCertificate.hitOfM4BranchObligations
-              (atomsSafe matcherSemantic matcherToSlot patternTypedAtTarget
-                dispatchEq)
-  have initialState :=
-    dispatchTyped.toTwoIndexUserMatcherStateTyping
-      environmentDownward bindingsDownward bindingsAppend atomDownward
-      reducerSafe environmentTyped emptyBindingsTyped builtinMiss
-      (RelationalTwoIndexMatchingBranchTyping.nil
-        (atomRelation := atomRelation) (searchFuel := searchFuel)
-        (residual := residual) (environmentTypes := environmentTypes)
-        (bindingTypes := newBindings))
-  intro actualTarget actualMatcher actualTargetSuccess actualMatcherSuccess
-  rw [targetSuccess] at actualTargetSuccess
-  cases actualTargetSuccess
-  rw [matcherSuccess] at actualMatcherSuccess
-  cases actualMatcherSuccess
-  have generatedBindingsEq :
-      Ty.applyList solution generatedPattern.bindings = newBindings := by
-    simpa [Ty.applyList] using bindingsEq
-  rw [generatedBindingsEq]
-  simpa using initialState
+  exact evaluatedTwoIndexInitialState_of_m4PatternAndBoundedLocalWork
+    patternElaboration Paper1FrozenSignature.runtimeCompatible
+    DirectRuntimePatternSupported.var patternSemantic matcherSemantic
+    matcherToSlot targetEq contextCompatible finalCatchAll targetSuccess
+    matcherSuccess dispatchNotStuck atomsSafe environmentDownward
+    bindingsDownward bindingsAppend atomDownward reducerSafe environmentTyped
+    emptyBindingsTyped builtinMiss
 
 end TypePM.Source.MatcherTyping

@@ -238,6 +238,7 @@ import TypePM.FiniteInputDemandSafetyRegression
 import TypePM.Source.M4RawFiniteDemandCertificate
 import TypePM.Source.M4RawFiniteDemandCertificateRegression
 import TypePM.OriginDemandSafety
+import TypePM.FuelUserMatcherGeneralSafety
 import TypePM.Source.M4OriginDemandSafety
 import TypePM.Source.M4OriginDemandSafetyRegression
 import TypePM.Source.M4RawOriginRequestCertificate
@@ -275,6 +276,7 @@ import TypePM.Source.M4TotalCoreRuntimeBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridge
 import TypePM.Source.M4RecursiveMatcherTotalBridgeRegression
 import TypePM.Source.M4RecursiveMatcherInputBridge
+import TypePM.Source.M4StepIndexedMatcherClosureSafety
 import TypePM.Source.M4RecursiveMatcherRuntimeInputBridge
 import TypePM.Source.M4UserMatcherMatchFirstRegression
 import TypePM.Source.M4UserMatcherMatchFirstConsRegression
@@ -289,6 +291,7 @@ import TypePM.Source.M4EnvironmentIndexedFuelRecursiveProducer
 import TypePM.Source.M4EnvironmentIndexedRelationalProducer
 import TypePM.Source.M4TwoIndexUserMatcherReducerBridge
 import TypePM.Source.M4TwoIndexPatternDispatchProducer
+import TypePM.Source.M4TwoIndexBuiltinAtomProducer
 import TypePM.Source.M4TwoIndexUserMatcherReducerBridgeRegression
 import TypePM.Source.M4Paper1ListJoinEnvironmentIndexedSearchRegression
 import TypePM.Source.M4Paper1ListJoinRelationalProducerRegression

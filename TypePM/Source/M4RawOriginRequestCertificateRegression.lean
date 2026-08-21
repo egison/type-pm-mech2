@@ -134,18 +134,21 @@ theorem higherOrderTargetApplied :
 
 /-- Function-valued safety follows from the raw certificate, not an exact
 evaluation result. -/
-theorem higherOrderResultSafe (signature : FrozenSignature) :
+theorem higherOrderResultSafe (signature : FrozenSignature)
+    (compatible : SignatureCompatible signature.base) :
     OriginResultSafe integerIdentityDemand integerFunction
       (evalFuel 3 [] higherOrderApplication) := by
   obtain ⟨certificate⟩ := higherOrderCertificate signature
-  have safe := certificate.preserves higherOrderSolution higherOrderSemantic []
+  have safe := certificate.preserves compatible higherOrderSolution
+    higherOrderSemantic []
     (SchemeOriginEnvironmentSafe.nil certificate.inputDemand
       higherOrderSolution)
   simpa [higherOrderTargetApplied] using safe
 
-theorem higherOrderNotStuck (signature : FrozenSignature) :
+theorem higherOrderNotStuck (signature : FrozenSignature)
+    (compatible : SignatureCompatible signature.base) :
     (evalFuel 3 [] higherOrderApplication).NotStuck :=
-  (higherOrderResultSafe signature).notStuck
+  (higherOrderResultSafe signature compatible).notStuck
 
 /-- Exact success is checked only after the certificate-based safety theorem,
 so neither the certificate nor `higherOrderResultSafe` can use this equation

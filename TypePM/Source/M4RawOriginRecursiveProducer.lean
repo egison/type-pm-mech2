@@ -137,7 +137,7 @@ structure RawOriginItemsFuelCertificate
       context expressions supply generated next)
     (operationalFuel resultIndex : Nat) : Type where
   inputDemand : OriginEnvironmentDemand
-  preserves : ∀ solution,
+  preserves : SignatureCompatible signature.base → ∀ solution,
     TypePM.Runtime.GeneratedItems.SemanticSolution generated solution →
       ∀ environment,
         SchemeOriginEnvironmentSafe inputDemand solution environment context →
@@ -180,7 +180,7 @@ def timeout
     ExactRawOriginRequestCertificate elaboration 0 outputDemand OriginEnvironmentDemand.none := by
   let certificate : RawOriginRequestCertificate elaboration 0 outputDemand :=
     ⟨OriginEnvironmentDemand.none, by
-      intro solution semantic environment environmentSafe
+      intro _compatible solution semantic environment environmentSafe
       exact .inl rfl⟩
   exact ⟨certificate, rfl⟩
 
@@ -204,7 +204,7 @@ def litFuel
   let certificate : RawOriginRequestCertificate elaboration operationalFuel
       (.fuel resultIndex) :=
     ⟨OriginEnvironmentDemand.none, by
-      intro solution _semantic environment _environmentSafe
+      intro _compatible solution _semantic environment _environmentSafe
       simp only [ElaboratesFuel] at elaboration
       obtain ⟨generatedEq, _nextEq⟩ := elaboration
       rw [generatedEq]
@@ -224,7 +224,7 @@ def somethingFuel
   let certificate : RawOriginRequestCertificate elaboration operationalFuel
       (.fuel resultIndex) :=
     ⟨OriginEnvironmentDemand.none, by
-      intro solution _semantic environment _environmentSafe
+      intro _compatible solution _semantic environment _environmentSafe
       simp only [ElaboratesFuel] at elaboration
       obtain ⟨generatedEq, _nextEq⟩ := elaboration
       rw [generatedEq]
@@ -277,9 +277,9 @@ def reobserveUniversal
   let certificate : RawOriginRequestCertificate elaboration operationalFuel
       requestedDemand :=
     ⟨available.certificate.inputDemand, by
-      intro solution semantic environment environmentSafe
+      intro compatible solution semantic environment environmentSafe
       exact OriginResultSafe.reobserveUniversal
-        (available.certificate.preserves solution semantic environment
+        (available.certificate.preserves compatible solution semantic environment
           environmentSafe) universal⟩
   exact ⟨certificate, available.input_eq⟩
 
@@ -296,7 +296,7 @@ def nil
   let certificate : RawOriginItemsFuelCertificate elaboration
       operationalFuel resultIndex :=
     ⟨OriginEnvironmentDemand.none, by
-      intro solution semantic environment environmentSafe
+      intro _compatible solution semantic environment environmentSafe
       cases elaboration
       exact .inr ⟨[], by simp [FuelResult.traverse],
         FuelEnvironmentSafe.nil resultIndex⟩⟩
@@ -336,7 +336,7 @@ theorem cons
           (ItemsElaborateUsing.cons headElaboration tailElaboration)
           operationalFuel resultIndex :=
         ⟨inputDemand, by
-          intro solution semantic environment environmentSafe
+          intro compatible solution semantic environment environmentSafe
           have headSemantic : generatedHead.SemanticSolution solution := by
             constructor
             · intro equation membership
@@ -363,11 +363,11 @@ theorem cons
             (fun position => OriginDemand.Le.fromLeft (.refl _))
           have tailEnvironmentSafe := environmentSafe.mono
             (fun position => OriginDemand.Le.fromRight (.refl _))
-          rcases (headCertificate.preserves solution headSemantic environment
+          rcases (headCertificate.preserves compatible solution headSemantic environment
               headEnvironmentSafe).toFuel with headTimeout |
               ⟨headValue, headOk, headSafe⟩
           · exact .inl (by simp [FuelResult.traverse, headTimeout])
-          · rcases tailCertificate.preserves solution tailSemantic environment
+          · rcases tailCertificate.preserves compatible solution tailSemantic environment
                 tailEnvironmentSafe with tailTimeout |
                 ⟨tailValues, tailOk, tailSafe⟩
             · exact .inl (by
@@ -406,14 +406,14 @@ theorem tupleFuel
   let certificate : RawOriginRequestCertificate parentElaboration (childFuel + 1)
       (.fuel resultIndex) :=
     ⟨itemsCertificate.inputDemand, by
-      intro solution semantic environment environmentSafe
+      intro compatible solution semantic environment environmentSafe
       have itemsSemantic :
           TypePM.Runtime.GeneratedItems.SemanticSolution generatedItems
             solution := by
         rw [generatedEq] at semantic
         exact semantic
       rw [generatedEq]
-      rcases itemsCertificate.preserves solution itemsSemantic environment
+      rcases itemsCertificate.preserves compatible solution itemsSemantic environment
           environmentSafe with timeout | ⟨values, success, valuesSafe⟩
       · exact .inl (by simp [evalFuel, timeout, FuelResult.map])
       · exact .inr ⟨.tuple values, by
@@ -423,6 +423,95 @@ theorem tupleFuel
               (Ty.applyList solution generatedItems.targets) valuesSafe)⟩⟩
   refine ⟨⟨certificate, ?_⟩⟩
   exact itemsExact.input_eq
+
+/-- Structural binary-tuple rule.  Unlike `tupleFuel`, the two fields may
+carry unrelated higher-order demands. -/
+theorem tuplePair
+    (elaboration : ElaboratesFuel signature (staticFuel + 1) context
+      (.tuple [left, right]) supply generated next)
+    (childFuel : Nat) (leftDemand rightDemand : OriginDemand)
+    (leftInput rightInput : OriginEnvironmentDemand)
+    (leftCertificate : ∀ generatedLeft afterLeft,
+      ∀ leftElaboration : ElaboratesFuel signature staticFuel context
+        left supply generatedLeft afterLeft,
+      Nonempty (ExactRawOriginRequestCertificate leftElaboration childFuel
+        leftDemand leftInput))
+    (rightCertificate : ∀ generatedLeft afterLeft generatedRight,
+      ∀ _leftElaboration : ElaboratesFuel signature staticFuel context
+        left supply generatedLeft afterLeft,
+      ∀ rightElaboration : ElaboratesFuel signature staticFuel context
+        right afterLeft generatedRight next,
+      Nonempty (ExactRawOriginRequestCertificate rightElaboration childFuel
+        rightDemand rightInput)) :
+    Nonempty (ExactRawOriginRequestCertificate elaboration (childFuel + 1)
+      (.pairOf leftDemand rightDemand)
+      (OriginEnvironmentDemand.both leftInput rightInput)) := by
+  let parentElaboration := elaboration
+  simp only [ElaboratesFuel] at elaboration
+  obtain ⟨generatedItems, itemsElaboration, generatedEq⟩ := elaboration
+  cases itemsElaboration with
+  | @cons _ _ _ generatedLeft afterLeft generatedTail _ leftElaboration
+      tailElaboration =>
+      cases tailElaboration with
+      | @cons _ _ _ generatedRight afterRight generatedNil _ rightElaboration
+          nilElaboration =>
+          cases nilElaboration
+          obtain ⟨leftExact⟩ := leftCertificate _ _ leftElaboration
+          obtain ⟨rightExact⟩ := rightCertificate _ _ _ leftElaboration
+            rightElaboration
+          let leftCertificate := leftExact.certificate
+          let rightCertificate := rightExact.certificate
+          let inputDemand := OriginEnvironmentDemand.both
+            leftCertificate.inputDemand rightCertificate.inputDemand
+          let certificate : RawOriginRequestCertificate parentElaboration
+              (childFuel + 1) (.pairOf leftDemand rightDemand) :=
+            ⟨inputDemand, by
+              intro compatible solution semantic environment environmentSafe
+              rw [generatedEq] at semantic ⊢
+              have leftSemantic : generatedLeft.SemanticSolution solution := by
+                constructor
+                · intro equation membership
+                  exact semantic.1 equation (by
+                    simp only [List.mem_append]
+                    exact .inl membership)
+                · intro obligation membership
+                  exact semantic.2 obligation (by
+                    simp only [List.mem_append]
+                    exact .inl membership)
+              have rightSemantic : generatedRight.SemanticSolution solution := by
+                constructor
+                · intro equation membership
+                  exact semantic.1 equation (by
+                    simp only [List.mem_append]
+                    exact .inr (.inl membership))
+                · intro obligation membership
+                  exact semantic.2 obligation (by
+                    simp only [List.mem_append]
+                    exact .inr (.inl membership))
+              have leftResult := leftCertificate.preserves compatible solution
+                leftSemantic environment
+                (environmentSafe.mono (fun position => .fromLeft (.refl _)))
+              have rightResult := rightCertificate.preserves compatible solution
+                rightSemantic environment
+                (environmentSafe.mono (fun position => .fromRight (.refl _)))
+              rcases leftResult with leftTimeout |
+                  ⟨leftValue, leftSuccess, leftSafe⟩
+              · exact .inl (by simp [evalFuel, FuelResult.traverse, leftTimeout])
+              · rcases rightResult with rightTimeout |
+                    ⟨rightValue, rightSuccess, rightSafe⟩
+                · exact .inl (by
+                    simp [evalFuel, FuelResult.traverse, leftSuccess,
+                      rightTimeout, FuelResult.bind, FuelResult.map])
+                · exact .inr ⟨.tuple [leftValue, rightValue], by
+                    simp [evalFuel, FuelResult.traverse, leftSuccess,
+                      rightSuccess, FuelResult.bind, FuelResult.map], by
+                    simpa [Ty.apply, Ty.applyList] using
+                      OriginValueSafe.pair leftSafe rightSafe⟩⟩
+          refine ⟨⟨certificate, ?_⟩⟩
+          change OriginEnvironmentDemand.both leftCertificate.inputDemand
+              rightCertificate.inputDemand =
+            OriginEnvironmentDemand.both leftInput rightInput
+          rw [leftExact.input_eq, rightExact.input_eq]
 
 theorem lamPlainCall
     {bodyOperationalFuel lambdaOperationalFuel : Nat}
@@ -450,7 +539,7 @@ theorem lamPlainCall
       lambdaOperationalFuel
       (.plainCall (bodyOperationalFuel + 1) argumentDemand resultDemand) :=
     ⟨inputDemand, by
-      intro solution semantic environment environmentSafe
+      intro compatible solution semantic environment environmentSafe
       cases lambdaOperationalFuel with
       | zero => exact .inl rfl
       | succ lambdaFuel =>
@@ -458,7 +547,7 @@ theorem lamPlainCall
           refine .inr ⟨.plainClosure environment body, rfl, ?_⟩
           apply OriginValueSafe.plainClosure
           intro argument argumentSafe
-          apply bodyCertificate.preserves solution semantic
+          apply bodyCertificate.preserves compatible solution semantic
             (argument :: environment)
           have headCovered : OriginDemand.Le
               (bodyCertificate.inputDemand 0) argumentDemand := by
@@ -491,7 +580,7 @@ theorem lamZeroCall
   let certificate : RawOriginRequestCertificate parentElaboration
       lambdaOperationalFuel (.plainCall 0 argumentDemand resultDemand) :=
     ⟨OriginEnvironmentDemand.none, by
-      intro solution semantic environment environmentSafe
+      intro _compatible solution semantic environment environmentSafe
       cases lambdaOperationalFuel with
       | zero => exact .inl rfl
       | succ lambdaFuel =>
@@ -541,7 +630,7 @@ theorem app
   let certificate : RawOriginRequestCertificate parentElaboration
       (childFuel + 1) resultDemand :=
     ⟨inputDemand, by
-      intro solution semantic environment environmentSafe
+      intro compatible solution semantic environment environmentSafe
       rw [generatedEq] at semantic ⊢
       have functionSemantic : generatedFunction.SemanticSolution solution := by
         constructor
@@ -577,11 +666,11 @@ theorem app
         semantic.2
           ⟨generatedArgument.target, Ty.var ⟨afterArgument.ty⟩⟩
           (by simp [Generated.fromApp])
-      have functionSafe := functionCertificate.preserves solution
+      have functionSafe := functionCertificate.preserves compatible solution
         functionSemantic environment
         (environmentSafe.mono (fun position => .fromLeft (.refl _)))
       rw [functionType] at functionSafe
-      have argumentSafeAtSource := argumentCertificate.preserves solution
+      have argumentSafeAtSource := argumentCertificate.preserves compatible solution
         argumentSemantic environment
         (environmentSafe.mono (fun position => .fromRight (.refl _)))
       have argumentSafe := argumentSafeAtSource.ofCheckConversion
@@ -643,7 +732,7 @@ theorem letUniversalInput
   let certificate : RawOriginRequestCertificate parentElaboration
       (childFuel + 1) outputDemand :=
     ⟨OriginEnvironmentDemand.tail bodyInput, by
-      intro solution semantic environment environmentSafe
+      intro compatible solution semantic environment environmentSafe
       rw [generatedEq] at semantic
       obtain ⟨interfaceSolved, bodySemantic⟩ :=
         semanticSolution_fromLet_parts semantic
@@ -660,7 +749,7 @@ theorem letUniversalInput
             initialOccurrence.solution environment context :=
           schemeOriginEnvironmentSafe_ofUniversal environmentSafe.1
             valueInputUniversal
-        have initialResult := valueExact.certificate.preserves
+        have initialResult := valueExact.certificate.preserves compatible
           initialOccurrence.solution initialOccurrence.semantic environment
           (by simpa [valueExact.input_eq] using initialEnvironmentSafe)
         rw [initialOccurrence.target_eq] at initialResult
@@ -677,7 +766,7 @@ theorem letUniversalInput
               valueInput occurrence.solution environment context :=
             schemeOriginEnvironmentSafe_ofUniversal environmentSafe.1
               valueInputUniversal
-          have occurrenceResult := valueExact.certificate.preserves
+          have occurrenceResult := valueExact.certificate.preserves compatible
             occurrence.solution occurrence.semantic environment
             (by simpa [valueExact.input_eq] using occurrenceEnvironmentSafe)
           rw [occurrence.target_eq] at occurrenceResult
@@ -705,7 +794,7 @@ theorem letUniversalInput
         apply pushed.congr
         intro position _within
         cases position <;> rfl
-      exact bodyExact.certificate.preserves solution bodySemantic
+      exact bodyExact.certificate.preserves compatible solution bodySemantic
         (boundValue :: environment)
         (by simpa [bodyExact.input_eq] using bodyEnvironmentSafe)⟩
   exact ⟨⟨certificate, rfl⟩⟩
@@ -729,6 +818,17 @@ mutual
         OriginEnvironmentDemand.none
     | somethingFuel : RawOriginRequestPlan operationalFuel .something (.fuel resultIndex)
         OriginEnvironmentDemand.none
+    /-- A binary tuple may expose unrelated structural observations of its
+    two fields. -/
+    | tuplePair
+        (left : RawOriginRequestPlan childFuel leftExpression leftDemand
+          leftInput)
+        (right : RawOriginRequestPlan childFuel rightExpression rightDemand
+          rightInput) :
+        RawOriginRequestPlan (childFuel + 1)
+          (.tuple [leftExpression, rightExpression])
+          (.pairOf leftDemand rightDemand)
+          (OriginEnvironmentDemand.both leftInput rightInput)
     /-- A positive tuple observation uses one less evaluator fuel for every
     field and requests the same ordinary result index from every field. -/
     | tupleFuel
@@ -865,6 +965,35 @@ private theorem somethingFuel : ∀ {operationalFuel resultIndex},
   cases staticFuel with
   | zero => exact False.elim elaboration
   | succ staticFuel => exact ⟨ExactRawOriginRequestCertificate.somethingFuel elaboration _ _⟩
+
+private theorem tuplePair :
+    ∀ {childFuel leftExpression leftDemand leftInput rightExpression
+        rightDemand rightInput}
+      (left : RawOriginRequestPlan childFuel leftExpression leftDemand
+        leftInput)
+      (right : RawOriginRequestPlan childFuel rightExpression rightDemand
+        rightInput),
+      RawOriginRequestCertificateMotive childFuel leftExpression leftDemand
+          leftInput left →
+        RawOriginRequestCertificateMotive childFuel rightExpression rightDemand
+            rightInput right →
+          RawOriginRequestCertificateMotive (childFuel + 1)
+            (.tuple [leftExpression, rightExpression])
+            (.pairOf leftDemand rightDemand)
+            (OriginEnvironmentDemand.both leftInput rightInput)
+            (.tuplePair left right) := by
+  intro childFuel leftExpression leftDemand leftInput rightExpression
+    rightDemand rightInput left right leftIH rightIH signature staticFuel
+    context supply generated next elaboration
+  cases staticFuel with
+  | zero => exact False.elim elaboration
+  | succ staticFuel =>
+      apply ExactRawOriginRequestCertificate.tuplePair elaboration _ _ _ _ _
+      · intro generatedLeft afterLeft leftElaboration
+        exact leftIH leftElaboration
+      · intro generatedLeft afterLeft generatedRight leftElaboration
+          rightElaboration
+        exact rightIH rightElaboration
 
 private theorem tupleFuel : ∀ {childFuel expressions resultIndex input}
     (items : RawOriginItemsFuelPlan childFuel expressions resultIndex input),
@@ -1070,7 +1199,8 @@ theorem RawOriginRequestPlan.certificate
   RawOriginRequestPlan.rec (motive_1 := RawOriginRequestCertificateMotive)
     (motive_2 := RawOriginItemsFuelCertificateMotive)
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
-    RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
+    RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tuplePair
+    RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
     RawOriginRequestProducerHandlers.app RawOriginRequestProducerHandlers.letUniversalInput
     RawOriginRequestProducerHandlers.both
@@ -1087,7 +1217,8 @@ theorem RawOriginItemsFuelPlan.certificate
   RawOriginItemsFuelPlan.rec (motive_1 := RawOriginRequestCertificateMotive)
     (motive_2 := RawOriginItemsFuelCertificateMotive)
     RawOriginRequestProducerHandlers.timeout RawOriginRequestProducerHandlers.var RawOriginRequestProducerHandlers.litFuel
-    RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tupleFuel
+    RawOriginRequestProducerHandlers.somethingFuel RawOriginRequestProducerHandlers.tuplePair
+    RawOriginRequestProducerHandlers.tupleFuel
     RawOriginRequestProducerHandlers.lamPlainCall RawOriginRequestProducerHandlers.lamZeroCall
     RawOriginRequestProducerHandlers.app RawOriginRequestProducerHandlers.letUniversalInput
     RawOriginRequestProducerHandlers.both
@@ -1132,12 +1263,13 @@ def rootNone
 all environment demands before the later semantic solution is supplied. -/
 theorem closedNoStuckOfElaboration
     (plan : RawOriginRequestPlan operationalFuel expression .none inputDemand)
+    (compatible : SignatureCompatible signature.base)
     (elaboration : ElaboratesFuel signature staticFuel [] expression supply
       generated next)
     (semantic : generated.SemanticSolution solution) :
     (evalFuel operationalFuel [] expression).NotStuck := by
   obtain ⟨exact⟩ := plan.exactCertificate elaboration
-  exact (exact.certificate.preserves solution semantic []
+  exact (exact.certificate.preserves compatible solution semantic []
     (SchemeOriginEnvironmentSafe.nil exact.certificate.inputDemand
       solution)).notStuck
 
@@ -1148,6 +1280,7 @@ public result type. -/
 theorem closedOriginResultSafe
     (plan : RawOriginRequestPlan operationalFuel expression outputDemand
       inputDemand)
+    (compatible : SignatureCompatible signature.base)
     (typing : Typing signature [] expression target) :
     OriginResultSafe outputDemand target
       (evalFuel operationalFuel [] expression) := by
@@ -1161,7 +1294,7 @@ theorem closedOriginResultSafe
       (TypePM.Source.Typing.PrincipalBlockClosure.semanticSolution
         derivation.closure)
       later
-  have safe := exact.certificate.preserves solution semantic []
+  have safe := exact.certificate.preserves compatible solution semantic []
     (SchemeOriginEnvironmentSafe.nil exact.certificate.inputDemand solution)
   have targetApplied :
       derivation.generated.target.apply solution = target := by
@@ -1183,9 +1316,10 @@ the plan's evaluator fuel. -/
 theorem closedNeverStuck
     (plan : RawOriginRequestPlan operationalFuel expression outputDemand
       inputDemand)
+    (compatible : SignatureCompatible signature.base)
     (typing : Typing signature [] expression target) :
     (evalFuel operationalFuel [] expression).NotStuck :=
-  (plan.closedOriginResultSafe typing).notStuck
+  (plan.closedOriginResultSafe compatible typing).notStuck
 
 end RawOriginRequestPlan
 
@@ -1201,10 +1335,11 @@ def RawOriginNoStuckSupported (expression : Expr) : Prop :=
 `stuck` at every evaluator fuel. -/
 theorem RawOriginNoStuckSupported.closedNeverStuck
     (supported : RawOriginNoStuckSupported expression)
+    (compatible : SignatureCompatible signature.base)
     (typing : Typing signature [] expression target)
     (operationalFuel : Nat) :
     (evalFuel operationalFuel [] expression).NotStuck := by
   obtain ⟨inputDemand, plan⟩ := supported operationalFuel
-  exact plan.closedNeverStuck typing
+  exact plan.closedNeverStuck compatible typing
 
 end TypePM.Source.M4

@@ -58,6 +58,10 @@ inductive OriginDemand where
   | none
   | fuel (index : Nat)
   | both (left right : OriginDemand)
+  /-- Observe every element of one canonical runtime list. -/
+  | listOf (element : OriginDemand)
+  /-- Observe both fields of one binary runtime tuple. -/
+  | pairOf (left right : OriginDemand)
   | plainCall (operationalFuel : Nat)
       (argument result : OriginDemand)
 
@@ -120,6 +124,13 @@ inductive Le : OriginDemand → OriginDemand → Prop where
       (left : Le requestedLeft available)
       (right : Le requestedRight available) :
       Le (.both requestedLeft requestedRight) available
+  | listOf (element : Le requestedElement availableElement) :
+      Le (.listOf requestedElement) (.listOf availableElement)
+  | pairOf
+      (left : Le requestedLeft availableLeft)
+      (right : Le requestedRight availableRight) :
+      Le (.pairOf requestedLeft requestedRight)
+        (.pairOf availableLeft availableRight)
   | plainCall
       (operational : requestedFuel ≤ availableFuel)
       (argument : Le availableArgument requestedArgument)
@@ -131,6 +142,8 @@ def Le.refl : ∀ demand, Le demand demand
   | .none => .none
   | .fuel _ => .fuel (Nat.le_refl _)
   | .both left right => .both (Le.refl left) (Le.refl right)
+  | .listOf element => .listOf (Le.refl element)
+  | .pairOf left right => .pairOf (Le.refl left) (Le.refl right)
   | .plainCall _ argument result =>
       .plainCall (Nat.le_refl _) (Le.refl argument) (Le.refl result)
 
@@ -153,6 +166,53 @@ inductive PlainCallValueSafe
       PlainCallValueSafe argumentSafe resultSafe (bodyFuel + 1)
         (Value.plainClosure environment body) (.fn domain codomain)
 
+/-- A strictly positive list layer.  The element predicate has already been
+fixed to the structurally smaller child demand. -/
+inductive ListOfValueSafe (elementSafe : Value → Ty → Prop) :
+    Value → Ty → Prop where
+  | nil : ListOfValueSafe elementSafe (Value.buildList [])
+      (DataTypes.list elementType)
+  | cons
+      (head : elementSafe value elementType)
+      (tail : ListOfValueSafe elementSafe (Value.buildList values)
+        (DataTypes.list elementType)) :
+      ListOfValueSafe elementSafe (Value.buildList (value :: values))
+        (DataTypes.list elementType)
+
+/-- Compose two normalized checking conversions.  The only nontrivial chain
+is product-matcher followed by matcher-to-slot, represented directly by the
+existing product-matcher-to-slot constructor. -/
+theorem CheckConversion.trans
+    (first : CheckConversion firstClass source middle)
+    (second : CheckConversion secondClass middle target) :
+    ∃ finalClass, CheckConversion finalClass source target := by
+  cases first with
+  | ordinary => exact ⟨_, second⟩
+  | matcherToSlot demand =>
+      cases second
+      exact ⟨_, .matcherToSlot demand⟩
+  | @productMatcher duals nonempty =>
+      cases second with
+      | ordinary => exact ⟨_, .productMatcher nonempty⟩
+      | matcherToSlot demand =>
+          exact ⟨_, .productMatcherToSlot nonempty demand⟩
+  | @productMatcherToSlot duals consumer nonempty demand =>
+      cases second
+      exact ⟨_, .productMatcherToSlot nonempty demand⟩
+
+/-- A strictly positive binary-product layer.  Retaining the normalized
+conversion from the ordinary product source makes the observation stable
+under product-matcher and slot checking conversions. -/
+inductive PairOfValueSafe
+    (leftSafe rightSafe : Value → Ty → Prop) : Value → Ty → Prop where
+  | pair
+      (left : leftSafe leftValue leftType)
+      (right : rightSafe rightValue rightType)
+      (conversion : CheckConversion conversionClass
+        (.prod [leftType, rightType]) target) :
+      PairOfValueSafe leftSafe rightSafe
+        (.tuple [leftValue, rightValue]) target
+
 /-- Interpret a finite source-origin observation tree.  The recursive calls
 in the call case are on the two strict subtrees. -/
 def OriginValueSafe : OriginDemand → Value → Ty → Prop
@@ -160,6 +220,15 @@ def OriginValueSafe : OriginDemand → Value → Ty → Prop
   | .fuel index, value, target => FuelValueSafe index value target
   | .both left right, value, target =>
       OriginValueSafe left value target ∧ OriginValueSafe right value target
+  | .listOf element, value, target =>
+      ListOfValueSafe
+        (fun item itemType => OriginValueSafe element item itemType)
+        value target
+  | .pairOf left right, value, target =>
+      PairOfValueSafe
+        (fun item itemType => OriginValueSafe left item itemType)
+        (fun item itemType => OriginValueSafe right item itemType)
+        value target
   | .plainCall operationalFuel argumentDemand resultDemand, value, target =>
       PlainCallValueSafe
         (fun argument domain => OriginValueSafe argumentDemand argument domain)
@@ -302,6 +371,29 @@ theorem bothRight
     simpa only [OriginValueSafe] using safe
   exact unfolded.2
 
+theorem listNil :
+    OriginValueSafe (.listOf elementDemand) (Value.buildList [])
+      (DataTypes.list elementType) := by
+  simp only [OriginValueSafe]
+  exact .nil
+
+theorem listCons
+    (head : OriginValueSafe elementDemand value elementType)
+    (tail : OriginValueSafe (.listOf elementDemand)
+      (Value.buildList values) (DataTypes.list elementType)) :
+    OriginValueSafe (.listOf elementDemand)
+      (Value.buildList (value :: values)) (DataTypes.list elementType) := by
+  simp only [OriginValueSafe] at tail ⊢
+  exact .cons head tail
+
+theorem pair
+    (left : OriginValueSafe leftDemand leftValue leftType)
+    (right : OriginValueSafe rightDemand rightValue rightType) :
+    OriginValueSafe (.pairOf leftDemand rightDemand)
+      (.tuple [leftValue, rightValue]) (.prod [leftType, rightType]) := by
+  simp only [OriginValueSafe]
+  exact .pair left right .ordinary
+
 /-- Construct the exact structural call contract of one plain closure. -/
 theorem plainClosure
     (bodySafe : ∀ argument,
@@ -373,6 +465,16 @@ theorem mono
       exact selectedIH safe.bothRight
   | bothIntro left right leftIH rightIH =>
       exact OriginValueSafe.both (leftIH safe) (rightIH safe)
+  | listOf element elementIH =>
+      simp only [OriginValueSafe] at safe ⊢
+      induction safe with
+      | nil => exact .nil
+      | cons head tail tailIH => exact .cons (elementIH head) tailIH
+  | pairOf left right leftIH rightIH =>
+      simp only [OriginValueSafe] at safe ⊢
+      cases safe with
+      | pair leftSafe rightSafe conversion =>
+          exact .pair (leftIH leftSafe) (rightIH rightSafe) conversion
   | @plainCall requestedFuel availableFuel availableArgument
       requestedArgument requestedResult availableResult operational
       argument result argumentIH resultIH =>
