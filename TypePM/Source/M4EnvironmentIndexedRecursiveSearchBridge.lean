@@ -1,4 +1,5 @@
 import TypePM.Source.M4PatternIndexedRecursiveDispatchBridge
+import TypePM.ValueIndexedMatchingSearchSafety
 
 /-!
 # Environment-indexed bounded matching search
@@ -9,18 +10,18 @@ for ordinary values, but it cannot classify an environment containing a
 recursive closure whose body uses matcher literals or `matchAll`.
 
 This module adds a parallel, proof-only search boundary.  The ordinary
-environment is checked by a caller-selected relation.  Each nonempty state
-then carries a *local reducer certificate*: the next atom either times out, or
-its actual reduction produces successor states certified at the strictly
-smaller DFS index.  Thus the premise is about one reducer call, not about the
-result of the complete search.  No existing runtime or typing judgment is
-weakened.
+environment and the accumulated bindings/answers are checked by two
+independent caller-selected relations.  Each nonempty state then carries a
+*local reducer certificate*: the next atom either times out, or its actual
+reduction produces successor states certified at the strictly smaller DFS
+index.  Thus the premise is about one reducer call, not about the result of
+the complete search.  No existing runtime or typing judgment is weakened.
 
-The relation intentionally keeps ordinary `ValueTypings` for accumulated
-answers.  A caller whose fixed environment contains a recursive closure can
-therefore use `FuelEnvironmentSafe` (or a more precise invariant) for that
-environment while proving ordinary first-order bindings in the existing
-value-typing layer.
+Separating the two relations is essential for recursive closures.  A caller
+may use `FuelEnvironmentSafe` for both the fixed environment and returned
+bindings, possibly at different logical indices.  The older structural
+endpoint remains below as the specialization whose binding relation is
+`ValueTypings`.
 -/
 
 namespace TypePM.Runtime
@@ -37,23 +38,26 @@ mutual
   worklist times out before inspecting the state, environment, or bindings. -/
   inductive EnvironmentIndexedMatchingStateTyping
       (environmentInvariant : MatchingEnvironmentInvariant)
+      (bindingsInvariant : MatchingBindingsInvariant)
       (reduceAtom : AtomReducer) : Nat → MatchingState → List Ty → Prop where
     | zero :
-        EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom 0
-          state answerTypes
+        EnvironmentIndexedMatchingStateTyping environmentInvariant
+          bindingsInvariant reduceAtom 0 state answerTypes
     | yield
         (environmentTyped : environmentInvariant environment environmentTypes)
-        (bindingsTyped : ValueTypings bindings answerTypes) :
-        EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom
-          (fuel + 1) ⟨[], environment, bindings⟩ answerTypes
+        (bindingsTyped : bindingsInvariant bindings answerTypes) :
+        EnvironmentIndexedMatchingStateTyping environmentInvariant
+          bindingsInvariant reduceAtom (fuel + 1)
+          ⟨[], environment, bindings⟩ answerTypes
     | reduce
         (environmentTyped : environmentInvariant environment environmentTypes)
-        (bindingsTyped : ValueTypings bindings bindingTypes)
+        (bindingsTyped : bindingsInvariant bindings bindingTypes)
         (atomSafe : EnvironmentIndexedAtomReducerCertificate
-          environmentInvariant reduceAtom fuel environment bindings atom
-          remaining answerTypes) :
-        EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom
-          (fuel + 1) ⟨atom :: remaining, environment, bindings⟩ answerTypes
+          environmentInvariant bindingsInvariant reduceAtom fuel environment
+          bindings atom remaining answerTypes) :
+        EnvironmentIndexedMatchingStateTyping environmentInvariant
+          bindingsInvariant reduceAtom (fuel + 1)
+          ⟨atom :: remaining, environment, bindings⟩ answerTypes
 
   /-- Exact local certificate for the reducer call at the head of one state.
   A successful hit checks only its concrete successor states at the predecessor
@@ -61,12 +65,14 @@ mutual
   field. -/
   inductive EnvironmentIndexedAtomReducerCertificate
       (environmentInvariant : MatchingEnvironmentInvariant)
+      (bindingsInvariant : MatchingBindingsInvariant)
       (reduceAtom : AtomReducer) : Nat → ValueEnvironment → List Value →
         MatchingAtom → List MatchingAtom → List Ty → Prop where
     | timeout
         (reduced : reduceAtom (bindings ++ environment) atom = .timeout) :
-        EnvironmentIndexedAtomReducerCertificate environmentInvariant reduceAtom
-          fuel environment bindings atom remaining answerTypes
+        EnvironmentIndexedAtomReducerCertificate environmentInvariant
+          bindingsInvariant reduceAtom fuel environment bindings atom remaining
+          answerTypes
     | hit
         (reduction : AtomReduction)
         (reduced : reduceAtom (bindings ++ environment) atom =
@@ -74,10 +80,11 @@ mutual
         (successorsTyped : ∀ successor ∈
           MatchingState.successors
             ⟨atom :: remaining, environment, bindings⟩ remaining reduction,
-          EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom
-            fuel successor answerTypes) :
-        EnvironmentIndexedAtomReducerCertificate environmentInvariant reduceAtom
-          fuel environment bindings atom remaining answerTypes
+          EnvironmentIndexedMatchingStateTyping environmentInvariant
+            bindingsInvariant reduceAtom fuel successor answerTypes) :
+        EnvironmentIndexedAtomReducerCertificate environmentInvariant
+          bindingsInvariant reduceAtom fuel environment bindings atom remaining
+          answerTypes
 
 end
 
@@ -86,9 +93,9 @@ mutual
   /-- Forget one available DFS state visit. -/
   theorem EnvironmentIndexedMatchingStateTyping.previous
       (typing : EnvironmentIndexedMatchingStateTyping environmentInvariant
-        reduceAtom (fuel + 1) state answerTypes) :
-      EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom fuel
-        state answerTypes := by
+        bindingsInvariant reduceAtom (fuel + 1) state answerTypes) :
+      EnvironmentIndexedMatchingStateTyping environmentInvariant
+        bindingsInvariant reduceAtom fuel state answerTypes := by
     cases fuel with
     | zero =>
         cases typing with
@@ -107,9 +114,11 @@ mutual
   successor certificate is downward closed. -/
   theorem EnvironmentIndexedAtomReducerCertificate.previous
       (typing : EnvironmentIndexedAtomReducerCertificate environmentInvariant
-        reduceAtom (fuel + 1) environment bindings atom remaining answerTypes) :
-      EnvironmentIndexedAtomReducerCertificate environmentInvariant reduceAtom
-        fuel environment bindings atom remaining answerTypes := by
+        bindingsInvariant reduceAtom (fuel + 1) environment bindings atom
+        remaining answerTypes) :
+      EnvironmentIndexedAtomReducerCertificate environmentInvariant
+        bindingsInvariant reduceAtom fuel environment bindings atom remaining
+        answerTypes := by
     cases typing with
     | timeout reduced => exact .timeout reduced
     | hit reduction reduced successorsTyped =>
@@ -122,17 +131,17 @@ end
 /-- Pointwise form for the ordered DFS state list. -/
 def EnvironmentIndexedMatchingStatesTyping
     (environmentInvariant : MatchingEnvironmentInvariant)
-    (reduceAtom : AtomReducer) (fuel : Nat) (states : List MatchingState)
-    (answerTypes : List Ty) : Prop :=
+    (bindingsInvariant : MatchingBindingsInvariant) (reduceAtom : AtomReducer)
+    (fuel : Nat) (states : List MatchingState) (answerTypes : List Ty) : Prop :=
   ∀ state ∈ states,
-    EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom fuel
-      state answerTypes
+    EnvironmentIndexedMatchingStateTyping environmentInvariant
+      bindingsInvariant reduceAtom fuel state answerTypes
 
 theorem EnvironmentIndexedMatchingStatesTyping.previous
     (typing : EnvironmentIndexedMatchingStatesTyping environmentInvariant
-      reduceAtom (fuel + 1) states answerTypes) :
-    EnvironmentIndexedMatchingStatesTyping environmentInvariant reduceAtom fuel
-      states answerTypes := by
+      bindingsInvariant reduceAtom (fuel + 1) states answerTypes) :
+    EnvironmentIndexedMatchingStatesTyping environmentInvariant
+      bindingsInvariant reduceAtom fuel states answerTypes := by
   intro state member
   exact (typing state member).previous
 
@@ -141,21 +150,23 @@ fuel certificate but still strictly local: a hit stores only its immediate
 successors, recursively, and never stores a complete-search result. -/
 inductive EnvironmentIndexedFiniteMatchingStateTyping
     (environmentInvariant : MatchingEnvironmentInvariant)
+    (bindingsInvariant : MatchingBindingsInvariant)
     (reduceAtom : AtomReducer) : MatchingState → List Ty → Prop where
   | yield
       (environmentTyped : environmentInvariant environment environmentTypes)
-      (bindingsTyped : ValueTypings bindings answerTypes) :
+      (bindingsTyped : bindingsInvariant bindings answerTypes) :
       EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-        reduceAtom ⟨[], environment, bindings⟩ answerTypes
+        bindingsInvariant reduceAtom ⟨[], environment, bindings⟩ answerTypes
   | timeout
       (environmentTyped : environmentInvariant environment environmentTypes)
-      (bindingsTyped : ValueTypings bindings bindingTypes)
+      (bindingsTyped : bindingsInvariant bindings bindingTypes)
       (reduced : reduceAtom (bindings ++ environment) atom = .timeout) :
       EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-        reduceAtom ⟨atom :: remaining, environment, bindings⟩ answerTypes
+        bindingsInvariant reduceAtom
+        ⟨atom :: remaining, environment, bindings⟩ answerTypes
   | hit
       (environmentTyped : environmentInvariant environment environmentTypes)
-      (bindingsTyped : ValueTypings bindings bindingTypes)
+      (bindingsTyped : bindingsInvariant bindings bindingTypes)
       (reduction : AtomReduction)
       (reduced : reduceAtom (bindings ++ environment) atom =
         .ok (.hit reduction))
@@ -163,18 +174,19 @@ inductive EnvironmentIndexedFiniteMatchingStateTyping
         MatchingState.successors
           ⟨atom :: remaining, environment, bindings⟩ remaining reduction,
         EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-          reduceAtom successor answerTypes) :
+          bindingsInvariant reduceAtom successor answerTypes) :
       EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-        reduceAtom ⟨atom :: remaining, environment, bindings⟩ answerTypes
+        bindingsInvariant reduceAtom
+        ⟨atom :: remaining, environment, bindings⟩ answerTypes
 
 /-- A finite local-reduction tree supplies the bounded certificate at every
 DFS index. -/
 theorem EnvironmentIndexedFiniteMatchingStateTyping.toFuel
     (typing : EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-      reduceAtom state answerTypes) :
+      bindingsInvariant reduceAtom state answerTypes) :
     ∀ fuel,
-      EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom fuel
-        state answerTypes := by
+      EnvironmentIndexedMatchingStateTyping environmentInvariant
+        bindingsInvariant reduceAtom fuel state answerTypes := by
   intro fuel
   induction fuel generalizing state with
   | zero =>
@@ -197,25 +209,30 @@ theorem EnvironmentIndexedFiniteMatchingStateTyping.toFuel
             exact induction (successorsTyped successor member)))
 
 /-- Local reducer certificates lift to the exact bounded DFS implementation.
-Every returned answer has ordinary pointwise value typing, while the ordinary
-environment itself is governed only by the caller-selected invariant. -/
-theorem depthFirstMatching_environmentIndexedTypedSafe
+The fixed environment and every returned answer use the two independently
+selected relations. -/
+theorem depthFirstMatching_environmentIndexedSafeWith
     (statesTyped : EnvironmentIndexedMatchingStatesTyping environmentInvariant
-      reduceAtom fuel states answerTypes) :
-    TypedMatchingSearchResult answerTypes
+      bindingsInvariant reduceAtom fuel states answerTypes) :
+    MatchingSearchResultSafeWith bindingsInvariant answerTypes
       (depthFirstFuel (stepMatchingState reduceAtom) fuel states) := by
   induction fuel generalizing states with
   | zero =>
       cases states with
-      | nil => exact .inr ⟨[], rfl, by simp [MatchingAnswersTyping]⟩
+      | nil => exact .inr ⟨[], rfl, by
+          intro answer member
+          simp at member⟩
       | cons state rest => exact .inl rfl
   | succ fuel induction =>
       cases states with
-      | nil => exact .inr ⟨[], rfl, by simp [MatchingAnswersTyping]⟩
+      | nil => exact .inr ⟨[], rfl, by
+          intro answer member
+          simp at member⟩
       | cons state rest =>
           have stateTyped := statesTyped state (by simp)
           have restTyped : EnvironmentIndexedMatchingStatesTyping
-              environmentInvariant reduceAtom fuel rest answerTypes := by
+              environmentInvariant bindingsInvariant reduceAtom fuel rest
+              answerTypes := by
             intro candidate member
             exact (statesTyped candidate (by simp [member])).previous
           cases stateTyped with
@@ -247,7 +264,7 @@ theorem depthFirstMatching_environmentIndexedTypedSafe
                   let successors :=
                     MatchingState.successors current remaining reduction
                   have nextTyped : EnvironmentIndexedMatchingStatesTyping
-                      environmentInvariant reduceAtom fuel
+                      environmentInvariant bindingsInvariant reduceAtom fuel
                       (successors ++ rest) answerTypes := by
                     intro candidate member
                     rcases List.mem_append.mp member with inSuccessors | inRest
@@ -263,21 +280,40 @@ theorem depthFirstMatching_environmentIndexedTypedSafe
                         simp [depthFirstFuel, stepMatchingState, reduced,
                           successors, current, searched], answersTyped⟩
 
-/-- Direct endpoint for one already evaluated target/matcher pair.  The
-initial certificate may use an invariant that accepts recursive closures in
-`environment`; no conversion to old `EnvironmentTyping` is performed. -/
-theorem searchPatternFuel_environmentIndexedTypedSafe
+/-- Direct endpoint for one already evaluated target/matcher pair under two
+caller-selected relations.  No conversion to `EnvironmentTyping` or
+`ValueTypings` is performed. -/
+theorem searchPatternFuel_environmentIndexedSafeWith
     (initialTyped : EnvironmentIndexedMatchingStateTyping environmentInvariant
-      (evaluationAtomReducer eval) fuel
+      bindingsInvariant (evaluationAtomReducer eval) fuel
       ⟨[⟨pattern, matcher, target⟩], environment, []⟩ bindingTypes) :
-    TypedMatchingSearchResult bindingTypes
+    MatchingSearchResultSafeWith bindingsInvariant bindingTypes
       (searchPatternFuel eval fuel environment pattern matcher target) := by
   unfold searchPatternFuel searchMatchingFuel
-  apply depthFirstMatching_environmentIndexedTypedSafe
+  apply depthFirstMatching_environmentIndexedSafeWith
     (environmentInvariant := environmentInvariant)
+    (bindingsInvariant := bindingsInvariant)
   intro state member
   simp only [List.mem_singleton] at member
   subst state
   exact initialTyped
+
+/-- Structural-binding specialization retained for existing callers. -/
+theorem depthFirstMatching_environmentIndexedTypedSafe
+    (statesTyped : EnvironmentIndexedMatchingStatesTyping environmentInvariant
+      ValueTypings reduceAtom fuel states answerTypes) :
+    TypedMatchingSearchResult answerTypes
+      (depthFirstFuel (stepMatchingState reduceAtom) fuel states) :=
+  depthFirstMatching_environmentIndexedSafeWith statesTyped
+
+/-- Structural-binding specialization retained for existing callers.  The
+fixed environment may still use a relation that admits recursive closures. -/
+theorem searchPatternFuel_environmentIndexedTypedSafe
+    (initialTyped : EnvironmentIndexedMatchingStateTyping environmentInvariant
+      ValueTypings (evaluationAtomReducer eval) fuel
+      ⟨[⟨pattern, matcher, target⟩], environment, []⟩ bindingTypes) :
+    TypedMatchingSearchResult bindingTypes
+      (searchPatternFuel eval fuel environment pattern matcher target) :=
+  searchPatternFuel_environmentIndexedSafeWith initialTyped
 
 end TypePM.Runtime

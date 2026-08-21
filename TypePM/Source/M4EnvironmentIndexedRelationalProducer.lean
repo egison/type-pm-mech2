@@ -129,23 +129,24 @@ theorem append
 
 end RelationalFuelIndexedMatchingAtomsTyping
 
-/-- Preservation data for one successful reduction.  Immediate bindings are
-ordinary values; every returned branch carries relational work at the strict
-predecessor index. -/
+/-- Preservation data for one successful reduction.  Immediate bindings use
+the caller-selected binding relation; every returned branch carries
+relational work at the strict predecessor index. -/
 inductive RelationalFuelIndexedAtomReductionTyping
     (atomRelation : FuelIndexedMatchingAtomRelation)
+    (bindingsInvariant : MatchingBindingsInvariant)
     (fuel : Nat) (environmentTypes bindingTypes expectedBindings : List Ty)
     (reduction : AtomReduction) : Prop where
   | intro
       (immediateTypes : List Ty)
-      (immediateTyped : ValueTypings reduction.bindings immediateTypes)
+      (immediateTyped : bindingsInvariant reduction.bindings immediateTypes)
       (branchesTyped : ∀ branch ∈ reduction.branches,
         ∃ delayedTypes,
           RelationalFuelIndexedMatchingAtomsTyping atomRelation fuel
             environmentTypes (bindingTypes ++ immediateTypes)
             branch delayedTypes ∧
           immediateTypes ++ delayedTypes = expectedBindings) :
-      RelationalFuelIndexedAtomReductionTyping atomRelation fuel
+      RelationalFuelIndexedAtomReductionTyping atomRelation bindingsInvariant fuel
         environmentTypes bindingTypes expectedBindings reduction
 
 /-- Local timeout-or-hit preservation under an arbitrary ordinary-environment
@@ -154,17 +155,18 @@ The hit premise exposes only immediate relational branch work, not successor
 state typing or a result of the complete DFS search. -/
 def EnvironmentIndexedRelationalAtomReducerTypedSafe
     (environmentInvariant : MatchingEnvironmentInvariant)
+    (bindingsInvariant : MatchingBindingsInvariant)
     (atomRelation : FuelIndexedMatchingAtomRelation)
     (reduceAtom : AtomReducer) : Prop :=
   ∀ {fuel environmentTypes bindingTypes environment bindings atom
       newBindings},
     environmentInvariant environment environmentTypes →
-    ValueTypings bindings bindingTypes →
+    bindingsInvariant bindings bindingTypes →
     atomRelation (fuel + 1) environmentTypes bindingTypes atom newBindings →
     reduceAtom (bindings ++ environment) atom = .timeout ∨
       ∃ reduction,
         reduceAtom (bindings ++ environment) atom = .ok (.hit reduction) ∧
-        RelationalFuelIndexedAtomReductionTyping atomRelation fuel
+        RelationalFuelIndexedAtomReductionTyping atomRelation bindingsInvariant fuel
           environmentTypes bindingTypes newBindings reduction
 
 namespace RelationalFuelIndexedMatchingAtomsTyping
@@ -174,14 +176,16 @@ DFS theorem.  Successful reduction work is ordered `branch ++ remaining`, and
 its immediate bindings are ordered `bindings ++ reduction.bindings`. -/
 theorem toEnvironmentIndexedState
     (downward : FuelIndexedMatchingAtomRelation.DownwardClosed atomRelation)
+    (appendClosed : MatchingBindingsInvariant.AppendClosed bindingsInvariant)
     (reducerSafe : EnvironmentIndexedRelationalAtomReducerTypedSafe
-      environmentInvariant atomRelation reduceAtom)
+      environmentInvariant bindingsInvariant atomRelation reduceAtom)
     (environmentTyped : environmentInvariant environment environmentTypes)
-    (bindingsTyped : ValueTypings bindings bindingTypes)
+    (bindingsTyped : bindingsInvariant bindings bindingTypes)
     (workTyped : RelationalFuelIndexedMatchingAtomsTyping atomRelation fuel
       environmentTypes bindingTypes work futureBindings) :
-    EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom fuel
-      ⟨work, environment, bindings⟩ (bindingTypes ++ futureBindings) := by
+    EnvironmentIndexedMatchingStateTyping environmentInvariant bindingsInvariant
+      reduceAtom fuel ⟨work, environment, bindings⟩
+      (bindingTypes ++ futureBindings) := by
   induction fuel generalizing environment bindings bindingTypes work
       futureBindings with
   | zero => exact .zero
@@ -212,7 +216,7 @@ theorem toEnvironmentIndexedState
                   RelationalFuelIndexedMatchingAtomsTyping.append downward fuel
                     branchTyped (by
                       simpa [List.append_assoc, bindingEq] using tailTyped)
-                have newBindingsTyped := bindingsTyped.append immediateTyped
+                have newBindingsTyped := appendClosed bindingsTyped immediateTyped
                 have successorTyped := induction environmentTyped
                   newBindingsTyped branchAndTail
                 have answerEq :
@@ -233,20 +237,21 @@ namespace EnvironmentIndexedAtomReducerCertificate
 and tail work. -/
 theorem ofRelationalFuelIndexedWork
     (downward : FuelIndexedMatchingAtomRelation.DownwardClosed atomRelation)
+    (appendClosed : MatchingBindingsInvariant.AppendClosed bindingsInvariant)
     (reducerSafe : EnvironmentIndexedRelationalAtomReducerTypedSafe
-      environmentInvariant atomRelation reduceAtom)
+      environmentInvariant bindingsInvariant atomRelation reduceAtom)
     (environmentTyped : environmentInvariant environment environmentTypes)
-    (bindingsTyped : ValueTypings bindings bindingTypes)
+    (bindingsTyped : bindingsInvariant bindings bindingTypes)
     (headTyped : atomRelation (fuel + 1) environmentTypes bindingTypes atom
       headBindings)
     (tailTyped : RelationalFuelIndexedMatchingAtomsTyping atomRelation fuel
       environmentTypes (bindingTypes ++ headBindings) remaining tailBindings) :
-    EnvironmentIndexedAtomReducerCertificate environmentInvariant reduceAtom
-      fuel environment bindings atom remaining
+    EnvironmentIndexedAtomReducerCertificate environmentInvariant bindingsInvariant
+      reduceAtom fuel environment bindings atom remaining
       (bindingTypes ++ (headBindings ++ tailBindings)) := by
   have stateTyped :=
     RelationalFuelIndexedMatchingAtomsTyping.toEnvironmentIndexedState
-      downward reducerSafe environmentTyped bindingsTyped
+      downward appendClosed reducerSafe environmentTyped bindingsTyped
       (RelationalFuelIndexedMatchingAtomsTyping.cons headTyped tailTyped)
   cases stateTyped with
   | reduce environmentTyped bindingsTyped atomSafe => exact atomSafe
@@ -257,18 +262,23 @@ end EnvironmentIndexedAtomReducerCertificate
 reducer law. -/
 theorem searchPatternFuel_environmentIndexedRelationalTypedSafe
     (downward : FuelIndexedMatchingAtomRelation.DownwardClosed atomRelation)
+    (emptySafe : bindingsInvariant [] [])
+    (appendClosed : MatchingBindingsInvariant.AppendClosed bindingsInvariant)
     (reducerSafe : EnvironmentIndexedRelationalAtomReducerTypedSafe
-      environmentInvariant atomRelation (evaluationAtomReducer eval))
+      environmentInvariant bindingsInvariant atomRelation
+      (evaluationAtomReducer eval))
     (environmentTyped : environmentInvariant environment environmentTypes)
     (workTyped : RelationalFuelIndexedMatchingAtomsTyping atomRelation fuel
       environmentTypes [] [⟨pattern, matcher, target⟩] bindingTypes) :
-    TypedMatchingSearchResult bindingTypes
+    MatchingSearchResultSafeWith bindingsInvariant bindingTypes
       (searchPatternFuel eval fuel environment pattern matcher target) := by
-  apply searchPatternFuel_environmentIndexedTypedSafe
+  apply searchPatternFuel_environmentIndexedSafeWith
     (environmentInvariant := environmentInvariant)
+    (bindingsInvariant := bindingsInvariant)
   simpa using
     (RelationalFuelIndexedMatchingAtomsTyping.toEnvironmentIndexedState
-      downward reducerSafe environmentTyped (.nil) workTyped)
+      downward appendClosed reducerSafe environmentTyped
+      emptySafe workTyped)
 
 /-- The existing M4 atom family viewed as an instance of the relational
 interface.  Its `user` cases still retain their old atom-environment typing

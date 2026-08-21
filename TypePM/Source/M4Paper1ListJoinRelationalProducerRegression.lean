@@ -161,6 +161,7 @@ branch work; they do not contain environment-indexed states or search output. -/
 theorem actualInnerJoin_relationalAtomReducerTypedSafe (callbackFuel : Nat) :
     EnvironmentIndexedRelationalAtomReducerTypedSafe
       (actualJoinEnvironmentInvariant callbackFuel)
+      ValueTypings
       (ActualInnerJoinAtomRelation callbackFuel)
       (evaluationAtomReducer (evalFuel callbackFuel)) := by
   intro fuel environmentTypes bindingTypes environment bindings atom
@@ -233,6 +234,8 @@ theorem innerJoin_search_relationalTypedSafe_allCallbacks
     (atomRelation := ActualInnerJoinAtomRelation callbackFuel)
     (environmentInvariant := actualJoinEnvironmentInvariant callbackFuel)
     (actualInnerJoinAtomRelation_downwardClosed callbackFuel)
+    ValueTypings.nil
+    MatchingBindingsInvariant.valueTypings_appendClosed
     (actualInnerJoin_relationalAtomReducerTypedSafe callbackFuel)
     (actualJoinEnvironmentInvariant_holds callbackFuel)
     (innerJoin_relationalWork_allCallbacks callbackFuel searchFuel)

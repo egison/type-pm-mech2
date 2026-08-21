@@ -1,5 +1,5 @@
 import TypePM.Source.FullM4Completion
-import TypePM.StepIndexedClosureSafety
+import TypePM.ValueIndexedMatchingSearchSafety
 import TypePM.Runtime.PatternFunctionNodeEvaluation
 
 /-!
@@ -97,25 +97,19 @@ structure RuntimeSafetyRelations where
 
 /-- Pointwise fuel-indexed safety of every binding environment returned by a
 completed matching search. -/
-def FuelMatchingAnswersSafe (index : Nat) (answers : List (List Value))
+abbrev FuelMatchingAnswersSafe (index : Nat) (answers : List (List Value))
     (answerTypes : List Ty) : Prop :=
-  ∀ answer ∈ answers, FuelEnvironmentSafe index answer answerTypes
+  MatchingAnswersSafeWith (FuelEnvironmentSafe index) answers answerTypes
 
 /-- Timeout or a completed list of pointwise fuel-indexed matching answers. -/
-def FuelMatchingSearchResultSafe (index : Nat) (answerTypes : List Ty)
+abbrev FuelMatchingSearchResultSafe (index : Nat) (answerTypes : List Ty)
     (result : FuelResult (List (List Value))) : Prop :=
-  result = .timeout ∨
-    ∃ answers, result = .ok answers ∧
-      FuelMatchingAnswersSafe index answers answerTypes
+  MatchingSearchResultSafeWith (FuelEnvironmentSafe index) answerTypes result
 
 theorem FuelMatchingSearchResultSafe.notStuck
     (safe : FuelMatchingSearchResultSafe index answerTypes result) :
-    result.NotStuck := by
-  rcases safe with timeout | ⟨answers, success, _⟩
-  · rw [timeout]
-    trivial
-  · rw [success]
-    trivial
+    result.NotStuck :=
+  MatchingSearchResultSafeWith.notStuck safe
 
 /-- Existing fuel-indexed value/environment relations form one coherent
 safety package.  This declaration does not claim the full M4 preservation

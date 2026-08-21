@@ -188,6 +188,108 @@ theorem FuelValueSafe.previous
     FuelValueSafe fuel value target := by
   cases safe <;> assumption
 
+/-- Step-indexed value safety is downward closed: a certificate at a larger
+logical index can be used at every smaller index. -/
+theorem FuelValueSafe.mono
+    (safe : FuelValueSafe larger value target)
+    (smaller_le : smaller ≤ larger) :
+    FuelValueSafe smaller value target := by
+  induction larger generalizing smaller with
+  | zero =>
+      have smaller_eq : smaller = 0 := Nat.eq_zero_of_le_zero smaller_le
+      subst smaller
+      exact safe
+  | succ larger induction =>
+      by_cases equal : smaller = larger + 1
+      · subst smaller
+        exact safe
+      · have smaller_le_larger : smaller ≤ larger := by omega
+        exact induction safe.previous smaller_le_larger
+
+namespace FuelEnvironmentSafe
+
+/-- Forget the current environment-safety layer pointwise. -/
+theorem previous
+    (safe : FuelEnvironmentSafe (fuel + 1) values targets) :
+    FuelEnvironmentSafe fuel values targets := by
+  refine ⟨safe.1, ?_⟩
+  intro index target found
+  obtain ⟨value, valueFound, valueSafe⟩ := safe.2 index target found
+  exact ⟨value, valueFound, valueSafe.previous⟩
+
+/-- Environment safety is downward closed in its logical index. -/
+theorem mono
+    (safe : FuelEnvironmentSafe larger values targets)
+    (smaller_le : smaller ≤ larger) :
+    FuelEnvironmentSafe smaller values targets := by
+  refine ⟨safe.1, ?_⟩
+  intro index target found
+  obtain ⟨value, valueFound, valueSafe⟩ := safe.2 index target found
+  exact ⟨value, valueFound, valueSafe.mono smaller_le⟩
+
+/-- Concatenating equally indexed safe environments preserves source order
+and pointwise safety. -/
+theorem append
+    (left : FuelEnvironmentSafe fuel leftValues leftTargets)
+    (right : FuelEnvironmentSafe fuel rightValues rightTargets) :
+    FuelEnvironmentSafe fuel (leftValues ++ rightValues)
+      (leftTargets ++ rightTargets) := by
+  induction leftValues generalizing leftTargets with
+  | nil =>
+      cases leftTargets with
+      | nil => simpa using right
+      | cons target targets =>
+          have impossible := left.1
+          simp at impossible
+  | cons value values induction =>
+      cases leftTargets with
+      | nil =>
+          have impossible := left.1
+          simp at impossible
+      | cons target targets =>
+          have headSafe : FuelValueSafe fuel value target := by
+            obtain ⟨foundValue, found, safe⟩ := left.2 0 target (by simp)
+            simp at found
+            subst foundValue
+            exact safe
+          have tailSafe : FuelEnvironmentSafe fuel values targets := by
+            refine ⟨by simpa using left.1, ?_⟩
+            intro index tailTarget found
+            simpa only [List.getElem?_cons_succ] using
+              left.2 (index + 1) tailTarget (by
+                simpa only [List.getElem?_cons_succ] using found)
+          simpa using FuelEnvironmentSafe.cons headSafe
+            (induction tailSafe)
+
+/-- A positive-index environment certificate exposes the corresponding
+pointwise positive layer. -/
+theorem toPositiveValueSafes :
+    ∀ {values targets},
+      FuelEnvironmentSafe (fuel + 1) values targets →
+        PositiveValueSafes fuel (FuelValueSafe fuel) values targets
+  | [], [], _ => .nil
+  | [], _ :: _, safe => by
+      have impossible : False := by simpa using safe.1
+      exact impossible.elim
+  | _ :: _, [], safe => by
+      have impossible : False := by simpa using safe.1
+      exact impossible.elim
+  | value :: values, target :: targets, safe => by
+      obtain ⟨headValue, headFound, headSafe⟩ :=
+        safe.2 0 target (by simp)
+      simp at headFound
+      subst headValue
+      have tailSafe : FuelEnvironmentSafe (fuel + 1) values targets := by
+        refine ⟨by simpa using safe.1, ?_⟩
+        intro index tailTarget found
+        simpa only [List.getElem?_cons_succ] using
+          safe.2 (index + 1) tailTarget (by
+            simpa only [List.getElem?_cons_succ] using found)
+      exact .cons (by simpa [FuelValueSafe] using headSafe)
+        tailSafe.toPositiveValueSafes
+
+end FuelEnvironmentSafe
+
 /-- The index-zero boundary is unconditional, as required by the guarded
 recursive occurrence. -/
 theorem fuelValueSafe_zero (value : Value) (target : Ty) :
@@ -221,6 +323,18 @@ theorem fuelValueSafe_tuple
     (items : PositiveValueSafes fuel (FuelValueSafe fuel) values fields) :
     FuelValueSafe (fuel + 1) (.tuple values) (.prod fields) :=
   .tuple lower items
+
+/-- A tuple built from a fuel-safe heterogeneous environment is fuel-safe at
+the product of the same types. -/
+theorem fuelValueSafe_tuple_of_environment :
+    ∀ fuel values targets,
+      FuelEnvironmentSafe fuel values targets →
+        FuelValueSafe fuel (.tuple values) (.prod targets)
+  | 0, _, _, _ => fuelValueSafe_zero _ _
+  | fuel + 1, values, targets, safe =>
+      fuelValueSafe_tuple
+        (fuelValueSafe_tuple_of_environment fuel values targets safe.previous)
+        safe.toPositiveValueSafes
 
 /-- Canonical Lists are pointwise safe at the same positive index. -/
 theorem fuelValueSafe_list

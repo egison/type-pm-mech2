@@ -87,8 +87,9 @@ theorem toEnvironmentIndexedState
     (bindingsTyped : ValueTypings bindings bindingTypes)
     (workTyped : FuelIndexedRecursiveMatchingAtomsTyping expressionTyping eval
       fuel environmentTypes bindingTypes work futureBindings) :
-    EnvironmentIndexedMatchingStateTyping environmentInvariant reduceAtom fuel
-      ⟨work, environment, bindings⟩ (bindingTypes ++ futureBindings) := by
+    EnvironmentIndexedMatchingStateTyping environmentInvariant ValueTypings
+      reduceAtom fuel ⟨work, environment, bindings⟩
+      (bindingTypes ++ futureBindings) := by
   induction fuel generalizing environment bindings bindingTypes work
       futureBindings with
   | zero =>
@@ -152,8 +153,8 @@ theorem ofFuelIndexedRecursiveWork
     (tailTyped : FuelIndexedRecursiveMatchingAtomsTyping expressionTyping eval
       fuel environmentTypes (bindingTypes ++ headBindings) remaining
       tailBindings) :
-    EnvironmentIndexedAtomReducerCertificate environmentInvariant reduceAtom
-      fuel environment bindings atom remaining
+    EnvironmentIndexedAtomReducerCertificate environmentInvariant ValueTypings
+      reduceAtom fuel environment bindings atom remaining
       (bindingTypes ++ (headBindings ++ tailBindings)) := by
   have stateTyped :=
     FuelIndexedRecursiveMatchingAtomsTyping.toEnvironmentIndexedState

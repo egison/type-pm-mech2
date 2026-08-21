@@ -266,10 +266,11 @@ private theorem delegatedVar_then
     (environmentTyped : environmentInvariant environment environmentTypes)
     (bindingsTyped : ValueTypings bindings bindingTypes)
     (tailTyped : EnvironmentIndexedFiniteMatchingStateTyping
-      environmentInvariant (evaluationAtomReducer (evalFuel callbackFuel))
+      environmentInvariant ValueTypings
+      (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨remaining, environment, bindings ++ [target]⟩ answerTypes) :
     EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-      (evaluationAtomReducer (evalFuel callbackFuel))
+      ValueTypings (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨delegatedVarAtom target :: remaining, environment, bindings⟩
       answerTypes := by
   apply EnvironmentIndexedFiniteMatchingStateTyping.hit environmentTyped
@@ -281,7 +282,8 @@ private theorem delegatedVar_then
     List.map_singleton, List.mem_singleton] at member
   subst successor
   have primitiveStep : EnvironmentIndexedFiniteMatchingStateTyping
-      environmentInvariant (evaluationAtomReducer (evalFuel callbackFuel))
+      environmentInvariant ValueTypings
+      (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨primitiveVarAtom target :: remaining, environment, bindings⟩
       answerTypes := by
     apply EnvironmentIndexedFiniteMatchingStateTyping.hit environmentTyped
@@ -302,15 +304,16 @@ private theorem delegatedVarPair_finiteTyped
     (firstTyped : ValueTyping first listType)
     (secondTyped : ValueTyping second listType) :
     EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-      (evaluationAtomReducer (evalFuel callbackFuel))
+      ValueTypings (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨[delegatedVarAtom first, delegatedVarAtom second], environment, []⟩
       [listType, listType] := by
   have done : EnvironmentIndexedFiniteMatchingStateTyping environmentInvariant
-      (evaluationAtomReducer (evalFuel callbackFuel))
+      ValueTypings (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨[], environment, [first, second]⟩ [listType, listType] :=
     .yield environmentTyped (.cons firstTyped (.cons secondTyped .nil))
   have second : EnvironmentIndexedFiniteMatchingStateTyping
-      environmentInvariant (evaluationAtomReducer (evalFuel callbackFuel))
+      environmentInvariant ValueTypings
+      (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨[delegatedVarAtom second], environment, [first]⟩
       [listType, listType] := by
     apply delegatedVar_then callbackFuel enough environmentTyped
@@ -326,6 +329,7 @@ is also a stable local hit. -/
 theorem innerJoin_finiteStateTyped_allCallbacks (callbackFuel : Nat) :
     EnvironmentIndexedFiniteMatchingStateTyping
       (actualJoinEnvironmentInvariant callbackFuel)
+      ValueTypings
       (evaluationAtomReducer (evalFuel callbackFuel))
       ⟨[innerJoinAtom], actualJoinConsEnvironment, []⟩
       [listType, listType] := by

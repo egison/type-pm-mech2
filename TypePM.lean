@@ -215,6 +215,8 @@ import TypePM.TotalPlainClosureSafety
 import TypePM.TotalPlainClosureSafetyRegression
 import TypePM.StepIndexedClosureSafety
 import TypePM.StepIndexedPaper1ListSafetyRegression
+import TypePM.ValueIndexedMatchingSearchSafety
+import TypePM.TwoIndexMatchingSearchSafety
 import TypePM.ValueIndexedMatchAllSafety
 import TypePM.ValueIndexedPaper1ListJoinMatchAllSafetyRegression
 import TypePM.ValueIndexedStableFirstOrderSafety
@@ -262,6 +264,7 @@ import TypePM.Source.M4EnvironmentIndexedFuelRecursiveProducer
 import TypePM.Source.M4EnvironmentIndexedRelationalProducer
 import TypePM.Source.M4Paper1ListJoinEnvironmentIndexedSearchRegression
 import TypePM.Source.M4Paper1ListJoinRelationalProducerRegression
+import TypePM.Source.M4TwoIndexRecursiveClosureSearchRegression
 import TypePM.Source.M4RecursiveElaboration
 import TypePM.Source.M4RecursiveElaborationRegression
 import TypePM.Source.MatcherDemandRegression
